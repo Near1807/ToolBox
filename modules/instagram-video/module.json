@@ -1,0 +1,38 @@
+{
+  "id": "instagram-video",
+  "name": "Reel Instagram",
+  "description": "Un extrait vertical 9:16 de ton morceau, pour Instagram et les YouTube Shorts.",
+  "version": "1.0.0",
+  "section": "Musique",
+  "icon": "📱",
+  "order": 30,
+  "dependsOn": {
+    "modules": ["music-library", "video-engine"],
+    "services": ["musicLibrary", "videoEngine"]
+  },
+  "settings": [
+    {
+      "key": "defaultDuration",
+      "type": "number",
+      "label": "Durée par défaut de l'extrait (secondes)",
+      "min": 15,
+      "max": 90,
+      "step": 1,
+      "default": 30
+    },
+    {
+      "key": "callToAction",
+      "type": "string",
+      "label": "Phrase de la légende",
+      "description": "Ajoutée sous le titre dans la légende.",
+      "default": "Version complète : lien en bio 🎧"
+    },
+    {
+      "key": "hashtags",
+      "type": "string",
+      "label": "Hashtags par défaut",
+      "description": "Ajoutés après les tags du morceau.",
+      "placeholder": "#music #reels"
+    }
+  ]
+}
