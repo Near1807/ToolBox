@@ -12,13 +12,13 @@ Base commune de la section Musique : tes morceaux (son, cover, infos), utilisés
 
 ## Données
 
-| Élément         | Détail                                                                                                                                                                          |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Tables          | `music_library__tracks` (métadonnées, chemins relatifs des fichiers) · `music_library__outputs` (fichiers générés depuis un morceau) — migration 1                              |
-| Fichiers        | `<userData>/modules/music-library/tracks/<id>/audio.<ext>` et `cover-<horodatage>.<ext>`                                                                                        |
-| Réglages        | `defaultArtist`                                                                                                                                                                 |
-| Événements émis | `music-library:track.created`, `music-library:track.updated`, `music-library:track.deleted` — `{ id }`                                                                          |
-| Service fourni  | `musicLibrary` (types dans [`contract.ts`](contract.ts)) : `listTracks()`, `getTrack(id)`, `recordOutput(trackId, { moduleId, kind, label, filePath })`, `listOutputs(trackId)` |
+| Élément         | Détail                                                                                                                                                                                                                                                                                                                     |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tables          | `music_library__tracks` (métadonnées, chemins relatifs des fichiers) · `music_library__outputs` (fichiers générés depuis un morceau) — migration 1                                                                                                                                                                         |
+| Fichiers        | `<userData>/modules/music-library/tracks/<id>/audio.<ext>` et `cover-<horodatage>.<ext>`                                                                                                                                                                                                                                   |
+| Réglages        | `defaultArtist`                                                                                                                                                                                                                                                                                                            |
+| Événements émis | `music-library:track.created`, `music-library:track.updated`, `music-library:track.deleted` — `{ id }`                                                                                                                                                                                                                     |
+| Service fourni  | `musicLibrary` (types dans [`contract.ts`](contract.ts)) : `listTracks()`, `getTrack(id)`, `recordOutput(trackId, { moduleId, kind, label, filePath })`, `listOutputs(trackId)`, `registerTrackInfo({ moduleId, label, get(trackId) })` (ligne d'information affichée sur la fiche du morceau, ex. état du pack Instagram) |
 
 Supprimer un morceau efface les copies de son et de cover, et la liste de ses fichiers générés. Les fichiers d'origine et les vidéos déjà générées ne sont jamais touchés.
 

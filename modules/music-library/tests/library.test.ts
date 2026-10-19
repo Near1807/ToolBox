@@ -180,6 +180,33 @@ describe('music-library', () => {
   });
 });
 
+describe('track infos from other modules', () => {
+  it('shows lines provided by other modules and ignores failing providers', async () => {
+    const hub = await createTestHub({ modules: [musicLibrary, consumer] });
+    try {
+      const { body: track } = await hub.request<TrackDto>('POST', `${API}/tracks`, {
+        audioPath: media.wav,
+      });
+      library.registerTrackInfo({
+        moduleId: 'consumer',
+        label: 'Pack',
+        get: (id) => (id === track.id ? '2/5 publiés' : null),
+      });
+      library.registerTrackInfo({
+        moduleId: 'consumer',
+        label: 'Cassé',
+        get: () => {
+          throw new Error('boom');
+        },
+      });
+      const { body } = await hub.request<{ infos: unknown[] }>('GET', `${API}/tracks/${track.id}`);
+      expect(body.infos).toEqual([{ moduleId: 'consumer', label: 'Pack', value: '2/5 publiés' }]);
+    } finally {
+      await hub.close();
+    }
+  });
+});
+
 describe('helpers', () => {
   it('derives a clean title from the file name', () => {
     expect(titleFromFileName('C:/Music/03 - night_drive.wav')).toBe('night drive');

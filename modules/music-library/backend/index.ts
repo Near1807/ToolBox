@@ -9,6 +9,7 @@ import {
   type Track,
   type TrackDto,
   type TrackOutput,
+  type TrackInfoProvider,
   type TrackOutputDto,
 } from '../contract';
 import { Library } from './library';
@@ -92,12 +93,30 @@ export default defineBackendModule({
 
   register(ctx) {
     const library = new Library(ctx);
+    const infoProviders = new Set<TrackInfoProvider>();
+
+    const trackInfos = (trackId: number) =>
+      [...infoProviders].flatMap((provider) => {
+        try {
+          const value = provider.get(trackId);
+          return value === null
+            ? []
+            : [{ moduleId: provider.moduleId, label: provider.label, value }];
+        } catch (error) {
+          ctx.logger.warn(`Info « ${provider.label} » indisponible (${provider.moduleId})`, error);
+          return [];
+        }
+      });
 
     const service: MusicLibraryService = {
       listTracks: () => library.list(),
       getTrack: (id) => library.get(id),
       recordOutput: (trackId, output) => library.recordOutput(trackId, output),
       listOutputs: (trackId) => library.listOutputs(trackId),
+      registerTrackInfo: (provider) => {
+        infoProviders.add(provider);
+        return () => infoProviders.delete(provider);
+      },
     };
     ctx.services.provide(MUSIC_LIBRARY_SERVICE, service);
 
@@ -108,6 +127,7 @@ export default defineBackendModule({
       return {
         ...toDto(ctx, track),
         outputs: library.listOutputs(track.id).map((o) => toOutputDto(ctx, o)),
+        infos: trackInfos(track.id),
       };
     });
 

@@ -42,6 +42,14 @@ export interface TrackOutput {
   createdAt: string;
 }
 
+/** A line of information another module shows on the track page (e.g. "Pack Instagram : 2/5 publiés"). */
+export interface TrackInfoProvider {
+  moduleId: string;
+  label: string;
+  /** Short text for this track, or null when there is nothing to show. */
+  get(trackId: number): string | null;
+}
+
 export interface MusicLibraryService {
   listTracks(): Track[];
   getTrack(id: number): Track | null;
@@ -51,6 +59,8 @@ export interface MusicLibraryService {
     output: { moduleId: string; kind: string; label: string; filePath: string },
   ): TrackOutput;
   listOutputs(trackId: number): TrackOutput[];
+  /** Adds a line to the track page; returns a function that removes it. */
+  registerTrackInfo(provider: TrackInfoProvider): () => void;
 }
 
 /** Track as sent to the UI (with media URLs). */

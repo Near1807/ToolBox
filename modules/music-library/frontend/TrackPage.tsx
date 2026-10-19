@@ -1,4 +1,4 @@
-import { useState, type DragEvent } from 'react';
+import { Fragment, useState, type DragEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import {
   Button,
@@ -16,7 +16,11 @@ import type { TrackDto, TrackOutputDto } from '../contract';
 import { CoverImage } from './CoverImage';
 import { IMAGE_EXTENSIONS } from './pairing';
 
-type TrackDetail = TrackDto & { outputs: TrackOutputDto[] };
+type TrackDetail = TrackDto & {
+  outputs: TrackOutputDto[];
+  /** Lines added by other modules (e.g. Instagram pack status). */
+  infos: { moduleId: string; label: string; value: string }[];
+};
 
 interface FormState {
   title: string;
@@ -153,6 +157,12 @@ export function TrackPage() {
             )}
             <dt>Fichier</dt>
             <dd className="ml-break">{data.originalAudioName}</dd>
+            {data.infos.map((info) => (
+              <Fragment key={`${info.moduleId}-${info.label}`}>
+                <dt>{info.label}</dt>
+                <dd>{info.value}</dd>
+              </Fragment>
+            ))}
           </dl>
         </div>
 
