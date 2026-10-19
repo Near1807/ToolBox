@@ -4,10 +4,10 @@ Moteur de rendu **unique** partagé par les générateurs (YouTube, Instagram) :
 
 ## Style visuel (V1)
 
-- Fond : la cover agrandie, floutée, assombrie, avec vignettage.
+- Fond : un dégradé doux aux couleurs de la cover (la cover entière réduite à une grille de couleurs moyennes, agrandie et floutée : pas de taches), assombri sur les bords et nettement vers le bas pour la lisibilité des barres.
 - Au centre : la cover nette, coins arrondis, ombre portée, **zoom lent** sur toute la durée.
-- Barres de spectre audio-réactives (`showcqt`), blanches semi-transparentes.
-- Titre et artiste en Montserrat SemiBold (police embarquée, licence OFL : `assets/fonts/OFL.txt`).
+- Barres de spectre audio-réactives (`showcqt`, échelle de fréquences logarithmique de 45 Hz à 8 kHz), blanches semi-transparentes. Sur la branche de visualisation seulement, les aigus sont relevés de +4 dB/octave (max +15 dB) et l'amplitude est compressée : le mouvement se répartit sur toute la largeur au lieu de rester dans les graves.
+- Titre et artiste (artiste en capitales, blanc opaque, ombre marquée) en Montserrat SemiBold (police embarquée, licence OFL : `assets/fonts/OFL.txt`).
 - Léger grain, fondus d'entrée et de sortie (image et son).
 
 La pulsation de la cover sur les basses n'est pas en V1 (voir `docs/ROADMAP.md`).
@@ -25,7 +25,8 @@ Aperçu : quelques secondes à un tiers de la résolution, encodage rapide, sans
 
 1. Deux images préparées une fois par rendu : `background.png` (fond) et `card.png` (cover arrondie + ombre).
 2. Un fichier `text.ass` (titre, artiste) rendu par libass, avec un `fonts.conf` limité à la police embarquée.
-3. Le rendu principal (`buildRenderArgs`) : graphe FFmpeg sans aucun chemin absolu (FFmpeg tourne dans le dossier de travail), progression réelle via `-progress`, annulation (le process est tué, le fichier partiel supprimé).
+3. **La bande-son** (`soundtrack.m4a`) : extrait, fondus, limiteur de crête sur un signal suréchantillonné ×4 (plafond -1,5 dBFS, sans gain de compensation), encodage AAC. Le **true peak de l'AAC encodé est mesuré** (`ebur128`) : s'il dépasse **-1 dBTP**, le plafond est abaissé d'autant et le son ré-encodé (4 essais au plus ; sinon le rendu échoue avec un message clair). Les aperçus font une seule passe.
+4. Le rendu principal (`buildRenderArgs`) : graphe FFmpeg sans aucun chemin absolu (FFmpeg tourne dans le dossier de travail), progression réelle via `-progress`, annulation (le process est tué, le fichier partiel supprimé). La bande-son vérifiée y est **copiée** (`-c:a copy`), jamais ré-encodée.
 
 Toutes les commandes sont construites par des **fonctions pures** (`backend/commands.ts`), testées sans FFmpeg ; des tests lancent aussi de vrais rendus courts.
 

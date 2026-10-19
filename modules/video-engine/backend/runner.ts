@@ -10,7 +10,8 @@ export class RenderCancelled extends Error {
 
 /**
  * Runs FFmpeg, reports the encoded position (seconds) from `-progress pipe:1`,
- * and kills it when `signal` aborts. Rejects with the end of FFmpeg's error output.
+ * and kills it when `signal` aborts. Resolves with the end of FFmpeg's error
+ * output (where filters such as ebur128 print their reports); rejects with it on failure.
  */
 export function runFfmpeg(options: {
   ffmpeg: string;
@@ -19,7 +20,7 @@ export function runFfmpeg(options: {
   env?: NodeJS.ProcessEnv;
   signal?: AbortSignal;
   onTime?: (seconds: number) => void;
-}): Promise<void> {
+}): Promise<string> {
   return new Promise((resolve, reject) => {
     if (options.signal?.aborted) return reject(new RenderCancelled());
 
@@ -44,7 +45,7 @@ export function runFfmpeg(options: {
       }
     });
     child.stderr.on('data', (chunk: Buffer) => {
-      stderr = (stderr + chunk.toString()).slice(-4000);
+      stderr = (stderr + chunk.toString()).slice(-8000);
     });
 
     child.on('error', (error) => {
@@ -54,7 +55,7 @@ export function runFfmpeg(options: {
     child.on('close', (code) => {
       options.signal?.removeEventListener('abort', onAbort);
       if (options.signal?.aborted) return reject(new RenderCancelled());
-      if (code === 0) return resolve();
+      if (code === 0) return resolve(stderr);
       const detail = stderr.trim().split('\n').slice(-3).join(' | ');
       reject(new Error(`FFmpeg a échoué (code ${code})${detail ? ` : ${detail}` : ''}`));
     });

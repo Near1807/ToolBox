@@ -4,6 +4,20 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.5.1] — 2026-10-19
+
+Retours sur la première vidéo YouTube (moteur vidéo : YouTube et Instagram en profitent).
+
+### Modifié
+
+- **Fond** : dégradé doux aux couleurs de la cover au lieu d'un agrandissement flouté (plus de grosses taches), assombri vers le bas pour la lisibilité de la visualisation.
+- **Spectre** : mouvement réparti sur toute la largeur (échelle logarithmique 45 Hz–8 kHz, aigus relevés et amplitude compressée sur la seule visualisation), barres plus hautes.
+- **Nom d'artiste** : plus grand, blanc opaque, ombre plus marquée.
+
+### Corrigé
+
+- **Niveau crête du son** : limiteur sur signal suréchantillonné avant l'encodage AAC, puis mesure du true peak de l'AAC encodé et ré-encodage si besoin : la bande-son ne dépasse jamais -1 dBTP (elle pouvait atteindre +0,4 dBFS).
+
 ## [0.5.0] — 2026-10-19
 
 Phase 4 : le Reel Instagram.
