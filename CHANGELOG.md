@@ -4,6 +4,23 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.4.0] — 2026-10-19
+
+Phases 2 et 3 : la section Musique prend vie.
+
+### Ajouté
+
+- **Bibliothèque** (`music-library`) : ajout de morceaux par glisser-déposer (son WAV/MP3/FLAC + cover JPG/PNG) ou par sélecteur, fichiers copiés dans ToolBox, métadonnées lues avec ffprobe (dont titre/artiste intégrés au fichier), grille avec recherche et mini-lecteur, fiche morceau (édition, cover, lecteur, vidéos générées, suppression), artiste par défaut réglable. Service `musicLibrary` pour les autres outils.
+- **Moteur vidéo** (`video-engine`) : rendu unique partagé par les générateurs. Fond flouté, cover nette arrondie avec ombre et zoom lent, barres de spectre audio-réactives, titre et artiste en Montserrat (embarquée), grain, fondus image et son. H.264 + AAC, yuv420p, 30 i/s, débits recommandés YouTube/Instagram. Progression réelle, annulation, un rendu à la fois, aperçu rapide en basse résolution.
+- **Vidéo YouTube** (`youtube-video`) : vidéo 16:9 du morceau entier, aperçu de 6 s, rendu en tâche de fond, titre et description prêts à copier (liens et hashtags réglables), « Ouvrir le dossier ». Publication directe préparée (pas encore active).
+- Socle : URL signées pour afficher images, sons et vidéos ; assets propres aux modules (polices…) ; accès aux binaires FFmpeg/FFprobe ; sélecteurs de fichiers natifs et chemin des fichiers glissés-déposés.
+- L'auto-test du `.exe` vérifie que tous les modules se chargent dans l'app empaquetée.
+- Documentation : contrat de module complété, ADR 0012, README de chaque module.
+
+### Modifié
+
+- Les modules de service (sans page) n'apparaissent plus sur l'accueil (ils restent visibles dans Réglages › Modules).
+
 ## [0.2.0] — 2026-10-19
 
 Phase 1 : le socle et le système de modules.

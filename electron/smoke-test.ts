@@ -53,6 +53,15 @@ export async function runSmokeTest(
       template?.status === 'loaded',
       template?.error ?? template?.status ?? 'absent',
     );
+    // Every bundled module must load in the packaged app (assets unpacked, dependencies met…).
+    const broken = modules.filter((m) => m.status !== 'loaded');
+    check(
+      'all-modules-loaded',
+      broken.length === 0,
+      broken.length === 0
+        ? `${modules.length} module(s)`
+        : broken.map((m) => `${m.id}: ${m.error ?? m.status}`).join(' ; '),
+    );
     const created = await fetch(`${apiUrl}/api/modules/template/notes`, {
       method: 'POST',
       headers: authed,
