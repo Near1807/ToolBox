@@ -390,7 +390,8 @@ select.input {
 
 .toolbar {
   display: flex;
-  gap: 8px;
+  align-items: center;
+  gap: 12px;
   margin-bottom: 16px;
 }
 

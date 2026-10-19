@@ -8,6 +8,8 @@ import { pathToFileURL } from 'node:url';
 import type { BackendModule } from './backend';
 import { createNullHost, type HostAdapter } from '../../backend/core/host';
 import type { DiscoveredModule, Hub } from '../../backend/core/hub';
+
+export type { DiscoveredModule } from '../../backend/core/hub';
 import { TOKEN_HEADER } from '../../backend/core/security';
 import { buildServer } from '../../backend/server';
 import type { FastifyInstance } from 'fastify';
@@ -59,6 +61,8 @@ export async function createTestHub(options: {
   dataDir?: string;
   host?: HostAdapter;
   loadExamples?: boolean;
+  /** Defaults to the repository's modules/ folder. */
+  assetsRoot?: string;
 }): Promise<TestHub> {
   const dataDir = options.dataDir ?? mkdtempSync(path.join(tmpdir(), 'toolbox-test-'));
   const built = await buildServer({
@@ -68,6 +72,7 @@ export async function createTestHub(options: {
     host: options.host ?? createTestHost(),
     modules: options.modules,
     loadExamples: options.loadExamples ?? true,
+    assetsRoot: options.assetsRoot ?? path.resolve(import.meta.dirname, '../../modules'),
   });
   built.setPort(TEST_PORT);
 

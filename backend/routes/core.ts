@@ -98,6 +98,21 @@ export function registerCoreRoutes(app: FastifyInstance, hub: Hub, appVersion: s
     },
   );
 
+  app.post<{
+    Body: {
+      title?: string;
+      filters?: { name: string; extensions: string[] }[];
+      multiple?: boolean;
+    };
+  }>('/api/core/dialogs/select-files', async (request) => {
+    const files = await hub.host.selectFiles({
+      title: request.body?.title ?? 'Choisir des fichiers',
+      filters: request.body?.filters,
+      multiple: request.body?.multiple,
+    });
+    return { files };
+  });
+
   // Jobs ------------------------------------------------------------------
 
   app.get<{ Querystring: { module?: string } }>('/api/core/jobs', async (request) =>

@@ -49,7 +49,7 @@ export function defineFrontendModule(module: FrontendModule): FrontendModule {
 
 declare global {
   interface Window {
-    toolbox?: { token: string };
+    toolbox?: { token: string; getPathForFile?: (file: File) => string };
   }
 }
 
@@ -152,6 +152,63 @@ export function openEventStream(
 }
 
 // ---------------------------------------------------------------------------
+// Local files (drag & drop, file pickers, clipboard)
+// ---------------------------------------------------------------------------
+
+/**
+ * Real path of a file dropped onto the window or chosen with <input type=file>.
+ * Only available inside the desktop app (null in a regular browser): send the
+ * path to your backend, which copies the file into ctx.files.dataDir.
+ */
+export function getFilePath(file: File): string | null {
+  try {
+    return window.toolbox?.getPathForFile?.(file) || null;
+  } catch {
+    return null;
+  }
+}
+
+/** Opens the native file picker (works in the app and in the dev browser). */
+export async function pickFiles(options: {
+  title: string;
+  filters?: { name: string; extensions: string[] }[];
+  multiple?: boolean;
+}): Promise<string[]> {
+  const { files } = await api.post<{ files: string[] }>('/api/core/dialogs/select-files', options);
+  return files;
+}
+
+/** Opens the native folder picker; null when cancelled. */
+export async function pickFolder(options: {
+  title: string;
+  defaultPath?: string;
+}): Promise<string | null> {
+  const { folder } = await api.post<{ folder: string | null }>(
+    '/api/core/dialogs/select-folder',
+    options,
+  );
+  return folder;
+}
+
+/** Copies text to the clipboard; resolves to false if the browser refused. */
+export async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** 185.4 → "3:05". */
+export function formatDuration(seconds: number | null | undefined): string {
+  if (seconds === null || seconds === undefined || !Number.isFinite(seconds)) return '—';
+  const total = Math.round(seconds);
+  const minutes = Math.floor(total / 60);
+  return `${minutes}:${String(total % 60).padStart(2, '0')}`;
+}
+
+// ---------------------------------------------------------------------------
 // Hooks
 // ---------------------------------------------------------------------------
 
@@ -245,8 +302,10 @@ export interface ModuleContextValue {
   manifest: ModuleManifest;
   /** Calls this module's own routes: moduleApi.get('/notes') → GET /api/modules/<id>/notes. */
   api: typeof api;
-  /** Absolute URL of a module route, for links and EventSource. */
+  /** Absolute URL of a module API route, for links and EventSource. */
   url(path: string): string;
+  /** Router path of a module page, for <Link to> / navigate(): path('tracks/3'). */
+  path(page?: string): string;
 }
 
 const ModuleReactContext = createContext<ModuleContextValue | null>(null);
@@ -258,6 +317,7 @@ export function ModuleProvider(props: { manifest: ModuleManifest; children: Reac
     id: manifest.id,
     manifest,
     url: (path) => base + path,
+    path: (page = '') => `/m/${manifest.id}${page ? `/${page.replace(/^\//, '')}` : ''}`,
     api: {
       get: <T,>(path: string) => api.get<T>(base + path),
       post: <T,>(path: string, body?: unknown) => api.post<T>(base + path, body),

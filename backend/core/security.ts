@@ -99,6 +99,8 @@ export function registerSecurity(app: FastifyInstance, options: SecurityOptions)
 
     const path = request.url.split('?')[0] ?? '';
     if (!path.startsWith('/api/') || PUBLIC_API_ROUTES.has(path)) return;
+    // Media URLs carry their own HMAC signature (backend/core/media.ts).
+    if (request.method === 'GET' && path.startsWith('/api/media/')) return;
 
     const header = request.headers[TOKEN_HEADER];
     if (typeof header === 'string' && safeEqual(header, token)) return;

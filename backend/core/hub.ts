@@ -13,10 +13,12 @@ import { createAutomaticBackup, restoreBackup } from './backups';
 import { coreMigrations } from './core-migrations';
 import { DatabaseHandle } from './database';
 import { EventBus } from './events';
+import { getFfmpegPath, getFfprobePath } from './ffmpeg-binaries';
 import { createModuleFiles } from './files';
 import type { HostAdapter } from './host';
 import { JobManager } from './jobs';
 import { LogStore } from './logger';
+import { MediaSigner } from './media';
 import {
   applyMigrations,
   assertNotSchemaChange,
@@ -52,6 +54,11 @@ export interface HubOptions {
   loadExamples?: boolean;
   /** Echo logs to the console (dev). */
   echoLogs?: boolean;
+  /**
+   * Folder containing `<module folder>/assets/` for every module: the source
+   * `modules/` folder in dev and tests, `build/modules` (unpacked) when packaged.
+   */
+  assetsRoot: string;
 }
 
 interface ModuleRecord {
@@ -89,6 +96,7 @@ export class Hub {
   readonly settings: SettingsStore;
   readonly jobs: JobManager;
   readonly scheduler: Scheduler;
+  readonly media: MediaSigner;
   private readonly records = new Map<string, ModuleRecord>();
 
   private constructor(readonly options: HubOptions) {
@@ -104,6 +112,11 @@ export class Hub {
     this.settings = new SettingsStore(this.handle, options.host, this.bus);
     this.jobs = new JobManager(this.handle, this.bus);
     this.scheduler = new Scheduler(this.handle);
+    this.media = new MediaSigner(() => [
+      this.modulesDataDir,
+      this.getOutputRoot(),
+      options.assetsRoot,
+    ]);
   }
 
   static async create(options: HubOptions): Promise<Hub> {
@@ -326,8 +339,10 @@ export class Hub {
       files: createModuleFiles({
         moduleId: id,
         modulesDataDir: this.modulesDataDir,
+        assetsDir: path.join(this.options.assetsRoot, record.folder, 'assets'),
         getOutputRoot: () => this.getOutputRoot(),
         host: this.host,
+        mediaUrl: (filePath) => this.media.url(filePath),
       }),
       settings: {
         get: <T>(key: string) => this.settings.get(id, key) as T | null,
@@ -347,6 +362,14 @@ export class Hub {
       events,
       services: this.services.forModule(manifest, pendingServices),
       accounts: { available: false },
+      binaries: {
+        get ffmpeg() {
+          return getFfmpegPath();
+        },
+        get ffprobe() {
+          return getFfprobePath();
+        },
+      },
       logger,
       onShutdown: (handler) => record.shutdownHandlers.push(handler),
     };

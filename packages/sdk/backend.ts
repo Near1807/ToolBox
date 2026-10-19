@@ -56,6 +56,7 @@ export interface ModuleContext {
   readonly events: ModuleEvents;
   readonly services: ModuleServices;
   readonly accounts: ModuleAccounts;
+  readonly binaries: ModuleBinaries;
   readonly logger: ModuleLogger;
   /** Called when the hub shuts down (close watchers, kill processes…). */
   onShutdown(handler: () => void | Promise<void>): void;
@@ -90,6 +91,23 @@ export interface ModuleFiles {
   open(path: string): Promise<void>;
   /** Shows a file selected in the OS file explorer. */
   reveal(path: string): void;
+  /**
+   * URL usable in <img>, <audio>, <video> (which cannot send the API token):
+   * signed for this session, only for files under the hub's data folders, the
+   * output folder or module assets. Supports seeking (HTTP Range).
+   */
+  mediaUrl(path: string): string;
+  /** Read-only files shipped with the module: modules/<id>/assets/ (fonts, images…). */
+  readonly assetsDir: string;
+  /** Path inside assetsDir; throws if it escapes the folder. */
+  assetPath(...segments: string[]): string;
+}
+
+/** Executables embedded in the app, usable by any module (child_process.execFile/spawn). */
+export interface ModuleBinaries {
+  /** FFmpeg (6.1 on Windows): stay compatible with it. */
+  readonly ffmpeg: string;
+  readonly ffprobe: string;
 }
 
 export interface ModuleSettings {

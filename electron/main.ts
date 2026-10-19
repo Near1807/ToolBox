@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import discoveredModules from 'virtual:toolbox-modules';
+import { toUnpackedPath } from '../backend/core/ffmpeg-binaries';
 import { generateToken } from '../backend/core/security';
 import { startServer, type RunningServer } from '../backend/server';
 import { createElectronHost } from './host';
@@ -80,6 +81,9 @@ async function bootstrap(): Promise<void> {
     host: createElectronHost(),
     modules: discoveredModules,
     loadExamples,
+    // Module assets are copied to build/modules at build time and unpacked from
+    // app.asar (external tools such as FFmpeg must be able to read them).
+    assetsRoot: toUnpackedPath(path.join(__dirname, '..', 'modules')),
     echoLogs: isDev,
     port: apiPort,
     rendererDir: isDev ? undefined : path.join(__dirname, '..', 'renderer'),

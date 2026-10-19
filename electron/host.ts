@@ -23,6 +23,18 @@ export function createElectronHost(): HostAdapter {
         : await dialog.showOpenDialog(options);
       return result.canceled ? null : (result.filePaths[0] ?? null);
     },
+    selectFiles: async ({ title, filters, multiple }) => {
+      const window = parent();
+      const options: Electron.OpenDialogOptions = {
+        title,
+        filters,
+        properties: multiple ? ['openFile', 'multiSelections'] : ['openFile'],
+      };
+      const result = window
+        ? await dialog.showOpenDialog(window, options)
+        : await dialog.showOpenDialog(options);
+      return result.canceled ? [] : result.filePaths;
+    },
     selectSaveFile: async ({ title, defaultPath, filters }) => {
       const window = parent();
       const options: Electron.SaveDialogOptions = { title, defaultPath, filters };

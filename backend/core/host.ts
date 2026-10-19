@@ -13,6 +13,12 @@ export interface HostAdapter {
   showItemInFolder(path: string): void;
   /** Native folder picker; null when cancelled. */
   selectFolder(options: { title: string; defaultPath?: string }): Promise<string | null>;
+  /** Native file picker; empty when cancelled. */
+  selectFiles(options: {
+    title: string;
+    filters?: { name: string; extensions: string[] }[];
+    multiple?: boolean;
+  }): Promise<string[]>;
   /** Native "save as" dialog; null when cancelled. */
   selectSaveFile(options: {
     title: string;
@@ -38,6 +44,7 @@ export function createNullHost(overrides: Partial<HostAdapter> = {}): HostAdapte
     openPath: async () => {},
     showItemInFolder: () => {},
     selectFolder: async () => null,
+    selectFiles: async () => [],
     selectSaveFile: async () => null,
     getDefaultOutputRoot: () => path.join(os.tmpdir(), 'ToolBox'),
     relaunch: () => {},

@@ -16,12 +16,17 @@ export function safeJoin(root: string, ...segments: string[]): string {
 export function createModuleFiles(options: {
   moduleId: string;
   modulesDataDir: string;
+  assetsDir: string;
   getOutputRoot: () => string;
   host: HostAdapter;
+  mediaUrl: (filePath: string) => string;
 }): ModuleFiles {
   const dataDir = path.join(options.modulesDataDir, options.moduleId);
   mkdirSync(dataDir, { recursive: true });
   return {
+    assetsDir: options.assetsDir,
+    assetPath: (...segments) => safeJoin(options.assetsDir, ...segments),
+    mediaUrl: options.mediaUrl,
     dataDir,
     dataPath: (...segments) => safeJoin(dataDir, ...segments),
     outputDir: () => {

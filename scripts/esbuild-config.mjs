@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { cpSync, existsSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -50,6 +50,27 @@ export const discoverModulesPlugin = {
 };
 
 /**
+ * Copies every modules/<folder>/assets/ to build/modules/<folder>/assets/
+ * (packaged with the app, unpacked from app.asar: see electron-builder.yml).
+ */
+export const copyModuleAssetsPlugin = {
+  name: 'toolbox-module-assets',
+  setup(build) {
+    build.onEnd(() => {
+      const target = path.join(root, 'build', 'modules');
+      rmSync(target, { recursive: true, force: true });
+      if (!existsSync(modulesDir)) return;
+      for (const entry of readdirSync(modulesDir, { withFileTypes: true })) {
+        const assets = path.join(modulesDir, entry.name, 'assets');
+        if (entry.isDirectory() && existsSync(assets)) {
+          cpSync(assets, path.join(target, entry.name, 'assets'), { recursive: true });
+        }
+      }
+    });
+  },
+};
+
+/**
  * Main process + backend + module backends in one bundle. Runtime
  * `dependencies` stay external: they are shipped in node_modules by
  * electron-builder (native addons, binaries). Everything else is bundled.
@@ -66,6 +87,6 @@ export const mainBuildOptions = {
   sourcemap: true,
   alias: { '@hub/sdk': './packages/sdk' },
   external: ['electron', ...Object.keys(pkg.dependencies ?? {})],
-  plugins: [discoverModulesPlugin],
+  plugins: [discoverModulesPlugin, copyModuleAssetsPlugin],
   logLevel: 'info',
 };

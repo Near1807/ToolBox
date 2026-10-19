@@ -104,12 +104,14 @@ Une seule base `hub.db`, partagée. Tables, index, vues et triggers d'un module 
 
 ### 5.2 `ctx.files` — fichiers
 
-| Membre                        | Rôle                                                                                                                |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `dataDir`                     | Dossier privé `<userData>/modules/<id>/` (créé au chargement). Inclus dans « Exporter une sauvegarde »              |
-| `dataPath(...segments)`       | Chemin dans `dataDir` ; lève une erreur s'il en sort (`..`)                                                         |
-| `outputDir()`                 | Dossier de sortie `<dossier de sortie>/<id>/` (réglage « Dossier de sortie » du socle, par défaut `Vidéos\ToolBox`) |
-| `open(path)` / `reveal(path)` | Ouvre un fichier/dossier avec Windows, ou le montre dans l'Explorateur                                              |
+| Membre                         | Rôle                                                                                                                                                                                                                           |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `dataDir`                      | Dossier privé `<userData>/modules/<id>/` (créé au chargement). Inclus dans « Exporter une sauvegarde »                                                                                                                         |
+| `dataPath(...segments)`        | Chemin dans `dataDir` ; lève une erreur s'il en sort (`..`)                                                                                                                                                                    |
+| `outputDir()`                  | Dossier de sortie `<dossier de sortie>/<id>/` (réglage « Dossier de sortie » du socle, par défaut `Vidéos\ToolBox`)                                                                                                            |
+| `open(path)` / `reveal(path)`  | Ouvre un fichier/dossier avec Windows, ou le montre dans l'Explorateur                                                                                                                                                         |
+| `mediaUrl(path)`               | URL signée pour `<img>`, `<audio>`, `<video>` (qui ne peuvent pas envoyer le jeton). Valable pour la session, uniquement pour les fichiers des dossiers du hub (données, sortie, assets). Gère la lecture par morceaux (Range) |
+| `assetsDir` / `assetPath(...)` | Fichiers en lecture seule livrés avec le module : `modules/<id>/assets/` (polices, images…). Copiés au build et extraits de l'archive asar, donc lisibles par FFmpeg                                                           |
 
 Les fichiers importés par l'utilisateur sont **copiés** dans `dataDir` (jamais de lien vers leur emplacement d'origine).
 
@@ -194,7 +196,11 @@ Réservé à la phase 5 (OAuth Google, jetons chiffrés). `ctx.accounts.availabl
 
 `debug | info | warn | error (message, data?)`. Messages en français, consultables dans la page **Journaux** (filtre par module et niveau). Stockés en fichiers JSON lines dans `<userData>/logs/` (14 jours).
 
-### 5.11 `ctx.onShutdown(handler)`
+### 5.11 `ctx.binaries` — outils embarqués
+
+`ctx.binaries.ffmpeg` et `ctx.binaries.ffprobe` : chemins des exécutables embarqués, à lancer avec `child_process.execFile`/`spawn` (jamais via un shell). FFmpeg est en version **6.1 sous Windows** : n'utiliser que des filtres disponibles dans cette version (le filtre `drawtext` n'existe pas sous Linux : pour du texte, utiliser `subtitles`/libass comme `video-engine`).
+
+### 5.12 `ctx.onShutdown(handler)`
 
 Appelé à la fermeture de l'app : arrêter un process FFmpeg, fermer un watcher… Les tâches en cours reçoivent aussi `job.signal` (abort).
 
@@ -266,7 +272,10 @@ export default defineFrontendModule({
 - Le shell n'affiche un module que si le backend l'a chargé (`GET /api/core/modules` fait foi). Un module en erreur apparaît sur l'accueil avec son état et renvoie vers Réglages.
 - Chaque page et chaque widget est rendu dans une **ErrorBoundary** : une erreur d'affichage n'affecte que ce module.
 - Le frontend d'un module ne parle **qu'à son propre backend** (`module.api.get('/x')` → `/api/modules/<id>/x`) et aux routes génériques du socle (`useJobs()`). S'il a besoin de données d'un autre module, son backend les obtient via un service.
-- Outils du SDK : `useModule`, `useApi`, `useJobs`, `api`, `apiFetch`, `openEventStream`, et les composants `Page`, `Card`, `Button`, `EmptyState`, `ErrorMessage`, `ProgressBar`, `ErrorBoundary`. Styles : classes et variables CSS de `frontend/src/styles.css` (thème sombre).
+- Fichiers locaux : `getFilePath(file)` donne le vrai chemin d'un fichier glissé-déposé (dans l'app uniquement ; `null` dans un navigateur) ; `pickFiles()` / `pickFolder()` ouvrent les sélecteurs natifs. Le frontend envoie le **chemin** à son backend, qui copie le fichier dans `ctx.files.dataDir` (pas d'upload HTTP).
+- Navigation interne : `useModule().path('tracks/3')` donne l'adresse d'une page du module (pour `<Link to>` / `navigate()`).
+- CSS propre à un module : un fichier importé depuis `frontend/`, classes préfixées par les initiales du module (ex. `ml-` pour music-library).
+- Outils du SDK : `useModule`, `useApi`, `useJobs`, `api`, `apiFetch`, `openEventStream`, `getFilePath`, `pickFiles`, `pickFolder`, `copyText`, `formatDuration`, et les composants `Page`, `Card`, `Button`, `EmptyState`, `ErrorMessage`, `ProgressBar`, `ErrorBoundary`. Styles : classes et variables CSS de `frontend/src/styles.css` (thème sombre).
 - Textes de l'interface en français.
 
 ## 8. Tests

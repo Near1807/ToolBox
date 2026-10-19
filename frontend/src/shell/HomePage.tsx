@@ -54,7 +54,13 @@ function ModuleCard({ module }: { module: ShellModule }) {
 
 export function HomePage() {
   const { modules, loading, error } = useModules();
-  const sections = groupBySection(modules);
+  // Service-only modules (no page, no widget) are not tools: they appear on the
+  // home page only when something is wrong with them (see Réglages > Modules).
+  const sections = groupBySection(
+    modules.filter(
+      (m) => m.status !== 'loaded' || m.frontend?.pages?.length || m.frontend?.HomeWidget,
+    ),
+  );
 
   return (
     <Page title="Accueil" subtitle="Tous tes outils, regroupés par section.">
