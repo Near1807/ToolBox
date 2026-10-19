@@ -1,0 +1,213 @@
+import { execFileSync } from 'node:child_process';
+import { existsSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import ffprobeStatic from '@derhuerst/ffprobe-static';
+import ffmpegStatic from 'ffmpeg-static';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import {
+  createTestHub,
+  loadModuleFolder,
+  type DiscoveredModule,
+  type TestHub,
+} from '@hub/sdk/testing';
+import type { VideoEngineService } from '../contract';
+import { renderVideo, type EngineEnvironment } from '../backend/engine';
+import { RenderCancelled } from '../backend/runner';
+import { createRenderFixtures } from './fixtures';
+
+const MODULE_DIR = path.resolve(import.meta.dirname, '..');
+let fixtures: ReturnType<typeof createRenderFixtures>;
+let env: EngineEnvironment;
+
+function probe(file: string) {
+  const json = execFileSync(ffprobeStatic!, [
+    '-v',
+    'error',
+    '-print_format',
+    'json',
+    '-show_format',
+    '-show_streams',
+    file,
+  ]).toString();
+  return JSON.parse(json) as {
+    streams: {
+      codec_type: string;
+      codec_name: string;
+      width?: number;
+      height?: number;
+      pix_fmt?: string;
+    }[];
+    format: { duration: string };
+  };
+}
+
+beforeAll(() => {
+  fixtures = createRenderFixtures();
+  env = {
+    ffmpeg: ffmpegStatic!,
+    ffprobe: ffprobeStatic!,
+    fontsDir: path.join(MODULE_DIR, 'assets', 'fonts'),
+    workRoot: mkdtempSync(path.join(tmpdir(), 'toolbox-work-')),
+  };
+});
+
+describe('renderVideo (real FFmpeg)', () => {
+  it('renders an excerpt with the expected size, codecs and duration', async () => {
+    const outputPath = path.join(fixtures.dir, 'out', 'youtube.mp4');
+    const progress: number[] = [];
+    const result = await renderVideo(
+      env,
+      {
+        format: 'youtube',
+        audioPath: fixtures.audio,
+        coverPath: fixtures.cover,
+        title: 'Titre de test — été',
+        artist: 'Thomas',
+        start: 2,
+        duration: 3,
+        outputPath,
+        scale: 0.25,
+      },
+      { onProgress: (fraction) => fraction !== null && progress.push(fraction) },
+    );
+    expect(result).toMatchObject({ file: outputPath, width: 480, height: 270, durationSec: 3 });
+    const info = probe(outputPath);
+    const video = info.streams.find((s) => s.codec_type === 'video')!;
+    expect(video).toMatchObject({
+      codec_name: 'h264',
+      width: 480,
+      height: 270,
+      pix_fmt: 'yuv420p',
+    });
+    expect(info.streams.find((s) => s.codec_type === 'audio')?.codec_name).toBe('aac');
+    expect(Number(info.format.duration)).toBeCloseTo(3, 0);
+    expect(progress.at(-1)).toBe(1);
+    expect(existsSync(`${outputPath}.part`)).toBe(false);
+  });
+
+  it('renders the vertical Instagram layout', async () => {
+    const outputPath = path.join(fixtures.dir, 'out', 'reel.mp4');
+    const result = await renderVideo(env, {
+      format: 'instagram',
+      audioPath: fixtures.audio,
+      coverPath: fixtures.cover,
+      title: 'Reel',
+      artist: 'Thomas',
+      duration: 2,
+      outputPath,
+      scale: 0.25,
+    });
+    expect(result).toMatchObject({ width: 270, height: 480 });
+  });
+
+  it('can be cancelled: FFmpeg stops and no file is left', async () => {
+    const outputPath = path.join(fixtures.dir, 'out', 'cancelled.mp4');
+    const controller = new AbortController();
+    const rendering = renderVideo(
+      env,
+      {
+        format: 'youtube',
+        audioPath: fixtures.audio,
+        coverPath: fixtures.cover,
+        title: 'Annulé',
+        artist: 'Thomas',
+        outputPath,
+      },
+      {
+        signal: controller.signal,
+        onProgress: (fraction) => {
+          if (fraction !== null && fraction > 0) controller.abort();
+        },
+      },
+    );
+    await expect(rendering).rejects.toBeInstanceOf(RenderCancelled);
+    expect(existsSync(outputPath)).toBe(false);
+    expect(existsSync(`${outputPath}.part`)).toBe(false);
+  });
+
+  it('reports a missing cover clearly', async () => {
+    await expect(
+      renderVideo(env, {
+        format: 'youtube',
+        audioPath: fixtures.audio,
+        coverPath: path.join(fixtures.dir, 'missing.png'),
+        title: 'x',
+        artist: 'y',
+        outputPath: path.join(fixtures.dir, 'out', 'x.mp4'),
+      }),
+    ).rejects.toThrow(/cover introuvable/);
+  });
+});
+
+describe('videoEngine service', () => {
+  let hub: TestHub;
+  let engine: VideoEngineService;
+
+  beforeAll(async () => {
+    const consumer: DiscoveredModule = {
+      folder: 'consumer',
+      manifest: {
+        id: 'consumer',
+        name: 'Consumer',
+        description: '',
+        version: '1.0.0',
+        section: 'Tests',
+        icon: 'x',
+        dependsOn: { services: ['videoEngine'] },
+      },
+      backend: {
+        register: (ctx) => void (engine = ctx.services.get<VideoEngineService>('videoEngine')),
+      },
+    };
+    hub = await createTestHub({ modules: [await loadModuleFolder(MODULE_DIR), consumer] });
+  });
+  afterAll(async () => {
+    await hub.close();
+  });
+
+  it('loads with its embedded font and exposes the formats', async () => {
+    const { body } = await hub.request<{ id: string; status: string }[]>(
+      'GET',
+      '/api/core/modules',
+    );
+    expect(body.find((m) => m.id === 'video-engine')?.status).toBe('loaded');
+    expect(engine.formats.youtube).toMatchObject({ width: 1920, height: 1080 });
+    expect(await engine.probeDuration(fixtures.audio)).toBeCloseTo(10, 0);
+  });
+
+  it('makes a quick low-resolution preview', async () => {
+    const result = await engine.preview({
+      format: 'youtube',
+      audioPath: fixtures.audio,
+      coverPath: fixtures.cover,
+      title: 'Aperçu',
+      artist: 'Thomas',
+      start: 3,
+      previewSeconds: 2,
+    });
+    expect(result).toMatchObject({ width: 640, height: 360, durationSec: 2 });
+    expect(
+      result.file.startsWith(path.join(hub.dataDir, 'modules', 'video-engine', 'previews')),
+    ).toBe(true);
+  });
+
+  it('runs full renders one at a time', async () => {
+    const messages: string[] = [];
+    const request = {
+      format: 'youtube' as const,
+      audioPath: fixtures.audio,
+      coverPath: fixtures.cover,
+      title: 'File',
+      artist: 'Thomas',
+      duration: 1,
+    };
+    const first = engine.render({ ...request, outputPath: path.join(fixtures.dir, 'q1.mp4') });
+    const second = engine.render(
+      { ...request, outputPath: path.join(fixtures.dir, 'q2.mp4') },
+      { onProgress: (_f, message) => messages.push(message) },
+    );
+    await Promise.all([first, second]);
+    expect(messages[0]).toMatch(/En attente du moteur/);
+  });
+});

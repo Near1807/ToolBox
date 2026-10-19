@@ -1,7 +1,7 @@
 {
   "name": "toolbox",
   "productName": "ToolBox",
-  "version": "0.1.0",
+  "version": "0.4.0",
   "description": "Hub d'outils personnel : application de bureau Windows modulaire.",
   "author": "Thomas",
   "license": "UNLICENSED",
@@ -38,6 +38,8 @@
     "@types/node": "^22.20.5",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "@types/yauzl": "^2.10.3",
+    "@types/yazl": "^3.3.1",
     "@vitejs/plugin-react": "^6.1.2",
     "electron": "^44.9.0",
     "electron-builder": "^26.15.3",
@@ -53,6 +55,9 @@
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.71.2",
     "vite": "^8.3.4",
-    "vitest": "^5.0.5"
+    "vitest": "^5.0.5",
+    "yauzl": "^3.4.0",
+    "yazl": "^3.3.1",
+    "zod": "^4.6.7"
   }
 }

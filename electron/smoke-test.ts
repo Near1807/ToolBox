@@ -42,6 +42,33 @@ export async function runSmokeTest(
     check('ffmpeg', system.ffmpegVersion !== null, system.ffmpegVersion ?? 'introuvable');
     check('ffprobe', system.ffprobeVersion !== null, system.ffprobeVersion ?? 'introuvable');
 
+    // Module system end to end with the example module (migration, routes, settings).
+    const authed = { [TOKEN_HEADER]: token, 'content-type': 'application/json' };
+    const modules = (await (
+      await fetch(`${apiUrl}/api/core/modules`, { headers: authed })
+    ).json()) as { id: string; status: string; error?: string }[];
+    const template = modules.find((m) => m.id === 'template');
+    check(
+      'module-loaded',
+      template?.status === 'loaded',
+      template?.error ?? template?.status ?? 'absent',
+    );
+    // Every bundled module must load in the packaged app (assets unpacked, dependencies met…).
+    const broken = modules.filter((m) => m.status !== 'loaded');
+    check(
+      'all-modules-loaded',
+      broken.length === 0,
+      broken.length === 0
+        ? `${modules.length} module(s)`
+        : broken.map((m) => `${m.id}: ${m.error ?? m.status}`).join(' ; '),
+    );
+    const created = await fetch(`${apiUrl}/api/modules/template/notes`, {
+      method: 'POST',
+      headers: authed,
+      body: JSON.stringify({ text: 'smoke test' }),
+    });
+    check('module-route', created.ok, `HTTP ${created.status}`);
+
     await uiLoaded;
     const title = (await window.webContents.executeJavaScript('document.title')) as string;
     check('ui-loaded', title === 'ToolBox', `title="${title}"`);

@@ -1,0 +1,95 @@
+// Backend of the template module. Copy the whole folder to create a new module
+// (see docs/AJOUTER-UN-MODULE.md). Everything a module needs comes from `ctx`;
+// a module never imports another module or the hub core.
+import { defineBackendModule, HttpError } from '@hub/sdk/backend';
+
+interface NoteRow {
+  id: number;
+  text: string;
+  created_at: string;
+}
+
+export default defineBackendModule({
+  // Applied by the hub before register(), with an automatic backup of hub.db.
+  // Table names MUST start with the module prefix ("template__"); a migration
+  // touching anything else is refused. Never edit a released migration.
+  migrations: [
+    {
+      version: 1,
+      description: 'notes table',
+      up: `
+        CREATE TABLE template__notes (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          text TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        );
+      `,
+    },
+  ],
+
+  register(ctx) {
+    const notes = ctx.db.table('notes');
+
+    // Routes are served under /api/modules/template/…
+    ctx.routes.get('/notes', () => ctx.db.prepare(`SELECT * FROM ${notes} ORDER BY id DESC`).all());
+
+    ctx.routes.post('/notes', (request) => {
+      const text = (request.body as { text?: unknown } | undefined)?.text;
+      if (typeof text !== 'string' || text.trim() === '') {
+        throw new HttpError(400, 'Le texte de la note est obligatoire');
+      }
+      const result = ctx.db
+        .prepare(`INSERT INTO ${notes} (text, created_at) VALUES (?, ?)`)
+        .run(text.trim(), new Date().toISOString());
+      const note = ctx.db
+        .prepare(`SELECT * FROM ${notes} WHERE id = ?`)
+        .get(result.lastInsertRowid) as NoteRow;
+      // Other modules can listen to "template:note.created".
+      ctx.events.emit('note.created', { id: note.id });
+      ctx.logger.info(`Note ${note.id} créée`);
+      return note;
+    });
+
+    ctx.routes.delete('/notes/:id', (request) => {
+      const { id } = request.params as { id: string };
+      const result = ctx.db.prepare(`DELETE FROM ${notes} WHERE id = ?`).run(Number(id));
+      if (result.changes === 0) throw new HttpError(404, 'Note introuvable');
+      return { ok: true };
+    });
+
+    ctx.routes.get('/summary', () => {
+      const { count } = ctx.db.prepare(`SELECT COUNT(*) AS count FROM ${notes}`).get() as {
+        count: number;
+      };
+      return { count, greeting: ctx.settings.get<string>('greeting') };
+    });
+
+    // A long task with real progress and cancellation (renders work the same way).
+    ctx.jobs.define<{ seconds: number }, { steps: number }>('demo', async (job) => {
+      const steps = job.input.seconds * 4;
+      for (let step = 1; step <= steps; step++) {
+        if (job.signal.aborted) throw new Error('Annulée');
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        job.progress(step / steps, `Étape ${step} sur ${steps}`);
+      }
+      return { steps };
+    });
+
+    ctx.routes.post('/demo-job', () => {
+      const seconds = ctx.settings.get<number>('demoSeconds') ?? 5;
+      return ctx.jobs.enqueue('demo', { seconds }, { title: `Démonstration (${seconds} s)` });
+    });
+
+    // Periodic task: missed runs are caught up at the next start.
+    ctx.scheduler.schedule('daily-summary', { daily: '09:00' }, async () => {
+      const { count } = ctx.db.prepare(`SELECT COUNT(*) AS count FROM ${notes}`).get() as {
+        count: number;
+      };
+      ctx.logger.info(`Résumé quotidien : ${count} note(s)`);
+    });
+
+    // Services: declare the name in module.json (provides.services), then
+    //   ctx.services.provide('notes', { count: () => … });
+    // Consumers declare it in dependsOn.services and call ctx.services.get('notes').
+  },
+});

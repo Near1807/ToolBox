@@ -1,0 +1,29 @@
+{
+  "id": "youtube-video",
+  "name": "Vidéo YouTube",
+  "description": "Transforme un morceau en vidéo 16:9 pour YouTube, avec sa description prête à copier.",
+  "version": "1.0.0",
+  "section": "Musique",
+  "icon": "📺",
+  "order": 20,
+  "dependsOn": {
+    "modules": ["music-library", "video-engine"],
+    "services": ["musicLibrary", "videoEngine"]
+  },
+  "settings": [
+    {
+      "key": "links",
+      "type": "text",
+      "label": "Liens de la description",
+      "description": "Ajoutés à chaque description (un lien par ligne).",
+      "placeholder": "Spotify : https://…\nInstagram : https://…"
+    },
+    {
+      "key": "hashtags",
+      "type": "string",
+      "label": "Hashtags par défaut",
+      "description": "Ajoutés après les tags du morceau.",
+      "placeholder": "#music #beat"
+    }
+  ]
+}

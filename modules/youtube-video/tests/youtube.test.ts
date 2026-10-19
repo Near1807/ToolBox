@@ -1,0 +1,132 @@
+import { execFileSync } from 'node:child_process';
+import { existsSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import ffmpegPath from 'ffmpeg-static';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { JobInfo } from '@hub/sdk/backend';
+import { createTestHost, createTestHub, loadModuleFolder, type TestHub } from '@hub/sdk/testing';
+
+const MODULES = path.resolve(import.meta.dirname, '../..');
+const API = '/api/modules/youtube-video';
+
+describe('youtube-video', () => {
+  let hub: TestHub;
+  let outputRoot: string;
+  let trackId: number;
+  let trackWithoutCover: number;
+
+  beforeAll(async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'toolbox-yt-'));
+    outputRoot = path.join(dir, 'Videos');
+    const ffmpeg = (args: string[]) => execFileSync(ffmpegPath!, ['-v', 'error', '-y', ...args]);
+    ffmpeg(['-f', 'lavfi', '-i', 'sine=f=110:d=3', '-ac', '2', path.join(dir, 'song.wav')]);
+    ffmpeg([
+      '-f',
+      'lavfi',
+      '-i',
+      'testsrc2=s=400x400',
+      '-frames:v',
+      '1',
+      path.join(dir, 'cover.png'),
+    ]);
+
+    hub = await createTestHub({
+      modules: await Promise.all(
+        ['music-library', 'video-engine', 'youtube-video'].map((m) =>
+          loadModuleFolder(path.join(MODULES, m)),
+        ),
+      ),
+      host: createTestHost({ getDefaultOutputRoot: () => outputRoot }),
+    });
+    const add = (body: object) =>
+      hub.request<{ id: number }>('POST', '/api/modules/music-library/tracks', body);
+    trackId = (
+      await add({ audioPath: path.join(dir, 'song.wav'), coverPath: path.join(dir, 'cover.png') })
+    ).body.id;
+    trackWithoutCover = (await add({ audioPath: path.join(dir, 'song.wav') })).body.id;
+    await hub.request('PATCH', `/api/modules/music-library/tracks/${trackId}`, {
+      title: 'Night Drive',
+      artist: 'Thomas',
+      tags: ['lofi'],
+    });
+  });
+
+  afterAll(async () => {
+    await hub.close();
+  });
+
+  it('loads after its dependencies', async () => {
+    const { body } = await hub.request<{ id: string; status: string }[]>(
+      'GET',
+      '/api/core/modules',
+    );
+    expect(body.map((m) => [m.id, m.status])).toEqual(
+      expect.arrayContaining([
+        ['music-library', 'loaded'],
+        ['video-engine', 'loaded'],
+        ['youtube-video', 'loaded'],
+      ]),
+    );
+  });
+
+  it('shows the track with its ready-to-copy texts', async () => {
+    const { body } = await hub.request<{ videoTitle: string; description: string }>(
+      'GET',
+      `${API}/tracks/${trackId}`,
+    );
+    expect(body.videoTitle).toBe('Thomas - Night Drive');
+    expect(body.description).toContain('#lofi');
+  });
+
+  it('refuses a track without cover with a clear message', async () => {
+    const { status, body } = await hub.request<{ error: string }>(
+      'POST',
+      `${API}/tracks/${trackWithoutCover}/render`,
+    );
+    expect(status).toBe(400);
+    expect(body.error).toMatch(/cover/);
+  });
+
+  it('makes a preview', async () => {
+    const { status, body } = await hub.request<{ url: string }>(
+      'POST',
+      `${API}/tracks/${trackId}/preview`,
+    );
+    expect(status).toBe(200);
+    expect(body.url).toMatch(/^\/api\/media\//);
+  });
+
+  it('renders the full video as a job and records it in the library', async () => {
+    const { body: job } = await hub.request<JobInfo>('POST', `${API}/tracks/${trackId}/render`);
+    let done: JobInfo | undefined;
+    for (let i = 0; i < 600 && !done; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      const { body: jobs } = await hub.request<JobInfo[]>(
+        'GET',
+        '/api/core/jobs?module=youtube-video',
+      );
+      done = jobs.find((j) => j.id === job.id && ['succeeded', 'failed'].includes(j.status));
+    }
+    expect(done?.status).toBe('succeeded');
+
+    const file = path.join(outputRoot, 'youtube-video', 'Thomas - Night Drive (YouTube).mp4');
+    expect(existsSync(file)).toBe(true);
+
+    const { body: track } = await hub.request<{ outputs: { label: string; fileName: string }[] }>(
+      'GET',
+      `/api/modules/music-library/tracks/${trackId}`,
+    );
+    expect(track.outputs).toEqual([
+      expect.objectContaining({
+        label: 'Vidéo YouTube',
+        fileName: 'Thomas - Night Drive (YouTube).mp4',
+      }),
+    ]);
+    const { body: detail } = await hub.request<{ videos: unknown[] }>(
+      'GET',
+      `${API}/tracks/${trackId}`,
+    );
+    expect(detail.videos).toHaveLength(1);
+  });
+});

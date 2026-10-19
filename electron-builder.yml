@@ -15,6 +15,7 @@ files:
 
 # Executables and native addons cannot run from inside app.asar.
 asarUnpack:
+  - build/modules/*/assets/**
   - node_modules/ffmpeg-static/**
   - node_modules/@derhuerst/ffprobe-static/**
   - node_modules/better-sqlite3/**

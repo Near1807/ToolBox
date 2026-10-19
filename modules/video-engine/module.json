@@ -1,0 +1,10 @@
+{
+  "id": "video-engine",
+  "name": "Moteur vidéo",
+  "description": "Moteur de rendu partagé par les générateurs de vidéos (FFmpeg).",
+  "version": "1.0.0",
+  "section": "Musique",
+  "icon": "🎞️",
+  "order": 90,
+  "provides": { "services": ["videoEngine"] }
+}

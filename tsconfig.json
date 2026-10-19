@@ -14,7 +14,19 @@
     "isolatedModules": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "types": ["node"]
+    "types": ["node"],
+    "paths": {
+      "@hub/sdk/*": ["./packages/sdk/*"]
+    }
   },
-  "include": ["electron", "backend", "frontend/src", "tests", "vite.config.ts", "vitest.config.ts"]
+  "include": [
+    "electron",
+    "backend",
+    "frontend/src",
+    "packages",
+    "modules",
+    "tests",
+    "vite.config.ts",
+    "vitest.config.ts"
+  ]
 }

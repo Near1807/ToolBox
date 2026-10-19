@@ -1,43 +1,34 @@
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { createNullHost } from '../../backend/core/host';
-import { TOKEN_HEADER } from '../../backend/core/security';
-import { buildServer, type SystemInfo } from '../../backend/server';
-
-const TOKEN = 'c'.repeat(64);
+import { createTestHub, type TestHub } from '@hub/sdk/testing';
+import type { SystemInfo } from '../../backend/server';
 
 describe('backend server', () => {
-  let dataDir: string;
-  let server: ReturnType<typeof buildServer>;
+  let hub: TestHub;
 
-  beforeEach(() => {
-    dataDir = mkdtempSync(path.join(tmpdir(), 'toolbox-server-'));
-    server = buildServer({ dataDir, token: TOKEN, appVersion: '9.9.9', host: createNullHost() });
-    server.setPort(1234);
+  beforeEach(async () => {
+    hub = await createTestHub({ modules: [] });
   });
 
   afterEach(async () => {
-    await server.app.close();
-    rmSync(dataDir, { recursive: true, force: true });
+    await hub.close();
   });
 
   it('reports system information with working SQLite and FFmpeg', async () => {
-    const res = await server.app.inject({
-      url: '/api/core/system',
-      headers: { host: '127.0.0.1:1234', [TOKEN_HEADER]: TOKEN },
-    });
-    expect(res.statusCode).toBe(200);
-    const info = res.json<SystemInfo>();
-    expect(info.appVersion).toBe('9.9.9');
-    expect(info.dataDir).toBe(dataDir);
-    expect(info.sqliteVersion).toMatch(/^3\./);
-    expect(info.ffmpegVersion).toMatch(/^ffmpeg version/);
-    expect(info.ffprobeVersion).toMatch(/^ffprobe version/);
+    const { status, body } = await hub.request<SystemInfo>('GET', '/api/core/system');
+    expect(status).toBe(200);
+    expect(body.dataDir).toBe(hub.dataDir);
+    expect(body.sqliteVersion).toMatch(/^3\./);
+    expect(body.ffmpegVersion).toMatch(/^ffmpeg version/);
+    expect(body.ffprobeVersion).toMatch(/^ffprobe version/);
   });
 
   it('stores the database in the data directory', () => {
-    expect(server.db.name).toBe(path.join(dataDir, 'hub.db'));
+    expect(hub.hub.handle.file).toBe(path.join(hub.dataDir, 'hub.db'));
+  });
+
+  it('answers unknown API routes with a JSON 404', async () => {
+    const { status } = await hub.request('GET', '/api/modules/nope/anything');
+    expect(status).toBe(404);
   });
 });
