@@ -1,11 +1,11 @@
-import { mkdirSync } from 'node:fs';
-import path from 'node:path';
 import Fastify, { type FastifyInstance } from 'fastify';
 import fastifyStatic from '@fastify/static';
-import { openDatabase, getSqliteVersion, type SqliteDatabase } from './core/database';
-import { getBinaryVersion, getFfmpegPath, getFfprobePath } from './core/ffmpeg-binaries';
+import { Hub, type DiscoveredModule } from './core/hub';
 import type { HostAdapter } from './core/host';
 import { registerSecurity, StreamTicketStore } from './core/security';
+import { registerCoreRoutes } from './routes/core';
+
+export type { SystemInfo } from './routes/core';
 
 export interface ServerOptions {
   /** Root of all user data (Electron's userData folder). Never the install folder. */
@@ -14,44 +14,46 @@ export interface ServerOptions {
   token: string;
   appVersion: string;
   host: HostAdapter;
+  /** Modules discovered at build time (virtual:toolbox-modules). */
+  modules: DiscoveredModule[];
+  /** Also load example modules (folders starting with "_"). */
+  loadExamples?: boolean;
   /** 0 = random free port (production). */
   port?: number;
   /** Built UI to serve at `/`; omitted in dev, where Vite serves the UI. */
   rendererDir?: string;
   /** Extra allowed origins, e.g. the Vite dev server. */
   extraOrigins?: string[];
-  logger?: boolean;
+  echoLogs?: boolean;
 }
 
-export interface RunningServer {
+export interface BuiltServer {
   app: FastifyInstance;
-  db: SqliteDatabase;
+  hub: Hub;
+  setPort(port: number): void;
+}
+
+export interface RunningServer extends BuiltServer {
   /** Base URL, e.g. http://127.0.0.1:53124 */
   url: string;
   port: number;
   close(): Promise<void>;
 }
 
-export interface SystemInfo {
-  appVersion: string;
-  dataDir: string;
-  sqliteVersion: string;
-  ffmpegVersion: string | null;
-  ffprobeVersion: string | null;
-  runtime: { node: string; electron: string | null; platform: string; arch: string };
-}
-
-/** Builds the Fastify app without listening (used directly by tests via inject()). */
-export function buildServer(options: ServerOptions): {
-  app: FastifyInstance;
-  db: SqliteDatabase;
-  setPort(port: number): void;
-} {
-  mkdirSync(options.dataDir, { recursive: true });
-  const db = openDatabase(path.join(options.dataDir, 'hub.db'));
+/** Builds the hub and the Fastify app without listening (tests use inject()). */
+export async function buildServer(options: ServerOptions): Promise<BuiltServer> {
+  const hub = await Hub.create({
+    dataDir: options.dataDir,
+    host: options.host,
+    appVersion: options.appVersion,
+    modules: options.modules,
+    loadExamples: options.loadExamples,
+    echoLogs: options.echoLogs,
+  });
   let port = options.port ?? 0;
 
-  const app = Fastify({ logger: options.logger ?? false });
+  // forceCloseConnections: open SSE streams must not block shutdown.
+  const app = Fastify({ logger: false, forceCloseConnections: true });
 
   registerSecurity(app, {
     token: options.token,
@@ -60,47 +62,32 @@ export function buildServer(options: ServerOptions): {
     extraOrigins: options.extraOrigins,
   });
 
+  app.setErrorHandler((error: Error & { statusCode?: number }, request, reply) => {
+    const status = error.statusCode && error.statusCode >= 400 ? error.statusCode : 500;
+    if (status >= 500) hub.logger.error(`Erreur sur ${request.method} ${request.url}`, error);
+    void reply.code(status).send({ error: error.message });
+  });
+
   app.get('/api/health', async () => ({ status: 'ok' }));
-
-  app.get('/api/core/system', async (): Promise<SystemInfo> => {
-    const [ffmpegVersion, ffprobeVersion] = await Promise.all([
-      getBinaryVersion(getFfmpegPath()),
-      getBinaryVersion(getFfprobePath()),
-    ]);
-    return {
-      appVersion: options.appVersion,
-      dataDir: options.dataDir,
-      sqliteVersion: getSqliteVersion(db),
-      ffmpegVersion,
-      ffprobeVersion,
-      runtime: {
-        node: process.versions.node,
-        electron: process.versions.electron ?? null,
-        platform: process.platform,
-        arch: process.arch,
-      },
-    };
-  });
-
-  app.post('/api/core/open-data-dir', async () => {
-    await options.host.openPath(options.dataDir);
-    return { ok: true };
-  });
+  registerCoreRoutes(app, hub, options.appVersion);
+  hub.mountRoutes(app);
 
   if (options.rendererDir) {
-    app.register(fastifyStatic, { root: options.rendererDir });
+    void app.register(fastifyStatic, { root: options.rendererDir });
   }
 
-  app.addHook('onClose', async () => db.close());
+  app.addHook('onClose', async () => hub.stop());
+  await app.ready();
+  hub.start();
 
-  return { app, db, setPort: (value) => (port = value) };
+  return { app, hub, setPort: (value) => (port = value) };
 }
 
 export async function startServer(options: ServerOptions): Promise<RunningServer> {
-  const { app, db, setPort } = buildServer(options);
-  await app.listen({ host: '127.0.0.1', port: options.port ?? 0 });
-  const address = app.server.address();
+  const built = await buildServer(options);
+  await built.app.listen({ host: '127.0.0.1', port: options.port ?? 0 });
+  const address = built.app.server.address();
   const port = typeof address === 'object' && address ? address.port : (options.port ?? 0);
-  setPort(port);
-  return { app, db, port, url: `http://127.0.0.1:${port}`, close: () => app.close() };
+  built.setPort(port);
+  return { ...built, port, url: `http://127.0.0.1:${port}`, close: () => built.app.close() };
 }

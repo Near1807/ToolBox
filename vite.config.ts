@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
@@ -11,6 +12,9 @@ export default defineConfig({
   root: 'frontend',
   base: './',
   plugins: [react()],
+  resolve: {
+    alias: { '@hub/sdk': path.resolve(import.meta.dirname, 'packages/sdk') },
+  },
   build: {
     outDir: '../build/renderer',
     emptyOutDir: true,
