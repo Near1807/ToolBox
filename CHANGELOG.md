@@ -4,6 +4,25 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.6.0] — 2026-10-19
+
+Changement de périmètre de la phase 4 : le Reel unique devient un **pack Insta** par morceau.
+
+### Ajouté
+
+- **Pack Instagram** (`instagram-video`, remplace « Reel Instagram ») : « Générer le pack Insta » prépare, pour un morceau, **4 Reels** 9:16 de 28 s (réglable) sur 4 extraits différents, choisis parmi les passages les plus énergiques en évitant l'intro et l'outro, une **image de post 4:5** (1080×1350, JPEG) et une **légende**. Morceau trop court : avertissement et choix entre moins de Reels ou un léger chevauchement.
+- Avant le rendu : les extraits en couleur sur la forme d'onde, déplaçables (glisser, clic, ±1 s), écoute et aperçu vidéo de chacun, nouvelle proposition automatique.
+- Reels avec fondu image et son de 0,5 s ; fichiers « `<titre> - Reel 1.mp4` »… et « `<titre> - Post.jpg` » dans un dossier par morceau ; « Régénérer » un seul fichier ; « Ouvrir le dossier » du pack.
+- **Légende** depuis un modèle réglable (`{titre}`, `{artiste}`, `{hashtags}`), modifiable, enregistrée, « Copier » ; option d'une légende par Reel.
+- **Suivi de publication** : case « Publié » datée (modifiable) sur le post et chaque Reel, page **« À publier »** (tous morceaux), état « x/5 publiés » dans la liste et sur la fiche du morceau de la Bibliothèque.
+- **Glisser un fichier hors de l'app** vers une autre fenêtre (Instagram dans le navigateur, l'Explorateur…) : `startFileDrag` dans le SDK (ADR 0013).
+- Moteur vidéo : durée des fondus réglable (`fadeSeconds`) et image de post 4:5 (`renderPost`) dans le même style que les vidéos.
+- Bibliothèque : lignes d'information fournies par d'autres modules sur la fiche d'un morceau (`registerTrackInfo`).
+
+### Modifié
+
+- Les Reels faits avec la v0.5 restent en base et sont listés sous « Anciens Reels ». Réglages du module renommés (durée d'un Reel, modèle de légende, mention du post).
+
 ## [0.5.1] — 2026-10-19
 
 Retours sur la première vidéo YouTube (moteur vidéo : YouTube et Instagram en profitent).
