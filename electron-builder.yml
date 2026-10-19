@@ -2,6 +2,7 @@
 appId: com.near1807.toolbox
 productName: ToolBox
 copyright: Copyright © 2026 Thomas
+icon: resources/build/icon.png
 directories:
   output: dist
   buildResources: resources/build
@@ -23,7 +24,7 @@ asarUnpack:
 npmRebuild: false
 
 win:
-  icon: resources/build/icon.png
+  icon: resources/build/icon.ico
   # Only ship the native SQLite binary for Windows x64.
   files:
     - '!node_modules/better-sqlite3/prebuilds/{darwin,linux,linuxmusl}-*'

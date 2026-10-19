@@ -13,7 +13,7 @@ Application de bureau Windows personnelle de Thomas : un **hub** (page d'accueil
 - Electron 44 (coquille) → lance dans son process principal un backend **Fastify** sur `127.0.0.1` (port aléatoire en prod, 47321 en dev).
 - Frontend **React 19 + Vite 8 + TypeScript**, routeur `react-router` (HashRouter). Il ne parle au backend **que via l'API REST** (`frontend/src/api/client.ts`).
 - **SQLite** via `better-sqlite3` (N-API, aucun rebuild pour Electron), base `hub.db` dans `app.getPath('userData')`.
-- **FFmpeg/FFprobe** embarqués : `ffmpeg-static` + `@derhuerst/ffprobe-static` (même build), dépaquetés de l'asar.
+- **FFmpeg/FFprobe** embarqués : `ffmpeg-static` + `@derhuerst/ffprobe-static` (même build ; FFmpeg **6.1** sous Windows, 7.0 sous Linux : rester compatible 6.1), dépaquetés de l'asar.
 - Secrets chiffrés avec `safeStorage` via l'interface `HostAdapter` (`backend/core/host.ts`).
 - Qualité : ESLint 10 + Prettier, Vitest 5, TypeScript 6 (pas 7 : non supporté par typescript-eslint).
 
