@@ -273,9 +273,10 @@ export default defineFrontendModule({
 - Chaque page et chaque widget est rendu dans une **ErrorBoundary** : une erreur d'affichage n'affecte que ce module.
 - Le frontend d'un module ne parle **qu'à son propre backend** (`module.api.get('/x')` → `/api/modules/<id>/x`) et aux routes génériques du socle (`useJobs()`). S'il a besoin de données d'un autre module, son backend les obtient via un service.
 - Fichiers locaux : `getFilePath(file)` donne le vrai chemin d'un fichier glissé-déposé (dans l'app uniquement ; `null` dans un navigateur) ; `pickFiles()` / `pickFolder()` ouvrent les sélecteurs natifs. Le frontend envoie le **chemin** à son backend, qui copie le fichier dans `ctx.files.dataDir` (pas d'upload HTTP).
+- Glisser un fichier **hors de l'app** (vers Instagram dans le navigateur, l'Explorateur…) : dans `onDragStart`, appeler `startFileDrag(mediaUrl)` avec l'URL signée du fichier (`ctx.files.mediaUrl`) et `event.preventDefault()` s'il renvoie `true` (`false` dans un navigateur). Le process principal vérifie la signature avant de lancer le glisser (`webContents.startDrag`).
 - Navigation interne : `useModule().path('tracks/3')` donne l'adresse d'une page du module (pour `<Link to>` / `navigate()`).
 - CSS propre à un module : un fichier importé depuis `frontend/`, classes préfixées par les initiales du module (ex. `ml-` pour music-library).
-- Outils du SDK : `useModule`, `useApi`, `useJobs`, `api`, `apiFetch`, `openEventStream`, `getFilePath`, `pickFiles`, `pickFolder`, `copyText`, `formatDuration`, et les composants `Page`, `Card`, `Button`, `EmptyState`, `ErrorMessage`, `ProgressBar`, `ErrorBoundary`. Styles : classes et variables CSS de `frontend/src/styles.css` (thème sombre).
+- Outils du SDK : `useModule`, `useApi`, `useJobs`, `api`, `apiFetch`, `openEventStream`, `getFilePath`, `startFileDrag`, `pickFiles`, `pickFolder`, `copyText`, `formatDuration`, et les composants `Page`, `Card`, `Button`, `EmptyState`, `ErrorMessage`, `ProgressBar`, `ErrorBoundary`. Styles : classes et variables CSS de `frontend/src/styles.css` (thème sombre).
 - Textes de l'interface en français.
 
 ## 8. Tests

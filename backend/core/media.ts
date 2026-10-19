@@ -51,3 +51,9 @@ export class MediaSigner {
     return filePath;
   }
 }
+
+/** Extracts the token from a media URL ("/api/media/<token>/<name>?v=…"), or null. */
+export function mediaTokenFromUrl(url: string): string | null {
+  const match = /\/api\/media\/([^/?#]+)\//.exec(url);
+  return match?.[1] ?? null;
+}

@@ -132,6 +132,10 @@ Une API sur `localhost` est joignable par tout process local et par toute page w
 
 Un ticket ne vaut donc que pour ouvrir un flux, et ne peut être ni rejoué ni utilisé sur une autre route. Pour se reconnecter après une coupure, l'interface redemande un ticket (la reconnexion automatique d'`EventSource` réutiliserait un ticket consommé : le client gère la reconnexion lui-même).
 
+### Ce que le preload expose
+
+L'interface n'a accès qu'à trois choses hors de l'API REST (`electron/preload.ts`) : le jeton de session, le chemin réel d'un fichier glissé **dans** la fenêtre (`webUtils.getPathForFile`), et le glisser d'un fichier **hors** de la fenêtre (`startDrag`). Ce dernier ne reçoit qu'une URL de média signée : le process principal en vérifie la signature (`hub.media.resolve`) avant d'appeler `webContents.startDrag`, si bien qu'une page ne peut pas faire glisser un fichier arbitraire.
+
 ### Fichiers multimédias : URL signées
 
 `<img>`, `<audio>` et `<video>` ne peuvent pas non plus envoyer le jeton. Le backend leur fournit des URL `/api/media/<jeton>/<nom>` (`backend/core/media.ts`, `ctx.files.mediaUrl()`) : le jeton contient le chemin du fichier et une signature HMAC dont la clé est tirée au hasard à chaque lancement. Ces URL ne peuvent pas être fabriquées, expirent au redémarrage et ne couvrent que les dossiers du hub (données des modules, dossier de sortie, assets des modules). Elles gèrent la lecture par morceaux (en-tête `Range`), nécessaire pour se déplacer dans un morceau ou une vidéo.

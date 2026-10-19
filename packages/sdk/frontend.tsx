@@ -49,7 +49,11 @@ export function defineFrontendModule(module: FrontendModule): FrontendModule {
 
 declare global {
   interface Window {
-    toolbox?: { token: string; getPathForFile?: (file: File) => string };
+    toolbox?: {
+      token: string;
+      getPathForFile?: (file: File) => string;
+      startDrag?: (mediaUrl: string) => void;
+    };
   }
 }
 
@@ -166,6 +170,18 @@ export function getFilePath(file: File): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Starts dragging a file out of the window (to a browser tab, the Explorer…).
+ * Call it from onDragStart with the file's media URL (ctx.files.mediaUrl) and
+ * call event.preventDefault() when it returns true. Returns false outside the
+ * desktop app (dev browser), where nothing can be dragged out.
+ */
+export function startFileDrag(mediaUrl: string): boolean {
+  if (!window.toolbox?.startDrag) return false;
+  window.toolbox.startDrag(mediaUrl);
+  return true;
 }
 
 /** Opens the native file picker (works in the app and in the dev browser). */
