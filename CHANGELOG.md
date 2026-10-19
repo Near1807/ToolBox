@@ -4,6 +4,18 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.5.0] — 2026-10-19
+
+Phase 4 : le Reel Instagram.
+
+### Ajouté
+
+- **Reel Instagram** (`instagram-video`) : extrait vertical 1080×1920 d'un morceau (sert aussi de YouTube Short). Durée de 15 à 90 s (30 s par défaut, réglable), point de départ choisi sur une forme d'onde cliquable, **« Suggérer un passage »** (section la plus énergique, analyse RMS), écoute de l'extrait, aperçu de 6 s, rendu en tâche de fond, légende prête à copier (phrase d'appel et hashtags réglables).
+
+### Corrigé
+
+- Les rangées de boutons passent à la ligne au lieu de déborder sur les écrans étroits.
+
 ## [0.4.0] — 2026-10-19
 
 Phases 2 et 3 : la section Musique prend vie.
