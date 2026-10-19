@@ -5,6 +5,12 @@
 import type { VideoFormat } from '../contract';
 
 export const FPS = 30;
+/** 4× oversampling of 48 kHz, so that sample peaks approximate true peaks. */
+export const TRUE_PEAK_RATE = 192000;
+/** Required maximum true peak of the soundtrack (dBTP). */
+export const TRUE_PEAK_TARGET = -1;
+/** First limiter ceiling (dBFS): a margin for the overshoot added by AAC encoding. */
+export const INITIAL_CEILING_DB = -1.5;
 
 export interface Layout {
   cover: { size: number; centerY: number; radius: number; shadowPad: number; shadowOffset: number };
@@ -51,10 +57,10 @@ export const FORMATS: Record<VideoFormat, FormatSpec> = {
       cover: { size: 560, centerY: 380, radius: 28, shadowPad: 60, shadowOffset: 14 },
       zoom: 0.05,
       title: { top: 700, fontSize: 58, minFontSize: 30, maxWidth: 1500 },
-      artist: { top: 782, fontSize: 34 },
-      bars: { width: 1400, height: 170, top: 868, barWidth: 20, gap: 5, opacity: 0.65 },
+      artist: { top: 784, fontSize: 42 },
+      bars: { width: 1400, height: 210, top: 852, barWidth: 20, gap: 5, opacity: 0.7 },
       grain: 6,
-      blur: 60,
+      blur: 90,
     },
   },
   // Instagram Reels / YouTube Shorts: 1080×1920, 30 fps, H.264 + AAC 48 kHz.
@@ -68,10 +74,10 @@ export const FORMATS: Record<VideoFormat, FormatSpec> = {
       cover: { size: 760, centerY: 880, radius: 32, shadowPad: 70, shadowOffset: 16 },
       zoom: 0.05,
       title: { top: 250, fontSize: 64, minFontSize: 34, maxWidth: 940 },
-      artist: { top: 340, fontSize: 38 },
-      bars: { width: 900, height: 220, top: 1380, barWidth: 20, gap: 5, opacity: 0.65 },
+      artist: { top: 342, fontSize: 46 },
+      bars: { width: 900, height: 270, top: 1370, barWidth: 20, gap: 5, opacity: 0.7 },
       grain: 6,
-      blur: 60,
+      blur: 90,
     },
   },
 };
@@ -121,7 +127,12 @@ export function scaleFormat(
   };
 }
 
-/** Background: the cover enlarged to fill the frame, blurred, darkened, vignetted. */
+/**
+ * Background: a soft colour wash of the cover. The whole cover is reduced to a
+ * coarse grid of average colours (no crop, no big zoom: no visible blotches),
+ * enlarged smoothly and blurred, then darkened towards the edges and, more
+ * strongly, towards the bottom so the spectrum bars always stay readable.
+ */
 export function buildBackgroundArgs(
   cover: string,
   output: string,
@@ -129,6 +140,11 @@ export function buildBackgroundArgs(
   height: number,
   blur: number,
 ): string[] {
+  const grid = width >= height ? '8:5' : '5:8';
+  // Bottom gradient (from 55 % of the height, up to -60 %) × soft radial vignette.
+  const shade =
+    '(1-0.6*clip((Y/H-0.55)/0.45\\,0\\,1))' +
+    '*(1-0.35*(pow((X/W-0.5)*2\\,2)+pow((Y/H-0.5)*2\\,2))/2)';
   return [
     '-v',
     'error',
@@ -136,8 +152,9 @@ export function buildBackgroundArgs(
     '-i',
     cover,
     '-vf',
-    `scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},` +
-      `gblur=sigma=${blur},eq=brightness=-0.22:saturation=1.15,vignette=angle=PI/4.5`,
+    `scale=${grid}:flags=area,scale=${width}:${height}:flags=bicubic,gblur=sigma=${blur},` +
+      `eq=brightness=-0.16:saturation=1.05:contrast=0.85,format=rgb24,` +
+      `geq=r='r(X,Y)*${shade}':g='g(X,Y)*${shade}':b='b(X,Y)*${shade}'`,
     '-frames:v',
     '1',
     output,
@@ -221,7 +238,7 @@ export function buildAssScript(params: {
     '[V4+ Styles]',
     'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding',
     `Style: Title,Montserrat SemiBold,${titleSize},&H00FFFFFF,&H00FFFFFF,&H00000000,&H90000000,0,0,0,0,100,100,0.5,0,1,0,${shadow},8,0,0,0,1`,
-    `Style: Artist,Montserrat SemiBold,${artistSize},&H30FFFFFF,&H30FFFFFF,&H00000000,&H90000000,0,0,0,0,100,100,${Math.max(1, Math.round(artistSize / 16))},0,1,0,${Math.max(1, shadow - 1)},8,0,0,0,1`,
+    `Style: Artist,Montserrat SemiBold,${artistSize},&H00FFFFFF,&H00FFFFFF,&H00000000,&H60000000,0,0,0,0,100,100,${Math.max(1, Math.round(artistSize / 14))},0,1,0,${shadow},8,0,0,0,1`,
     '',
     '[Events]',
     'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
@@ -258,13 +275,93 @@ export interface RenderPlan {
   fadeOut: number;
   /** null = preview quality (fast, CRF). */
   encoding: FormatSpec['encoding'] | null;
-  /** Inputs, relative to the work folder (cwd). */
-  files: { background: string; card: string; ass: string; fontsDir: string; output: string };
-  /** Absolute path of the audio file (passed with -i, no escaping needed). */
-  audio: string;
+  /**
+   * Inputs, relative to the work folder (cwd). `audio` is the final soundtrack
+   * (AAC, already faded and limited: see buildAudioArgs), copied as is.
+   */
+  files: {
+    background: string;
+    card: string;
+    ass: string;
+    fontsDir: string;
+    audio: string;
+    output: string;
+  };
+  /** Absolute path of the source audio file, read for the spectrum only. */
+  source: string;
 }
 
 const round = (n: number) => Number(n.toFixed(3));
+
+/** -1.5 dBFS → 0.841 */
+export function dbToLinear(db: number): number {
+  return Number((10 ** (db / 20)).toFixed(4));
+}
+
+/**
+ * Soundtrack of the video: excerpt + fades + peak limiter, encoded to AAC.
+ * The limiter works on a 4× oversampled signal so that sample peaks
+ * approximate true peaks (level=0: no make-up gain, the loudness is kept).
+ * The encoded result is then measured (buildTruePeakArgs), because AAC can add
+ * overshoot: the engine lowers the ceiling and encodes again if needed.
+ */
+export function buildAudioArgs(params: {
+  source: string;
+  start: number;
+  duration: number;
+  fadeIn: number;
+  fadeOut: number;
+  ceilingDb: number;
+  bitrate: string;
+  output: string;
+}): string[] {
+  const d = params.duration;
+  const fadeOutStart = round(Math.max(0, d - params.fadeOut));
+  const filters = [
+    params.fadeIn > 0 ? `afade=t=in:st=0:d=${round(params.fadeIn)}` : null,
+    params.fadeOut > 0 ? `afade=t=out:st=${fadeOutStart}:d=${round(params.fadeOut)}` : null,
+    `aresample=${TRUE_PEAK_RATE}`,
+    `alimiter=limit=${dbToLinear(params.ceilingDb)}:attack=1:release=50:level=0`,
+    'aresample=48000',
+  ].filter(Boolean);
+  return [
+    '-v',
+    'error',
+    '-y',
+    '-ss',
+    String(round(params.start)),
+    '-t',
+    String(round(d)),
+    '-i',
+    params.source,
+    '-vn',
+    '-af',
+    filters.join(','),
+    '-c:a',
+    'aac',
+    '-b:a',
+    params.bitrate,
+    '-ar',
+    '48000',
+    '-ac',
+    '2',
+    '-f',
+    'mp4',
+    params.output,
+  ];
+}
+
+/** Measures the true peak of a file (EBU R128 meter; summary written on stderr). */
+export function buildTruePeakArgs(file: string): string[] {
+  return ['-hide_banner', '-nostats', '-i', file, '-af', 'ebur128=peak=true', '-f', 'null', '-'];
+}
+
+/** Reads "True peak: … Peak: -1.3 dBFS" from the ebur128 summary. */
+export function parseTruePeak(stderr: string): number | null {
+  const match = /True peak:\s+Peak:\s+(-?(?:\d+(?:\.\d+)?|inf))\s+dBFS/.exec(stderr);
+  if (!match) return null;
+  return match[1] === '-inf' ? -Infinity : Number(match[1]);
+}
 
 /** The main render: background + zooming cover + spectrum bars + text + grain + fades. */
 export function buildRenderArgs(plan: RenderPlan): string[] {
@@ -273,9 +370,14 @@ export function buildRenderArgs(plan: RenderPlan): string[] {
   const barCount = bars.width / bars.barWidth;
   const fadeOutStart = round(Math.max(0, d - plan.fadeOut));
 
+  // Frequencies on a logarithmic (musical) scale. Music carries far more energy
+  // in the bass than in the treble, so the visualisation branch only (not the
+  // soundtrack) gets a treble tilt of +4 dB/octave above 120 Hz (max +15 dB)
+  // and a compressed amplitude, to spread the movement over the whole width.
   const spectrum =
-    `showcqt=s=${barCount}x${bars.height}:fps=${FPS}:sono_h=0:axis_h=0:bar_g=1.4:bar_v=14:` +
-    `cscheme=1|1|1|1|1|1:basefreq=35:endfreq=10000:count=2,` +
+    `firequalizer=gain='min(15\\,max(0\\,4*log(f/120)/log(2)))',` +
+    `showcqt=s=${barCount}x${bars.height}:fps=${FPS}:sono_h=0:axis_h=0:bar_g=2:bar_v=11:` +
+    `cscheme=1|1|1|1|1|1:basefreq=45:endfreq=8000:count=2,` +
     `scale=${bars.width}:${bars.height}:flags=neighbor,` +
     `drawgrid=w=${bars.barWidth}:h=${bars.height}:t=${bars.gap}:c=black,` +
     `colorkey=black:0.08:0.05,colorchannelmixer=aa=${bars.opacity},format=rgba`;
@@ -284,14 +386,9 @@ export function buildRenderArgs(plan: RenderPlan): string[] {
     plan.fadeIn > 0 ? `fade=t=in:st=0:d=${round(plan.fadeIn)}` : null,
     plan.fadeOut > 0 ? `fade=t=out:st=${fadeOutStart}:d=${round(plan.fadeOut)}` : null,
   ].filter(Boolean);
-  const audioFades = [
-    plan.fadeIn > 0 ? `afade=t=in:st=0:d=${round(plan.fadeIn)}` : null,
-    plan.fadeOut > 0 ? `afade=t=out:st=${fadeOutStart}:d=${round(plan.fadeOut)}` : null,
-  ].filter(Boolean);
 
   const graph = [
-    `[2:a]asplit=2[aout0][aviz]`,
-    `[aviz]${spectrum}[bars]`,
+    `[2:a]${spectrum}[bars]`,
     `[0:v]format=yuv420p[bg]`,
     `[1:v]scale=w='${l.cover.size + 2 * l.cover.shadowPad}*(1+${l.zoom}*t/${round(d)})':h=-1:eval=frame[card]`,
     `[bg][card]overlay=x=(W-w)/2:y=${l.cover.centerY}-h/2:format=yuv420[v1]`,
@@ -304,7 +401,6 @@ export function buildRenderArgs(plan: RenderPlan): string[] {
         'format=yuv420p',
       ].join(',') +
       `[vout]`,
-    `[aout0]${audioFades.length ? audioFades.join(',') : 'anull'}[aout]`,
   ].join(';');
 
   const quality = plan.encoding
@@ -323,12 +419,8 @@ export function buildRenderArgs(plan: RenderPlan): string[] {
         String(plan.encoding.gop),
         '-bf',
         '2',
-        '-c:a',
-        'aac',
-        '-b:a',
-        plan.encoding.audioBitrate,
       ]
-    : ['-preset', 'ultrafast', '-crf', '28', '-c:a', 'aac', '-b:a', '128k'];
+    : ['-preset', 'ultrafast', '-crf', '28'];
 
   return [
     '-v',
@@ -351,13 +443,15 @@ export function buildRenderArgs(plan: RenderPlan): string[] {
     '-t',
     String(round(d)),
     '-i',
-    plan.audio,
+    plan.source,
+    '-i',
+    plan.files.audio,
     '-filter_complex',
     graph,
     '-map',
     '[vout]',
     '-map',
-    '[aout]',
+    '3:a',
     '-t',
     String(round(d)),
     '-r',
@@ -367,10 +461,9 @@ export function buildRenderArgs(plan: RenderPlan): string[] {
     '-pix_fmt',
     'yuv420p',
     ...quality,
-    '-ar',
-    '48000',
-    '-ac',
-    '2',
+    // The soundtrack is already encoded and checked: copied, never re-encoded.
+    '-c:a',
+    'copy',
     '-movflags',
     '+faststart',
     '-progress',

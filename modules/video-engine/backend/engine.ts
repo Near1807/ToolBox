@@ -6,12 +6,17 @@ import { promisify } from 'node:util';
 import type { RenderHandlers, RenderRequest, RenderResult } from '../contract';
 import {
   buildAssScript,
+  buildAudioArgs,
   buildBackgroundArgs,
   buildCardArgs,
   buildFontsConfig,
   buildRenderArgs,
+  buildTruePeakArgs,
   FORMATS,
+  INITIAL_CEILING_DB,
+  parseTruePeak,
   scaleFormat,
+  TRUE_PEAK_TARGET,
 } from './commands';
 import { RenderCancelled, runFfmpeg } from './runner';
 
@@ -29,8 +34,10 @@ export interface EngineEnvironment {
 
 export interface RenderOptions extends RenderRequest {
   outputPath: string;
-  /** 1 = full quality; < 1 = smaller, faster preview encoding. */
+  /** Frame size factor: 1 = full size (tests render smaller). */
   scale?: number;
+  /** 'preview': fast encoding, no fades, no true-peak verification. Default 'final'. */
+  quality?: 'final' | 'preview';
 }
 
 export async function probeDuration(ffprobe: string, audioPath: string): Promise<number> {
@@ -67,7 +74,7 @@ export async function renderVideo(
   const format = FORMATS[options.format];
   if (!format) throw new Error(`Format inconnu : ${options.format}`);
   const scale = options.scale ?? 1;
-  const preview = scale < 1;
+  const preview = options.quality === 'preview';
   const { width, height, layout } = scaleFormat(format, scale);
 
   const audioDuration = await probeDuration(env.ffprobe, options.audioPath);
@@ -105,7 +112,39 @@ export async function renderVideo(
     await run(buildCardArgs(options.coverPath, 'card.png', layout.cover));
 
     mkdirSync(path.dirname(options.outputPath), { recursive: true });
-    const fade = preview ? 0 : Math.min(1.5, duration / 4);
+    const fadeIn = preview ? 0 : Math.min(1.5, duration / 4);
+    const fadeOut = preview ? 0 : Math.min(2, duration / 4);
+
+    // 1. Soundtrack: encode, measure the true peak of the AAC result, and lower
+    //    the limiter ceiling until it is at most -1 dBTP (previews: one pass).
+    handlers.onProgress?.(0, 'Préparation du son…');
+    let ceilingDb = INITIAL_CEILING_DB;
+    for (let attempt = 1; ; attempt++) {
+      await run(
+        buildAudioArgs({
+          source: options.audioPath,
+          start,
+          duration,
+          fadeIn,
+          fadeOut,
+          ceilingDb,
+          bitrate: preview ? '128k' : format.encoding.audioBitrate,
+          output: 'soundtrack.m4a',
+        }),
+      );
+      if (preview) break;
+      const truePeak = parseTruePeak(await run(buildTruePeakArgs('soundtrack.m4a')));
+      if (truePeak === null) throw new Error('Mesure du niveau crête impossible');
+      if (truePeak <= TRUE_PEAK_TARGET || attempt === 4) {
+        if (truePeak > TRUE_PEAK_TARGET) {
+          throw new Error(`Niveau crête du son trop élevé (${truePeak} dBTP) malgré le limiteur`);
+        }
+        break;
+      }
+      ceilingDb -= truePeak - TRUE_PEAK_TARGET + 0.3;
+    }
+
+    // 2. Video, with the soundtrack copied as is.
     await run(
       buildRenderArgs({
         width,
@@ -113,17 +152,18 @@ export async function renderVideo(
         layout,
         start,
         duration,
-        fadeIn: fade,
-        fadeOut: preview ? 0 : Math.min(2, duration / 4),
+        fadeIn,
+        fadeOut,
         encoding: preview ? null : format.encoding,
         files: {
           background: 'background.png',
           card: 'card.png',
           ass: 'text.ass',
           fontsDir: 'fonts',
+          audio: 'soundtrack.m4a',
           output: partial,
         },
-        audio: options.audioPath,
+        source: options.audioPath,
       }),
       (seconds) => {
         const fraction = Math.min(0.99, seconds / duration);

@@ -1,0 +1,175 @@
+/* instagram-video styles (prefix iv-). */
+.iv-layout {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.iv-tracks {
+  position: sticky;
+  top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.iv-tracks ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: calc(100vh - 220px);
+  overflow-y: auto;
+}
+
+.iv-tracks__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 6px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.iv-tracks__item:hover,
+.iv-tracks__item--active {
+  background: var(--bg-hover);
+}
+
+.iv-tracks__item--active {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.iv-tracks__item img,
+.iv-tracks__placeholder {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.iv-tracks__placeholder {
+  display: grid;
+  place-items: center;
+  background: var(--bg-hover);
+  color: var(--text-muted);
+}
+
+.iv-tracks__item > span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.iv-tracks__item strong {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.iv-track {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+}
+
+.iv-track__cover {
+  width: 110px;
+  height: 110px;
+  border-radius: 10px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.iv-track__cover--empty {
+  display: grid;
+  place-items: center;
+  font-size: 2rem;
+  background: var(--bg-hover);
+  color: var(--text-muted);
+}
+
+.iv-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.iv-controls input[type='range'] {
+  width: 220px;
+  accent-color: var(--accent);
+}
+
+.iv-wave {
+  position: relative;
+  height: 110px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.iv-wave__bars {
+  position: absolute;
+  inset: 8px 4px;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.iv-wave__bar {
+  flex: 1;
+  min-width: 1px;
+  border-radius: 1px;
+  background: var(--text-muted);
+  opacity: 0.45;
+}
+
+.iv-wave__bar--selected {
+  background: var(--accent-strong);
+  opacity: 1;
+}
+
+.iv-wave__selection {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border-left: 2px solid var(--accent);
+  border-right: 2px solid var(--accent);
+}
+
+.iv-wave__playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--text);
+}
+
+.iv-progress {
+  margin-top: 16px;
+}
+
+.iv-preview {
+  display: block;
+  height: 480px;
+  max-width: 100%;
+  margin-top: 16px;
+  border-radius: 8px;
+  background: #000;
+}
+
+.iv-caption {
+  font-family: inherit;
+  resize: vertical;
+}

@@ -383,6 +383,7 @@ select.input {
 
 .inline-form {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   align-items: center;
   margin-bottom: 12px;

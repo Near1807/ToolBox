@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildAssScript,
+  buildAudioArgs,
+  dbToLinear,
+  parseTruePeak,
   buildFontsConfig,
   buildRenderArgs,
   escapeAssText,
@@ -15,6 +18,7 @@ const files = {
   card: 'card.png',
   ass: 'text.ass',
   fontsDir: 'fonts',
+  audio: 'soundtrack.m4a',
   output: 'out.mp4.part',
 };
 
@@ -48,10 +52,14 @@ describe('FFmpeg command builders', () => {
       fadeOut: 2,
       encoding: FORMATS.youtube.encoding,
       files,
-      audio:
+      source:
         'C:\\Users\\Thomas\\AppData\\Roaming\\ToolBox\\modules\\music-library\\tracks\\1\\audio.wav',
     });
-    const at = (flag: string) => args[args.indexOf(flag) + 1];
+    const at = (flag: string, occurrence = 0) => {
+      let index = -1;
+      for (let i = 0; i <= occurrence; i++) index = args.indexOf(flag, index + 1);
+      return args[index + 1];
+    };
     expect(args).toContain(
       'C:\\Users\\Thomas\\AppData\\Roaming\\ToolBox\\modules\\music-library\\tracks\\1\\audio.wav',
     );
@@ -60,18 +68,19 @@ describe('FFmpeg command builders', () => {
     expect(at('-pix_fmt')).toBe('yuv420p');
     expect(at('-r')).toBe('30');
     expect(at('-b:v')).toBe('8M');
-    expect(at('-c:a')).toBe('aac');
-    expect(at('-b:a')).toBe('384k');
-    expect(at('-ar')).toBe('48000');
+    // The soundtrack (encoded and checked separately) is copied, not re-encoded.
+    expect(at('-c:a')).toBe('copy');
+    expect(at('-map', 1)).toBe('3:a');
     expect(at('-movflags')).toBe('+faststart');
     expect(args.at(-1)).toBe('out.mp4.part');
 
     const graph = at('-filter_complex')!;
-    expect(graph).toContain('showcqt=s=70x170');
+    expect(graph).toContain('showcqt=s=70x210');
+    expect(graph).toContain('firequalizer=');
+    // True-peak limiter before AAC encoding.
     expect(graph).toContain('subtitles=text.ass:fontsdir=fonts');
     expect(graph).toContain("scale=w='680*(1+0.05*t/180)'");
     expect(graph).toContain('fade=t=out:st=178:d=2');
-    expect(graph).toContain('afade=t=in:st=0:d=1.5');
     // No absolute path inside the filter graph (Windows escaping issues).
     expect(graph).not.toMatch(/[A-Z]:\\/);
   });
@@ -88,7 +97,7 @@ describe('FFmpeg command builders', () => {
       fadeOut: 0,
       encoding: null,
       files,
-      audio: 'a.wav',
+      source: 'a.wav',
     });
     expect(args).toContain('ultrafast');
     expect(args.join(' ')).not.toContain('fade=');
@@ -106,7 +115,36 @@ describe('FFmpeg command builders', () => {
     const ass = buildAssScript({ width, height, title: 'Night {Drive}', artist: 'Thomas', layout });
     expect(ass).toContain('PlayResX: 1920');
     expect(ass).toContain('{\\pos(960,700)}Night (Drive)');
-    expect(ass).toContain('{\\pos(960,782)}THOMAS');
+    expect(ass).toContain('{\\pos(960,784)}THOMAS');
+  });
+
+  it('builds the soundtrack with fades and an oversampled peak limiter', () => {
+    const args = buildAudioArgs({
+      source: 'C:\\Music\\song.wav',
+      start: 10,
+      duration: 30,
+      fadeIn: 1.5,
+      fadeOut: 2,
+      ceilingDb: -1.5,
+      bitrate: '384k',
+      output: 'soundtrack.m4a',
+    });
+    const filters = args[args.indexOf('-af') + 1];
+    expect(filters).toBe(
+      'afade=t=in:st=0:d=1.5,afade=t=out:st=28:d=2,aresample=192000,' +
+        'alimiter=limit=0.8414:attack=1:release=50:level=0,aresample=48000',
+    );
+    expect(args.slice(-3)).toEqual(['-f', 'mp4', 'soundtrack.m4a']);
+    expect(dbToLinear(-1)).toBe(0.8913);
+  });
+
+  it('reads the true peak from the ebur128 report', () => {
+    const report =
+      'Summary:\n  Integrated loudness:\n    I: -9.1 LUFS\n\n  True peak:\n    Peak:  -1.2 dBFS\n';
+    expect(parseTruePeak(report)).toBe(-1.2);
+    expect(parseTruePeak('True peak:\n    Peak:  0.4 dBFS')).toBe(0.4);
+    expect(parseTruePeak('True peak:\n    Peak:  -inf dBFS')).toBe(-Infinity);
+    expect(parseTruePeak('nothing')).toBeNull();
   });
 
   it('escapes XML in the fontconfig file', () => {

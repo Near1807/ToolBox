@@ -88,7 +88,13 @@ export default defineBackendModule({
         const outputPath = path.join(previewsDir, `${Date.now()}-${request.format}.mp4`);
         const result = await renderVideo(
           env(),
-          { ...request, duration: request.previewSeconds ?? 6, outputPath, scale: PREVIEW_SCALE },
+          {
+            ...request,
+            duration: request.previewSeconds ?? 6,
+            outputPath,
+            scale: PREVIEW_SCALE,
+            quality: 'preview',
+          },
           handlers,
         );
         prunePreviews();

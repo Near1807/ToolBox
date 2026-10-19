@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -84,6 +84,41 @@ describe('renderVideo (real FFmpeg)', () => {
     expect(Number(info.format.duration)).toBeCloseTo(3, 0);
     expect(progress.at(-1)).toBe(1);
     expect(existsSync(`${outputPath}.part`)).toBe(false);
+  });
+
+  it('keeps the audio under -1 dBTP even with a clipping source', async () => {
+    const hot = path.join(fixtures.dir, 'hot.wav');
+    execFileSync(ffmpegStatic!, [
+      '-v',
+      'error',
+      '-y',
+      '-f',
+      'lavfi',
+      '-i',
+      "aevalsrc='sgn(sin(2*PI*997*t))':d=4:s=48000",
+      '-ac',
+      '2',
+      hot,
+    ]);
+    const outputPath = path.join(fixtures.dir, 'out', 'hot.mp4');
+    await renderVideo(env, {
+      format: 'youtube',
+      audioPath: hot,
+      coverPath: fixtures.cover,
+      title: 'Hot',
+      artist: 'Thomas',
+      outputPath,
+      scale: 0.25,
+    });
+    // The ebur128 summary (on stderr) ends with "True peak: … Peak: -1.3 dBFS".
+    const { stderr } = spawnSync(
+      ffmpegStatic!,
+      ['-hide_banner', '-nostats', '-i', outputPath, '-af', 'ebur128=peak=true', '-f', 'null', '-'],
+      { encoding: 'utf8' },
+    );
+    const truePeak = Number(/True peak:\s+Peak:\s+(-?[\d.]+) dBFS/.exec(stderr)?.[1]);
+    expect(truePeak).toBeLessThanOrEqual(-1);
+    expect(truePeak).toBeGreaterThan(-3);
   });
 
   it('renders the vertical Instagram layout', async () => {
