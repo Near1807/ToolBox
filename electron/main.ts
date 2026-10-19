@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
+import discoveredModules from 'virtual:toolbox-modules';
 import { generateToken } from '../backend/core/security';
 import { startServer, type RunningServer } from '../backend/server';
 import { createElectronHost } from './host';
@@ -16,6 +17,18 @@ if (process.env.TOOLBOX_USER_DATA_DIR) app.setPath('userData', process.env.TOOLB
 // In dev, scripts/dev.mjs chooses the token and port so the Vite proxy can use them.
 const token = (isDev && process.env.TOOLBOX_DEV_TOKEN) || generateToken();
 const apiPort = isDev ? Number(process.env.TOOLBOX_API_PORT ?? 47321) : 0;
+// Example modules (modules/_*) are loaded on demand: smoke test, or TOOLBOX_LOAD_EXAMPLES=1.
+const loadExamples = Boolean(smokeTestFile) || process.env.TOOLBOX_LOAD_EXAMPLES === '1';
+
+// A bug anywhere must not take the whole hub down: log it and keep running.
+process.on('uncaughtException', (error) => {
+  server?.hub.logger.error('Exception non gérée', error);
+  console.error(error);
+});
+process.on('unhandledRejection', (reason) => {
+  server?.hub.logger.error('Promesse rejetée non gérée', reason);
+  console.error(reason);
+});
 
 let server: RunningServer | null = null;
 let mainWindow: BrowserWindow | null = null;
@@ -65,6 +78,9 @@ async function bootstrap(): Promise<void> {
     token,
     appVersion: app.getVersion(),
     host: createElectronHost(),
+    modules: discoveredModules,
+    loadExamples,
+    echoLogs: isDev,
     port: apiPort,
     rendererDir: isDev ? undefined : path.join(__dirname, '..', 'renderer'),
     extraOrigins: isDev && devServerUrl ? [new URL(devServerUrl).origin] : [],
@@ -110,6 +126,9 @@ if (!app.requestSingleInstanceLock()) {
     event.preventDefault();
     const closing = server;
     server = null;
-    void closing.close().finally(() => app.quit());
+    // Never hang on exit: give the hub 5 s to stop cleanly.
+    const timeout = new Promise((resolve) => setTimeout(resolve, 5000));
+    // app.quit() is ignored once will-quit was prevented: exit explicitly.
+    void Promise.race([closing.close(), timeout]).finally(() => app.exit(0));
   });
 }
