@@ -12,7 +12,7 @@ import {
   type TestHub,
 } from '@hub/sdk/testing';
 import type { VideoEngineService } from '../contract';
-import { renderVideo, type EngineEnvironment } from '../backend/engine';
+import { renderPostImage, renderVideo, type EngineEnvironment } from '../backend/engine';
 import { RenderCancelled } from '../backend/runner';
 import { createRenderFixtures } from './fixtures';
 
@@ -159,6 +159,36 @@ describe('renderVideo (real FFmpeg)', () => {
     await expect(rendering).rejects.toBeInstanceOf(RenderCancelled);
     expect(existsSync(outputPath)).toBe(false);
     expect(existsSync(`${outputPath}.part`)).toBe(false);
+  });
+
+  it('applies short fades when asked (Reels: 0.5 s)', async () => {
+    const outputPath = path.join(fixtures.dir, 'out', 'short-fade.mp4');
+    const result = await renderVideo(env, {
+      format: 'instagram',
+      audioPath: fixtures.audio,
+      coverPath: fixtures.cover,
+      title: 'Fade',
+      artist: 'Thomas',
+      duration: 3,
+      fadeSeconds: 0.5,
+      outputPath,
+      scale: 0.25,
+    });
+    expect(result.durationSec).toBe(3);
+  });
+
+  it('renders the 4:5 post image as a JPEG', async () => {
+    const outputPath = path.join(fixtures.dir, 'out', 'post.jpg');
+    const result = await renderPostImage(env, {
+      coverPath: fixtures.cover,
+      title: 'Post',
+      artist: 'Thomas',
+      badge: 'Nouveau son',
+      outputPath,
+    });
+    expect(result).toMatchObject({ width: 1080, height: 1350 });
+    const image = probe(outputPath).streams[0]!;
+    expect(image).toMatchObject({ codec_name: 'mjpeg', width: 1080, height: 1350 });
   });
 
   it('reports a missing cover clearly', async () => {

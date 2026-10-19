@@ -21,6 +21,18 @@ export interface RenderRequest {
   start?: number;
   /** Excerpt length in seconds (default: until the end of the audio). */
   duration?: number;
+  /** Length of the fade in and fade out (picture and sound), in seconds. Default: 1.5 s in, 2 s out. */
+  fadeSeconds?: number;
+}
+
+export interface PostRequest {
+  coverPath: string;
+  title: string;
+  artist: string;
+  /** Small discreet mention at the top (e.g. "Nouveau son"); empty = none. */
+  badge?: string;
+  /** Output JPEG path. */
+  outputPath: string;
 }
 
 export interface RenderHandlers {
@@ -52,6 +64,11 @@ export interface VideoEngineService {
     request: RenderRequest & { previewSeconds?: number },
     handlers?: RenderHandlers,
   ): Promise<RenderResult>;
+  /**
+   * Still image 4:5 (1080×1350, high-quality JPEG) in the same style as the
+   * videos: colour-wash background, rounded cover with shadow, title, artist.
+   */
+  renderPost(request: PostRequest): Promise<{ file: string; width: number; height: number }>;
   /** Duration of an audio file, in seconds. */
   probeDuration(audioPath: string): Promise<number>;
 }

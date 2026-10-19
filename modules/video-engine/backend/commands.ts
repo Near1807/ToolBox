@@ -203,12 +203,20 @@ export function fitFontSize(text: string, base: number, maxWidth: number, min: n
 }
 
 /** Title and artist as an ASS script, rendered by libass (works with every FFmpeg build). */
+export interface TextLayout {
+  title: Layout['title'];
+  artist: Layout['artist'];
+  /** Optional small mention (post image). */
+  badge?: { top: number; fontSize: number };
+}
+
 export function buildAssScript(params: {
   width: number;
   height: number;
   title: string;
   artist: string;
-  layout: Layout;
+  layout: TextLayout;
+  badge?: string;
 }): string {
   const { width, height, layout } = params;
   const title = escapeAssText(params.title);
@@ -239,6 +247,7 @@ export function buildAssScript(params: {
     'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding',
     `Style: Title,Montserrat SemiBold,${titleSize},&H00FFFFFF,&H00FFFFFF,&H00000000,&H90000000,0,0,0,0,100,100,0.5,0,1,0,${shadow},8,0,0,0,1`,
     `Style: Artist,Montserrat SemiBold,${artistSize},&H00FFFFFF,&H00FFFFFF,&H00000000,&H60000000,0,0,0,0,100,100,${Math.max(1, Math.round(artistSize / 14))},0,1,0,${shadow},8,0,0,0,1`,
+    `Style: Badge,Montserrat SemiBold,${layout.badge?.fontSize ?? 24},&H40FFFFFF,&H40FFFFFF,&H00000000,&H80000000,0,0,0,0,100,100,${Math.max(2, Math.round((layout.badge?.fontSize ?? 24) / 5))},0,1,0,1,8,0,0,0,1`,
     '',
     '[Events]',
     'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
@@ -251,6 +260,12 @@ export function buildAssScript(params: {
     lines.push(
       `Dialogue: 0,0:00:00.00,9:59:59.00,Artist,,0,0,0,,{\\pos(${cx},${layout.artist.top})}${artist}`,
     );
+  const badge = escapeAssText(params.badge ?? '').toUpperCase();
+  if (badge && layout.badge) {
+    lines.push(
+      `Dialogue: 0,0:00:00.00,9:59:59.00,Badge,,0,0,0,,{\\pos(${cx},${layout.badge.top})}${badge}`,
+    );
+  }
   return lines.join('\n') + '\n';
 }
 
@@ -472,6 +487,49 @@ export function buildRenderArgs(plan: RenderPlan): string[] {
     '-f',
     'mp4',
     plan.files.output,
+  ];
+}
+
+/** Still image 4:5 for an Instagram post, in the same style as the videos. */
+export const POST_SPEC = {
+  width: 1080,
+  height: 1350,
+  blur: 90,
+  cover: { size: 700, centerY: 590, radius: 32, shadowPad: 70, shadowOffset: 16 },
+  text: {
+    title: { top: 1030, fontSize: 60, minFontSize: 32, maxWidth: 940 },
+    artist: { top: 1112, fontSize: 40 },
+    badge: { top: 118, fontSize: 28 },
+  } satisfies TextLayout,
+};
+
+/** Composes the post image (background + card + text) into a high-quality JPEG. */
+export function buildPostArgs(files: {
+  background: string;
+  card: string;
+  ass: string;
+  fontsDir: string;
+  output: string;
+}): string[] {
+  const { cover } = POST_SPEC;
+  return [
+    '-v',
+    'error',
+    '-y',
+    '-i',
+    files.background,
+    '-i',
+    files.card,
+    '-filter_complex',
+    `[0:v][1:v]overlay=x=(W-w)/2:y=${cover.centerY}-h/2,` +
+      `subtitles=${files.ass}:fontsdir=${files.fontsDir},format=yuvj444p`,
+    '-frames:v',
+    '1',
+    '-q:v',
+    '2',
+    '-f',
+    'image2',
+    files.output,
   ];
 }
 

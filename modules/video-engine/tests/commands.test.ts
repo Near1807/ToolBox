@@ -4,6 +4,7 @@ import {
   buildAudioArgs,
   dbToLinear,
   parseTruePeak,
+  POST_SPEC,
   buildFontsConfig,
   buildRenderArgs,
   escapeAssText,
@@ -145,6 +146,27 @@ describe('FFmpeg command builders', () => {
     expect(parseTruePeak('True peak:\n    Peak:  0.4 dBFS')).toBe(0.4);
     expect(parseTruePeak('True peak:\n    Peak:  -inf dBFS')).toBe(-Infinity);
     expect(parseTruePeak('nothing')).toBeNull();
+  });
+
+  it('adds the optional badge to the post text', () => {
+    const ass = buildAssScript({
+      width: 1080,
+      height: 1350,
+      title: 'Titre',
+      artist: 'Thomas',
+      badge: 'Nouveau son',
+      layout: POST_SPEC.text,
+    });
+    expect(ass).toContain('{\\pos(540,118)}NOUVEAU SON');
+    expect(
+      buildAssScript({
+        width: 1080,
+        height: 1350,
+        title: 'T',
+        artist: 'A',
+        layout: POST_SPEC.text,
+      }),
+    ).not.toContain('Badge,,');
   });
 
   it('escapes XML in the fontconfig file', () => {

@@ -11,7 +11,13 @@ import {
   type VideoFormatInfo,
 } from '../contract';
 import { FORMATS } from './commands';
-import { FONT_FILE, probeDuration, renderVideo, type EngineEnvironment } from './engine';
+import {
+  FONT_FILE,
+  probeDuration,
+  renderPostImage,
+  renderVideo,
+  type EngineEnvironment,
+} from './engine';
 
 const PREVIEW_SCALE = 1 / 3;
 const PREVIEWS_KEPT = 6;
@@ -100,6 +106,8 @@ export default defineBackendModule({
         prunePreviews();
         return result;
       },
+      // A still image takes a second or two: no queue.
+      renderPost: (request) => renderPostImage(env(), request),
       probeDuration: (audioPath) => probeDuration(ctx.binaries.ffprobe, audioPath),
     };
 

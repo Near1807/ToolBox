@@ -12,6 +12,12 @@ Moteur de rendu **unique** partagé par les générateurs (YouTube, Instagram) :
 
 La pulsation de la cover sur les basses n'est pas en V1 (voir `docs/ROADMAP.md`).
 
+Durée des fondus réglable par rendu (`fadeSeconds`) : 1,5 s / 2 s par défaut, 0,5 s pour les Reels du pack Instagram.
+
+## Post image (4:5)
+
+`renderPost()` compose une image **1080×1350** (JPEG haute qualité) dans le même style : même fond, cover arrondie avec ombre (700 px), titre, artiste, et une petite mention discrète facultative en haut (ex. « NOUVEAU SON »).
+
 ## Formats
 
 | Format      | Taille            | Vidéo                                 | Audio                  |
@@ -34,12 +40,12 @@ Les rendus complets passent **un par un** (file d'attente interne : « En attent
 
 ## Données
 
-| Élément        | Détail                                                                                                                                                         |
-| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Tables         | aucune                                                                                                                                                         |
-| Fichiers       | `<userData>/modules/video-engine/work/` (temporaire, vidé au démarrage) · `previews/` (6 derniers aperçus)                                                     |
-| Assets         | `assets/fonts/Montserrat-SemiBold.ttf`                                                                                                                         |
-| Service fourni | `videoEngine` (types dans [`contract.ts`](contract.ts)) : `formats`, `render(request, { signal, onProgress })`, `preview(request)`, `probeDuration(audioPath)` |
+| Élément        | Détail                                                                                                                                                                                |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tables         | aucune                                                                                                                                                                                |
+| Fichiers       | `<userData>/modules/video-engine/work/` (temporaire, vidé au démarrage) · `previews/` (6 derniers aperçus)                                                                            |
+| Assets         | `assets/fonts/Montserrat-SemiBold.ttf`                                                                                                                                                |
+| Service fourni | `videoEngine` (types dans [`contract.ts`](contract.ts)) : `formats`, `render(request, { signal, onProgress })`, `preview(request)`, `renderPost(request)`, `probeDuration(audioPath)` |
 
 ## Dépendances
 

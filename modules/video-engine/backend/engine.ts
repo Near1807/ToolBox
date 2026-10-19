@@ -3,11 +3,13 @@ import { execFile } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, rmSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import type { RenderHandlers, RenderRequest, RenderResult } from '../contract';
+import type { PostRequest, RenderHandlers, RenderRequest, RenderResult } from '../contract';
 import {
   buildAssScript,
   buildAudioArgs,
   buildBackgroundArgs,
+  buildPostArgs,
+  POST_SPEC,
   buildCardArgs,
   buildFontsConfig,
   buildRenderArgs,
@@ -112,8 +114,8 @@ export async function renderVideo(
     await run(buildCardArgs(options.coverPath, 'card.png', layout.cover));
 
     mkdirSync(path.dirname(options.outputPath), { recursive: true });
-    const fadeIn = preview ? 0 : Math.min(1.5, duration / 4);
-    const fadeOut = preview ? 0 : Math.min(2, duration / 4);
+    const fadeIn = preview ? 0 : Math.min(options.fadeSeconds ?? 1.5, duration / 4);
+    const fadeOut = preview ? 0 : Math.min(options.fadeSeconds ?? 2, duration / 4);
 
     // 1. Soundtrack: encode, measure the true peak of the AAC result, and lower
     //    the limiter ceiling until it is at most -1 dBTP (previews: one pass).
@@ -174,6 +176,68 @@ export async function renderVideo(
     renameSync(partial, options.outputPath);
     handlers.onProgress?.(1, 'Terminé');
     return { file: options.outputPath, durationSec: duration, width, height };
+  } catch (error) {
+    rmSync(partial, { force: true });
+    throw error;
+  } finally {
+    rmSync(work, { recursive: true, force: true });
+  }
+}
+
+/** Renders the 4:5 post image (JPEG). */
+export async function renderPostImage(
+  env: EngineEnvironment,
+  request: PostRequest,
+): Promise<{ file: string; width: number; height: number }> {
+  if (!request.coverPath || !existsSync(request.coverPath)) {
+    throw new Error(`Fichier cover introuvable : ${request.coverPath || '(aucun)'}`);
+  }
+  const { width, height } = POST_SPEC;
+  const work = path.join(env.workRoot, randomUUID());
+  const fontsWork = path.join(work, 'fonts');
+  mkdirSync(fontsWork, { recursive: true });
+  const partial = `${request.outputPath}.part`;
+  try {
+    copyFileSync(path.join(env.fontsDir, FONT_FILE), path.join(fontsWork, FONT_FILE));
+    writeFileSync(
+      path.join(work, 'fonts.conf'),
+      buildFontsConfig(fontsWork, path.join(work, 'fc-cache')),
+    );
+    writeFileSync(
+      path.join(work, 'post.ass'),
+      buildAssScript({
+        width,
+        height,
+        title: request.title,
+        artist: request.artist,
+        badge: request.badge,
+        layout: POST_SPEC.text,
+      }),
+    );
+    const run = (args: string[]) =>
+      runFfmpeg({
+        ffmpeg: env.ffmpeg,
+        args,
+        cwd: work,
+        env: { FONTCONFIG_FILE: path.join(work, 'fonts.conf') },
+      });
+    await run(
+      buildBackgroundArgs(request.coverPath, 'background.png', width, height, POST_SPEC.blur),
+    );
+    await run(buildCardArgs(request.coverPath, 'card.png', POST_SPEC.cover));
+    mkdirSync(path.dirname(request.outputPath), { recursive: true });
+    await run(
+      buildPostArgs({
+        background: 'background.png',
+        card: 'card.png',
+        ass: 'post.ass',
+        fontsDir: 'fonts',
+        output: partial,
+      }),
+    );
+    rmSync(request.outputPath, { force: true });
+    renameSync(partial, request.outputPath);
+    return { file: request.outputPath, width, height };
   } catch (error) {
     rmSync(partial, { force: true });
     throw error;
