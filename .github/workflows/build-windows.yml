@@ -1,0 +1,69 @@
+name: Build Windows
+
+on:
+  push:
+    tags: ['v*']
+    # Development branch: get a .exe for every pushed phase without touching main.
+    # (workflow_dispatch only becomes available once this file is on main.)
+    branches: ['hub-v1']
+  workflow_dispatch:
+
+permissions:
+  contents: write # needed to create the GitHub Release on tags
+
+concurrency:
+  group: build-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Native modules load in Electron
+        run: npm run check:native
+
+      - name: Build installer and portable .exe
+        run: npm run dist:win
+        env:
+          # Unsigned app (personal use): do not look for a code-signing certificate.
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - name: Smoke test packaged app (backend, SQLite, FFmpeg, UI)
+        run: node scripts/smoke-test.mjs dist/win-unpacked/ToolBox.exe
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v5
+        with:
+          name: ToolBox-windows-${{ github.sha }}
+          path: dist/*.exe
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/*.exe \
+            --title "ToolBox $GITHUB_REF_NAME" \
+            --notes "Voir CHANGELOG.md. Application non signée : voir docs/WINDOWS.md (avertissement SmartScreen)."

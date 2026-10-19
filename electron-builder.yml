@@ -1,0 +1,58 @@
+# Packaging configuration — see docs/WINDOWS.md and docs/decisions/0007-distribution-windows.md
+appId: com.near1807.toolbox
+productName: ToolBox
+copyright: Copyright © 2026 Thomas
+icon: resources/build/icon.png
+directories:
+  output: dist
+  buildResources: resources/build
+
+files:
+  - build/**
+  - '!build/**/*.map'
+  - package.json
+  - '!node_modules/better-sqlite3/{src,deps,binding.gyp}'
+
+# Executables and native addons cannot run from inside app.asar.
+asarUnpack:
+  - node_modules/ffmpeg-static/**
+  - node_modules/@derhuerst/ffprobe-static/**
+  - node_modules/better-sqlite3/**
+
+# better-sqlite3 ships N-API prebuilds that work in Electron as-is: no rebuild
+# (docs/decisions/0003-sqlite-better-sqlite3.md). `npm run check:native` guards it.
+npmRebuild: false
+
+win:
+  icon: resources/build/icon.ico
+  # Only ship the native SQLite binary for Windows x64.
+  files:
+    - '!node_modules/better-sqlite3/prebuilds/{darwin,linux,linuxmusl}-*'
+    - '!node_modules/better-sqlite3/prebuilds/win32-arm64.node'
+  target:
+    - target: nsis
+      arch: x64
+    - target: portable
+      arch: x64
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: ToolBox
+  # Keep user data (settings, library, stats) when uninstalling.
+  deleteAppDataOnUninstall: false
+  artifactName: ToolBox-Setup-${version}.exe
+
+portable:
+  artifactName: ToolBox-Portable-${version}.exe
+
+linux:
+  # Only used to validate packaging locally on Linux; Windows is the real target.
+  target: dir
+  files:
+    - '!node_modules/better-sqlite3/prebuilds/{darwin,win32,linuxmusl}-*'
+  icon: resources/build/icon.png
+  category: Utility

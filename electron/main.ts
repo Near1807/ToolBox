@@ -1,0 +1,115 @@
+import path from 'node:path';
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
+import { generateToken } from '../backend/core/security';
+import { startServer, type RunningServer } from '../backend/server';
+import { createElectronHost } from './host';
+import { runSmokeTest } from './smoke-test';
+
+const devServerUrl = process.env.VITE_DEV_SERVER_URL;
+const isDev = !app.isPackaged && Boolean(devServerUrl);
+const smokeTestArg = process.argv.find((arg) => arg.startsWith('--smoke-test='));
+const smokeTestFile = smokeTestArg?.slice('--smoke-test='.length);
+
+// Lets CI and tests run against an isolated profile instead of the user's real data.
+if (process.env.TOOLBOX_USER_DATA_DIR) app.setPath('userData', process.env.TOOLBOX_USER_DATA_DIR);
+
+// In dev, scripts/dev.mjs chooses the token and port so the Vite proxy can use them.
+const token = (isDev && process.env.TOOLBOX_DEV_TOKEN) || generateToken();
+const apiPort = isDev ? Number(process.env.TOOLBOX_API_PORT ?? 47321) : 0;
+
+let server: RunningServer | null = null;
+let mainWindow: BrowserWindow | null = null;
+
+ipcMain.on('toolbox:get-config', (event) => {
+  event.returnValue = { token };
+});
+
+function createWindow(appUrl: string): BrowserWindow {
+  const window = new BrowserWindow({
+    width: 1280,
+    height: 800,
+    minWidth: 900,
+    minHeight: 600,
+    title: 'ToolBox',
+    backgroundColor: '#0f1115',
+    show: false,
+    autoHideMenuBar: true,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.cjs'),
+      contextIsolation: true,
+      sandbox: true,
+      nodeIntegration: false,
+    },
+  });
+
+  window.once('ready-to-show', () => {
+    if (!smokeTestFile) window.show();
+  });
+
+  // Links to external sites open in the default browser, never inside the app.
+  window.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('https://') || url.startsWith('http://')) void shell.openExternal(url);
+    return { action: 'deny' };
+  });
+  window.webContents.on('will-navigate', (event, url) => {
+    if (!url.startsWith(appUrl)) event.preventDefault();
+  });
+
+  void window.loadURL(appUrl);
+  return window;
+}
+
+async function bootstrap(): Promise<void> {
+  server = await startServer({
+    dataDir: app.getPath('userData'),
+    token,
+    appVersion: app.getVersion(),
+    host: createElectronHost(),
+    port: apiPort,
+    rendererDir: isDev ? undefined : path.join(__dirname, '..', 'renderer'),
+    extraOrigins: isDev && devServerUrl ? [new URL(devServerUrl).origin] : [],
+  });
+
+  const appUrl = isDev && devServerUrl ? devServerUrl : `${server.url}/`;
+  mainWindow = createWindow(appUrl);
+
+  if (smokeTestFile) {
+    const window = mainWindow;
+    const uiLoaded = new Promise<void>((resolve, reject) => {
+      window.webContents.once('did-finish-load', () => resolve());
+      window.webContents.once('did-fail-load', (_e, code, description) =>
+        reject(new Error(`UI load failed: ${code} ${description}`)),
+      );
+    });
+    const ok = await runSmokeTest(smokeTestFile, server.url, token, window, uiLoaded);
+    app.exit(ok ? 0 : 1);
+  }
+}
+
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (!mainWindow) return;
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+  });
+
+  app
+    .whenReady()
+    .then(bootstrap)
+    .catch((error: unknown) => {
+      dialog.showErrorBox('ToolBox', `Démarrage impossible : ${String(error)}`);
+      app.exit(1);
+    });
+
+  app.on('window-all-closed', () => app.quit());
+
+  app.on('will-quit', (event) => {
+    if (!server) return;
+    event.preventDefault();
+    const closing = server;
+    server = null;
+    void closing.close().finally(() => app.quit());
+  });
+}
