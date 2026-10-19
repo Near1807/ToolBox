@@ -1,0 +1,29 @@
+{
+  "id": "template",
+  "name": "Module modèle",
+  "description": "Exemple complet à copier pour créer un nouvel outil : notes, réglage, tâche longue.",
+  "version": "1.0.0",
+  "section": "Exemples",
+  "icon": "🧩",
+  "order": 100,
+  "dependsOn": { "modules": [], "services": [] },
+  "provides": { "services": [] },
+  "permissions": { "accounts": [] },
+  "settings": [
+    {
+      "key": "greeting",
+      "type": "string",
+      "label": "Message d'accueil",
+      "description": "Affiché en haut de la page du module.",
+      "default": "Bonjour !"
+    },
+    {
+      "key": "demoSeconds",
+      "type": "number",
+      "label": "Durée de la tâche de démonstration (secondes)",
+      "min": 1,
+      "max": 60,
+      "default": 5
+    }
+  ]
+}
