@@ -4,15 +4,15 @@ Légende : ✅ fait · 🚧 en cours · ⏳ prévu
 
 ## V1 — espace Musique
 
-| Phase | Contenu                                                                                                                                                                                                                                 | Statut      |
-| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| 0     | Squelette Electron + Fastify + React, scripts dev/build/test/lint, CI Windows qui produit un `.exe` testé, CLAUDE.md, docs et ADR initiaux                                                                                              | ✅ (v0.1.0) |
-| 1     | Socle : chargeur de modules, `ctx` (db, files, settings, jobs, scheduler, events, services, logger), accueil par sections, réglages auto-générés, journaux, `modules/_template`, contrat complet (`MODULES.md`, `AJOUTER-UN-MODULE.md`) | ⏳          |
-| 2     | `music-library` : bibliothèque de morceaux (glisser-déposer, ffprobe, édition, mini-lecteur, service partagé)                                                                                                                           | ⏳          |
-| 3     | `video-engine` (moteur de rendu partagé, aperçu, progression, annulation) + `youtube-video` (16:9, description)                                                                                                                         | ⏳          |
-| 4     | `instagram-video` : Reel 9:16, extrait réglable, « suggérer un passage » (RMS), légende avec hashtags                                                                                                                                   | ⏳          |
-| 5     | `ctx.accounts` (OAuth Google), planificateur avec rattrapage, `youtube-stats`                                                                                                                                                           | ⏳          |
-| 6     | Finitions, test du `.exe` installé, doc complète, v1.0.0                                                                                                                                                                                | ⏳          |
+| Phase | Contenu                                                                                                                                                                                                                                                                                         | Statut      |
+| ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| 0     | Squelette Electron + Fastify + React, scripts dev/build/test/lint, CI Windows qui produit un `.exe` testé, CLAUDE.md, docs et ADR initiaux                                                                                                                                                      | ✅ (v0.1.0) |
+| 1     | Socle : chargeur de modules, `ctx` (db, files, settings, jobs, scheduler, events, services, logger), accueil par sections, réglages auto-générés, journaux, `modules/_template`, contrat complet (`MODULES.md`, `AJOUTER-UN-MODULE.md`), sauvegardes automatiques avant migration + export .zip | ✅ (v0.2.0) |
+| 2     | `music-library` : bibliothèque de morceaux (glisser-déposer, ffprobe, édition, mini-lecteur, service partagé)                                                                                                                                                                                   | ⏳          |
+| 3     | `video-engine` (moteur de rendu partagé, aperçu, progression, annulation) + `youtube-video` (16:9, description)                                                                                                                                                                                 | ⏳          |
+| 4     | `instagram-video` : Reel 9:16, extrait réglable, « suggérer un passage » (RMS), légende avec hashtags                                                                                                                                                                                           | ⏳          |
+| 5     | `ctx.accounts` (OAuth Google), planificateur avec rattrapage, `youtube-stats`                                                                                                                                                                                                                   | ⏳          |
+| 6     | Finitions, test du `.exe` installé, doc complète, v1.0.0                                                                                                                                                                                                                                        | ⏳          |
 
 ## Plus tard (hors V1, la structure doit le permettre)
 
@@ -25,4 +25,6 @@ Légende : ✅ fait · 🚧 en cours · ⏳ prévu
 - **Démarrage avec Windows et icône dans la zone de notification**, pour que les relevés planifiés tournent même sans ouvrir l'app.
 - **Intégration des apps existantes** (outil mails, boîte à outils gamifiée to-do/timer/habitudes/XP) en tant que modules adaptés au contrat.
 - **Mise à jour automatique** de l'app.
+- **Restauration d'une sauvegarde depuis l'interface** (aujourd'hui : procédure manuelle, voir `docs/WINDOWS.md`).
+- Reprise automatique des tâches interrompues par la fermeture de l'app (aujourd'hui : marquées « interrompues », à relancer).
 - Signature du code (supprimerait l'avertissement SmartScreen) si l'app est un jour distribuée.

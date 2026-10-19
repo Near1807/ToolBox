@@ -31,3 +31,16 @@ L'avertissement réapparaît à chaque nouvelle version (nouveau fichier non sig
 - Les vidéos générées vont dans le dossier de sortie choisi dans les réglages.
 - **Désinstaller l'app conserve les données.** Pour tout effacer, supprimer aussi `%APPDATA%\ToolBox\`.
 - Les jetons de connexion (Google…) sont chiffrés avec la protection de données de Windows liée à ta session : ils ne sont pas lisibles depuis un autre compte ou un autre PC.
+
+## Sauvegardes et restauration
+
+- **Automatiques** : avant chaque mise à jour du schéma de la base, ToolBox copie `hub.db` dans `%APPDATA%\ToolBox\backups\` (10 dernières conservées). Si une mise à jour échoue, l'app restaure elle-même la copie et désactive l'outil concerné (message dans Réglages > Modules).
+- **Manuelles** : Réglages > Sauvegardes > **Exporter une sauvegarde** crée un `.zip` avec la base et les fichiers des outils (morceaux, covers…). À faire avant une grosse manipulation, et de temps en temps sur un disque externe ou un cloud.
+
+Restaurer à la main (app **fermée**, y compris dans la zone de notification) :
+
+1. Ouvrir `%APPDATA%\ToolBox\` (Réglages > À propos > Ouvrir).
+2. Mettre de côté le dossier actuel (le renommer, ex. `ToolBox-avant-restauration`).
+3. Depuis un export `.zip` : recréer `%APPDATA%\ToolBox\`, y extraire `hub.db` et le dossier `modules\`.
+   Depuis une sauvegarde automatique : copier `backups\hub-….db` vers `%APPDATA%\ToolBox\hub.db` (supprimer `hub.db-wal` et `hub.db-shm` s'ils existent).
+4. Relancer ToolBox. Si un outil avait été désactivé, le réactiver dans Réglages > Modules.
