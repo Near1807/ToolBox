@@ -1,0 +1,19 @@
+{
+  "id": "music-library",
+  "name": "Bibliothèque",
+  "description": "Tes morceaux : son, cover et infos, prêts pour générer tes vidéos.",
+  "version": "1.0.0",
+  "section": "Musique",
+  "icon": "🎵",
+  "order": 10,
+  "provides": { "services": ["musicLibrary"] },
+  "settings": [
+    {
+      "key": "defaultArtist",
+      "type": "string",
+      "label": "Nom d'artiste par défaut",
+      "description": "Utilisé pour tout morceau dont l'artiste n'est pas précisé.",
+      "placeholder": "Ton nom d'artiste"
+    }
+  ]
+}
