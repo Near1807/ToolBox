@@ -2,8 +2,8 @@
 node_modules/
 
 # Build output
-build/
-dist/
+/build/
+/dist/
 *.tsbuildinfo
 
 # Environment and secrets — never commit
