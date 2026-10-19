@@ -98,6 +98,7 @@
 
 .iv-controls {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
   margin-bottom: 12px;
@@ -134,20 +135,6 @@
   opacity: 0.45;
 }
 
-.iv-wave__bar--selected {
-  background: var(--accent-strong);
-  opacity: 1;
-}
-
-.iv-wave__selection {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  border-left: 2px solid var(--accent);
-  border-right: 2px solid var(--accent);
-}
-
 .iv-wave__playhead {
   position: absolute;
   top: 0;
@@ -169,7 +156,270 @@
   background: #000;
 }
 
+/* Reel colours: the waveform regions and the chips share them. */
+.iv-wave,
+.iv-excerpts {
+  --iv-1: #8b7cff;
+  --iv-2: #4cc3ff;
+  --iv-3: #4cd4a0;
+  --iv-4: #ff9f5a;
+}
+
+.iv-wave {
+  touch-action: none;
+  user-select: none;
+}
+
+.iv-wave__region {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  --iv-color: var(--iv-1);
+  background: color-mix(in srgb, var(--iv-color) 18%, transparent);
+  border-left: 2px solid var(--iv-color);
+  border-right: 2px solid var(--iv-color);
+  cursor: grab;
+}
+
+.iv-wave__region span {
+  position: absolute;
+  top: 4px;
+  left: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--iv-color);
+}
+
+.iv-wave__region--2 {
+  --iv-color: var(--iv-2);
+}
+
+.iv-wave__region--3 {
+  --iv-color: var(--iv-3);
+}
+
+.iv-wave__region--4 {
+  --iv-color: var(--iv-4);
+}
+
+.iv-wave__region--active {
+  background: color-mix(in srgb, var(--iv-color) 34%, transparent);
+  z-index: 1;
+}
+
+.iv-wave__region--locked {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.iv-excerpts {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.iv-excerpt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 8px;
+}
+
+.iv-excerpt--active {
+  background: var(--bg-hover);
+}
+
+.iv-excerpt__chip {
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 50%;
+  font: inherit;
+  font-weight: 700;
+  color: #10101a;
+  background: var(--iv-1);
+  cursor: pointer;
+}
+
+.iv-excerpt__chip--2 {
+  background: var(--iv-2);
+}
+
+.iv-excerpt__chip--3 {
+  background: var(--iv-3);
+}
+
+.iv-excerpt__chip--4 {
+  background: var(--iv-4);
+}
+
+.iv-excerpt__time {
+  min-width: 110px;
+  font-variant-numeric: tabular-nums;
+}
+
+.iv-render {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.iv-render .muted {
+  overflow-wrap: anywhere;
+}
+
+.iv-track__actions {
+  margin-left: auto;
+}
+
+.iv-warning {
+  padding: 10px 14px;
+  border: 1px solid color-mix(in srgb, var(--warning) 50%, var(--border));
+  border-radius: 8px;
+}
+
+.iv-warning p {
+  margin-top: 0;
+  color: var(--warning);
+}
+
+/* Pack files */
+.iv-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 14px;
+}
+
+.iv-tile {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.iv-tile--published {
+  opacity: 0.7;
+}
+
+.iv-tile__preview {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 9 / 16;
+  max-height: 260px;
+  background: var(--bg-hover);
+  overflow: hidden;
+}
+
+.iv-tile__preview--post {
+  aspect-ratio: 4 / 5;
+}
+
+.iv-tile__preview[draggable='true'] {
+  cursor: grab;
+}
+
+.iv-tile__preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.iv-tile__drag {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  background: rgb(0 0 0 / 60%);
+  color: #fff;
+}
+
+.iv-tile__body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px 10px;
+}
+
+.iv-tile__title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.iv-tile__progress {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.iv-tile__published {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.iv-tile__date {
+  padding: 2px 6px;
+  font-size: 0.8rem;
+  width: auto;
+}
+
+.iv-tile__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.iv-publish {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Captions */
 .iv-caption {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.iv-caption textarea {
   font-family: inherit;
   resize: vertical;
+}
+
+.iv-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 0 6px;
+  cursor: pointer;
+}
+
+.iv-reel-caption {
+  margin-top: 12px;
+}
+
+.iv-reel-caption strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.iv-panel {
+  min-width: 0;
 }

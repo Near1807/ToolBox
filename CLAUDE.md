@@ -10,7 +10,7 @@ Application de bureau Windows personnelle de Thomas : un **hub** (page d'accueil
 
 **Pour ajouter ou modifier un module : lire `docs/MODULES.md` (le contrat) puis `docs/AJOUTER-UN-MODULE.md`.** Point de départ : copier `modules/_template/`.
 
-Modules actuels (section Musique) : `music-library` (bibliothèque, service `musicLibrary`), `video-engine` (moteur FFmpeg partagé, service `videoEngine`, sans page), `youtube-video` (générateur 16:9), `instagram-video` (Reel / Short 9:16). Chaque module a son `README.md`.
+Modules actuels (section Musique) : `music-library` (bibliothèque, service `musicLibrary`), `video-engine` (moteur FFmpeg partagé, service `videoEngine`, sans page), `youtube-video` (générateur 16:9), `instagram-video` (pack Insta : 4 Reels 9:16, post 4:5, légende, suivi de publication). Chaque module a son `README.md`.
 
 ## Stack
 
