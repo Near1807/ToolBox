@@ -491,16 +491,38 @@ export default defineBackendModule({
 
     // Uploads: queue, quota, job ------------------------------------------
 
+    /** Never connected: set it up first. Authorization expired: the uploads wait in the queue. */
     const requireAccount = () => {
       const status = ctx.accounts.status(GOOGLE);
-      if (!status.connected || status.needsReconnect) {
+      if (!status.connected) {
         throw new AccountError(
-          status.needsReconnect ? 'reauth-required' : 'not-connected',
-          status.needsReconnect
-            ? 'Le compte Google doit être reconnecté (onglet « Compte Google »)'
-            : 'Connecte d’abord ton compte Google (onglet « Compte Google »)',
+          'not-connected',
+          'Connecte d’abord ton compte Google (onglet « Compte Google »)',
         );
       }
+      return status;
+    };
+
+    const RECONNECT_WARNING =
+      'En attente : l’autorisation Google a expiré ou a été retirée. Reconnecte le compte, l’envoi partira tout seul.';
+    // One notification per expiry, not one per minute.
+    let reconnectNotified = false;
+    const notifyReconnect = () => {
+      if (reconnectNotified) return;
+      reconnectNotified = true;
+      ctx.logger.warn('Compte Google à reconnecter : envois YouTube en attente');
+      ctx.notifications.notify({
+        title: 'Compte Google à reconnecter',
+        body: 'L’autorisation YouTube a expiré ou a été retirée : les envois sont en attente. Ouvre le Planning de sortie › « Reconnecter ».',
+        path: '?tab=compte',
+      });
+    };
+    /** Follows the account: notify when it needs reconnecting, re-arm once it is fine again. */
+    const watchAccount = () => {
+      const status = ctx.accounts.status(GOOGLE);
+      if (status.connected && status.needsReconnect) notifyReconnect();
+      else reconnectNotified = false;
+      return status;
     };
 
     const uploadSlots = (now = new Date()) =>
@@ -544,7 +566,13 @@ export default defineBackendModule({
     const queueUpload = (item: ItemRow) => {
       if (PLATFORM[item.kind] !== 'youtube')
         throw new HttpError(400, 'Seuls les éléments YouTube s’envoient');
-      if (item.state === 'uploading' || item.state === 'queued') return;
+      if (item.state === 'uploading') return;
+      if (item.state === 'queued') {
+        if (ctx.accounts.status(GOOGLE).needsReconnect) {
+          store.updateItem(item.id, { warning: RECONNECT_WARNING });
+        }
+        return;
+      }
       if (isOnline(item.state)) throw new HttpError(409, 'Déjà sur YouTube');
       const release = store.requireRelease(item.release_id);
       const source = sourceOf(release, item);
@@ -554,7 +582,12 @@ export default defineBackendModule({
           `${itemLabel(item.kind, item.position)} : fichier introuvable, régénère-le d’abord`,
         );
       }
-      store.updateItem(item.id, { state: 'queued', error: null, warning: null, not_before: null });
+      store.updateItem(item.id, {
+        state: 'queued',
+        error: null,
+        warning: ctx.accounts.status(GOOGLE).needsReconnect ? RECONNECT_WARNING : null,
+        not_before: null,
+      });
     };
 
     /** Thumbnail of the long video, rendered once per release (same art direction). */
@@ -734,6 +767,35 @@ export default defineBackendModule({
             }
             throw error;
           }
+          // Authorization expired or revoked (e.g. 7 days in « Test » mode): back to the
+          // queue, sent automatically once the account is reconnected.
+          if (
+            error instanceof AccountError &&
+            (error.code === 'reauth-required' || error.code === 'not-connected')
+          ) {
+            store.updateItem(job.input.itemId, {
+              state: 'queued',
+              job_id: null,
+              warning: RECONNECT_WARNING,
+            });
+            notifyReconnect();
+            return { deferred: true };
+          }
+          // Google unreachable (network down, outage) after the retries: tried again later.
+          if (
+            (error instanceof AccountError && error.code === 'network') ||
+            error instanceof TypeError ||
+            (error instanceof YouTubeApiError && error.retryable)
+          ) {
+            const later = new Date(Date.now() + 15 * 60_000);
+            store.updateItem(job.input.itemId, {
+              state: 'queued',
+              job_id: null,
+              not_before: later.toISOString(),
+              warning: `Google injoignable (${message(error)}) : nouvel essai le ${formatInstant(later)}.`,
+            });
+            return { deferred: true };
+          }
           if (error instanceof YouTubeApiError && error.quotaExceeded) {
             store.addQuota(today, { exhausted: true });
             store.updateItem(job.input.itemId, {
@@ -883,11 +945,25 @@ export default defineBackendModule({
     };
 
     ctx.scheduler.schedule('dispatch', { everyMinutes: 1 }, async () => {
+      watchAccount();
       dispatchUploads();
       remind();
     });
     ctx.scheduler.schedule('youtube-status', { everyMinutes: 30 }, async () => {
-      await checkStatuses();
+      const status = watchAccount();
+      if (!status.connected || status.needsReconnect) return;
+      try {
+        // Refreshes the token when due: an expired authorization shows up here,
+        // even with nothing on YouTube to check.
+        await ctx.accounts.accessToken(GOOGLE);
+        await checkStatuses();
+      } catch (error) {
+        if (error instanceof AccountError && error.code === 'reauth-required') {
+          notifyReconnect();
+          return;
+        }
+        throw error;
+      }
     });
 
     // A new video of a track whose planned video is gone: it takes its place.
@@ -945,6 +1021,7 @@ export default defineBackendModule({
         today: all.filter((item) => item.date === today),
         late: all.filter((item) => item.late && item.date < today),
         upcoming: all.filter((item) => item.date > today && item.date <= addDays(today, 7)),
+        account: ctx.accounts.status(GOOGLE),
       };
     });
 
@@ -1224,7 +1301,14 @@ export default defineBackendModule({
       return { ok: true };
     });
 
-    ctx.routes.post('/check-now', async () => ({ checked: await checkStatuses() }));
+    ctx.routes.post('/check-now', async () => {
+      try {
+        return { checked: await checkStatuses() };
+      } catch (error) {
+        if (error instanceof AccountError && error.code === 'reauth-required') notifyReconnect();
+        throw error;
+      }
+    });
 
     // Google account (the OAuth client is entered in Réglages > Comptes connectés).
     let channel: { id: string; title: string } | null = null;
@@ -1254,6 +1338,7 @@ export default defineBackendModule({
       } catch (error) {
         ctx.logger.warn('Chaîne YouTube illisible', error);
       }
+      reconnectNotified = false;
       dispatchUploads();
       return { status, channel };
     });

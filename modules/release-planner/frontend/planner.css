@@ -25,6 +25,14 @@
   border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
 }
 
+.rp-reconnect {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  color: var(--text);
+}
+
 .rp-note .inline-form {
   margin: 8px 0 0;
 }

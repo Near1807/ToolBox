@@ -23,6 +23,9 @@ const LINKS = {
   audit: 'https://support.google.com/youtube/contact/yt_api_form',
   verify: 'https://www.youtube.com/verify',
   permissions: 'https://myaccount.google.com/permissions',
+  dataAccess: 'https://console.cloud.google.com/auth/scopes',
+  home: 'https://near1807.github.io/ToolBox/',
+  privacy: 'https://near1807.github.io/ToolBox/privacy.html',
 };
 
 function A(props: { href: string; children: string }) {
@@ -149,16 +152,41 @@ export function GoogleAccount(props: { onChanged: () => void }) {
             Activer ».
           </li>
           <li>
-            <strong>Écran de consentement</strong> :{' '}
-            <A href={LINKS.branding}>Google Auth Platform › Branding</A> — nom de l’app « ToolBox »,
-            ton e-mail. Dans <A href={LINKS.audience}>Audience</A> : type « Externe », puis{' '}
-            <strong>« Publier l’application »</strong> pour passer en <strong>Production</strong>.
+            <strong>Écran de consentement — Branding</strong> :{' '}
+            <A href={LINKS.branding}>Google Auth Platform › Branding</A>.
+            <ul>
+              <li>Nom de l’application : « ToolBox » ; e-mail d’assistance : ton adresse.</li>
+              <li>Logo : aucun (un logo oblige Google à valider l’app).</li>
+              <li>
+                Page d’accueil : <code>{LINKS.home}</code>
+              </li>
+              <li>
+                Règles de confidentialité : <code>{LINKS.privacy}</code>
+              </li>
+              <li>Conditions d’utilisation : laisser vide (facultatif).</li>
+              <li>
+                Domaines autorisés : <code>near1807.github.io</code> ; coordonnées du développeur :
+                ton e-mail. « Enregistrer ».
+              </li>
+            </ul>
+          </li>
+          <li>
+            <strong>Écran de consentement — Audience</strong> :{' '}
+            <A href={LINKS.audience}>Audience</A> — type d’utilisateur « Externe », puis{' '}
+            <strong>« Publier l’application »</strong> › « Confirmer » : statut{' '}
+            <strong>« En production »</strong>. Dans{' '}
+            <A href={LINKS.dataAccess}>Accès aux données</A>, n’ajoute aucun champ d’application :
+            ToolBox demande lui-même son autorisation à la connexion.
             <p className="rp-note rp-note--warning">
-              Important : en mode « Test », Google fait expirer l’autorisation au bout de{' '}
-              <strong>7 jours</strong> (il faudrait se reconnecter chaque semaine). En Production,
-              l’app n’est pas « validée » par Google : à la connexion, l’écran « Google n’a pas
-              validé cette application » apparaît — clique « Paramètres avancés » puis « Accéder à
-              ToolBox ». C’est normal : c’est ton propre projet, pour ton seul compte.
+              <strong>Ne soumets pas l’app à la validation</strong> de Google (« Préparer la
+              validation », « Valider l’application ») : inutile pour un usage personnel. Sans
+              validation, l’app reste limitée à 100 utilisateurs et affiche un avertissement à la
+              connexion — c’est tout.
+              <br />
+              <strong>Pourquoi « Production »</strong> : en mode « Test », Google fait expirer
+              l’autorisation au bout de <strong>7 jours</strong>. Si cela arrive quand même, ToolBox
+              l’affiche (« Compte Google à reconnecter »), envoie une notification et garde les
+              envois en attente jusqu’à la reconnexion.
             </p>
           </li>
           <li>
@@ -169,6 +197,10 @@ export function GoogleAccount(props: { onChanged: () => void }) {
           </li>
           <li>
             <strong>Connecter</strong> : enregistre, puis « Connecter mon compte Google » ci-dessus.
+            Dans le navigateur : choisis le compte de ta chaîne ; à l’écran{' '}
+            <strong>« Google n’a pas validé cette application »</strong>, clique « Paramètres
+            avancés » puis « Accéder à ToolBox (non sécurisé) » — normal, c’est ton propre projet ;
+            coche l’autorisation YouTube si elle est proposée en case à cocher, puis « Continuer ».
             ToolBox demande une seule autorisation, « Gérer ton compte YouTube » : c’est la plus
             petite qui permet d’envoyer, de programmer, de déplacer une date et d’ajouter à une
             playlist.

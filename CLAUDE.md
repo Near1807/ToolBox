@@ -50,6 +50,7 @@ modules/         un dossier par module ; _template/ = module modèle (exemple, c
 scripts/         dev, build (esbuild + découverte des modules), smoke test, vérification native
 tests/           tests Vitest du socle
 docs/            ARCHITECTURE, MODULES (contrat), AJOUTER-UN-MODULE, DIRECTION-ARTISTIQUE, ROADMAP, WINDOWS, decisions/ (ADR)
+site/            site public statique (accueil + confidentialité, exigés par Google OAuth), publié par GitHub Pages depuis hub-v1
 ```
 
 ## Documentation de référence

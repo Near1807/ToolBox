@@ -242,6 +242,7 @@ build/ + node_modules (dependencies) ──electron-builder──▶ dist/ToolBo
 - **Découverte des modules au build** : côté backend, le plugin esbuild `virtual:toolbox-modules` (`scripts/esbuild-config.mjs`) génère la liste des dossiers `modules/*/module.json` avec leur `backend/index.ts` ; côté interface, `import.meta.glob` (`frontend/src/modules/registry.ts`). Un nouveau dossier demande de relancer `npm run dev`.
 - esbuild bundle le main, le backend et les modules ; les `dependencies` du `package.json` restent externes et sont livrées dans `node_modules`.
 - `ffmpeg-static`, `@derhuerst/ffprobe-static`, `better-sqlite3` et `@napi-rs/canvas` (Skia, binaire N-API précompilé par plateforme) sont dépaquetés de l'archive asar (`asarUnpack`). `toUnpackedPath()` corrige le chemin renvoyé par les paquets.
+- **Site public** : `site/` (accueil et politique de confidentialité, exigés par l'écran de consentement OAuth de Google) est publié par GitHub Pages via `.github/workflows/pages.yml`, à chaque push de `site/` sur `hub-v1` (<https://near1807.github.io/ToolBox/>). Activation unique : Pages › Source « GitHub Actions », et l'environnement `github-pages` autorisé pour `hub-v1`.
 - La CI (`.github/workflows/build-windows.yml`) lance lint, typecheck, tests, vérification native, build, puis un **smoke test du `.exe` empaqueté** (`ToolBox.exe --smoke-test=<fichier>`) qui vérifie l'API, SQLite, FFmpeg, FFprobe, le canvas (dessin d'un pixel), le chargement du module modèle (migration + route) et de l'interface.
 
 ## Gestion des erreurs

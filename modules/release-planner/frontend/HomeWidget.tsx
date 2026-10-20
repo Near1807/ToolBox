@@ -5,22 +5,35 @@ import type { PlannerItem } from './types';
 
 export function HomeWidget() {
   const module = useModule();
-  const { data } = useApi<{ today: PlannerItem[]; late: PlannerItem[] }>(module.url('/today'));
+  const { data } = useApi<{
+    today: PlannerItem[];
+    late: PlannerItem[];
+    account: { connected: boolean; needsReconnect: boolean };
+  }>(module.url('/today'));
   if (!data) return null;
+  const reconnect = data.account.connected && data.account.needsReconnect && (
+    <p className="small rp-text-danger">
+      ⚠ Compte Google à reconnecter : envois YouTube en attente.
+    </p>
+  );
   const todo = [...data.late, ...data.today].filter(
     (item) => item.status !== 'published' && item.status !== 'scheduled',
   );
   const scheduled = data.today.filter((item) => item.status === 'scheduled').length;
   if (todo.length === 0) {
     return (
-      <p className="small rp-widget__empty">
-        Rien à publier à la main aujourd’hui
-        {scheduled > 0 ? ` · ${scheduled} sortie(s) YouTube programmée(s)` : ''}.
-      </p>
+      <>
+        {reconnect}
+        <p className="small rp-widget__empty">
+          Rien à publier à la main aujourd’hui
+          {scheduled > 0 ? ` · ${scheduled} sortie(s) YouTube programmée(s)` : ''}.
+        </p>
+      </>
     );
   }
   return (
     <div className="rp-widget">
+      {reconnect}
       <p className="small">
         <strong>Aujourd’hui : {todo.length} à publier</strong>
         {data.late.length > 0 && (

@@ -140,6 +140,40 @@ function ReleaseRow(props: { release: Release; onChanged: (message?: string) => 
   );
 }
 
+/** Authorization expired or revoked: uploads wait; one click to reconnect. */
+function ReconnectBanner(props: { queue: number; onDone: (message?: string) => void }) {
+  const module = useModule();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const reconnect = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await module.api.post('/account/connect');
+      props.onDone('Compte Google reconnecté : les envois en attente repartent.');
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="rp-note rp-note--error rp-reconnect" role="alert">
+      <div>
+        <strong>Compte Google à reconnecter.</strong> L’autorisation YouTube a expiré ou a été
+        retirée (en mode « Test », Google la coupe au bout de 7 jours).{' '}
+        {props.queue > 0
+          ? `${props.queue} envoi(s) en attente : ils partiront tout seuls après la reconnexion.`
+          : 'Les prochains envois attendront la reconnexion.'}
+        {error && <div className="small">{error}</div>}
+      </div>
+      <Button disabled={busy} onClick={() => void reconnect()}>
+        {busy ? 'Autorise ToolBox dans le navigateur…' : 'Reconnecter'}
+      </Button>
+    </div>
+  );
+}
+
 export function PlannerPage() {
   const module = useModule();
   const [params, setParams] = useSearchParams();
@@ -255,13 +289,15 @@ export function PlannerPage() {
         <GoogleAccount onChanged={reloadAll} />
       ) : (
         <>
-          {account && (!account.connected || account.needsReconnect) && (
+          {account?.connected && account.needsReconnect && (
+            <ReconnectBanner queue={summary.data?.queue ?? 0} onDone={changed} />
+          )}
+          {account && !account.connected && (
             <p className="rp-note rp-note--warning">
-              {account.needsReconnect
-                ? 'L’autorisation Google a expiré ou a été retirée : les envois YouTube sont en pause.'
-                : 'Compte Google pas encore connecté : la publication YouTube est en pause (Instagram fonctionne).'}{' '}
+              Compte Google pas encore connecté : la publication YouTube est en pause (Instagram
+              fonctionne).{' '}
               <button type="button" className="rp-link" onClick={() => setTab('compte')}>
-                {account.needsReconnect ? 'Reconnecter' : 'Mettre en place'}
+                Mettre en place
               </button>
             </p>
           )}

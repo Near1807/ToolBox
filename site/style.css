@@ -1,0 +1,103 @@
+/* Same sober dark look as the ToolBox app (frontend/src/styles.css). */
+:root {
+  color-scheme: dark;
+  --bg: #0f1115;
+  --bg-elevated: #171a21;
+  --border: #2a2f3a;
+  --text: #e6e8ec;
+  --text-muted: #8b93a3;
+  --accent: #7c8cff;
+  --accent-strong: #9aa6ff;
+  --font:
+    'Segoe UI Variable', 'Segoe UI', system-ui, -apple-system, Roboto, 'Helvetica Neue', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+main {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 56px 24px 72px;
+}
+
+header {
+  margin-bottom: 32px;
+}
+
+.brand {
+  font-weight: 700;
+  font-size: 1.1rem;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+  text-decoration: none;
+}
+
+h1 {
+  font-size: 2rem;
+  margin: 8px 0 4px;
+}
+
+h2 {
+  font-size: 1.2rem;
+  margin: 32px 0 8px;
+}
+
+h3 {
+  font-size: 1rem;
+  margin: 20px 0 6px;
+}
+
+p,
+li {
+  color: var(--text);
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+a {
+  color: var(--accent-strong);
+}
+
+.card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px 24px;
+  margin: 20px 0;
+}
+
+ul {
+  padding-left: 1.2rem;
+}
+
+nav.lang {
+  display: flex;
+  gap: 16px;
+  font-size: 0.9rem;
+}
+
+footer {
+  margin-top: 48px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+footer a {
+  color: var(--text-muted);
+}

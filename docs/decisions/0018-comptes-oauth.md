@@ -29,4 +29,6 @@ Le Planning de sortie envoie et programme des vidéos sur YouTube ; le futur `yo
 ## Conséquences
 
 - Mise en place unique par l'utilisateur dans la console Google (aide pas à pas dans le module). Il faut passer l'écran de consentement en **Production** : en mode « Test », les autorisations expirent au bout de 7 jours. En Production non validée, Google affiche un avertissement à la connexion, acceptable pour un usage personnel.
+- Google exige une page d'accueil et une politique de confidentialité publiques pour la Production : elles sont dans `site/`, publiées par GitHub Pages depuis `hub-v1` (<https://near1807.github.io/ToolBox/>). L'app n'est pas soumise à validation.
+- Autorisation expirée ou retirée : les envois restent en attente, l'interface propose « Reconnecter » et une notification prévient (une fois par expiration).
 - `youtube-stats` (phase 5) réutilise le compte : il ajoutera `youtube.readonly` ou `yt-analytics.readonly` à la connexion.
