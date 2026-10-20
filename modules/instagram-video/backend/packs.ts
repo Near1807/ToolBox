@@ -34,7 +34,7 @@ export interface ItemRow {
   rendered_duration_sec: number | null;
   rendered_at: string | null;
   published_at: string | null;
-  /** Look of the engine used for the file (RENDER_VERSION); null = before v0.8. */
+  /** Look of the engine used for the file (RENDER_VERSION[kind]); null = before v0.8. */
   render_version: number | null;
 }
 
@@ -94,8 +94,11 @@ export const migrationV4 = `
   ALTER TABLE instagram_video__pack_items ADD COLUMN render_version INTEGER;
 `;
 
-/** Current look of the generated files: older files are shown « À régénérer ». */
-export const RENDER_VERSION = 2;
+/**
+ * Current look of the generated files, per kind: older files are shown
+ * « À régénérer ». Reels 3 = v0.9 (frame by frame, breathing on the bass).
+ */
+export const RENDER_VERSION = { reel: 3, post: 2 } as const;
 
 export function itemLabel(position: number): string {
   return position === 0 ? 'Post' : `Reel ${position}`;
@@ -228,7 +231,7 @@ export class PackStore {
     if (item.file_path) {
       if (!existsSync(item.file_path)) return 'missing';
       if (item.error) return 'failed';
-      if (item.render_version !== RENDER_VERSION) return 'outdated';
+      if (item.render_version !== RENDER_VERSION[item.kind]) return 'outdated';
       if (
         item.kind === 'reel' &&
         (item.rendered_start_sec !== item.start_sec ||

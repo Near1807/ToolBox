@@ -43,7 +43,8 @@ export interface FormatSpec {
     gop: number;
     audioBitrate: string;
   };
-  layout: Layout;
+  /** Layout of the FFmpeg render (YouTube). Reels are drawn frame by frame: reel-frames.ts. */
+  layout?: Layout;
 }
 
 export const FORMATS: Record<VideoFormat, FormatSpec> = {
@@ -63,24 +64,13 @@ export const FORMATS: Record<VideoFormat, FormatSpec> = {
       blur: 90,
     },
   },
-  // Instagram Reels / YouTube Shorts: 1080×1920, 30 fps, H.264 + AAC 48 kHz. The
-  // vertical version of the YouTube layout. Everything stays out of the zones
-  // covered by the Instagram interface (350 px at the bottom, 150 px on the
-  // right): the 740 px cover spans x 170–910, and stays inside even zoomed.
+  // Instagram Reels / YouTube Shorts: 1080×1920, 30 fps, H.264 + AAC 48 kHz.
+  // Drawn frame by frame (reel-frames.ts: layout, safe zones).
   instagram: {
     label: 'Instagram Reel / Short 9:16 (1080×1920)',
     width: 1080,
     height: 1920,
     encoding: { videoBitrate: '6M', maxrate: '8M', bufsize: '12M', gop: 60, audioBitrate: '256k' },
-    layout: {
-      cover: { size: 740, centerY: 760, radius: 30, shadowPad: 64, shadowOffset: 14 },
-      zoom: 0.03,
-      title: { top: 1222, fontSize: 56, minFontSize: 32, maxWidth: 740 },
-      artist: { top: 1302, fontSize: 40 },
-      bars: { width: 744, height: 120, top: 1396, barWidth: 12, gap: 4, opacity: 0.5 },
-      grain: 5,
-      blur: 60,
-    },
   },
 };
 
@@ -93,6 +83,7 @@ export function scaleFormat(
   scale: number,
 ): { width: number; height: number; layout: Layout } {
   const l = format.layout;
+  if (!l) throw new Error(`Pas de mise en page FFmpeg pour ${format.label}`);
   const barWidth = Math.max(4, px(l.bars.barWidth, scale));
   return {
     width: even(format.width * scale),
@@ -311,8 +302,6 @@ export interface RenderPlan {
   };
   /** Absolute path of the source audio file, read for the spectrum only. */
   source: string;
-  /** Extra scale of the card over time (FFmpeg expression of t), e.g. pulseExpression(). */
-  pulse?: string;
 }
 
 const round = (n: number) => Number(n.toFixed(3));
@@ -422,9 +411,8 @@ export function buildRenderArgs(plan: RenderPlan): string[] {
   const graph = [
     `[2:a]${spectrum}[bars]`,
     `[0:v]setsar=1,format=yuv420p[bg]`,
-    // The only movements: a slow zoom of the whole card, plus (Reels) a soft
-    // breathing on the strong beats (see beats.ts). The cover is never cropped.
-    `[1:v]scale=w='iw*(1+${l.zoom}*t/${round(d)}+${plan.pulse ?? '0'})':h=-1:eval=frame,setsar=1[card]`,
+    // The only movement: a slow zoom of the whole card. The cover is never cropped.
+    `[1:v]scale=w='iw*(1+${l.zoom}*t/${round(d)})':h=-1:eval=frame,setsar=1[card]`,
     `[bg][card]overlay=x=(W-w)/2:y=${l.cover.centerY}-h/2:format=yuv420[v1]`,
     `[v1][bars]overlay=x=(W-w)/2:y=${bars.top}:format=yuv420[v2]`,
     `[v2]` +
@@ -508,6 +496,48 @@ export function buildRenderArgs(plan: RenderPlan): string[] {
     '-f',
     'mp4',
     plan.files.output,
+  ];
+}
+
+/**
+ * Encoding of frames drawn in JS (Reels): raw RGBA pixels on the standard
+ * input, the checked soundtrack copied as is, light grain, fades, square pixels.
+ */
+export function buildFramesEncodeArgs(params: {
+  width: number;
+  height: number;
+  duration: number;
+  /** Fade in and out (s); 0 = none (previews). */
+  fade: number;
+  encoding: FormatSpec['encoding'] | null;
+  audio: string;
+  output: string;
+}): string[] {
+  const { duration: d, fade } = params;
+  const filters = [
+    'noise=alls=4:allf=t',
+    fade > 0 ? `fade=t=in:st=0:d=${round(fade)}` : null,
+    fade > 0 ? `fade=t=out:st=${round(Math.max(0, d - fade))}:d=${round(fade)}` : null,
+    'format=yuv420p',
+    'setsar=1',
+  ].filter(Boolean);
+  const quality = params.encoding
+    ? [
+        ...['-preset', 'veryfast', '-profile:v', 'high'],
+        ...['-b:v', params.encoding.videoBitrate, '-maxrate', params.encoding.maxrate],
+        ...['-bufsize', params.encoding.bufsize, '-g', String(params.encoding.gop), '-bf', '2'],
+      ]
+    : ['-preset', 'ultrafast', '-crf', '28'];
+  return [
+    ...['-v', 'error', '-y'],
+    ...['-f', 'rawvideo', '-pix_fmt', 'rgba', '-s', `${params.width}x${params.height}`],
+    ...['-r', String(FPS), '-i', 'pipe:0'],
+    ...['-i', params.audio],
+    ...['-map', '0:v', '-map', '1:a', '-vf', filters.join(',')],
+    ...['-c:v', 'libx264', '-pix_fmt', 'yuv420p', ...quality],
+    ...['-c:a', 'copy', '-shortest'],
+    ...['-movflags', '+faststart', '-progress', 'pipe:1', '-nostats', '-f', 'mp4'],
+    params.output,
   ];
 }
 

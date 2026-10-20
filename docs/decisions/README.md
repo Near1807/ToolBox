@@ -35,3 +35,4 @@ Modèle :
 | 0014 | [Registre des fichiers générés (`ctx.outputs`)](0014-registre-des-fichiers-generes.md)     |
 | 0015 | [Reels : quatre styles, sans spectre](0015-styles-de-reels.md) — remplacée par 0016        |
 | 0016 | [Direction artistique sobre](0016-direction-artistique-sobre.md)                           |
+| 0017 | [Reels rendus image par image, mouvement piloté par le son](0017-rendu-image-par-image.md) |

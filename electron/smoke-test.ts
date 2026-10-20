@@ -11,7 +11,7 @@ export interface SmokeTestResult {
 
 /**
  * Self-check run by CI against the packaged app (`ToolBox.exe --smoke-test=<file>`):
- * proves that the backend, SQLite, FFmpeg/ffprobe and the UI bundle all work
+ * proves that the backend, SQLite, FFmpeg/ffprobe, canvas and the UI bundle all work
  * outside dev mode. Writes the result as JSON, then the caller exits.
  */
 export async function runSmokeTest(
@@ -41,6 +41,19 @@ export async function runSmokeTest(
     check('sqlite', Boolean(system.sqliteVersion), system.sqliteVersion);
     check('ffmpeg', system.ffmpegVersion !== null, system.ffmpegVersion ?? 'introuvable');
     check('ffprobe', system.ffprobeVersion !== null, system.ffprobeVersion ?? 'introuvable');
+
+    // Canvas (Reels drawn frame by frame): the native binary loads and draws.
+    try {
+      const { createCanvas } = await import('@napi-rs/canvas');
+      const canvas = createCanvas(4, 4);
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = 'rgb(200, 100, 50)';
+      ctx.fillRect(0, 0, 4, 4);
+      const pixel = [...canvas.data().subarray(0, 3)].join(',');
+      check('canvas', pixel === '200,100,50', `pixel=${pixel}`);
+    } catch (error) {
+      check('canvas', false, String(error));
+    }
 
     // Module system end to end with the example module (migration, routes, settings).
     const authed = { [TOKEN_HEADER]: token, 'content-type': 'application/json' };

@@ -14,18 +14,21 @@
    - La cover garde son ratio d'origine (jamais étirée) : une cover non carrée reste non carrée.
 2. **Mouvements : seulement sur l'image entière, lents et subtils.**
    - Un zoom lent de quelques % sur toute la durée.
-   - Pour les Reels, une légère respiration (1 à 1,5 % d'échelle) sur les temps forts, avec retour doux.
+   - Pour les Reels, une légère respiration de la cover (1,8 % d'échelle au plus) sur les basses : elle grossit **sur l'image même** du coup de basse, puis revient doucement (~160 ms). Un passage calme ne bouge presque pas.
    - Pas de coupes, pas de particules, pas d'effets, pas de transitions.
+   - **Tout mouvement doit être piloté directement par le son, jamais par des événements détectés.** Un mouvement hors rythme est pire que pas de mouvement. La synchronisation se mesure : le maximum d'un mouvement tombe au plus à 1 image (33 ms) de l'attaque qui le provoque.
 3. **Couleurs : uniquement celles de la cover.**
    - Le fond est la cover elle-même, très floutée, adoucie et assombrie vers le bas.
    - Aucune couleur ajoutée, palette douce (saturation et contraste réduits).
-   - Seules exceptions : le blanc du texte et des barres de visualisation, et l'ombre portée.
+   - Seules exceptions : le blanc du texte et des barres de visualisation YouTube, et l'ombre portée. Les barres des Reels prennent une teinte claire tirée de la cover (sa couleur moyenne éclaircie).
 4. **Typographie discrète et propre.**
    - Une seule police (Montserrat SemiBold), titre puis nom d'artiste en capitales espacées, centrés sous la cover.
    - Pas de contour, ombre légère.
    - Pas de texte racoleur (pas de « Nouveau son », d'accroche, d'appel à l'action dans l'image).
 5. **La visualisation audio reste discrète.**
-   - Fines barres blanches semi-transparentes, échelle de fréquences logarithmique, mouvement lissé.
+   - Fines barres semi-transparentes, échelle de fréquences logarithmique, mouvement lissé.
+   - YouTube : spectre horizontal sous le texte.
+   - Reels : barres le long du contour arrondi de la cover, vers l'extérieur (basses en bas, aigus en haut, en miroir gauche/droite). Elles mesurent au plus 5 % de la largeur de la cover et suivent sa respiration.
    - Elle accompagne la musique, elle ne clignote pas.
 6. **Fondus doux** en entrée et en sortie (image et son) : 1,5 s / 2 s pour YouTube, 0,5 s pour les Reels.
 7. **Ça doit marcher avec n'importe quelle cover**, de n'importe quel style :
@@ -40,11 +43,11 @@
 
 ## Mise en page
 
-| Visuel        | Format    | Composition                                                                                                                                                                                                                                                     |
-| ------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Vidéo YouTube | 1920×1080 | Fond flouté ; cover au centre-haut (560 px), coins arrondis, ombre douce, zoom lent de 5 % ; titre et artiste dessous ; visualisation en bas (1400 px de large).                                                                                                |
-| Reel / Short  | 1080×1920 | Même fond ; cover centrée (740 px, ~70 % de la largeur), zoom lent de 3 % et respiration sur les temps forts ; titre et artiste dessous ; visualisation fine sous le texte. Tout reste hors des zones couvertes par Instagram : 350 px en bas, 150 px à droite. |
-| Post          | 1080×1350 | Même fond ; cover centrée (700 px) ; titre et artiste. Rien d'autre.                                                                                                                                                                                            |
+| Visuel        | Format    | Composition                                                                                                                                                                                                                                                                  |
+| ------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Vidéo YouTube | 1920×1080 | Fond flouté ; cover au centre-haut (560 px), coins arrondis, ombre douce, zoom lent de 5 % ; titre et artiste dessous ; visualisation en bas (1400 px de large).                                                                                                             |
+| Reel / Short  | 1080×1920 | Même fond ; cover centrée (boîte de 660 px, y 800), zoom lent de 2 % et respiration sur les basses ; barres fines sur le contour de la cover ; titre et artiste dessous. Tout reste hors des zones couvertes par Instagram : 350 px en bas, 150 px à droite, 220 px en haut. |
+| Post          | 1080×1350 | Même fond ; cover centrée (700 px) ; titre et artiste. Rien d'autre.                                                                                                                                                                                                         |
 
 Les 4 Reels d'un pack ont le **même style** ; seuls les extraits diffèrent. C'est voulu : l'identité du compte est stable.
 
@@ -56,7 +59,7 @@ Avant de livrer une modification du rendu :
    - minimaliste avec beaucoup de vide ;
    - très chargée et colorée ;
    - non carrée.
-2. Extraire des images (début, temps fort, juste après, fin) et les **regarder**. Vérifier :
+2. Extraire des images (début, passage calme, juste avant un coup, **sur** le coup, juste après, fin) et les **regarder**. Vérifier :
    - la cover est entière ;
    - aucune zone vide n'est agrandie ;
    - le mouvement est à peine perceptible ;
@@ -65,6 +68,7 @@ Avant de livrer une modification du rendu :
    - les zones de sécurité sont respectées.
 3. Mesurer :
    - ffprobe : dimensions, `SAR 1:1`, bon DAR, durées ;
-   - ebur128 : true peak ≤ -1 dBTP.
+   - ebur128 : true peak ≤ -1 dBTP ;
+   - pour tout mouvement lié au son : l'écart entre chaque attaque et le maximum du mouvement (≤ 1 image), sur des coups connus et sur un vrai morceau.
 
-Historique : la v0.7 a essayé des Reels « créatifs » (zooms sur des détails, coupes, particules, phrases d'accroche) ; abandonnés en v0.8 parce que non fiables selon les covers (voir `docs/decisions/0016-direction-artistique-sobre.md`).
+Historique : la v0.7 a essayé des Reels « créatifs » (zooms sur des détails, coupes, particules, phrases d'accroche) ; abandonnés en v0.8 parce que non fiables selon les covers (voir `docs/decisions/0016-direction-artistique-sobre.md`). La respiration de la v0.8, déclenchée par une détection de temps forts, n'était pas en rythme ; depuis la v0.9 elle suit directement l'énergie des basses (`docs/decisions/0017-rendu-image-par-image.md`).

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { once } from 'node:events';
 import { execFile } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, rmSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -14,13 +15,24 @@ import {
   buildFontsConfig,
   buildRenderArgs,
   buildTruePeakArgs,
+  buildFramesEncodeArgs,
+  FPS,
   FORMATS,
   INITIAL_CEILING_DB,
   parseTruePeak,
   scaleFormat,
   TRUE_PEAK_TARGET,
 } from './commands';
-import { detectOnsets, pickPulses, pulseExpression } from './beats';
+import { createCanvas, GlobalFonts, loadImage } from '@napi-rs/canvas';
+import { bassEnergyPerFrame, breathEnvelope, spectrumPerFrame } from './audio-analysis';
+import {
+  coverScale,
+  coverSize,
+  drawFrame,
+  lightTone,
+  REEL_LAYOUT,
+  type FrameAssets,
+} from './reel-frames';
 import { RenderCancelled, runFfmpeg } from './runner';
 
 const execFileAsync = promisify(execFile);
@@ -110,6 +122,8 @@ export async function renderVideo(
 
   const format = FORMATS[options.format];
   if (!format) throw new Error(`Format inconnu : ${options.format}`);
+  // Vertical videos are Reels, drawn frame by frame (renderReel).
+  if (options.format === 'instagram') return renderReel(env, options, handlers);
   const scale = options.scale ?? 1;
   const preview = options.quality === 'preview';
   const { width, height, layout } = scaleFormat(format, scale);
@@ -164,23 +178,6 @@ export async function renderVideo(
       verify: !preview,
     });
 
-    // Reels: the whole card breathes softly on the strong beats of the excerpt.
-    let pulse: string | undefined;
-    if (options.format === 'instagram') {
-      handlers.onProgress?.(0, 'Détection du rythme…');
-      const rate = 11025;
-      const raw = await ffmpegStdout(
-        env.ffmpeg,
-        [
-          ...['-v', 'error', '-ss', String(start), '-t', String(duration), '-i', options.audioPath],
-          ...['-ac', '1', '-ar', String(rate), '-f', 's16le', '-'],
-        ],
-        handlers.signal,
-      );
-      const samples = new Int16Array(raw.buffer, raw.byteOffset, Math.floor(raw.length / 2));
-      pulse = pulseExpression(pickPulses(detectOnsets(samples, rate), duration));
-    }
-
     // 2. Video, with the soundtrack copied as is.
     await run(
       buildRenderArgs({
@@ -201,7 +198,6 @@ export async function renderVideo(
           output: partial,
         },
         source: options.audioPath,
-        pulse,
       }),
       (seconds) => {
         const fraction = Math.min(0.99, seconds / duration);
@@ -291,4 +287,208 @@ function ffmpegStdout(ffmpeg: string, args: string[], signal?: AbortSignal): Pro
       (error, stdout) => (error ? reject(error) : resolve(stdout)),
     );
   });
+}
+
+/** Mono float samples of an excerpt, decoded by FFmpeg. */
+async function decodeExcerpt(
+  ffmpeg: string,
+  file: string,
+  start: number,
+  duration: number,
+  rate: number,
+  signal?: AbortSignal,
+): Promise<Float32Array> {
+  const raw = await ffmpegStdout(
+    ffmpeg,
+    [
+      ...['-v', 'error', '-ss', String(start), '-t', String(duration), '-i', file],
+      ...['-ac', '1', '-ar', String(rate), '-f', 'f32le', '-'],
+    ],
+    signal,
+  );
+  const copy = new Float32Array(Math.floor(raw.length / 4));
+  new Uint8Array(copy.buffer).set(raw.subarray(0, copy.length * 4));
+  return copy;
+}
+
+/**
+ * Renders a Reel (1080×1920) frame by frame: the audio is analysed in JS
+ * (bass energy → breathing of the cover; spectrum → bars around the cover),
+ * each frame is drawn on a canvas and streamed to FFmpeg as raw pixels. The
+ * still parts (blurred background, title, artist, cover with its shadow) are
+ * prepared once. docs/decisions/0017-rendu-image-par-image.md.
+ */
+export async function renderReel(
+  env: EngineEnvironment,
+  options: RenderOptions,
+  handlers: RenderHandlers = {},
+): Promise<RenderResult> {
+  const L = REEL_LAYOUT;
+  const format = FORMATS.instagram;
+  const preview = options.quality === 'preview';
+  const k = options.scale ?? 1;
+  const width = Math.max(2, Math.round((L.width * k) / 2) * 2);
+  const height = Math.max(2, Math.round((L.height * k) / 2) * 2);
+  const px = (n: number) => Math.max(1, Math.round(n * k));
+
+  const audioDuration = await probeDuration(env.ffprobe, options.audioPath);
+  const start = Math.min(Math.max(0, options.start ?? 0), Math.max(0, audioDuration - 1));
+  const duration = Math.min(options.duration ?? audioDuration - start, audioDuration - start);
+  if (duration < 1) throw new Error('Extrait trop court (1 seconde minimum)');
+  const frames = Math.round(duration * FPS);
+
+  const work = path.join(env.workRoot, randomUUID());
+  mkdirSync(work, { recursive: true });
+  const partial = `${options.outputPath}.part`;
+  const run: Run = (args, onTime) =>
+    runFfmpeg({ ffmpeg: env.ffmpeg, args, cwd: work, signal: handlers.signal, onTime });
+
+  try {
+    handlers.onProgress?.(0, 'Analyse du son…');
+    const rate = 22050;
+    const samples = await decodeExcerpt(
+      env.ffmpeg,
+      options.audioPath,
+      start,
+      duration,
+      rate,
+      handlers.signal,
+    );
+    const envelope = breathEnvelope(bassEnergyPerFrame(samples, rate, FPS, frames), FPS);
+    const spectra = spectrumPerFrame(samples, rate, FPS, frames, { bands: 24 });
+
+    handlers.onProgress?.(0, 'Préparation des images…');
+    // Still parts, prepared once: blurred background, cover with its shadow (×1.5 for sharpness).
+    await run(buildBackgroundArgs(options.coverPath, 'background.png', width, height, px(60)));
+    const supersample = 1.5;
+    await run(
+      buildCardArgs(options.coverPath, 'card.png', {
+        size: Math.round((L.cover.size * k * supersample) / 2) * 2,
+        radius: Math.round(L.cover.radius * k * supersample),
+        shadowPad: Math.round(L.cover.shadowPad * k * supersample),
+        shadowOffset: Math.round(L.cover.shadowOffset * k * supersample),
+      }),
+    );
+    const [background, card, cover] = await Promise.all([
+      loadImage(path.join(work, 'background.png')),
+      loadImage(path.join(work, 'card.png')),
+      loadImage(options.coverPath),
+    ]);
+    const pad = Math.round(L.cover.shadowPad * k * supersample);
+    const shown = coverSize(cover.width / cover.height, L.cover.size * k);
+
+    // Average colour of the cover → light tone of the bars.
+    const sampler = createCanvas(16, 16);
+    const sctx = sampler.getContext('2d');
+    sctx.drawImage(cover, 0, 0, 16, 16);
+    const pixels = sctx.getImageData(0, 0, 16, 16).data;
+    const rgb: [number, number, number] = [0, 0, 0];
+    for (let i = 0; i < pixels.length; i += 4) {
+      rgb[0] += pixels[i]!;
+      rgb[1] += pixels[i + 1]!;
+      rgb[2] += pixels[i + 2]!;
+    }
+    const n = pixels.length / 4;
+
+    // Background + title + artist, drawn once.
+    if (!GlobalFonts.has('Montserrat SemiBold')) {
+      GlobalFonts.registerFromPath(path.join(env.fontsDir, FONT_FILE), 'Montserrat SemiBold');
+    }
+    const still = createCanvas(width, height);
+    const sc = still.getContext('2d');
+    sc.drawImage(background, 0, 0, width, height);
+    sc.textAlign = 'center';
+    sc.textBaseline = 'top';
+    sc.fillStyle = '#ffffff';
+    sc.shadowColor = 'rgba(0, 0, 0, 0.45)';
+    sc.shadowBlur = px(6);
+    sc.shadowOffsetY = px(2);
+    const maxText = L.cover.size * k;
+    const fit = (text: string, size: number, min: number, spacing = 0) => {
+      let s = size;
+      for (; s > min; s--) {
+        sc.font = `${s}px "Montserrat SemiBold"`;
+        if (sc.measureText(text).width + spacing * text.length <= maxText) break;
+      }
+      return s;
+    };
+    const title = options.title.replace(/[\r\n]+/g, ' ').trim();
+    const artist = options.artist
+      .replace(/[\r\n]+/g, ' ')
+      .trim()
+      .toUpperCase();
+    if (title) {
+      sc.font = `${fit(title, px(L.title.fontSize), px(L.title.minFontSize))}px "Montserrat SemiBold"`;
+      sc.fillText(title, width / 2, L.title.top * k);
+    }
+    if (artist) {
+      const spacing = px(L.artist.spacing);
+      sc.font = `${fit(artist, px(L.artist.fontSize), px(L.title.minFontSize) / 2, spacing)}px "Montserrat SemiBold"`;
+      sc.letterSpacing = `${spacing}px`;
+      sc.fillText(artist, width / 2, L.artist.top * k);
+    }
+
+    const assets: FrameAssets = {
+      still,
+      card,
+      cardCover: { width: card.width - 2 * pad, height: card.height - 2 * pad, pad },
+      cover: { width: shown.width, height: shown.height, radius: L.cover.radius * k },
+      tone: lightTone([rgb[0] / n, rgb[1] / n, rgb[2] / n]),
+      k,
+    };
+
+    handlers.onProgress?.(0, 'Préparation du son…');
+    await renderSoundtrack(run, {
+      source: options.audioPath,
+      start,
+      duration,
+      fadeIn: preview ? 0 : Math.min(options.fadeSeconds ?? L.fadeSeconds, duration / 4),
+      fadeOut: preview ? 0 : Math.min(options.fadeSeconds ?? L.fadeSeconds, duration / 4),
+      bitrate: preview ? '128k' : format.encoding.audioBitrate,
+      verify: !preview,
+    });
+
+    // Frames drawn one by one and streamed to FFmpeg (raw RGBA pixels).
+    const canvas = createCanvas(width, height);
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    const fade = preview ? 0 : Math.min(options.fadeSeconds ?? L.fadeSeconds, duration / 4);
+    mkdirSync(path.dirname(options.outputPath), { recursive: true });
+    await runFfmpeg({
+      ffmpeg: env.ffmpeg,
+      cwd: work,
+      signal: handlers.signal,
+      args: buildFramesEncodeArgs({
+        width,
+        height,
+        duration,
+        fade,
+        encoding: preview ? null : format.encoding,
+        audio: 'soundtrack.m4a',
+        output: partial,
+      }),
+      feed: async (stdin) => {
+        for (let f = 0; f < frames; f++) {
+          if (handlers.signal?.aborted) return;
+          drawFrame(ctx, assets, coverScale(f, frames, envelope[f]!), spectra[f]!);
+          // A copy: the canvas memory is reused by the next frame.
+          if (!stdin.write(Buffer.from(canvas.data()))) await once(stdin, 'drain');
+          if (f % 15 === 0) {
+            const fraction = Math.min(0.99, f / frames);
+            handlers.onProgress?.(fraction, `Rendu… ${Math.round(fraction * 100)} %`);
+          }
+        }
+      },
+    });
+    rmSync(options.outputPath, { force: true });
+    renameSync(partial, options.outputPath);
+    handlers.onProgress?.(1, 'Terminé');
+    return { file: options.outputPath, durationSec: duration, width, height };
+  } catch (error) {
+    rmSync(partial, { force: true });
+    throw error;
+  } finally {
+    rmSync(work, { recursive: true, force: true });
+  }
 }

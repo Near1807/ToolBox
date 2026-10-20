@@ -346,7 +346,7 @@ export default defineBackendModule({
           error: null,
           rendered_start_sec: item.start_sec,
           rendered_duration_sec: item.duration_sec,
-          render_version: RENDER_VERSION,
+          render_version: RENDER_VERSION[item.kind],
           rendered_at: new Date().toISOString(),
         });
         registerItem(pack, store.item(item.id)!, new Date().toISOString());

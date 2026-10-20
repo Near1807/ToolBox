@@ -1,6 +1,6 @@
 # 0016 — Direction artistique sobre
 
-- Statut : acceptée (remplace [0015](0015-styles-de-reels.md))
+- Statut : acceptée (remplace [0015](0015-styles-de-reels.md)) ; respiration des Reels remplacée par [0017](0017-rendu-image-par-image.md)
 - Date : 2026-10-20
 
 ## Contexte

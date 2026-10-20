@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import Database from 'better-sqlite3';
 import ffmpegPath from 'ffmpeg-static';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { JobInfo } from '@hub/sdk/backend';
@@ -196,6 +197,13 @@ describe('instagram-video', () => {
         state: 'ready',
         fileName: 'Drop - Reel 2.mp4',
       });
+
+      // Files made by v0.8 (render version 2): Reels to redo, the post unchanged.
+      const db = new Database(path.join(hub.dataDir, 'hub.db'));
+      db.prepare('UPDATE instagram_video__pack_items SET render_version = 2').run();
+      db.close();
+      const old = await hub.request<{ pack: Pack }>('GET', `${API}/tracks/${trackId}`);
+      expect(old.body.pack.items.map((i) => i.state)).toEqual(['ready', 'outdated', 'outdated']);
     },
   );
 

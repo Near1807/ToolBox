@@ -8,6 +8,7 @@ import {
   POST_SPEC,
   buildFontsConfig,
   buildRenderArgs,
+  buildFramesEncodeArgs,
   escapeAssText,
   fitFontSize,
   FORMATS,
@@ -24,23 +25,6 @@ const files = {
   output: 'out.mp4.part',
 };
 
-/** A YouTube render plan (3-minute track). */
-function plan() {
-  const { width, height, layout } = scaleFormat(FORMATS.youtube, 1);
-  return {
-    width,
-    height,
-    layout,
-    start: 12.5,
-    duration: 180,
-    fadeIn: 1.5,
-    fadeOut: 2,
-    encoding: FORMATS.youtube.encoding,
-    files,
-    source: 'audio.wav',
-  };
-}
-
 describe('FFmpeg command builders', () => {
   it('keeps full-quality dimensions and scales previews to even sizes', () => {
     expect(scaleFormat(FORMATS.youtube, 1)).toMatchObject({ width: 1920, height: 1080 });
@@ -49,14 +33,13 @@ describe('FFmpeg command builders', () => {
     for (const [format, scale] of [
       [FORMATS.youtube, 1],
       [FORMATS.youtube, 1 / 3],
-      [FORMATS.instagram, 1],
-      [FORMATS.instagram, 0.25],
     ] as const) {
       const { bars } = scaleFormat(format, scale).layout;
       // showcqt needs an even number of bars.
       expect((bars.width / bars.barWidth) % 2).toBe(0);
     }
-    expect(scaleFormat(FORMATS.instagram, 1)).toMatchObject({ width: 1080, height: 1920 });
+    // Reels are drawn frame by frame (reel-frames.ts), not by an FFmpeg graph.
+    expect(() => scaleFormat(FORMATS.instagram, 1)).toThrow();
   });
 
   it('builds a YouTube render: H.264 + AAC, yuv420p, 30 fps, recommended bitrates', () => {
@@ -98,7 +81,7 @@ describe('FFmpeg command builders', () => {
     expect(graph).toContain('firequalizer=');
     // True-peak limiter before AAC encoding.
     expect(graph).toContain('subtitles=text.ass:fontsdir=fonts');
-    expect(graph).toContain("scale=w='iw*(1+0.05*t/180+0)'");
+    expect(graph).toContain("scale=w='iw*(1+0.05*t/180)':h=-1:eval=frame");
     expect(graph).toContain('format=yuv420p,setsar=1[vout]');
     expect(graph).toContain('fade=t=out:st=178:d=2');
     // No absolute path inside the filter graph (Windows escaping issues).
@@ -106,7 +89,7 @@ describe('FFmpeg command builders', () => {
   });
 
   it('builds a fast preview without fades', () => {
-    const { width, height, layout } = scaleFormat(FORMATS.instagram, 1 / 3);
+    const { width, height, layout } = scaleFormat(FORMATS.youtube, 1 / 3);
     const args = buildRenderArgs({
       width,
       height,
@@ -193,19 +176,37 @@ describe('FFmpeg command builders', () => {
     expect(filter).not.toMatch(/color=|drawbox/);
   });
 
-  it('keeps the vertical layout inside the Instagram safe zones', () => {
-    const { layout, width, height } = FORMATS.instagram;
-    const right = width / 2 + (layout.cover.size * (1 + layout.zoom + 0.015)) / 2;
-    expect(right).toBeLessThanOrEqual(width - 150);
-    expect(layout.bars.top + layout.bars.height).toBeLessThanOrEqual(height - 350);
-    expect(layout.artist.top + layout.artist.fontSize).toBeLessThan(layout.bars.top);
-    expect(layout.title.top).toBeGreaterThan(layout.cover.centerY + layout.cover.size / 2);
-  });
-
-  it('adds the breathing of the card to the render graph', () => {
-    const args = buildRenderArgs({ ...plan(), pulse: 'min(0.015,0.01*t)' });
-    const graph = args[args.indexOf('-filter_complex') + 1]!;
-    expect(graph).toContain("scale=w='iw*(1+0.05*t/180+min(0.015,0.01*t))':h=-1:eval=frame");
+  it('encodes drawn frames: raw RGBA from stdin, square pixels, copied soundtrack', () => {
+    const args = buildFramesEncodeArgs({
+      width: 1080,
+      height: 1920,
+      duration: 28,
+      fade: 0.5,
+      encoding: FORMATS.instagram.encoding,
+      audio: 'audio.m4a',
+      output: 'out.mp4.part',
+    });
+    const at = (flag: string) => args[args.indexOf(flag) + 1];
+    expect(at('-f')).toBe('rawvideo');
+    expect(at('-s')).toBe('1080x1920');
+    expect(args).toContain('pipe:0');
+    expect(at('-vf')).toBe(
+      'noise=alls=4:allf=t,fade=t=in:st=0:d=0.5,fade=t=out:st=27.5:d=0.5,format=yuv420p,setsar=1',
+    );
+    expect(at('-c:a')).toBe('copy');
+    expect(at('-b:v')).toBe('6M');
+    expect(args.at(-1)).toBe('out.mp4.part');
+    const preview = buildFramesEncodeArgs({
+      width: 360,
+      height: 640,
+      duration: 6,
+      fade: 0,
+      encoding: null,
+      audio: 'a.m4a',
+      output: 'p.mp4',
+    });
+    expect(preview).toContain('ultrafast');
+    expect(preview.join(' ')).not.toContain('fade=');
   });
 
   it('escapes XML in the fontconfig file', () => {

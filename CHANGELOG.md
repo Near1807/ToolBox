@@ -4,6 +4,27 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.9.0] — 2026-10-20
+
+Reels en rythme : un mouvement hors rythme est pire que pas de mouvement.
+
+### Modifié
+
+- **Respiration des Reels pilotée directement par le son** : pour chaque image, énergie des basses (40–150 Hz), normalisée sur l'extrait, enveloppe à attaque instantanée (la cover est au plus grand sur l'image même du coup, jamais après) et retour doux de 160 ms, 1,8 % d'échelle au plus. Un passage calme ne bouge presque pas ; sans basses marquées, la cover reste immobile. Synchronisation mesurée : écart attaque → maximum ≤ 1 image (33 ms) sur des coups connus et sur de vrais morceaux (tableau dans le README du moteur vidéo, test automatique).
+- **Rendu des Reels image par image** : dessin sur un canvas Skia (`@napi-rs/canvas`), images envoyées à FFmpeg ; fond, titre et artiste préparés une fois. Un Reel de 28 s se rend en ~30 s (4 cœurs). ADR 0017.
+- Mise en page des Reels : cover dans une boîte de 660 px (y 800), zoom lent de 2 %.
+- Les Reels faits avec la v0.8 sont marqués « À régénérer » ; les posts et la vidéo YouTube ne changent pas.
+- Charte : « tout mouvement doit être piloté directement par le son, jamais par des événements détectés », avec mesure de synchronisation obligatoire.
+
+### Ajouté
+
+- **Visualisation sur le contour de la cover** (Reels) : fines barres vers l'extérieur le long du rectangle arrondi, basses en bas et aigus en haut, en miroir, teinte claire tirée de la cover, 5 % de la largeur de la cover au plus ; elles suivent la respiration. Le spectre horizontal reste sur YouTube.
+- `npm run check:native` et le smoke test du `.exe` vérifient que le canvas charge et dessine.
+
+### Supprimé
+
+- La détection de temps forts (`beats.ts`) et la respiration en expression FFmpeg de la v0.8.
+
 ## [0.8.0] — 2026-10-20
 
 Retour au sobre : un rendu solide avec n'importe quelle cover, sans faute de goût possible.

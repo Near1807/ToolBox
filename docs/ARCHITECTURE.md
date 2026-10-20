@@ -102,10 +102,24 @@ Les migrations de **tous** les modules passent avant le premier `register()` : r
 ## Pourquoi le backend tourne dans le process principal
 
 - `safeStorage` (chiffrement des jetons) n'existe que dans le process principal.
-- Le backend ne fait pas de calcul lourd : les rendus vidéo et l'analyse audio sont des process FFmpeg enfants.
+- Le backend ne fait pas de calcul lourd en continu : les rendus vidéo et le décodage audio sont des process FFmpeg enfants. Seul le dessin des Reels (ci-dessous) calcule dans le process, par paquets asynchrones, pendant une tâche.
 - Un seul process à gérer, un seul runtime Node (celui d'Electron).
 
 Voir `docs/decisions/0001-electron-backend-dans-le-main.md`.
+
+## Rendu vidéo
+
+Le module `video-engine` rend tout par FFmpeg (enfant), selon deux chemins :
+
+- **YouTube** : un seul graphe FFmpeg (`buildRenderArgs`) : fond, carte de la cover, texte libass, spectre `showcqt`.
+- **Reels, image par image** (`renderReel`, ADR 0017) :
+  1. FFmpeg décode l'extrait (mono 22 050 Hz, `f32le`).
+  2. `audio-analysis.ts` calcule pour chaque image l'énergie des basses et l'enveloppe de respiration (attaque instantanée, retour 160 ms), ainsi qu'un spectre logarithmique (FFT de 2048 points, 24 bandes, lissé).
+  3. Les éléments fixes sont préparés une fois : le fond flouté et la carte de la cover (PNG faits par FFmpeg), puis le titre et l'artiste dessinés sur le fond.
+  4. `reel-frames.ts` dessine chaque image sur un canvas Skia (`@napi-rs/canvas`) : fond, cover à son échelle du moment, barres sur le contour.
+  5. Les pixels RGBA bruts partent dans l'entrée standard d'un FFmpeg (`buildFramesEncodeArgs`), avec contre-pression (`drain`). FFmpeg ajoute le grain, les fondus, `setsar=1`, et copie la bande-son déjà vérifiée (≤ -1 dBTP).
+
+  Un Reel de 28 s (840 images) prend ~30 s sur 4 cœurs ; l'annulation tue FFmpeg et arrête le dessin.
 
 ## Même origine, partout
 
@@ -166,8 +180,8 @@ build/ + node_modules (dependencies) ──electron-builder──▶ dist/ToolBo
 
 - **Découverte des modules au build** : côté backend, le plugin esbuild `virtual:toolbox-modules` (`scripts/esbuild-config.mjs`) génère la liste des dossiers `modules/*/module.json` avec leur `backend/index.ts` ; côté interface, `import.meta.glob` (`frontend/src/modules/registry.ts`). Un nouveau dossier demande de relancer `npm run dev`.
 - esbuild bundle le main, le backend et les modules ; les `dependencies` du `package.json` restent externes et sont livrées dans `node_modules`.
-- `ffmpeg-static`, `@derhuerst/ffprobe-static` et `better-sqlite3` sont dépaquetés de l'archive asar (`asarUnpack`). `toUnpackedPath()` corrige le chemin renvoyé par les paquets.
-- La CI (`.github/workflows/build-windows.yml`) lance lint, typecheck, tests, vérification native, build, puis un **smoke test du `.exe` empaqueté** (`ToolBox.exe --smoke-test=<fichier>`) qui vérifie l'API, SQLite, FFmpeg, FFprobe, le chargement du module modèle (migration + route) et de l'interface.
+- `ffmpeg-static`, `@derhuerst/ffprobe-static`, `better-sqlite3` et `@napi-rs/canvas` (Skia, binaire N-API précompilé par plateforme) sont dépaquetés de l'archive asar (`asarUnpack`). `toUnpackedPath()` corrige le chemin renvoyé par les paquets.
+- La CI (`.github/workflows/build-windows.yml`) lance lint, typecheck, tests, vérification native, build, puis un **smoke test du `.exe` empaqueté** (`ToolBox.exe --smoke-test=<fichier>`) qui vérifie l'API, SQLite, FFmpeg, FFprobe, le canvas (dessin d'un pixel), le chargement du module modèle (migration + route) et de l'interface.
 
 ## Gestion des erreurs
 
