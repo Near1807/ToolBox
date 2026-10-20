@@ -2,10 +2,13 @@ import { describe, expect, it } from 'vitest';
 import {
   buildAssScript,
   buildAudioArgs,
+  buildBackgroundArgs,
   dbToLinear,
   parseTruePeak,
+  POST_SPEC,
   buildFontsConfig,
   buildRenderArgs,
+  buildFramesEncodeArgs,
   escapeAssText,
   fitFontSize,
   FORMATS,
@@ -30,14 +33,13 @@ describe('FFmpeg command builders', () => {
     for (const [format, scale] of [
       [FORMATS.youtube, 1],
       [FORMATS.youtube, 1 / 3],
-      [FORMATS.instagram, 1],
-      [FORMATS.instagram, 0.25],
     ] as const) {
       const { bars } = scaleFormat(format, scale).layout;
       // showcqt needs an even number of bars.
       expect((bars.width / bars.barWidth) % 2).toBe(0);
     }
-    expect(scaleFormat(FORMATS.instagram, 1)).toMatchObject({ width: 1080, height: 1920 });
+    // Reels are drawn frame by frame (reel-frames.ts), not by an FFmpeg graph.
+    expect(() => scaleFormat(FORMATS.instagram, 1)).toThrow();
   });
 
   it('builds a YouTube render: H.264 + AAC, yuv420p, 30 fps, recommended bitrates', () => {
@@ -79,14 +81,15 @@ describe('FFmpeg command builders', () => {
     expect(graph).toContain('firequalizer=');
     // True-peak limiter before AAC encoding.
     expect(graph).toContain('subtitles=text.ass:fontsdir=fonts');
-    expect(graph).toContain("scale=w='680*(1+0.05*t/180)'");
+    expect(graph).toContain("scale=w='iw*(1+0.05*t/180)':h=-1:eval=frame");
+    expect(graph).toContain('format=yuv420p,setsar=1[vout]');
     expect(graph).toContain('fade=t=out:st=178:d=2');
     // No absolute path inside the filter graph (Windows escaping issues).
     expect(graph).not.toMatch(/[A-Z]:\\/);
   });
 
   it('builds a fast preview without fades', () => {
-    const { width, height, layout } = scaleFormat(FORMATS.instagram, 1 / 3);
+    const { width, height, layout } = scaleFormat(FORMATS.youtube, 1 / 3);
     const args = buildRenderArgs({
       width,
       height,
@@ -135,6 +138,7 @@ describe('FFmpeg command builders', () => {
         'alimiter=limit=0.8414:attack=1:release=50:level=0,aresample=48000',
     );
     expect(args.slice(-3)).toEqual(['-f', 'mp4', 'soundtrack.m4a']);
+    expect(args.join(' ')).toContain('-c:a aac -aac_coder fast');
     expect(dbToLinear(-1)).toBe(0.8913);
   });
 
@@ -145,6 +149,64 @@ describe('FFmpeg command builders', () => {
     expect(parseTruePeak('True peak:\n    Peak:  0.4 dBFS')).toBe(0.4);
     expect(parseTruePeak('True peak:\n    Peak:  -inf dBFS')).toBe(-Infinity);
     expect(parseTruePeak('nothing')).toBeNull();
+  });
+
+  it('writes only the title and the artist on the post (no other text)', () => {
+    const ass = buildAssScript({
+      width: 1080,
+      height: 1350,
+      title: 'Titre',
+      artist: 'Thomas',
+      layout: POST_SPEC.text,
+    });
+    expect(ass.match(/^Dialogue:/gm)).toHaveLength(2);
+    expect(ass).toContain('}Titre');
+    expect(ass).toContain('}THOMAS');
+  });
+
+  it('builds the background from the cover only: filled, blurred, square pixels', () => {
+    const args = buildBackgroundArgs('cover.png', 'bg.png', 1920, 1080, 60);
+    const filter = args[args.indexOf('-vf') + 1]!;
+    expect(filter).toMatch(
+      /^setsar=1,scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,/,
+    );
+    expect(filter).toContain('scale=120:68:flags=area,gblur=sigma=11');
+    expect(filter).toMatch(/setsar=1$/);
+    // No colour of its own: only brightness/saturation/contrast of the cover's pixels.
+    expect(filter).not.toMatch(/color=|drawbox/);
+  });
+
+  it('encodes drawn frames: raw RGBA from stdin, square pixels, copied soundtrack', () => {
+    const args = buildFramesEncodeArgs({
+      width: 1080,
+      height: 1920,
+      duration: 28,
+      fade: 0.5,
+      encoding: FORMATS.instagram.encoding,
+      audio: 'audio.m4a',
+      output: 'out.mp4.part',
+    });
+    const at = (flag: string) => args[args.indexOf(flag) + 1];
+    expect(at('-f')).toBe('rawvideo');
+    expect(at('-s')).toBe('1080x1920');
+    expect(args).toContain('pipe:0');
+    expect(at('-vf')).toBe(
+      'noise=alls=4:allf=t,fade=t=in:st=0:d=0.5,fade=t=out:st=27.5:d=0.5,format=yuv420p,setsar=1',
+    );
+    expect(at('-c:a')).toBe('copy');
+    expect(at('-b:v')).toBe('6M');
+    expect(args.at(-1)).toBe('out.mp4.part');
+    const preview = buildFramesEncodeArgs({
+      width: 360,
+      height: 640,
+      duration: 6,
+      fade: 0,
+      encoding: null,
+      audio: 'a.m4a',
+      output: 'p.mp4',
+    });
+    expect(preview).toContain('ultrafast');
+    expect(preview.join(' ')).not.toContain('fade=');
   });
 
   it('escapes XML in the fontconfig file', () => {

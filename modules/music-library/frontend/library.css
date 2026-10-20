@@ -188,3 +188,11 @@
     grid-template-columns: 1fr;
   }
 }
+
+.ml-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 8px 0 14px;
+  cursor: pointer;
+}

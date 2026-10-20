@@ -1,8 +1,8 @@
 {
   "id": "instagram-video",
-  "name": "Reel Instagram",
-  "description": "Un extrait vertical 9:16 de ton morceau, pour Instagram et les YouTube Shorts.",
-  "version": "1.0.0",
+  "name": "Pack Instagram",
+  "description": "Pour chaque morceau : 4 Reels verticaux, une image de post 4:5 et la légende, avec le suivi de publication.",
+  "version": "4.1.0",
   "section": "Musique",
   "icon": "📱",
   "order": 30,
@@ -10,22 +10,24 @@
     "modules": ["music-library", "video-engine"],
     "services": ["musicLibrary", "videoEngine"]
   },
+  "provides": { "services": ["instagramPack"] },
   "settings": [
     {
-      "key": "defaultDuration",
+      "key": "clipDuration",
       "type": "number",
-      "label": "Durée par défaut de l'extrait (secondes)",
+      "label": "Durée d'un Reel (secondes)",
+      "description": "25 à 30 s conseillé.",
       "min": 15,
-      "max": 90,
+      "max": 60,
       "step": 1,
-      "default": 30
+      "default": 28
     },
     {
-      "key": "callToAction",
-      "type": "string",
-      "label": "Phrase de la légende",
-      "description": "Ajoutée sous le titre dans la légende.",
-      "default": "Version complète : lien en bio 🎧"
+      "key": "captionTemplate",
+      "type": "text",
+      "label": "Modèle de légende",
+      "description": "Repères remplacés : {titre}, {artiste}, {hashtags} (tags du morceau + hashtags par défaut).",
+      "default": "{titre} — {artiste}\n\nNouveau son 🎧 lien en bio\n\n{hashtags}"
     },
     {
       "key": "hashtags",

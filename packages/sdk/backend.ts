@@ -49,13 +49,18 @@ export interface ModuleContext {
   readonly manifest: ModuleManifest;
   readonly db: ModuleDatabase;
   readonly files: ModuleFiles;
+  /** Registry of the files the module generates: every output must go through it. */
+  readonly outputs: ModuleOutputs;
   readonly settings: ModuleSettings;
   readonly routes: ModuleRoutes;
   readonly jobs: ModuleJobs;
   readonly scheduler: ModuleScheduler;
   readonly events: ModuleEvents;
   readonly services: ModuleServices;
+  /** Connected accounts (OAuth), for the providers declared in permissions.accounts. */
   readonly accounts: ModuleAccounts;
+  /** Desktop notifications (Windows), opening a page of the module when clicked. */
+  readonly notifications: ModuleNotifications;
   readonly binaries: ModuleBinaries;
   readonly logger: ModuleLogger;
   /** Called when the hub shuts down (close watchers, kill processes…). */
@@ -101,6 +106,74 @@ export interface ModuleFiles {
   readonly assetsDir: string;
   /** Path inside assetsDir; throws if it escapes the folder. */
   assetPath(...segments: string[]): string;
+}
+
+/** A generated file, as registered in ctx.outputs. */
+export interface OutputRecord {
+  id: number;
+  moduleId: string;
+  /** The module's own identifier of the element, e.g. "video:12". */
+  ref: string;
+  /** Group the element belongs to (e.g. "pack:3"): deleting the group deletes all of it. */
+  parent: string | null;
+  /** What the file is about, shared across modules (e.g. "music-library:track:7"). */
+  subject: string | null;
+  /** Short French label shown in lists ("Vidéo YouTube", "Reel 2"…). */
+  label: string;
+  kind: string | null;
+  path: string;
+  fileName: string;
+  createdAt: string;
+  /** Checked on disk at every read: false when the file was moved or deleted outside the app. */
+  exists: boolean;
+  /** Signed media URL when the file exists. */
+  url: string | null;
+}
+
+export interface OutputFilter {
+  ids?: number[];
+  refs?: string[];
+  ref?: string;
+  parent?: string;
+  /** Only the records whose file is missing. */
+  missing?: boolean;
+}
+
+/**
+ * Called after records of this module were removed — by the module itself,
+ * the « Fichiers générés » page or the cleaning of missing files. The module
+ * deletes or resets its own rows for these refs ("deleted": files sent to the
+ * Recycle Bin; "forgotten": files left as they are, only removed from the lists).
+ */
+export type OutputRemovedHandler = (
+  records: OutputRecord[],
+  reason: 'deleted' | 'forgotten',
+) => void;
+
+export interface ModuleOutputs {
+  /** Records (or updates, same path) a generated file. Call it after every render. */
+  register(output: {
+    path: string;
+    ref: string;
+    label: string;
+    kind?: string;
+    parent?: string;
+    subject?: string;
+    /** Default: now. */
+    createdAt?: string;
+  }): OutputRecord;
+  /** Records of this module, newest first, with `exists` checked on disk. */
+  list(filter?: OutputFilter): OutputRecord[];
+  /** Sends the files to the Recycle Bin and forgets the records. Returns the count. */
+  delete(filter: OutputFilter): Promise<number>;
+  /** Forgets the records, leaving the files alone (« Retirer de la liste »). */
+  forget(filter: OutputFilter): number;
+  /** Declares how the module cleans its own data when records are removed. */
+  onRemoved(handler: OutputRemovedHandler): void;
+  /** Records of every module about a subject (e.g. all files made from a track). */
+  bySubject(subject: string): OutputRecord[];
+  /** Deletes the files of every module about a subject; each owner cleans its data. */
+  deleteBySubject(subject: string): Promise<number>;
 }
 
 /** Executables embedded in the app, usable by any module (child_process.execFile/spawn). */
@@ -234,9 +307,70 @@ export interface ModuleServices {
   get<T extends object>(name: string): T;
 }
 
+/** State of a connected account (OAuth), as seen by modules and the Settings page. */
+export interface AccountStatus {
+  /** Provider id, e.g. "google". */
+  provider: string;
+  label: string;
+  /** True when the OAuth client (ID, secret) is entered in Réglages > Comptes connectés. */
+  configured: boolean;
+  connected: boolean;
+  /** The authorization expired or was revoked: connect again. */
+  needsReconnect: boolean;
+  /** Scopes granted by the user. */
+  scopes: string[];
+  connectedAt: string | null;
+  error: string | null;
+  /** A consent page is open in the browser, waiting for the user. */
+  connecting: boolean;
+}
+
+export type AccountErrorCode =
+  | 'not-configured'
+  | 'not-connected'
+  | 'reauth-required'
+  | 'denied'
+  | 'cancelled'
+  | 'network'
+  | 'encryption';
+
+/** Error of ctx.accounts, with a French message ready to show. */
+export class AccountError extends Error {
+  constructor(
+    readonly code: AccountErrorCode,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'AccountError';
+  }
+}
+
 export interface ModuleAccounts {
-  /** Available from phase 5 (OAuth Google). Throws until then. */
   readonly available: boolean;
+  status(provider: string): AccountStatus;
+  /**
+   * Opens the provider's consent page in the browser and resolves once the user
+   * answered (5 min max). Scopes already granted are kept (incremental).
+   */
+  connect(provider: string, scopes: string[]): Promise<AccountStatus>;
+  /** Revokes the authorization at the provider and forgets the tokens. */
+  disconnect(provider: string): Promise<void>;
+  /** A valid access token (refreshed when needed). Throws AccountError. */
+  accessToken(provider: string): Promise<string>;
+  /**
+   * fetch() with the bearer token; "/path" is resolved against the provider's
+   * API base (Google: https://www.googleapis.com). A 401 refreshes the token and
+   * sends the request once more, so the body must be a string or a Buffer.
+   */
+  fetch(provider: string, url: string, init?: RequestInit): Promise<Response>;
+}
+
+export interface ModuleNotifications {
+  /**
+   * Shows a Windows notification (when the app runs). `path` is a page of the
+   * module ("" = its main page, "items/3"…) opened when the notification is clicked.
+   */
+  notify(notification: { title: string; body: string; path?: string }): void;
 }
 
 export interface ModuleLogger {

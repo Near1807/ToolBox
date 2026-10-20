@@ -3,7 +3,16 @@ import type { ModuleManifest } from '../../../packages/sdk/manifest';
 
 export const MODULE_ID = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
 /** Ids the hub keeps for itself (API scopes, event sources, table prefixes). */
-export const RESERVED_IDS = new Set(['core', 'hub', 'api', 'settings', 'jobs', 'logs']);
+export const RESERVED_IDS = new Set([
+  'core',
+  'hub',
+  'api',
+  'settings',
+  'jobs',
+  'logs',
+  'accounts',
+  'notifications',
+]);
 
 const id = z.string().regex(MODULE_ID, 'identifiant en kebab-case attendu (ex. « music-library »)');
 const key = z.string().regex(/^[a-zA-Z][a-zA-Z0-9_]*$/, 'clé de réglage invalide');
@@ -48,7 +57,15 @@ const manifestSchema = z.strictObject({
     .strictObject({ modules: z.array(id).optional(), services: z.array(z.string()).optional() })
     .optional(),
   provides: z.strictObject({ services: z.array(z.string()).optional() }).optional(),
-  permissions: z.strictObject({ accounts: z.array(z.string()).optional() }).optional(),
+  permissions: z
+    .strictObject({
+      accounts: z
+        .array(
+          z.enum(['google'], { message: 'fournisseur de compte inconnu (« google » attendu)' }),
+        )
+        .optional(),
+    })
+    .optional(),
   settings: z.array(settingField).optional(),
 });
 

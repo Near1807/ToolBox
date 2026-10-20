@@ -57,29 +57,83 @@ export function downsamplePeaks(peaks: number[], bars: number): number[] {
   return result;
 }
 
+/** Intro and outro left out of the automatic choice: 8 % of the track, between 5 and 15 s. */
+export function introOutroSkip(durationSec: number): number {
+  return Math.min(15, Math.max(5, durationSec * 0.08));
+}
+
+export interface ExcerptPick {
+  /** Start times in seconds, most energetic first (Reel 1 = strongest passage). */
+  starts: number[];
+}
+
 /**
- * Start (seconds) of the most energetic passage of `clipSec` seconds: the
- * window maximizing the summed energy (RMS²). Short tracks start at 0.
+ * Picks up to `count` excerpts of `clipSec` seconds, most energetic first
+ * (summed RMS²), leaving out the intro and the outro. Without overlap, two
+ * excerpts never share a second; with `allowOverlap`, they may share up to 30 %.
+ * Fewer starts are returned when the track is too short.
  */
-export function suggestStart(
-  analysis: Pick<AudioAnalysis, 'rms' | 'windowSec'>,
-  clipSec: number,
-): number {
+export function pickExcerpts(
+  analysis: Pick<AudioAnalysis, 'rms' | 'windowSec' | 'durationSec'>,
+  options: {
+    count: number;
+    clipSec: number;
+    allowOverlap?: boolean;
+    /** Starts (seconds) already taken (e.g. published Reels): new excerpts avoid them. */
+    fixed?: number[];
+  },
+): ExcerptPick {
   const { rms, windowSec } = analysis;
-  const length = Math.max(1, Math.round(clipSec / windowSec));
-  if (rms.length <= length) return 0;
+  const length = Math.max(1, Math.round(options.clipSec / windowSec));
+  if (rms.length <= length) return { starts: [0] };
+
+  // Energy of every possible start (sliding window).
+  const scores: number[] = [];
   let current = 0;
   for (let i = 0; i < length; i++) current += rms[i]! ** 2;
-  let best = current;
-  let bestIndex = 0;
+  scores.push(current);
   for (let i = 1; i + length <= rms.length; i++) {
     current += rms[i + length - 1]! ** 2 - rms[i - 1]! ** 2;
-    if (current > best + 1e-9) {
-      best = current;
-      bestIndex = i;
-    }
+    scores.push(current);
   }
-  return round(bestIndex * windowSec);
+
+  // Leave the intro and the outro out, unless the track is too short for that.
+  const skip = Math.round(introOutroSkip(analysis.durationSec) / windowSec);
+  let first = skip;
+  let last = scores.length - 1 - skip;
+  if (last < first) {
+    first = 0;
+    last = scores.length - 1;
+  }
+
+  const minDistance = options.allowOverlap ? Math.ceil(length * 0.7) : length;
+  const fixed = (options.fixed ?? []).map((start) => Math.round(start / windowSec));
+  const picked: number[] = [];
+  const free = (i: number) => [...fixed, ...picked].every((p) => Math.abs(p - i) >= minDistance);
+  while (picked.length < options.count) {
+    let best = -1;
+    for (let i = first; i <= last; i++) {
+      if (!free(i)) continue;
+      if (best === -1 || scores[i]! > scores[best]! + 1e-9) best = i;
+    }
+    if (best === -1) break;
+    picked.push(best);
+  }
+
+  // Greedy choice can fragment the region: if more excerpts fit, space them evenly.
+  const fit = Math.min(options.count, Math.floor((last - first) / minDistance) + 1);
+  if (fixed.length === 0 && picked.length < fit) {
+    picked.length = 0;
+    const step = fit > 1 ? (last - first) / (fit - 1) : 0;
+    for (let j = 0; j < fit; j++) picked.push(Math.round(first + j * step));
+    picked.sort((a, b) => scores[b]! - scores[a]!);
+  }
+  return { starts: picked.map((i) => round(i * windowSec)) };
+}
+
+/** True when two excerpts of `clipSec` seconds overlap. */
+export function overlaps(a: number, b: number, clipSec: number): boolean {
+  return Math.abs(a - b) < clipSec - 1e-6;
 }
 
 /** Clamps the excerpt inside the track (duration first, then start). */

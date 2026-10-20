@@ -1,6 +1,7 @@
 import { app, BrowserWindow, dialog, safeStorage, shell } from 'electron';
 import path from 'node:path';
 import type { HostAdapter } from '../backend/core/host';
+import { notify, setLaunchAtStartup } from './desktop';
 
 /** Electron implementation of the backend's HostAdapter. */
 export function createElectronHost(): HostAdapter {
@@ -11,6 +12,7 @@ export function createElectronHost(): HostAdapter {
       if (error) throw new Error(error);
     },
     showItemInFolder: (target) => shell.showItemInFolder(target),
+    trashItem: (target) => shell.trashItem(target),
     selectFolder: async ({ title, defaultPath }) => {
       const window = parent();
       const options: Electron.OpenDialogOptions = {
@@ -48,6 +50,13 @@ export function createElectronHost(): HostAdapter {
       app.relaunch();
       app.quit();
     },
+    openExternal: (url) => {
+      // Only web pages: never a local file or a custom protocol.
+      if (!/^https?:\/\//.test(url)) return Promise.reject(new Error('Adresse web attendue'));
+      return shell.openExternal(url);
+    },
+    notify,
+    setLaunchAtStartup,
     isEncryptionAvailable: () => safeStorage.isEncryptionAvailable(),
     encryptString: (plainText) => safeStorage.encryptString(plainText),
     decryptString: (encrypted) => safeStorage.decryptString(encrypted),

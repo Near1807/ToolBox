@@ -1,11 +1,15 @@
 import path from 'node:path';
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
+import { existsSync } from 'node:fs';
+import { app, BrowserWindow, dialog, ipcMain, nativeImage, shell } from 'electron';
 import discoveredModules from 'virtual:toolbox-modules';
 import { toUnpackedPath } from '../backend/core/ffmpeg-binaries';
+import { mediaTokenFromUrl } from '../backend/core/media';
 import { generateToken } from '../backend/core/security';
 import { startServer, type RunningServer } from '../backend/server';
+import { attachDesktop, showWindow, startedHidden } from './desktop';
 import { createElectronHost } from './host';
 import { runSmokeTest } from './smoke-test';
+import { attachWindowControls, startsFullscreen, applyDarkWindowChrome } from './window-controls';
 
 const devServerUrl = process.env.VITE_DEV_SERVER_URL;
 const isDev = !app.isPackaged && Boolean(devServerUrl);
@@ -38,6 +42,21 @@ ipcMain.on('toolbox:get-config', (event) => {
   event.returnValue = { token };
 });
 
+// Drag a generated file out of the window (to a browser, the Explorer…). Only
+// files with a valid signed media URL can be dragged (backend/core/media.ts).
+ipcMain.on('toolbox:start-drag', (event, mediaUrl: unknown) => {
+  if (typeof mediaUrl !== 'string' || !server) return;
+  const mediaToken = mediaTokenFromUrl(mediaUrl);
+  const file = mediaToken ? server.hub.media.resolve(mediaToken) : null;
+  if (!file || !existsSync(file)) return;
+  const sender = event.sender;
+  const isImage = /\.(jpe?g|png)$/i.test(file);
+  const iconPromise = isImage
+    ? Promise.resolve(nativeImage.createFromPath(file).resize({ width: 96 }))
+    : app.getFileIcon(file, { size: 'normal' });
+  void iconPromise.then((icon) => sender.startDrag({ file, icon }));
+});
+
 function createWindow(appUrl: string): BrowserWindow {
   const window = new BrowserWindow({
     width: 1280,
@@ -48,6 +67,7 @@ function createWindow(appUrl: string): BrowserWindow {
     backgroundColor: '#0f1115',
     show: false,
     autoHideMenuBar: true,
+    fullscreen: !smokeTestFile && startsFullscreen(),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -56,8 +76,10 @@ function createWindow(appUrl: string): BrowserWindow {
     },
   });
 
+  attachWindowControls(window);
+  attachDesktop(window);
   window.once('ready-to-show', () => {
-    if (!smokeTestFile) window.show();
+    if (!smokeTestFile && !startedHidden) window.show();
   });
 
   // Links to external sites open in the default browser, never inside the app.
@@ -74,6 +96,7 @@ function createWindow(appUrl: string): BrowserWindow {
 }
 
 async function bootstrap(): Promise<void> {
+  applyDarkWindowChrome();
   server = await startServer({
     dataDir: app.getPath('userData'),
     token,
@@ -109,11 +132,7 @@ async function bootstrap(): Promise<void> {
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
-  app.on('second-instance', () => {
-    if (!mainWindow) return;
-    if (mainWindow.isMinimized()) mainWindow.restore();
-    mainWindow.focus();
-  });
+  app.on('second-instance', () => showWindow());
 
   app
     .whenReady()

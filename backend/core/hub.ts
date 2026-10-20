@@ -9,6 +9,12 @@ import type {
   ModuleLogger,
 } from '../../packages/sdk/backend';
 import type { ModuleInfo, ModuleManifest } from '../../packages/sdk/manifest';
+import {
+  AccountManager,
+  accountSettingsFields,
+  ACCOUNTS_SCOPE,
+  type OAuthProvider,
+} from './accounts';
 import { createAutomaticBackup, restoreBackup } from './backups';
 import { coreMigrations } from './core-migrations';
 import { DatabaseHandle } from './database';
@@ -19,6 +25,8 @@ import type { HostAdapter } from './host';
 import { JobManager } from './jobs';
 import { LogStore } from './logger';
 import { MediaSigner } from './media';
+import { createModuleNotifications } from './notifications';
+import { OutputStore } from './outputs';
 import {
   applyMigrations,
   assertNotSchemaChange,
@@ -59,6 +67,8 @@ export interface HubOptions {
    * `modules/` folder in dev and tests, `build/modules` (unpacked) when packaged.
    */
   assetsRoot: string;
+  /** Endpoint overrides of the OAuth providers (tests: mock servers). */
+  accountProviders?: Record<string, Partial<OAuthProvider>>;
 }
 
 interface ModuleRecord {
@@ -97,6 +107,8 @@ export class Hub {
   readonly jobs: JobManager;
   readonly scheduler: Scheduler;
   readonly media: MediaSigner;
+  readonly outputs: OutputStore;
+  readonly accounts: AccountManager;
   private readonly records = new Map<string, ModuleRecord>();
 
   private constructor(readonly options: HubOptions) {
@@ -117,6 +129,14 @@ export class Hub {
       this.getOutputRoot(),
       options.assetsRoot,
     ]);
+    this.outputs = new OutputStore(this.handle, options.host, (file) => this.media.url(file));
+    this.accounts = new AccountManager(
+      this.handle,
+      options.host,
+      this.settings,
+      this.logs.logger(ACCOUNTS_SCOPE),
+      options.accountProviders,
+    );
   }
 
   static async create(options: HubOptions): Promise<Hub> {
@@ -154,11 +174,40 @@ export class Hub {
           'Les fichiers générés par les outils (vidéos…) y sont rangés, dans un sous-dossier par outil.',
         default: this.host.getDefaultOutputRoot(),
       },
+      {
+        key: 'launchAtStartup',
+        type: 'boolean',
+        label: 'Lancer ToolBox au démarrage de Windows',
+        description:
+          'Réduit dans la zone de notification, pour que les rappels et les tâches planifiées tournent sans ouvrir l’app. Fermer la fenêtre la garde alors dans la zone de notification (clic droit sur l’icône > Quitter).',
+        default: false,
+      },
     ]);
+    this.settings.register(ACCOUNTS_SCOPE, 'Comptes connectés', accountSettingsFields());
+    this.applyLaunchAtStartup();
+    this.bus.on(SETTINGS_CHANGED_EVENT, (payload) => {
+      const { scope, key } = payload as { scope: string; key: string };
+      if (scope === CORE_SCOPE && key === 'launchAtStartup') this.applyLaunchAtStartup();
+    });
     this.jobs.recover();
 
     this.discover();
     await this.loadModules();
+
+    // Generated files deleted or moved outside the app since the last start.
+    const missing = this.outputs.sync();
+    if (missing > 0) {
+      this.logger.warn(`${missing} fichier(s) généré(s) introuvable(s) sur le disque`);
+    }
+  }
+
+  /** Keeps the OS login item in line with the core setting. */
+  private applyLaunchAtStartup(): void {
+    try {
+      this.host.setLaunchAtStartup(this.settings.get(CORE_SCOPE, 'launchAtStartup') === true);
+    } catch (error) {
+      this.logger.warn('Lancement au démarrage de Windows : réglage non appliqué', error);
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -344,6 +393,7 @@ export class Hub {
         host: this.host,
         mediaUrl: (filePath) => this.media.url(filePath),
       }),
+      outputs: this.outputs.forModule(id),
       settings: {
         get: <T>(key: string) => this.settings.get(id, key) as T | null,
         set: (key, value) => this.settings.set(id, key, value),
@@ -361,7 +411,8 @@ export class Hub {
       scheduler: this.scheduler.forModule(id, logger),
       events,
       services: this.services.forModule(manifest, pendingServices),
-      accounts: { available: false },
+      accounts: this.accounts.forModule(manifest),
+      notifications: createModuleNotifications(id, this.host, logger),
       binaries: {
         get ffmpeg() {
           return getFfmpegPath();
@@ -391,6 +442,7 @@ export class Hub {
       for (const dispose of disposers) dispose();
       this.jobs.forget(id);
       this.scheduler.forget(id);
+      this.outputs.forgetModule(id);
       this.settings.unregister(id);
       record.shutdownHandlers = [];
       record.status = 'failed';
@@ -456,6 +508,7 @@ export class Hub {
 
   async stop(): Promise<void> {
     this.scheduler.stop();
+    this.accounts.stop();
     this.jobs.stop();
     for (const record of this.records.values()) {
       for (const handler of record.shutdownHandlers) {

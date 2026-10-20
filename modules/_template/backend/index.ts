@@ -1,6 +1,8 @@
 // Backend of the template module. Copy the whole folder to create a new module
 // (see docs/AJOUTER-UN-MODULE.md). Everything a module needs comes from `ctx`;
 // a module never imports another module or the hub core.
+import { writeFileSync } from 'node:fs';
+import path from 'node:path';
 import { defineBackendModule, HttpError } from '@hub/sdk/backend';
 
 interface NoteRow {
@@ -55,6 +57,28 @@ export default defineBackendModule({
       const result = ctx.db.prepare(`DELETE FROM ${notes} WHERE id = ?`).run(Number(id));
       if (result.changes === 0) throw new HttpError(404, 'Note introuvable');
       return { ok: true };
+    });
+
+    // A generated file: written in ctx.files.outputDir() and ALWAYS registered in
+    // ctx.outputs, so that it is listed, checked on disk and deletable from the
+    // interface (MODULES.md §5.13). `ref` names the element in the module's own terms.
+    ctx.routes.post('/notes/:id/export', (request) => {
+      const { id } = request.params as { id: string };
+      const note = ctx.db.prepare(`SELECT * FROM ${notes} WHERE id = ?`).get(Number(id)) as
+        NoteRow | undefined;
+      if (!note) throw new HttpError(404, 'Note introuvable');
+      const file = path.join(ctx.files.outputDir(), `Note ${note.id}.txt`);
+      writeFileSync(file, `${note.text}\n`);
+      return ctx.outputs.register({ path: file, ref: `note:${note.id}`, label: 'Note exportée' });
+    });
+
+    // When files are deleted or removed from the lists (here, from the module page,
+    // or from the « Fichiers générés » page), the module cleans its own data. The
+    // template keeps nothing about its exports: nothing to do.
+    ctx.outputs.onRemoved((records, reason) => {
+      ctx.logger.info(
+        `${records.length} export(s) ${reason === 'deleted' ? 'supprimé(s)' : 'retiré(s)'}`,
+      );
     });
 
     ctx.routes.get('/summary', () => {

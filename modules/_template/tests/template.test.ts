@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createTestHub, loadModuleFolder, type TestHub } from '@hub/sdk/testing';
@@ -42,6 +43,28 @@ describe('template module', () => {
     });
     expect(response.status).toBe(400);
     expect(response.body.error).toMatch(/obligatoire/);
+  });
+
+  it('registers its exports in ctx.outputs, deletable from the core API', async () => {
+    const created = await hub.request<{ id: number }>('POST', '/api/modules/template/notes', {
+      text: 'À exporter',
+    });
+    const exported = await hub.request<{ id: number; path: string; exists: boolean }>(
+      'POST',
+      `/api/modules/template/notes/${created.body.id}/export`,
+    );
+    expect(exported.body.exists).toBe(true);
+    const list = await hub.request<{ id: number }[]>('GET', '/api/core/outputs?module=template');
+    expect(list.body.map((r) => r.id)).toEqual([exported.body.id]);
+
+    const deleted = await hub.request<{ deleted: number }>('POST', '/api/core/outputs/delete', {
+      ids: [exported.body.id],
+    });
+    expect(deleted.body.deleted).toBe(1);
+    expect(existsSync(exported.body.path)).toBe(false);
+    expect((await hub.request<unknown[]>('GET', '/api/core/outputs?module=template')).body).toEqual(
+      [],
+    );
   });
 
   it('returns its default setting', async () => {

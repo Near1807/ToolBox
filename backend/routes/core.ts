@@ -1,6 +1,6 @@
 import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
-import { openEventStream, type JobInfo } from '../../packages/sdk/backend';
+import { AccountError, openEventStream, type JobInfo } from '../../packages/sdk/backend';
 import { listAutomaticBackups } from '../core/backups';
 import { getSqliteVersion } from '../core/database';
 import { exportBackupZip } from '../core/export';
@@ -68,6 +68,37 @@ export function registerCoreRoutes(app: FastifyInstance, hub: Hub, appVersion: s
     },
   );
 
+  // Connected accounts (ctx.accounts) ------------------------------------
+
+  app.get('/api/core/accounts', async () => hub.accounts.describe());
+
+  // Reconnect with the scopes already granted (e.g. after an expired authorization).
+  app.post<{ Params: { provider: string } }>(
+    '/api/core/accounts/:provider/reconnect',
+    async (request, reply) => {
+      try {
+        const status = hub.accounts.status(request.params.provider);
+        return await hub.accounts.connect(request.params.provider, status.scopes);
+      } catch (error) {
+        if (error instanceof AccountError) return reply.code(400).send({ error: error.message });
+        throw error;
+      }
+    },
+  );
+
+  app.delete<{ Params: { provider: string } }>(
+    '/api/core/accounts/:provider',
+    async (request, reply) => {
+      try {
+        await hub.accounts.disconnect(request.params.provider);
+        return { ok: true };
+      } catch (error) {
+        if (error instanceof AccountError) return reply.code(400).send({ error: error.message });
+        throw error;
+      }
+    },
+  );
+
   // Settings --------------------------------------------------------------
 
   app.get('/api/core/settings', async () => hub.settings.describe());
@@ -131,6 +162,62 @@ export function registerCoreRoutes(app: FastifyInstance, hub: Hub, appVersion: s
     const off = hub.bus.on(JOB_UPDATED_EVENT, (job) => stream.send('job', job as JobInfo));
     stream.onClose(off);
   });
+
+  // Generated files (ctx.outputs) -----------------------------------------
+
+  const outputIds = (body: unknown): number[] | null => {
+    const ids = (body as { ids?: unknown } | undefined)?.ids;
+    return Array.isArray(ids) && ids.length > 0 && ids.every((id) => Number.isInteger(id))
+      ? (ids as number[])
+      : null;
+  };
+
+  // Every list reads the disk: a file deleted in the Explorer shows as missing.
+  app.get<{ Querystring: { module?: string; missing?: string; subject?: string } }>(
+    '/api/core/outputs',
+    async (request) =>
+      hub.outputs.list({
+        moduleId: request.query.module || undefined,
+        subject: request.query.subject || undefined,
+        missing: request.query.missing === '1',
+      }),
+  );
+
+  app.post('/api/core/outputs/delete', async (request, reply) => {
+    const ids = outputIds(request.body);
+    if (!ids) return reply.code(400).send({ error: 'Liste « ids » attendue' });
+    const removed = await hub.outputs.delete({ ids });
+    return { deleted: removed.length };
+  });
+
+  app.post('/api/core/outputs/forget', async (request, reply) => {
+    const ids = outputIds(request.body);
+    if (!ids) return reply.code(400).send({ error: 'Liste « ids » attendue' });
+    return { forgotten: hub.outputs.forget({ ids }).length };
+  });
+
+  app.post<{ Params: { id: string; action: string } }>(
+    '/api/core/outputs/:id/:action',
+    async (request, reply) => {
+      const { action } = request.params;
+      if (action !== 'open' && action !== 'reveal') {
+        return reply.code(404).send({ error: 'Action inconnue' });
+      }
+      const [record] = hub.outputs.list({ ids: [Number(request.params.id)] });
+      if (!record) return reply.code(404).send({ error: 'Fichier inconnu' });
+      if (!record.exists) {
+        return reply.code(404).send({ error: `Fichier introuvable : ${record.path}` });
+      }
+      if (action === 'open') await hub.host.openPath(record.path);
+      else hub.host.showItemInFolder(record.path);
+      return { ok: true };
+    },
+  );
+
+  app.post<{ Body: { module?: string } }>('/api/core/outputs/clean-missing', async (request) => ({
+    forgotten: hub.outputs.forget({ missing: true, moduleId: request.body?.module || undefined })
+      .length,
+  }));
 
   // Logs ------------------------------------------------------------------
 

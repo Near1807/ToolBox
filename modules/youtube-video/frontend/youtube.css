@@ -128,3 +128,17 @@
   font-family: inherit;
   resize: vertical;
 }
+
+.yv-video {
+  justify-content: flex-start;
+}
+
+.yv-video__text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.yv-video .inline-form {
+  margin-bottom: 0;
+}

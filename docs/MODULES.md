@@ -24,7 +24,7 @@ modules/<id>/
 └─ tests/*.test.ts        tests Vitest (obligatoire)
 ```
 
-- `id` : kebab-case (`music-library`), **identique au nom du dossier**. Ids réservés : `core`, `hub`, `api`, `settings`, `jobs`, `logs`.
+- `id` : kebab-case (`music-library`), **identique au nom du dossier**. Ids réservés : `core`, `hub`, `api`, `settings`, `jobs`, `logs`, `accounts`, `notifications`.
 - **Dossiers commençant par `_`** (ex. `_template`) : modules d'exemple, d'id `template`. Ils ne sont chargés que par le smoke test de la CI ou avec `TOOLBOX_LOAD_EXAMPLES=1`.
 - Un module sans frontend est un module de service (ex. `video-engine`) ; sans backend, un module purement visuel.
 
@@ -57,7 +57,7 @@ modules/<id>/
 | `dependsOn.modules`    | non         | Modules qui doivent être présents **et chargés**                                                                   |
 | `dependsOn.services`   | non         | Services consommés via `ctx.services.get()` (fournis par n'importe quel module)                                    |
 | `provides.services`    | non         | Services que le module **doit** fournir via `ctx.services.provide()`                                               |
-| `permissions.accounts` | non         | Comptes externes nécessaires via `ctx.accounts` (ex. `"google"`, phase 5)                                          |
+| `permissions.accounts` | non         | Comptes externes utilisés via `ctx.accounts` : `"google"` (seul fournisseur aujourd'hui)                           |
 | `settings`             | non         | Réglages du module, affichés automatiquement dans la page Réglages (§5.3)                                          |
 
 Le manifest est validé au démarrage (`backend/core/modules/manifest.ts`) : un champ inconnu ou invalide rend le module « en erreur » avec un message précis, sans empêcher les autres de démarrer.
@@ -190,7 +190,25 @@ ctx.scheduler.schedule('refresh', { everyMinutes: 60 }, async () => {
 
 ### 5.9 `ctx.accounts` — comptes connectés
 
-Réservé à la phase 5 (OAuth Google, jetons chiffrés). `ctx.accounts.available` vaut `false` d'ici là. Les comptes requis se déclarent dans `permissions.accounts`.
+Comptes OAuth de l'utilisateur, gérés par le socle (ADR 0018). Le module déclare le fournisseur dans `permissions.accounts` (`"google"`) ; sinon tout appel lève une erreur.
+
+```ts
+const SCOPES = ['https://www.googleapis.com/auth/youtube'];
+ctx.routes.post('/account/connect', () => ctx.accounts.connect('google', SCOPES)); // ouvre le navigateur
+const response = await ctx.accounts.fetch('google', '/youtube/v3/channels?part=snippet&mine=true');
+```
+
+| Membre                        | Rôle                                                                                                                                                       |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `status(provider)`            | `{ configured, connected, needsReconnect, scopes, connectedAt, error, connecting }`                                                                        |
+| `connect(provider, scopes)`   | Ouvre la page de consentement dans le navigateur, attend la réponse (5 min) ; les autorisations déjà accordées sont gardées (cumul)                        |
+| `accessToken(provider)`       | Jeton d'accès valide (rafraîchi si besoin)                                                                                                                 |
+| `fetch(provider, url, init?)` | `fetch` avec le jeton ; `/chemin` → API du fournisseur (`https://www.googleapis.com`) ; un 401 rafraîchit et renvoie une fois (corps en texte ou `Buffer`) |
+| `disconnect(provider)`        | Révoque l'autorisation et oublie les jetons                                                                                                                |
+
+- Les erreurs sont des `AccountError` (`code` : `not-configured`, `not-connected`, `reauth-required`, `denied`, `cancelled`, `network`, `encryption`) au message français. Levées dans une route, elles deviennent une réponse **409** `{ error, account: code }` : l'interface peut proposer « Connecter » ou « Reconnecter ».
+- L'ID client OAuth et son secret appartiennent à l'utilisateur (son projet Google Cloud) : **Réglages › Comptes connectés**, jamais dans le code. Les jetons sont chiffrés (safeStorage) et ne sortent jamais du backend.
+- Demander les autorisations les plus petites qui suffisent, et le dire à l'utilisateur.
 
 ### 5.10 `ctx.logger` — journaux
 
@@ -203,6 +221,45 @@ Réservé à la phase 5 (OAuth Google, jetons chiffrés). `ctx.accounts.availabl
 ### 5.12 `ctx.onShutdown(handler)`
 
 Appelé à la fermeture de l'app : arrêter un process FFmpeg, fermer un watcher… Les tâches en cours reçoivent aussi `job.signal` (abort).
+
+### 5.13 `ctx.outputs` — fichiers générés (obligatoire)
+
+> **Règle : tout ce qu'un module génère doit passer par `ctx.outputs` et être supprimable depuis l'interface.**
+
+Le socle tient un registre unique (`core__outputs`) des fichiers produits par les modules (vidéos, images, exports…). Grâce à lui, chaque fichier est listé, vérifié sur le disque à chaque affichage, supprimable (vers la Corbeille) et retirable de la liste s'il a disparu. La page **« Fichiers générés »** du shell liste ceux de tous les modules.
+
+```ts
+// Après chaque rendu (même chemin = mise à jour, pas de doublon).
+ctx.outputs.register({
+  path: file, // dans ctx.files.outputDir()
+  ref: `video:${row.id}`, // l'élément, dans les termes du module
+  parent: `pack:${pack.id}`, // facultatif : groupe (supprimer le groupe = tous ses fichiers)
+  subject: `music-library:track:${trackId}`, // facultatif : sujet partagé entre modules
+  label: 'Vidéo YouTube', // affiché dans les listes
+});
+
+// Le module nettoie SES données quand des fichiers sont supprimés ou retirés
+// (depuis sa page, la page « Fichiers générés » ou « Nettoyer les éléments introuvables »).
+ctx.outputs.onRemoved((records, reason) => {
+  for (const r of records) deleteMyRow(r.ref); // reason : 'deleted' (Corbeille) | 'forgotten' (liste seulement)
+});
+```
+
+| Méthode                                                                | Rôle                                                                                                |
+| ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `register({ path, ref, label, parent?, subject?, kind?, createdAt? })` | Enregistre ou met à jour (même chemin) un fichier généré                                            |
+| `list({ ref?, refs?, parent?, ids?, missing? })`                       | Fichiers du module, avec `exists` vérifié **sur le disque** et une `url` signée                     |
+| `delete(filtre)`                                                       | Envoie les fichiers à la **Corbeille** (`shell.trashItem`), oublie les entrées, appelle `onRemoved` |
+| `forget(filtre)`                                                       | « Retirer de la liste » : oublie les entrées sans toucher aux fichiers, appelle `onRemoved`         |
+| `bySubject(sujet)` · `deleteBySubject(sujet)`                          | Fichiers de **tous** les modules sur un sujet (ex. tous ceux faits à partir d'un morceau)           |
+
+- Un filtre vide est refusé (jamais de « tout supprimer » par accident).
+- Fichiers déjà produits avant l'arrivée du registre : le module les enregistre au démarrage (`register` est idempotent), sans rien supprimer.
+- Interface : chaque élément généré a un bouton **« Supprimer »** avec confirmation (`confirmDelete`), les listes ont la **sélection multiple** (`useSelection` + `SelectionBar`), un fichier introuvable s'affiche **« Fichier introuvable »** avec « Retirer de la liste » et, si possible, « Régénérer » (`MissingFile`), et un bouton **« Nettoyer les éléments introuvables »**. `OutputList` fait tout cela d'un coup pour une liste simple. Routes du socle : `/api/core/outputs` (voir `ARCHITECTURE.md`).
+
+### 5.14 `ctx.notifications` — notifications Windows
+
+`ctx.notifications.notify({ title, body, path })` : notification Windows (si l'app tourne). Un clic ouvre la page `path` du module (`''` = page principale, `'?item=3'`, `'tracks/3'`…). Elle est aussi écrite dans les journaux du module. Pour les rappels, l'utilisateur peut faire tourner l'app en arrière-plan : réglage du socle « Lancer ToolBox au démarrage de Windows » (zone de notification).
 
 ## 6. Migrations et sécurité des données
 
@@ -232,7 +289,7 @@ migrations: [
 
 1. Versions `1, 2, 3…` contiguës. Une migration publiée n'est **jamais modifiée ni supprimée** : on en ajoute une nouvelle.
 2. Une migration ne crée, modifie ou supprime que des objets portant le préfixe du module. Sinon elle est refusée et annulée.
-3. **Un module ne supprime jamais de données existantes sans migration explicite.** Aucune suppression de table, de colonne ou de lignes « de nettoyage » en dehors d'une migration dédiée, décrite comme telle (`description`) et mentionnée dans le `CHANGELOG.md`. Le code courant (`ctx.db.prepare`) ne peut pas modifier le schéma.
+3. **Un module ne supprime jamais de données existantes sans migration explicite.** Aucune suppression de table, de colonne ou de lignes « de nettoyage » en dehors d'une migration dédiée, décrite comme telle (`description`) et mentionnée dans le `CHANGELOG.md`. Le code courant (`ctx.db.prepare`) ne peut pas modifier le schéma. Seule exception : ce que **l'utilisateur demande explicitement** de supprimer depuis l'interface, après confirmation (un élément, ses fichiers via `ctx.outputs`, ses lignes liées).
 4. Préférer les migrations additives (nouvelle colonne avec valeur par défaut, nouvelle table). Pour transformer des données, copier vers la nouvelle structure dans la même migration avant de retirer l'ancienne.
 5. Une migration doit fonctionner sur une base qui contient déjà des données réelles : la tester ainsi (voir `tests/backend/modules.test.ts`).
 
@@ -273,9 +330,11 @@ export default defineFrontendModule({
 - Chaque page et chaque widget est rendu dans une **ErrorBoundary** : une erreur d'affichage n'affecte que ce module.
 - Le frontend d'un module ne parle **qu'à son propre backend** (`module.api.get('/x')` → `/api/modules/<id>/x`) et aux routes génériques du socle (`useJobs()`). S'il a besoin de données d'un autre module, son backend les obtient via un service.
 - Fichiers locaux : `getFilePath(file)` donne le vrai chemin d'un fichier glissé-déposé (dans l'app uniquement ; `null` dans un navigateur) ; `pickFiles()` / `pickFolder()` ouvrent les sélecteurs natifs. Le frontend envoie le **chemin** à son backend, qui copie le fichier dans `ctx.files.dataDir` (pas d'upload HTTP).
+- Glisser un fichier **hors de l'app** (vers Instagram dans le navigateur, l'Explorateur…) : dans `onDragStart`, appeler `startFileDrag(mediaUrl)` avec l'URL signée du fichier (`ctx.files.mediaUrl`) et `event.preventDefault()` s'il renvoie `true` (`false` dans un navigateur). Le process principal vérifie la signature avant de lancer le glisser (`webContents.startDrag`).
 - Navigation interne : `useModule().path('tracks/3')` donne l'adresse d'une page du module (pour `<Link to>` / `navigate()`).
 - CSS propre à un module : un fichier importé depuis `frontend/`, classes préfixées par les initiales du module (ex. `ml-` pour music-library).
-- Outils du SDK : `useModule`, `useApi`, `useJobs`, `api`, `apiFetch`, `openEventStream`, `getFilePath`, `pickFiles`, `pickFolder`, `copyText`, `formatDuration`, et les composants `Page`, `Card`, `Button`, `EmptyState`, `ErrorMessage`, `ProgressBar`, `ErrorBoundary`. Styles : classes et variables CSS de `frontend/src/styles.css` (thème sombre).
+- Fichiers générés : `outputs` (client des routes `/api/core/outputs`), `confirmDelete`, `useSelection`, et les composants `SelectionBar`, `MissingFile`, `OutputList` (voir §5.13).
+- Outils du SDK : `useModule`, `useApi`, `useJobs`, `api`, `apiFetch`, `openEventStream`, `getFilePath`, `startFileDrag`, `pickFiles`, `pickFolder`, `copyText`, `formatDuration`, et les composants `Page`, `Card`, `Button`, `EmptyState`, `ErrorMessage`, `ProgressBar`, `ErrorBoundary`. Styles : classes et variables CSS de `frontend/src/styles.css` (thème sombre).
 - Textes de l'interface en français.
 
 ## 8. Tests
@@ -314,7 +373,9 @@ L'état de chaque module est visible dans **Réglages > Modules** (avec bouton D
 - [ ] N'importe que `@hub/sdk/*` (et npm/Node) — `npm run lint` passe
 - [ ] Tables préfixées, schéma uniquement par migrations, aucune suppression de données hors migration explicite
 - [ ] Fichiers uniquement dans `ctx.files.dataDir` / `outputDir()`
+- [ ] Chaque fichier généré enregistré dans `ctx.outputs` (avec `onRemoved` pour nettoyer ses données) ; dans l'interface : « Supprimer » avec confirmation, sélection multiple, « Fichier introuvable », « Nettoyer les éléments introuvables »
 - [ ] Dépendances et services déclarés dans le manifest ; types publics dans `contract.ts`
+- [ ] Comptes externes déclarés dans `permissions.accounts`, autorisations minimales
 - [ ] Textes en français, code en anglais
 - [ ] `README.md` du module à jour (rôle, données, réglages, événements, services, API)
 - [ ] Tests dans `tests/`, `npm test` passe

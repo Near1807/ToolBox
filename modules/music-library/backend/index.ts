@@ -1,7 +1,6 @@
 // music-library: the shared track library of the Music section.
 // Provides the "musicLibrary" service used by the video generators.
 import { existsSync } from 'node:fs';
-import path from 'node:path';
 import { defineBackendModule, HttpError, type ModuleContext } from '@hub/sdk/backend';
 import {
   MUSIC_LIBRARY_SERVICE,
@@ -9,7 +8,7 @@ import {
   type Track,
   type TrackDto,
   type TrackOutput,
-  type TrackOutputDto,
+  type TrackInfoProvider,
 } from '../contract';
 import { Library } from './library';
 
@@ -22,17 +21,8 @@ function toDto(ctx: ModuleContext, track: Track): TrackDto {
   };
 }
 
-function toOutputDto(ctx: ModuleContext, output: TrackOutput): TrackOutputDto {
-  const { filePath, ...rest } = output;
-  const exists = existsSync(filePath);
-  let url: string | null = null;
-  try {
-    url = exists ? ctx.files.mediaUrl(filePath) : null;
-  } catch {
-    // File moved outside the output folder: still listed, not playable.
-  }
-  return { ...rest, fileName: path.basename(filePath), exists, url };
-}
+/** Subject of the files generated from a track, shared with the other modules (ctx.outputs). */
+const trackSubject = (id: number) => `music-library:track:${id}`;
 
 function idParam(params: unknown): number {
   const id = Number((params as { id?: string }).id);
@@ -92,12 +82,30 @@ export default defineBackendModule({
 
   register(ctx) {
     const library = new Library(ctx);
+    const infoProviders = new Set<TrackInfoProvider>();
+
+    const trackInfos = (trackId: number) =>
+      [...infoProviders].flatMap((provider) => {
+        try {
+          const value = provider.get(trackId);
+          return value === null
+            ? []
+            : [{ moduleId: provider.moduleId, label: provider.label, value }];
+        } catch (error) {
+          ctx.logger.warn(`Info « ${provider.label} » indisponible (${provider.moduleId})`, error);
+          return [];
+        }
+      });
 
     const service: MusicLibraryService = {
       listTracks: () => library.list(),
       getTrack: (id) => library.get(id),
       recordOutput: (trackId, output) => library.recordOutput(trackId, output),
       listOutputs: (trackId) => library.listOutputs(trackId),
+      registerTrackInfo: (provider) => {
+        infoProviders.add(provider);
+        return () => infoProviders.delete(provider);
+      },
     };
     ctx.services.provide(MUSIC_LIBRARY_SERVICE, service);
 
@@ -107,7 +115,9 @@ export default defineBackendModule({
       const track = library.require(idParam(request.params));
       return {
         ...toDto(ctx, track),
-        outputs: library.listOutputs(track.id).map((o) => toOutputDto(ctx, o)),
+        // Files generated from this track by every module (ctx.outputs, checked on disk).
+        outputs: ctx.outputs.bySubject(trackSubject(track.id)),
+        infos: trackInfos(track.id),
       };
     });
 
@@ -126,9 +136,16 @@ export default defineBackendModule({
       return toDto(ctx, await library.setCover(idParam(request.params), coverPath));
     });
 
+    // ?outputs=1: the files generated from the track (videos, Reels…) go to the Recycle Bin too.
     ctx.routes.delete('/tracks/:id', async (request) => {
-      await library.remove(idParam(request.params));
-      return { ok: true };
+      const id = idParam(request.params);
+      library.require(id);
+      let deletedOutputs = 0;
+      if ((request.query as { outputs?: string }).outputs === '1') {
+        deletedOutputs = await ctx.outputs.deleteBySubject(trackSubject(id));
+      }
+      await library.remove(id);
+      return { ok: true, deletedOutputs };
     });
 
     const requireOutput = (params: unknown): TrackOutput => {

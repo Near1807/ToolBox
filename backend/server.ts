@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import Fastify, { type FastifyInstance } from 'fastify';
 import fastifyStatic from '@fastify/static';
-import { Hub, type DiscoveredModule } from './core/hub';
+import { Hub, type DiscoveredModule, type HubOptions } from './core/hub';
 import type { HostAdapter } from './core/host';
 import { MEDIA_PREFIX } from './core/media';
 import { registerSecurity, StreamTicketStore } from './core/security';
@@ -30,6 +30,8 @@ export interface ServerOptions {
   /** Extra allowed origins, e.g. the Vite dev server. */
   extraOrigins?: string[];
   echoLogs?: boolean;
+  /** Endpoint overrides of the OAuth providers (tests). */
+  accountProviders?: HubOptions['accountProviders'];
 }
 
 export interface BuiltServer {
@@ -55,6 +57,7 @@ export async function buildServer(options: ServerOptions): Promise<BuiltServer> 
     loadExamples: options.loadExamples,
     echoLogs: options.echoLogs,
     assetsRoot: options.assetsRoot,
+    accountProviders: options.accountProviders,
   });
   let port = options.port ?? 0;
 

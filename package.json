@@ -1,7 +1,7 @@
 {
   "name": "toolbox",
   "productName": "ToolBox",
-  "version": "0.5.1",
+  "version": "0.11.0",
   "description": "Hub d'outils personnel : application de bureau Windows modulaire.",
   "author": "Thomas",
   "license": "UNLICENSED",
@@ -28,6 +28,7 @@
   "dependencies": {
     "@derhuerst/ffprobe-static": "^5.3.0",
     "@fastify/static": "^10.1.6",
+    "@napi-rs/canvas": "1.0.9",
     "better-sqlite3": "^13.0.3",
     "fastify": "^5.12.7",
     "ffmpeg-static": "^5.3.0"

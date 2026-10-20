@@ -3,16 +3,21 @@ import { useSearchParams } from 'react-router';
 import {
   Button,
   Card,
+  confirmDelete,
   copyText,
   EmptyState,
   ErrorMessage,
   errorMessage,
   formatDuration,
+  MissingFile,
+  outputs,
   Page,
   ProgressBar,
+  SelectionBar,
   useApi,
   useJobs,
   useModule,
+  useSelection,
 } from '@hub/sdk/frontend';
 
 interface TrackSummary {
@@ -25,17 +30,18 @@ interface TrackSummary {
 
 interface VideoItem {
   id: number;
+  outputId: number;
   fileName: string;
   createdAt: string;
   exists: boolean;
   url: string | null;
+  youtubeUrl: string | null;
 }
 
 interface TrackDetail extends TrackSummary {
   videoTitle: string;
   description: string;
   videos: VideoItem[];
-  uploadAvailable: boolean;
 }
 
 function CopyField(props: { label: string; value: string; multiline?: boolean }) {
@@ -76,6 +82,7 @@ function TrackPanel(props: { trackId: number }) {
   });
   const [error, setError] = useState<string | null>(null);
   const finishedJobs = useRef(new Set<string>());
+  const selection = useSelection<number>();
 
   const title = detail.data ? `Vidéo YouTube — ${detail.data.title}` : null;
   const trackJobs = jobs.filter((job) => job.title === title);
@@ -123,6 +130,22 @@ function TrackPanel(props: { trackId: number }) {
       setError(errorMessage(err));
     }
   };
+
+  /** Deletion (Recycle Bin) and « Retirer de la liste » go through the core (ctx.outputs). */
+  const changeOutputs = async (action: () => Promise<unknown>) => {
+    setError(null);
+    try {
+      await action();
+    } catch (err) {
+      setError(errorMessage(err));
+    }
+    selection.clear();
+    reload();
+  };
+  const deleteVideos = (list: VideoItem[], what: string) => {
+    if (confirmDelete(what)) void changeOutputs(() => outputs.delete(list.map((v) => v.outputId)));
+  };
+  const missing = track.videos.filter((video) => !video.exists);
 
   return (
     <>
@@ -197,45 +220,96 @@ function TrackPanel(props: { trackId: number }) {
             Aucune vidéo pour ce morceau. Le rendu prend à peu près la durée du morceau.
           </p>
         ) : (
-          <ul className="list">
-            {track.videos.map((video) => (
-              <li key={video.id} className="list__item">
-                <div>
-                  <strong>{video.fileName}</strong>
-                  <div className="muted small">
-                    {new Date(video.createdAt).toLocaleString('fr-FR')}
-                    {!video.exists && ' · fichier déplacé ou supprimé'}
+          <>
+            <SelectionBar
+              total={track.videos.length}
+              count={selection.selected.size}
+              onSelectAll={() => selection.setAll(track.videos.map((v) => v.id))}
+              onClear={selection.clear}
+              onDelete={() =>
+                deleteVideos(
+                  track.videos.filter((v) => selection.has(v.id)),
+                  `les ${selection.selected.size} vidéos sélectionnées`,
+                )
+              }
+            >
+              {missing.length > 0 && (
+                <Button
+                  variant="secondary"
+                  small
+                  onClick={() =>
+                    void changeOutputs(() => outputs.forget(missing.map((v) => v.outputId)))
+                  }
+                >
+                  Nettoyer les éléments introuvables ({missing.length})
+                </Button>
+              )}
+            </SelectionBar>
+            <ul className="list">
+              {track.videos.map((video) => (
+                <li key={video.id} className="list__item yv-video">
+                  <input
+                    type="checkbox"
+                    aria-label={`Sélectionner ${video.fileName}`}
+                    checked={selection.has(video.id)}
+                    onChange={() => selection.toggle(video.id)}
+                  />
+                  <div className="yv-video__text">
+                    <strong>{video.fileName}</strong>
+                    <div className="muted small">
+                      {new Date(video.createdAt).toLocaleString('fr-FR')}
+                    </div>
                   </div>
-                </div>
-                {video.exists && (
-                  <span className="inline-form">
-                    <Button
-                      variant="secondary"
-                      small
-                      onClick={() => void videoAction(video, 'open')}
-                    >
-                      Lire
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      small
-                      onClick={() => void videoAction(video, 'reveal')}
-                    >
-                      Ouvrir le dossier
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      small
-                      disabled
-                      title="Bientôt : publication directe sur YouTube depuis ToolBox"
-                    >
-                      Publier sur YouTube
-                    </Button>
-                  </span>
-                )}
-              </li>
-            ))}
-          </ul>
+                  {video.exists ? (
+                    <span className="inline-form">
+                      <Button
+                        variant="secondary"
+                        small
+                        onClick={() => void videoAction(video, 'open')}
+                      >
+                        Lire
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        small
+                        onClick={() => void videoAction(video, 'reveal')}
+                      >
+                        Ouvrir le dossier
+                      </Button>
+                      {video.youtubeUrl && (
+                        <a
+                          className="button button--secondary button--small"
+                          href={video.youtubeUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          title="Envoyée par le Planning de sortie"
+                        >
+                          Sur YouTube ↗
+                        </a>
+                      )}
+                      <Button
+                        variant="danger"
+                        small
+                        onClick={() => deleteVideos([video], `la vidéo « ${video.fileName} »`)}
+                      >
+                        Supprimer
+                      </Button>
+                    </span>
+                  ) : (
+                    <MissingFile
+                      onForget={() => void changeOutputs(() => outputs.forget([video.outputId]))}
+                      onRegenerate={() =>
+                        void changeOutputs(async () => {
+                          await outputs.forget([video.outputId]);
+                          await module.api.post(`/tracks/${track.id}/render`);
+                        })
+                      }
+                    />
+                  )}
+                </li>
+              ))}
+            </ul>
+          </>
         )}
       </Card>
 

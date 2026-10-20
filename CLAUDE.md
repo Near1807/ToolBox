@@ -10,7 +10,7 @@ Application de bureau Windows personnelle de Thomas : un **hub** (page d'accueil
 
 **Pour ajouter ou modifier un module : lire `docs/MODULES.md` (le contrat) puis `docs/AJOUTER-UN-MODULE.md`.** Point de départ : copier `modules/_template/`.
 
-Modules actuels (section Musique) : `music-library` (bibliothèque, service `musicLibrary`), `video-engine` (moteur FFmpeg partagé, service `videoEngine`, sans page), `youtube-video` (générateur 16:9), `instagram-video` (Reel / Short 9:16). Chaque module a son `README.md`.
+Modules actuels (section Musique) : `music-library` (bibliothèque, service `musicLibrary`), `video-engine` (moteur FFmpeg partagé, Reels dessinés image par image, service `videoEngine`, sans page), `youtube-video` (générateur 16:9), `instagram-video` (pack Insta : 4 Reels 9:16 au même style sobre, post 4:5, légende, suivi de publication, service `instagramPack`), `release-planner` (planning de sortie : calendrier, upload et programmation YouTube via `ctx.accounts`, rappels Instagram). `youtube-video` fournit le service `youtubeVideo`. Chaque module a son `README.md`.
 
 ## Stack
 
@@ -18,7 +18,8 @@ Modules actuels (section Musique) : `music-library` (bibliothèque, service `mus
 - Frontend **React 19 + Vite 8 + TypeScript**, routeur `react-router` (HashRouter). Il ne parle au backend **que via l'API REST** (client dans `@hub/sdk/frontend`).
 - **SQLite** via `better-sqlite3` (N-API, aucun rebuild pour Electron), base unique `hub.db` dans `app.getPath('userData')`.
 - **FFmpeg/FFprobe** embarqués : `ffmpeg-static` + `@derhuerst/ffprobe-static` (même build ; FFmpeg **6.1** sous Windows, 7.0 sous Linux : rester compatible 6.1), dépaquetés de l'asar.
-- Secrets chiffrés avec `safeStorage` via l'interface `HostAdapter` (`backend/core/host.ts`).
+- **Canvas** `@napi-rs/canvas` (Skia, N-API précompilé, dépaqueté de l'asar) : rendu des Reels image par image (ADR 0017).
+- Secrets et jetons OAuth chiffrés avec `safeStorage` via l'interface `HostAdapter` (`backend/core/host.ts`). Comptes connectés (`ctx.accounts`, OAuth Google installé : boucle locale + PKCE, ADR 0018) ; notifications Windows et zone de notification (ADR 0019).
 - Qualité : ESLint 10 + Prettier, Vitest 5, TypeScript 6 (pas 7 : non supporté par typescript-eslint). zod (manifests), yazl (export .zip).
 
 ## Commandes
@@ -31,24 +32,24 @@ Modules actuels (section Musique) : `music-library` (bibliothèque, service `mus
 | `npm test` / `npm run test:watch`          | Tests Vitest (socle dans `tests/`, modules dans `modules/*/tests/`)                                                                           |
 | `npm run lint` / `npm run format`          | ESLint (dont la règle des frontières de modules) + Prettier                                                                                   |
 | `npm run typecheck`                        | `tsc --noEmit`                                                                                                                                |
-| `npm run check:native`                     | Vérifie que better-sqlite3 se charge dans le Node d'Electron                                                                                  |
+| `npm run check:native`                     | Vérifie que better-sqlite3 et @napi-rs/canvas se chargent dans le Node d'Electron                                                             |
 | `npm run dist:win`                         | Installateur NSIS + portable dans `dist/` (sous Windows, ou via la CI)                                                                        |
-| `node scripts/smoke-test.mjs <exe> [args]` | Auto-test d'un build (API, SQLite, FFmpeg, module modèle, UI)                                                                                 |
+| `node scripts/smoke-test.mjs <exe> [args]` | Auto-test d'un build (API, SQLite, FFmpeg, canvas, module modèle, UI)                                                                         |
 
 Sous Linux en root (conteneur) : ajouter `--no-sandbox` à Electron, et `xvfb-run -a` pour un écran virtuel. Pour voir l’interface : Playwright (`_electron.launch`, s’il est installé dans l’environnement) permet de piloter l’app et de faire des captures.
 
 ## Structure
 
 ```
-electron/        process principal : fenêtre, démarrage, preload, HostAdapter Electron, smoke test
+electron/        process principal : fenêtre (plein écran, barre sombre), zone de notification et démarrage avec Windows, preload, HostAdapter Electron, smoke test
 backend/         server.ts (Fastify) · core/ (hub.ts = chargeur de modules et ctx, migrations, sauvegardes,
-                 réglages, tâches, planificateur, événements, services, journaux) · routes/core.ts (/api/core/*)
-frontend/src/    shell React : modules/ (découverte, hôte des pages), shell/ (accueil, tâches, journaux, réglages), styles.css
+                 réglages, tâches, planificateur, événements, services, fichiers générés, comptes, notifications, journaux) · routes/core.ts (/api/core/*)
+frontend/src/    shell React : modules/ (découverte, hôte des pages), shell/ (accueil, fichiers générés, tâches, journaux, réglages), styles.css
 packages/sdk/    @hub/sdk : backend.ts, frontend.tsx, manifest.ts, testing.ts — seul import autorisé aux modules
 modules/         un dossier par module ; _template/ = module modèle (exemple, chargé à la demande)
 scripts/         dev, build (esbuild + découverte des modules), smoke test, vérification native
 tests/           tests Vitest du socle
-docs/            ARCHITECTURE, MODULES (contrat), AJOUTER-UN-MODULE, ROADMAP, WINDOWS, decisions/ (ADR)
+docs/            ARCHITECTURE, MODULES (contrat), AJOUTER-UN-MODULE, DIRECTION-ARTISTIQUE, ROADMAP, WINDOWS, decisions/ (ADR)
 ```
 
 ## Documentation de référence
@@ -56,6 +57,7 @@ docs/            ARCHITECTURE, MODULES (contrat), AJOUTER-UN-MODULE, ROADMAP, WI
 - `docs/MODULES.md` — **le contrat de module** (la pièce la plus importante).
 - `docs/AJOUTER-UN-MODULE.md` — guide pas à pas, dont « Intégrer une app existante ».
 - `docs/ARCHITECTURE.md` — vue d'ensemble, démarrage, API du socle, sécurité, données.
+- `docs/DIRECTION-ARTISTIQUE.md` — **règles obligatoires pour tout visuel généré** (sobriété, cover toujours entière, vérification sur trois covers).
 - `docs/ROADMAP.md` — fait / en cours / prévu. `CHANGELOG.md` — versions.
 - `docs/decisions/` — ADR : pourquoi chaque choix structurant.
 
@@ -67,7 +69,9 @@ docs/            ARCHITECTURE, MODULES (contrat), AJOUTER-UN-MODULE, ROADMAP, WI
 - Tout appel API passe par `/api/...` avec l'en-tête `x-toolbox-token`. Les routes SSE (EventSource) utilisent un ticket à usage unique (`POST /api/core/stream-tickets`, puis `?ticket=`) et déclarent `streamTicket: true`.
 - Le backend n'importe jamais `electron` : il passe par `HostAdapter`.
 - Données utilisateur uniquement sous `userData`, jamais dans le dossier d'installation.
-- **Données : une migration publiée ne se modifie jamais ; aucune suppression de données hors migration explicite.** Le socle sauvegarde `hub.db` avant chaque migration et restaure en cas d'échec (`docs/MODULES.md` §6).
+- **Tout fichier généré passe par `ctx.outputs` et est supprimable depuis l'interface** (Corbeille, sélection multiple, « Fichier introuvable »). `docs/MODULES.md` §5.13.
+- Visuels : respecter `docs/DIRECTION-ARTISTIQUE.md` (sobre ; cover toujours entière, jamais recadrée ni étirée ; seuls mouvements lents de l'image entière ; couleurs de la cover). Pixels carrés (`setsar=1`) en fin de chaîne, son ≤ -1 dBTP. **Tout mouvement est piloté directement par le son, jamais par des événements détectés** (synchro mesurée, ≤ 1 image).
+- **Données : une migration publiée ne se modifie jamais ; aucune suppression de données hors migration explicite** (ou demande explicite de l'utilisateur dans l'interface, avec confirmation). Le socle sauvegarde `hub.db` avant chaque migration et restaure en cas d'échec (`docs/MODULES.md` §6).
 - Toute modification du contrat de module ou de l'architecture met à jour la doc **dans le même commit**. Nouvelle décision structurante → nouvel ADR.
 - Fin de phase : mettre à jour `docs/ROADMAP.md` et `CHANGELOG.md`, versionnage sémantique (`package.json`).
 
@@ -75,4 +79,4 @@ docs/            ARCHITECTURE, MODULES (contrat), AJOUTER-UN-MODULE, ROADMAP, WI
 
 - Travail sur la branche `hub-v1`. **Jamais** de push, merge ou rebase sur `main` : Thomas décide des fusions.
 - Un commit par étape logique, messages clairs. Push à la fin de chaque phase au minimum. La CI construit le `.exe` à chaque push sur `hub-v1`.
-- Aucun secret dans le dépôt (`.env` ignoré, `.env.example` documenté).
+- Aucun secret dans le dépôt (`.env` ignoré, `.env.example` documenté). Les identifiants OAuth (ID client, secret) se saisissent dans les réglages de l'app, jamais en dur.

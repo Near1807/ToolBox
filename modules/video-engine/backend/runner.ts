@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import type { Writable } from 'node:stream';
 import { parseProgressLine } from './commands';
 
 export class RenderCancelled extends Error {
@@ -20,6 +21,8 @@ export function runFfmpeg(options: {
   env?: NodeJS.ProcessEnv;
   signal?: AbortSignal;
   onTime?: (seconds: number) => void;
+  /** Writes FFmpeg's standard input (e.g. raw frames), then the input is closed. */
+  feed?: (stdin: Writable) => Promise<void>;
 }): Promise<string> {
   return new Promise((resolve, reject) => {
     if (options.signal?.aborted) return reject(new RenderCancelled());
@@ -33,6 +36,18 @@ export function runFfmpeg(options: {
     let buffer = '';
 
     const onAbort = () => child.kill();
+    let feedError: Error | null = null;
+    if (options.feed) {
+      // FFmpeg may stop reading early (error, cancel): the close event reports it.
+      child.stdin.on('error', () => {});
+      options
+        .feed(child.stdin)
+        .then(() => child.stdin.end())
+        .catch((error: unknown) => {
+          feedError = error instanceof Error ? error : new Error(String(error));
+          child.kill();
+        });
+    }
     options.signal?.addEventListener('abort', onAbort, { once: true });
 
     child.stdout.on('data', (chunk: Buffer) => {
@@ -55,6 +70,7 @@ export function runFfmpeg(options: {
     child.on('close', (code) => {
       options.signal?.removeEventListener('abort', onAbort);
       if (options.signal?.aborted) return reject(new RenderCancelled());
+      if (feedError) return reject(feedError);
       if (code === 0) return resolve(stderr);
       const detail = stderr.trim().split('\n').slice(-3).join(' | ');
       reject(new Error(`FFmpeg a échoué (code ${code})${detail ? ` : ${detail}` : ''}`));

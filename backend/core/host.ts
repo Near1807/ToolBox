@@ -1,3 +1,4 @@
+import { rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -11,6 +12,8 @@ export interface HostAdapter {
   openPath(path: string): Promise<void>;
   /** Reveals a file in the OS file explorer. */
   showItemInFolder(path: string): void;
+  /** Moves a file to the OS Recycle Bin (recoverable deletion). */
+  trashItem(path: string): Promise<void>;
   /** Native folder picker; null when cancelled. */
   selectFolder(options: { title: string; defaultPath?: string }): Promise<string | null>;
   /** Native file picker; empty when cancelled. */
@@ -29,6 +32,15 @@ export interface HostAdapter {
   getDefaultOutputRoot(): string;
   /** Restarts the whole application. */
   relaunch(): void;
+  /** Opens a web page in the user's default browser (OAuth consent, YouTube Studio…). */
+  openExternal(url: string): Promise<void>;
+  /**
+   * Shows a desktop notification; clicking it brings the window to the front
+   * and opens `target` (a route of the UI, e.g. "/m/release-planner").
+   */
+  notify(notification: { title: string; body: string; target?: string }): void;
+  /** Starts the app with Windows (minimised to the notification area), or not. */
+  setLaunchAtStartup(enabled: boolean): void;
   /** True when OS-level encryption (Electron safeStorage / DPAPI) is usable. */
   isEncryptionAvailable(): boolean;
   encryptString(plainText: string): Buffer;
@@ -43,11 +55,16 @@ export function createNullHost(overrides: Partial<HostAdapter> = {}): HostAdapte
   return {
     openPath: async () => {},
     showItemInFolder: () => {},
+    // Outside Electron there is no Recycle Bin: tests and the standalone backend delete.
+    trashItem: async (target) => rm(target, { force: true }),
     selectFolder: async () => null,
     selectFiles: async () => [],
     selectSaveFile: async () => null,
     getDefaultOutputRoot: () => path.join(os.tmpdir(), 'ToolBox'),
     relaunch: () => {},
+    openExternal: async () => {},
+    notify: () => {},
+    setLaunchAtStartup: () => {},
     isEncryptionAvailable: () => false,
     encryptString: unavailable,
     decryptString: unavailable,

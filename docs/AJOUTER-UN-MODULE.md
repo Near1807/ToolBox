@@ -28,8 +28,9 @@ L'id (`mon-outil`) est en kebab-case, unique, et **identique au nom du dossier**
 
 1. **Migrations** : remplacer celle du modèle. Tables nommées `mon_outil__xxx` (ou `${db.table('xxx')}` dans une migration fonction). Version 1 pour commencer.
 2. **`register(ctx)`** : déclarer les routes (`ctx.routes`), tâches longues (`ctx.jobs.define`), tâches planifiées (`ctx.scheduler.schedule`), services (`ctx.services.provide`), écouteurs (`ctx.events.on`).
-3. Erreurs utilisateur → `throw new HttpError(400, 'message en français')`.
-4. Si le module fournit un service : décrire son interface dans `contract.ts` (types uniquement).
+3. **Fichiers générés** (vidéo, image, export…) : écrits dans `ctx.files.outputDir()` et **toujours** enregistrés avec `ctx.outputs.register(...)`, plus un `ctx.outputs.onRemoved(...)` qui efface les données liées du module. C'est obligatoire (MODULES.md §5.13) : sans cela, l'utilisateur ne peut ni les supprimer ni voir qu'ils ont disparu. Exemple : la route `/notes/:id/export` du modèle.
+4. Erreurs utilisateur → `throw new HttpError(400, 'message en français')`.
+5. Si le module fournit un service : décrire son interface dans `contract.ts` (types uniquement).
 
 Supprimer tout ce qui ne sert pas (route de démo, tâche planifiée…).
 
@@ -38,12 +39,13 @@ Supprimer tout ce qui ne sert pas (route de démo, tâche planifiée…).
 - Une page principale `{ path: '', component: MaPage }` ; d'autres pages si besoin (`'details/:id'`).
 - `useModule()` pour appeler son backend (`module.api.post('/x', data)`), `useApi(module.url('/x'))` pour charger des données, `useJobs(module.id)` pour suivre ses tâches.
 - Composants du SDK (`Page`, `Card`, `Button`…) pour rester homogène avec le reste de l'app.
+- Fichiers générés : `<OutputList module={module.id} />` donne une liste complète (ouvrir, supprimer avec confirmation, sélection multiple, fichiers introuvables). Pour une présentation sur mesure (vignettes…), utiliser `outputs.delete/forget`, `confirmDelete`, `useSelection` + `SelectionBar` et `MissingFile`.
 - Pas de frontend ? Supprimer le dossier `frontend/` (module de service).
 
 ## 5. Tester
 
 - Adapter `tests/` : `createTestHub` + `loadModuleFolder` démarrent un vrai socle avec le module.
-- Tester au minimum : chargement sans erreur, chaque route, les erreurs prévues, les migrations sur une base existante si le module évolue.
+- Tester au minimum : chargement sans erreur, chaque route, les erreurs prévues, les migrations sur une base existante si le module évolue, et pour les fichiers générés : présence dans `/api/core/outputs`, suppression, fichier effacé à la main (signalé introuvable).
 
 ```bash
 npm test

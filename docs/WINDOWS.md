@@ -44,3 +44,12 @@ Restaurer à la main (app **fermée**, y compris dans la zone de notification) :
 3. Depuis un export `.zip` : recréer `%APPDATA%\ToolBox\`, y extraire `hub.db` et le dossier `modules\`.
    Depuis une sauvegarde automatique : copier `backups\hub-….db` vers `%APPDATA%\ToolBox\hub.db` (supprimer `hub.db-wal` et `hub.db-shm` s'ils existent).
 4. Relancer ToolBox. Si un outil avait été désactivé, le réactiver dans Réglages > Modules.
+
+## Démarrage avec Windows et zone de notification
+
+Réglages › Général › **« Lancer ToolBox au démarrage de Windows »** (désactivé par défaut) :
+
+- ToolBox démarre avec ta session, sans fenêtre, avec une icône dans la **zone de notification** (en bas à droite, éventuellement derrière la flèche « ^ »). Clic sur l'icône : ouvrir ; clic droit : **Ouvrir ToolBox** / **Quitter ToolBox**.
+- Tant que l'option est active, fermer la fenêtre la **réduit dans la zone de notification** (une notification le rappelle la première fois) : les rappels du Planning de sortie et les envois YouTube en file d'attente continuent.
+- Les notifications de ToolBox suivent les réglages de Windows (Paramètres › Système › Notifications) : vérifie que ToolBox y est autorisé.
+- L'inscription au démarrage ne concerne que l'app installée (`ToolBox-Setup`), pas la version portable déplacée ailleurs.

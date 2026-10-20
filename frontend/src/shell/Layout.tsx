@@ -1,8 +1,14 @@
-import { NavLink, Outlet } from 'react-router';
+import { useEffect } from 'react';
+import { NavLink, Outlet, useNavigate } from 'react-router';
 import { groupBySection, hasMainPage, useModules } from '../modules/ModulesContext';
+import { FullscreenButton, useFullscreen, WindowButtons } from './WindowControls';
 
 export function Layout() {
   const { modules } = useModules();
+  const fullscreen = useFullscreen();
+  const navigate = useNavigate();
+  // A desktop notification was clicked: open the page it points to.
+  useEffect(() => window.toolbox?.onNavigate?.((target) => void navigate(target)), [navigate]);
   const sections = groupBySection(
     modules.filter((m) => hasMainPage(m) && !m.frontend?.nav?.hidden),
   );
@@ -26,6 +32,9 @@ export function Layout() {
           </div>
         ))}
         <div className="sidebar__spacer" />
+        <NavLink to="/outputs" className="nav-link">
+          Fichiers générés
+        </NavLink>
         <NavLink to="/jobs" className="nav-link">
           Tâches
         </NavLink>
@@ -35,10 +44,12 @@ export function Layout() {
         <NavLink to="/settings" className="nav-link">
           Réglages
         </NavLink>
+        <FullscreenButton fullscreen={fullscreen} />
       </nav>
       <main className="content">
         <Outlet />
       </main>
+      <WindowButtons fullscreen={fullscreen} />
     </div>
   );
 }

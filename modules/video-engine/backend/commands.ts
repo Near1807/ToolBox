@@ -43,7 +43,8 @@ export interface FormatSpec {
     gop: number;
     audioBitrate: string;
   };
-  layout: Layout;
+  /** Layout of the FFmpeg render (YouTube). Reels are drawn frame by frame: reel-frames.ts. */
+  layout?: Layout;
 }
 
 export const FORMATS: Record<VideoFormat, FormatSpec> = {
@@ -58,27 +59,18 @@ export const FORMATS: Record<VideoFormat, FormatSpec> = {
       zoom: 0.05,
       title: { top: 700, fontSize: 58, minFontSize: 30, maxWidth: 1500 },
       artist: { top: 784, fontSize: 42 },
-      bars: { width: 1400, height: 210, top: 852, barWidth: 20, gap: 5, opacity: 0.7 },
+      bars: { width: 1400, height: 210, top: 852, barWidth: 20, gap: 5, opacity: 0.6 },
       grain: 6,
       blur: 90,
     },
   },
   // Instagram Reels / YouTube Shorts: 1080×1920, 30 fps, H.264 + AAC 48 kHz.
-  // Text and bars stay out of the zones covered by the Instagram interface.
+  // Drawn frame by frame (reel-frames.ts: layout, safe zones).
   instagram: {
     label: 'Instagram Reel / Short 9:16 (1080×1920)',
     width: 1080,
     height: 1920,
     encoding: { videoBitrate: '6M', maxrate: '8M', bufsize: '12M', gop: 60, audioBitrate: '256k' },
-    layout: {
-      cover: { size: 760, centerY: 880, radius: 32, shadowPad: 70, shadowOffset: 16 },
-      zoom: 0.05,
-      title: { top: 250, fontSize: 64, minFontSize: 34, maxWidth: 940 },
-      artist: { top: 342, fontSize: 46 },
-      bars: { width: 900, height: 270, top: 1370, barWidth: 20, gap: 5, opacity: 0.7 },
-      grain: 6,
-      blur: 90,
-    },
   },
 };
 
@@ -91,6 +83,7 @@ export function scaleFormat(
   scale: number,
 ): { width: number; height: number; layout: Layout } {
   const l = format.layout;
+  if (!l) throw new Error(`Pas de mise en page FFmpeg pour ${format.label}`);
   const barWidth = Math.max(4, px(l.bars.barWidth, scale));
   return {
     width: even(format.width * scale),
@@ -128,10 +121,11 @@ export function scaleFormat(
 }
 
 /**
- * Background: a soft colour wash of the cover. The whole cover is reduced to a
- * coarse grid of average colours (no crop, no big zoom: no visible blotches),
- * enlarged smoothly and blurred, then darkened towards the edges and, more
- * strongly, towards the bottom so the spectrum bars always stay readable.
+ * Background: the cover itself, scaled just enough to fill the frame, then very
+ * strongly blurred (reduced to 1/16, blurred, enlarged again: uniform, no
+ * blotches), softened and darkened towards the edges and, more strongly,
+ * towards the bottom so the visualisation stays readable. Only the cover's
+ * own colours (docs/DIRECTION-ARTISTIQUE.md).
  */
 export function buildBackgroundArgs(
   cover: string,
@@ -140,11 +134,13 @@ export function buildBackgroundArgs(
   height: number,
   blur: number,
 ): string[] {
-  const grid = width >= height ? '8:5' : '5:8';
-  // Bottom gradient (from 55 % of the height, up to -60 %) × soft radial vignette.
+  const small = (n: number) => Math.max(4, Math.round(n / 16));
+  // Blur radius on the reduced image: about a sixth of its short side.
+  const sigma = Math.max(2, Math.round(Math.min(small(width), small(height)) / 6));
+  // Bottom gradient (from 55 % of the height, up to -55 %) × soft radial vignette.
   const shade =
-    '(1-0.6*clip((Y/H-0.55)/0.45\\,0\\,1))' +
-    '*(1-0.35*(pow((X/W-0.5)*2\\,2)+pow((Y/H-0.5)*2\\,2))/2)';
+    '(1-0.55*clip((Y/H-0.55)/0.45\\,0\\,1))' +
+    '*(1-0.3*(pow((X/W-0.5)*2\\,2)+pow((Y/H-0.5)*2\\,2))/2)';
   return [
     '-v',
     'error',
@@ -152,17 +148,29 @@ export function buildBackgroundArgs(
     '-i',
     cover,
     '-vf',
-    `scale=${grid}:flags=area,scale=${width}:${height}:flags=bicubic,gblur=sigma=${blur},` +
-      `eq=brightness=-0.16:saturation=1.05:contrast=0.85,format=rgb24,` +
-      `geq=r='r(X,Y)*${shade}':g='g(X,Y)*${shade}':b='b(X,Y)*${shade}'`,
+    // Each scale step can change the pixel shape (SAR): square pixels are
+    // forced back (setsar=1), otherwise players stretch the video.
+    `setsar=1,scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},` +
+      `scale=${small(width)}:${small(height)}:flags=area,gblur=sigma=${sigma},` +
+      `scale=${width}:${height}:flags=bicubic,gblur=sigma=${Math.max(2, Math.round(blur / 3))},` +
+      `eq=brightness=-0.12:saturation=0.7:contrast=0.7,format=rgb24,` +
+      `geq=r='r(X,Y)*${shade}':g='g(X,Y)*${shade}':b='b(X,Y)*${shade}',setsar=1`,
     '-frames:v',
     '1',
     output,
   ];
 }
 
-/** Sharp cover with rounded corners and a soft drop shadow, as a transparent PNG. */
-export function buildCardArgs(cover: string, output: string, layout: Layout['cover']): string[] {
+/**
+ * Sharp cover with rounded corners and a soft drop shadow, as a transparent PNG.
+ * The cover keeps its own ratio: it fits inside a `size` × `size` box (a square
+ * cover fills it), never stretched, never cropped.
+ */
+export function buildCardArgs(
+  cover: string,
+  output: string,
+  layout: Omit<Layout['cover'], 'centerY'>,
+): string[] {
   const { size: s, radius: r, shadowPad: p, shadowOffset: o } = layout;
   const rounded =
     `geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':` +
@@ -175,11 +183,11 @@ export function buildCardArgs(cover: string, output: string, layout: Layout['cov
     '-i',
     cover,
     '-filter_complex',
-    `[0:v]scale=${s}:${s}:force_original_aspect_ratio=increase,crop=${s}:${s},format=rgba,${rounded}[c];` +
+    `[0:v]setsar=1,scale=${s}:${s}:force_original_aspect_ratio=decrease:force_divisible_by=2,setsar=1,format=rgba,${rounded}[c];` +
       `[c]split[c1][c2];` +
       `[c2]colorchannelmixer=rr=0:gg=0:bb=0:aa=0.6,` +
-      `pad=${s + 2 * p}:${s + 2 * p}:${p}:${p + o}:color=black@0,gblur=sigma=${Math.max(2, Math.round(p / 3))}[sh];` +
-      `[sh][c1]overlay=${p}:${p}:format=auto`,
+      `pad=iw+${2 * p}:ih+${2 * p}:${p}:${p + o}:color=black@0,gblur=sigma=${Math.max(2, Math.round(p / 3))}[sh];` +
+      `[sh][c1]overlay=${p}:${p}:format=auto,setsar=1`,
     '-frames:v',
     '1',
     output,
@@ -203,12 +211,17 @@ export function fitFontSize(text: string, base: number, maxWidth: number, min: n
 }
 
 /** Title and artist as an ASS script, rendered by libass (works with every FFmpeg build). */
+export interface TextLayout {
+  title: Layout['title'];
+  artist: Layout['artist'];
+}
+
 export function buildAssScript(params: {
   width: number;
   height: number;
   title: string;
   artist: string;
-  layout: Layout;
+  layout: TextLayout;
 }): string {
   const { width, height, layout } = params;
   const title = escapeAssText(params.title);
@@ -339,6 +352,11 @@ export function buildAudioArgs(params: {
     filters.join(','),
     '-c:a',
     'aac',
+    // The default "twoloop" coder adds up to +5 dB of overshoot on hot, clipped
+    // masters (measured), which the true-peak loop then pays in loudness; the
+    // "fast" coder stays within ~0.5 dB, transparent at these bitrates.
+    '-aac_coder',
+    'fast',
     '-b:a',
     params.bitrate,
     '-ar',
@@ -372,12 +390,15 @@ export function buildRenderArgs(plan: RenderPlan): string[] {
 
   // Frequencies on a logarithmic (musical) scale. Music carries far more energy
   // in the bass than in the treble, so the visualisation branch only (not the
-  // soundtrack) gets a treble tilt of +4 dB/octave above 120 Hz (max +15 dB)
+  // soundtrack) gets a treble tilt of +3 dB/octave above 120 Hz (max +12 dB)
   // and a compressed amplitude, to spread the movement over the whole width.
+  // A light temporal smoothing (3 frames) keeps it calm: it accompanies the
+  // music, it does not flicker.
   const spectrum =
-    `firequalizer=gain='min(15\\,max(0\\,4*log(f/120)/log(2)))',` +
-    `showcqt=s=${barCount}x${bars.height}:fps=${FPS}:sono_h=0:axis_h=0:bar_g=2:bar_v=11:` +
+    `firequalizer=gain='min(12\\,max(0\\,3*log(f/120)/log(2)))',` +
+    `showcqt=s=${barCount}x${bars.height}:fps=${FPS}:sono_h=0:axis_h=0:bar_g=2:bar_v=8:` +
     `cscheme=1|1|1|1|1|1:basefreq=45:endfreq=8000:count=2,` +
+    `tmix=frames=3:weights='1 2 1',` +
     `scale=${bars.width}:${bars.height}:flags=neighbor,` +
     `drawgrid=w=${bars.barWidth}:h=${bars.height}:t=${bars.gap}:c=black,` +
     `colorkey=black:0.08:0.05,colorchannelmixer=aa=${bars.opacity},format=rgba`;
@@ -389,8 +410,9 @@ export function buildRenderArgs(plan: RenderPlan): string[] {
 
   const graph = [
     `[2:a]${spectrum}[bars]`,
-    `[0:v]format=yuv420p[bg]`,
-    `[1:v]scale=w='${l.cover.size + 2 * l.cover.shadowPad}*(1+${l.zoom}*t/${round(d)})':h=-1:eval=frame[card]`,
+    `[0:v]setsar=1,format=yuv420p[bg]`,
+    // The only movement: a slow zoom of the whole card. The cover is never cropped.
+    `[1:v]scale=w='iw*(1+${l.zoom}*t/${round(d)})':h=-1:eval=frame,setsar=1[card]`,
     `[bg][card]overlay=x=(W-w)/2:y=${l.cover.centerY}-h/2:format=yuv420[v1]`,
     `[v1][bars]overlay=x=(W-w)/2:y=${bars.top}:format=yuv420[v2]`,
     `[v2]` +
@@ -399,6 +421,8 @@ export function buildRenderArgs(plan: RenderPlan): string[] {
         `noise=alls=${l.grain}:allf=t`,
         ...videoFades,
         'format=yuv420p',
+        // Square pixels: the file plays at exactly width × height everywhere.
+        'setsar=1',
       ].join(',') +
       `[vout]`,
   ].join(';');
@@ -472,6 +496,118 @@ export function buildRenderArgs(plan: RenderPlan): string[] {
     '-f',
     'mp4',
     plan.files.output,
+  ];
+}
+
+/**
+ * Encoding of frames drawn in JS (Reels): raw RGBA pixels on the standard
+ * input, the checked soundtrack copied as is, light grain, fades, square pixels.
+ */
+export function buildFramesEncodeArgs(params: {
+  width: number;
+  height: number;
+  duration: number;
+  /** Fade in and out (s); 0 = none (previews). */
+  fade: number;
+  encoding: FormatSpec['encoding'] | null;
+  audio: string;
+  output: string;
+}): string[] {
+  const { duration: d, fade } = params;
+  const filters = [
+    'noise=alls=4:allf=t',
+    fade > 0 ? `fade=t=in:st=0:d=${round(fade)}` : null,
+    fade > 0 ? `fade=t=out:st=${round(Math.max(0, d - fade))}:d=${round(fade)}` : null,
+    'format=yuv420p',
+    'setsar=1',
+  ].filter(Boolean);
+  const quality = params.encoding
+    ? [
+        ...['-preset', 'veryfast', '-profile:v', 'high'],
+        ...['-b:v', params.encoding.videoBitrate, '-maxrate', params.encoding.maxrate],
+        ...['-bufsize', params.encoding.bufsize, '-g', String(params.encoding.gop), '-bf', '2'],
+      ]
+    : ['-preset', 'ultrafast', '-crf', '28'];
+  return [
+    ...['-v', 'error', '-y'],
+    ...['-f', 'rawvideo', '-pix_fmt', 'rgba', '-s', `${params.width}x${params.height}`],
+    ...['-r', String(FPS), '-i', 'pipe:0'],
+    ...['-i', params.audio],
+    ...['-map', '0:v', '-map', '1:a', '-vf', filters.join(',')],
+    ...['-c:v', 'libx264', '-pix_fmt', 'yuv420p', ...quality],
+    ...['-c:a', 'copy', '-shortest'],
+    ...['-movflags', '+faststart', '-progress', 'pipe:1', '-nostats', '-f', 'mp4'],
+    params.output,
+  ];
+}
+
+/** A still image (post, thumbnail): background, card of the cover, title and artist. */
+export interface StillSpec {
+  width: number;
+  height: number;
+  blur: number;
+  cover: Omit<Layout['cover'], never>;
+  text: TextLayout;
+}
+
+/** Still image 4:5 for an Instagram post, in the same style as the videos. */
+export const POST_SPEC: StillSpec = {
+  width: 1080,
+  height: 1350,
+  blur: 90,
+  cover: { size: 700, centerY: 590, radius: 32, shadowPad: 70, shadowOffset: 16 },
+  text: {
+    title: { top: 1030, fontSize: 60, minFontSize: 32, maxWidth: 940 },
+    artist: { top: 1112, fontSize: 40 },
+  },
+};
+
+/**
+ * YouTube thumbnail 16:9 (1280×720, the recommended size; JPEG well under the
+ * 2 MB limit): the first image of the video without the spectrum, with a
+ * larger title since it is seen small.
+ */
+export const THUMBNAIL_SPEC: StillSpec = {
+  width: 1280,
+  height: 720,
+  blur: 60,
+  cover: { size: 400, centerY: 285, radius: 22, shadowPad: 46, shadowOffset: 10 },
+  text: {
+    title: { top: 518, fontSize: 56, minFontSize: 30, maxWidth: 1120 },
+    artist: { top: 590, fontSize: 36 },
+  },
+};
+
+/** Composes a still image (background + card + text) into a high-quality JPEG. */
+export function buildPostArgs(
+  files: {
+    background: string;
+    card: string;
+    ass: string;
+    fontsDir: string;
+    output: string;
+  },
+  spec: StillSpec = POST_SPEC,
+): string[] {
+  const { cover } = spec;
+  return [
+    '-v',
+    'error',
+    '-y',
+    '-i',
+    files.background,
+    '-i',
+    files.card,
+    '-filter_complex',
+    `[0:v][1:v]overlay=x=(W-w)/2:y=${cover.centerY}-h/2,` +
+      `subtitles=${files.ass}:fontsdir=${files.fontsDir},format=yuvj444p,setsar=1`,
+    '-frames:v',
+    '1',
+    '-q:v',
+    '2',
+    '-f',
+    'image2',
+    files.output,
   ];
 }
 

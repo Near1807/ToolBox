@@ -14,11 +14,17 @@ files:
   - '!node_modules/better-sqlite3/{src,deps,binding.gyp}'
 
 # Executables and native addons cannot run from inside app.asar.
+# Tray and notification icon, read at runtime (electron/desktop.ts).
+extraResources:
+  - from: resources/build/icon.png
+    to: icon.png
+
 asarUnpack:
   - build/modules/*/assets/**
   - node_modules/ffmpeg-static/**
   - node_modules/@derhuerst/ffprobe-static/**
   - node_modules/better-sqlite3/**
+  - node_modules/@napi-rs/**
 
 # better-sqlite3 ships N-API prebuilds that work in Electron as-is: no rebuild
 # (docs/decisions/0003-sqlite-better-sqlite3.md). `npm run check:native` guards it.

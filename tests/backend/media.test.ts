@@ -56,3 +56,12 @@ describe('media URLs', () => {
     expect(() => files.assetPath('..', '..', 'x')).toThrow(/hors du dossier/);
   });
 });
+
+describe('mediaTokenFromUrl', () => {
+  it('extracts the token of a media URL', async () => {
+    const { mediaTokenFromUrl } = await import('../../backend/core/media');
+    expect(mediaTokenFromUrl('/api/media/abc.def/song.wav?v=1')).toBe('abc.def');
+    expect(mediaTokenFromUrl('http://127.0.0.1:5000/api/media/abc.def/x.mp4')).toBe('abc.def');
+    expect(mediaTokenFromUrl('/api/core/system')).toBeNull();
+  });
+});

@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync } from 'node:fs';
+import { existsSync, mkdtempSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import ffprobeStatic from '@derhuerst/ffprobe-static';
@@ -12,8 +12,9 @@ import {
   type TestHub,
 } from '@hub/sdk/testing';
 import type { VideoEngineService } from '../contract';
-import { renderVideo, type EngineEnvironment } from '../backend/engine';
+import { renderPostImage, renderVideo, type EngineEnvironment } from '../backend/engine';
 import { RenderCancelled } from '../backend/runner';
+import { THUMBNAIL_SPEC } from '../backend/commands';
 import { createRenderFixtures } from './fixtures';
 
 const MODULE_DIR = path.resolve(import.meta.dirname, '..');
@@ -37,6 +38,8 @@ function probe(file: string) {
       width?: number;
       height?: number;
       pix_fmt?: string;
+      sample_aspect_ratio?: string;
+      display_aspect_ratio?: string;
     }[];
     format: { duration: string };
   };
@@ -79,6 +82,8 @@ describe('renderVideo (real FFmpeg)', () => {
       width: 480,
       height: 270,
       pix_fmt: 'yuv420p',
+      sample_aspect_ratio: '1:1',
+      display_aspect_ratio: '16:9',
     });
     expect(info.streams.find((s) => s.codec_type === 'audio')?.codec_name).toBe('aac');
     expect(Number(info.format.duration)).toBeCloseTo(3, 0);
@@ -121,20 +126,58 @@ describe('renderVideo (real FFmpeg)', () => {
     expect(truePeak).toBeGreaterThan(-3);
   });
 
-  it('renders the vertical Instagram layout', async () => {
-    const outputPath = path.join(fixtures.dir, 'out', 'reel.mp4');
-    const result = await renderVideo(env, {
-      format: 'instagram',
-      audioPath: fixtures.audio,
-      coverPath: fixtures.cover,
-      title: 'Reel',
-      artist: 'Thomas',
-      duration: 2,
-      outputPath,
-      scale: 0.25,
-    });
-    expect(result).toMatchObject({ width: 270, height: 480 });
+  it('renders the vertical Reel without stretching any cover', async () => {
+    for (const cover of [fixtures.wideCover, fixtures.cover]) {
+      const outputPath = path.join(fixtures.dir, 'out', `reel-${path.basename(cover)}.mp4`);
+      const result = await renderVideo(env, {
+        format: 'instagram',
+        fadeSeconds: 0.5,
+        audioPath: fixtures.audio,
+        coverPath: cover,
+        title: 'Reel',
+        artist: 'Thomas',
+        duration: 2,
+        outputPath,
+        scale: 0.25,
+      });
+      expect(result).toMatchObject({ width: 270, height: 480 });
+      const video = probe(outputPath).streams.find((s) => s.codec_type === 'video')!;
+      expect(video).toMatchObject({
+        width: 270,
+        height: 480,
+        sample_aspect_ratio: '1:1',
+        display_aspect_ratio: '9:16',
+      });
+    }
   });
+
+  // The bug of v0.6: a non-square pixel shape (SAR 16:9) made players stretch the Reels.
+  it('writes square pixels at full size: 1080×1920 (9:16) and 1920×1080 (16:9)', async () => {
+    const cases = [
+      { format: 'instagram', width: 1080, height: 1920, dar: '9:16' },
+      { format: 'youtube', width: 1920, height: 1080, dar: '16:9' },
+    ] as const;
+    for (const { format, width, height, dar } of cases) {
+      const outputPath = path.join(fixtures.dir, 'out', `full-${format}.mp4`);
+      await renderVideo(env, {
+        format,
+        audioPath: fixtures.audio,
+        coverPath: fixtures.wideCover,
+        title: 'Plein format',
+        artist: 'Thomas',
+        duration: 1,
+        outputPath,
+        quality: 'preview',
+      });
+      const video = probe(outputPath).streams.find((s) => s.codec_type === 'video')!;
+      expect(video).toMatchObject({
+        width,
+        height,
+        sample_aspect_ratio: '1:1',
+        display_aspect_ratio: dar,
+      });
+    }
+  }, 120_000);
 
   it('can be cancelled: FFmpeg stops and no file is left', async () => {
     const outputPath = path.join(fixtures.dir, 'out', 'cancelled.mp4');
@@ -159,6 +202,49 @@ describe('renderVideo (real FFmpeg)', () => {
     await expect(rendering).rejects.toBeInstanceOf(RenderCancelled);
     expect(existsSync(outputPath)).toBe(false);
     expect(existsSync(`${outputPath}.part`)).toBe(false);
+  });
+
+  it('applies short fades when asked (Reels: 0.5 s)', async () => {
+    const outputPath = path.join(fixtures.dir, 'out', 'short-fade.mp4');
+    const result = await renderVideo(env, {
+      format: 'instagram',
+      audioPath: fixtures.audio,
+      coverPath: fixtures.cover,
+      title: 'Fade',
+      artist: 'Thomas',
+      duration: 3,
+      fadeSeconds: 0.5,
+      outputPath,
+      scale: 0.25,
+    });
+    expect(result.durationSec).toBe(3);
+  });
+
+  it('renders the 4:5 post image as a JPEG', async () => {
+    const outputPath = path.join(fixtures.dir, 'out', 'post.jpg');
+    const result = await renderPostImage(env, {
+      coverPath: fixtures.cover,
+      title: 'Post',
+      artist: 'Thomas',
+      outputPath,
+    });
+    expect(result).toMatchObject({ width: 1080, height: 1350 });
+    const image = probe(outputPath).streams[0]!;
+    expect(image).toMatchObject({ codec_name: 'mjpeg', width: 1080, height: 1350 });
+    expect(['1:1', undefined]).toContain(image.sample_aspect_ratio);
+  });
+
+  it('renders the YouTube thumbnail: 1280×720 JPEG under 2 MB', async () => {
+    const outputPath = path.join(fixtures.dir, 'out', 'thumbnail.jpg');
+    const result = await renderPostImage(
+      env,
+      { coverPath: fixtures.cover, title: 'Miniature', artist: 'Thomas', outputPath },
+      THUMBNAIL_SPEC,
+    );
+    expect(result).toMatchObject({ width: 1280, height: 720 });
+    const image = probe(outputPath).streams[0]!;
+    expect(image).toMatchObject({ codec_name: 'mjpeg', width: 1280, height: 720 });
+    expect(statSync(outputPath).size).toBeLessThan(2 * 1024 * 1024);
   });
 
   it('reports a missing cover clearly', async () => {
