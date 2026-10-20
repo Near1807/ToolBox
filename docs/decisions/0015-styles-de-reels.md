@@ -1,6 +1,6 @@
 # 0015 — Reels : quatre styles, sans spectre
 
-- Statut : acceptée
+- Statut : **remplacée** par [0016](0016-direction-artistique-sobre.md) (v0.8 : retour à un rendu sobre)
 - Date : 2026-10-20
 
 ## Contexte

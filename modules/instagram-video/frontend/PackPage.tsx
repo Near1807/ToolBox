@@ -131,7 +131,7 @@ function TrackPanel(props: { trackId: number; onChange: () => void }) {
   const [playing, setPlaying] = useState<{ id: number; time: number } | null>(null);
   const [preview, setPreview] = useState<{ id: number; url: string | null } | null>(null);
   const audio = useRef<HTMLAudioElement>(null);
-  const seenJobs = useRef(new Set<string>());
+  const watchedJobs = useRef(new Set<string>());
   const selection = useSelection<number>();
 
   const pack = detail.data?.pack ?? null;
@@ -139,21 +139,21 @@ function TrackPanel(props: { trackId: number; onChange: () => void }) {
     pack ? module.url(`/tracks/${props.trackId}/waveform?clip=${pack.clipDuration}`) : null,
   );
 
-  // Reload when one of this pack's renders finishes.
+  // Reload when a render of this module finishes — whatever started it (this
+  // page, « Régénérer » elsewhere, another window): jobs seen queued or running
+  // are watched until they end.
   const { reload } = detail;
   const { onChange } = props;
-  const packJobIds = new Set((pack?.items ?? []).map((item) => item.jobId).filter(Boolean));
-  const packJobs = jobs.filter((job) => packJobIds.has(job.id));
   useEffect(() => {
-    for (const job of packJobs) {
-      const finished = ['succeeded', 'failed', 'canceled'].includes(job.status);
-      if (finished && !seenJobs.current.has(job.id)) {
-        seenJobs.current.add(job.id);
+    for (const job of jobs) {
+      if (job.status === 'queued' || job.status === 'running') {
+        watchedJobs.current.add(job.id);
+      } else if (watchedJobs.current.delete(job.id)) {
         reload();
         onChange();
       }
     }
-  }, [packJobs, reload, onChange]);
+  }, [jobs, reload, onChange]);
 
   if (detail.error) return <ErrorMessage>{detail.error}</ErrorMessage>;
   if (!detail.data) return null;
@@ -514,7 +514,6 @@ function TrackPanel(props: { trackId: number; onChange: () => void }) {
                 job={jobs.find((job) => job.id === item.jobId) ?? null}
                 onAction={(action) => void itemAction(item, action)}
                 onPublish={(fields) => void patchItem(item, fields)}
-                onUpdate={(fields) => void patchItem(item, fields)}
                 onCancel={(id) => void cancel(id)}
                 selected={selection.has(item.id)}
                 onSelect={() => selection.toggle(item.id)}

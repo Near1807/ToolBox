@@ -3,7 +3,6 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { HttpError, type ModuleContext } from '@hub/sdk/backend';
-import type { ReelStyle } from '../../video-engine/contract';
 
 export const MAX_REELS = 4;
 
@@ -35,18 +34,14 @@ export interface ItemRow {
   rendered_duration_sec: number | null;
   rendered_at: string | null;
   published_at: string | null;
-  /** Reels: style of the video (null = the default of its position). */
-  style: ReelStyle | null;
-  /** Reels in the "hook" style: the phrase shown at the start. */
-  hook_text: string | null;
-  rendered_style: string | null;
-  rendered_hook_text: string | null;
+  /** Look of the engine used for the file (RENDER_VERSION); null = before v0.8. */
+  render_version: number | null;
 }
 
 /**
  * draft: never rendered · rendering: queued or running · ready · outdated:
- * excerpt, style or phrase changed since the render · failed · missing: file
- * moved or deleted outside the app.
+ * excerpt changed since the render, or made with an older look of the engine ·
+ * failed · missing: file moved or deleted outside the app.
  */
 export type ItemState = 'draft' | 'rendering' | 'ready' | 'outdated' | 'failed' | 'missing';
 
@@ -89,20 +84,18 @@ export const migrationV3 = `
   ALTER TABLE instagram_video__pack_items ADD COLUMN rendered_hook_text TEXT;
 `;
 
-/** Reel 1 « Révélation », 2 « Coupes sur le rythme », 3 « Phrase d'accroche », 4 « Ambiance ». */
-export const DEFAULT_STYLES: ReelStyle[] = ['reveal', 'cuts', 'hook', 'ambient'];
+// v0.8: back to one sober look for every Reel (docs/DIRECTION-ARTISTIQUE.md).
+// The style columns of v0.7 are dropped; files made before are « À régénérer ».
+export const migrationV4 = `
+  ALTER TABLE instagram_video__pack_items DROP COLUMN style;
+  ALTER TABLE instagram_video__pack_items DROP COLUMN hook_text;
+  ALTER TABLE instagram_video__pack_items DROP COLUMN rendered_style;
+  ALTER TABLE instagram_video__pack_items DROP COLUMN rendered_hook_text;
+  ALTER TABLE instagram_video__pack_items ADD COLUMN render_version INTEGER;
+`;
 
-export const STYLE_LABELS: Record<ReelStyle, string> = {
-  reveal: 'Révélation',
-  cuts: 'Coupes sur le rythme',
-  hook: 'Phrase d’accroche',
-  ambient: 'Ambiance',
-};
-
-/** Style of a Reel: its own, or the default of its position. */
-export function itemStyle(item: Pick<ItemRow, 'style' | 'position'>): ReelStyle {
-  return item.style ?? DEFAULT_STYLES[(item.position - 1 + 4) % 4]!;
-}
+/** Current look of the generated files: older files are shown « À régénérer ». */
+export const RENDER_VERSION = 2;
 
 export function itemLabel(position: number): string {
   return position === 0 ? 'Post' : `Reel ${position}`;
@@ -166,8 +159,6 @@ export class PackStore {
     caption: string;
     folder: string;
     starts: number[];
-    /** Hook phrase of each Reel (used by the « Phrase d'accroche » style). */
-    hooks: string[];
   }): PackRow {
     const now = new Date().toISOString();
     return this.ctx.db.transaction(() => {
@@ -184,19 +175,8 @@ export class PackStore {
         `INSERT INTO ${this.items} (pack_id, kind, position, start_sec, duration_sec) VALUES (?, ?, ?, ?, ?)`,
       );
       insert.run(packId, 'post', 0, null, null);
-      const reel = this.ctx.db.prepare(
-        `INSERT INTO ${this.items} (pack_id, kind, position, start_sec, duration_sec, style, hook_text)
-         VALUES (?, 'reel', ?, ?, ?, ?, ?)`,
-      );
       input.starts.forEach((start, index) =>
-        reel.run(
-          packId,
-          index + 1,
-          start,
-          input.clipDuration,
-          DEFAULT_STYLES[index % 4],
-          input.hooks[index] ?? null,
-        ),
+        insert.run(packId, 'reel', index + 1, start, input.clipDuration),
       );
       return this.pack(packId)!;
     });
@@ -248,14 +228,11 @@ export class PackStore {
     if (item.file_path) {
       if (!existsSync(item.file_path)) return 'missing';
       if (item.error) return 'failed';
+      if (item.render_version !== RENDER_VERSION) return 'outdated';
       if (
         item.kind === 'reel' &&
         (item.rendered_start_sec !== item.start_sec ||
-          item.rendered_duration_sec !== item.duration_sec ||
-          // Reels of v0.6 have no rendered style: they were all of the old kind.
-          item.rendered_style !== itemStyle(item) ||
-          (itemStyle(item) === 'hook' &&
-            (item.rendered_hook_text ?? '') !== (item.hook_text ?? '')))
+          item.rendered_duration_sec !== item.duration_sec)
       ) {
         return 'outdated';
       }

@@ -33,4 +33,5 @@ Modèle :
 | 0012 | [Fichiers locaux, médias et texte dans les vidéos](0012-fichiers-medias-et-texte-video.md) |
 | 0013 | [Glisser des fichiers hors de l'application](0013-glisser-deposer-vers-l-exterieur.md)     |
 | 0014 | [Registre des fichiers générés (`ctx.outputs`)](0014-registre-des-fichiers-generes.md)     |
-| 0015 | [Reels : quatre styles, sans spectre](0015-styles-de-reels.md)                             |
+| 0015 | [Reels : quatre styles, sans spectre](0015-styles-de-reels.md) — remplacée par 0016        |
+| 0016 | [Direction artistique sobre](0016-direction-artistique-sobre.md)                           |

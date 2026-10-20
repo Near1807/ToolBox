@@ -8,7 +8,7 @@ import {
   startFileDrag,
   type JobInfo,
 } from '@hub/sdk/frontend';
-import { STATE_LABELS, STYLE_NAMES, STYLES, type PackItem, type ReelStyle } from './types';
+import { STATE_LABELS, type PackItem } from './types';
 
 const STATE_BADGES: Record<PackItem['state'], string> = {
   draft: '',
@@ -36,8 +36,6 @@ export function ItemTile(props: {
   onAction: (action: 'open' | 'reveal' | 'render') => void;
   onPublish: (fields: { published?: boolean; publishedAt?: string }) => void;
   onCancel?: (jobId: string) => void;
-  /** Style and hook phrase of a Reel (pack page only). */
-  onUpdate?: (fields: { style?: ReelStyle; hookText?: string }) => void;
   /** Multiple selection (checkbox on the preview). */
   selected?: boolean;
   onSelect?: () => void;
@@ -88,28 +86,6 @@ export function ItemTile(props: {
             {formatDuration(item.startSec)} →{' '}
             {formatDuration(item.startSec + (item.durationSec ?? 0))}
           </span>
-        )}
-        {item.kind === 'reel' && props.onUpdate && (
-          <select
-            className="input iv-tile__style"
-            aria-label={`Style du ${item.label}`}
-            value={item.style ?? 'reveal'}
-            disabled={rendering}
-            onChange={(e) => props.onUpdate!({ style: e.target.value as ReelStyle })}
-          >
-            {STYLES.map((style) => (
-              <option key={style} value={style}>
-                {STYLE_NAMES[style]}
-              </option>
-            ))}
-          </select>
-        )}
-        {item.style === 'hook' && props.onUpdate && (
-          <HookInput
-            key={item.hookText ?? ''}
-            saved={item.hookText ?? ''}
-            onSave={(hookText) => props.onUpdate!({ hookText })}
-          />
         )}
         {rendering && job && (
           <div className="iv-tile__progress">
@@ -170,22 +146,6 @@ export function ItemTile(props: {
         </div>
       </div>
     </div>
-  );
-}
-
-/** Hook phrase of a Reel, saved when leaving the field. */
-function HookInput(props: { saved: string; onSave: (text: string) => void }) {
-  const [text, setText] = useState(props.saved);
-  return (
-    <input
-      className="input iv-tile__hook"
-      aria-label="Phrase d’accroche"
-      placeholder="Phrase d’accroche"
-      maxLength={120}
-      value={text}
-      onChange={(e) => setText(e.target.value)}
-      onBlur={() => text.trim() !== props.saved && props.onSave(text.trim())}
-    />
   );
 }
 

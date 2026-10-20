@@ -438,9 +438,3 @@
   height: 18px;
   cursor: pointer;
 }
-
-.iv-tile__style,
-.iv-tile__hook {
-  padding: 4px 8px;
-  font-size: 0.85rem;
-}

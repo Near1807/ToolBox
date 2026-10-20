@@ -20,23 +20,7 @@ import {
   scaleFormat,
   TRUE_PEAK_TARGET,
 } from './commands';
-import {
-  buildDustArgs,
-  buildFillStillArgs,
-  buildReelArgs,
-  buildReelAss,
-  buildScrimArgs,
-  buildWideStillArgs,
-  coverToFill,
-  detailMap,
-  detectOnsets,
-  fillCrop,
-  focusPoints,
-  planCuts,
-  planShots,
-  REEL,
-  REEL_STYLES,
-} from './reel';
+import { detectOnsets, pickPulses, pulseExpression } from './beats';
 import { RenderCancelled, runFfmpeg } from './runner';
 
 const execFileAsync = promisify(execFile);
@@ -99,11 +83,12 @@ async function renderSoundtrack(
     if (!params.verify) return;
     const truePeak = parseTruePeak(await run(buildTruePeakArgs('soundtrack.m4a')));
     if (truePeak === null) throw new Error('Mesure du niveau crête impossible');
-    if (truePeak <= TRUE_PEAK_TARGET) return;
+    // ebur128 prints one decimal: "-1.0" may be -0.96. A 0.1 dB margin guarantees ≤ -1 dBTP.
+    if (truePeak <= TRUE_PEAK_TARGET - 0.1) return;
     if (attempt === 4) {
       throw new Error(`Niveau crête du son trop élevé (${truePeak} dBTP) malgré le limiteur`);
     }
-    ceilingDb -= truePeak - TRUE_PEAK_TARGET + 0.3;
+    ceilingDb -= truePeak - TRUE_PEAK_TARGET + 0.4;
   }
 }
 
@@ -125,8 +110,6 @@ export async function renderVideo(
 
   const format = FORMATS[options.format];
   if (!format) throw new Error(`Format inconnu : ${options.format}`);
-  // Vertical videos are Reels: their own styles, without the spectrum.
-  if (options.format === 'instagram') return renderReel(env, options, handlers);
   const scale = options.scale ?? 1;
   const preview = options.quality === 'preview';
   const { width, height, layout } = scaleFormat(format, scale);
@@ -181,6 +164,23 @@ export async function renderVideo(
       verify: !preview,
     });
 
+    // Reels: the whole card breathes softly on the strong beats of the excerpt.
+    let pulse: string | undefined;
+    if (options.format === 'instagram') {
+      handlers.onProgress?.(0, 'Détection du rythme…');
+      const rate = 11025;
+      const raw = await ffmpegStdout(
+        env.ffmpeg,
+        [
+          ...['-v', 'error', '-ss', String(start), '-t', String(duration), '-i', options.audioPath],
+          ...['-ac', '1', '-ar', String(rate), '-f', 's16le', '-'],
+        ],
+        handlers.signal,
+      );
+      const samples = new Int16Array(raw.buffer, raw.byteOffset, Math.floor(raw.length / 2));
+      pulse = pulseExpression(pickPulses(detectOnsets(samples, rate), duration));
+    }
+
     // 2. Video, with the soundtrack copied as is.
     await run(
       buildRenderArgs({
@@ -201,6 +201,7 @@ export async function renderVideo(
           output: partial,
         },
         source: options.audioPath,
+        pulse,
       }),
       (seconds) => {
         const fraction = Math.min(0.99, seconds / duration);
@@ -245,7 +246,6 @@ export async function renderPostImage(
         height,
         title: request.title,
         artist: request.artist,
-        badge: request.badge,
         layout: POST_SPEC.text,
       }),
     );
@@ -291,236 +291,4 @@ function ffmpegStdout(ffmpeg: string, args: string[], signal?: AbortSignal): Pro
       (error, stdout) => (error ? reject(error) : resolve(stdout)),
     );
   });
-}
-
-async function probeImageSize(ffprobe: string, file: string): Promise<{ w: number; h: number }> {
-  const { stdout } = await execFileAsync(ffprobe, [
-    ...['-v', 'error', '-select_streams', 'v:0'],
-    ...['-show_entries', 'stream=width,height', '-of', 'csv=p=0', file],
-  ]);
-  const [w, h] = stdout.trim().split(',').map(Number);
-  if (!w || !h) throw new Error(`Image illisible : ${path.basename(file)}`);
-  return { w, h };
-}
-
-const ANALYSIS_SIZE = 48;
-
-/** Mean luminance (0..1) of a region of an image (fractions of its size). */
-async function regionLuma(
-  ffmpeg: string,
-  file: string,
-  region: { x: number; y: number; w: number; h: number },
-): Promise<number> {
-  const pixel = await ffmpegStdout(ffmpeg, [
-    ...['-v', 'error', '-i', file],
-    '-vf',
-    `crop=iw*${region.w}:ih*${region.h}:iw*${region.x}:ih*${region.y},scale=1:1:flags=area,format=gray`,
-    ...['-frames:v', '1', '-f', 'rawvideo', '-'],
-  ]);
-  return (pixel[0] ?? 0) / 255;
-}
-
-/**
- * Renders a vertical Reel in one of the four styles (see reel.ts): still images
- * prepared from the cover, camera moves, title and artist kept discreet, no
- * audio visualisation, video fade-out 0.5 s, sound limited to -1 dBTP.
- */
-export async function renderReel(
-  env: EngineEnvironment,
-  options: RenderOptions,
-  handlers: RenderHandlers = {},
-): Promise<RenderResult> {
-  const style = options.reelStyle ?? 'reveal';
-  if (!REEL_STYLES.includes(style)) throw new Error(`Style de Reel inconnu : ${style}`);
-  const format = FORMATS.instagram;
-  const scale = options.scale ?? 1;
-  const preview = options.quality === 'preview';
-  const width = Math.max(2, Math.round((REEL.width * scale) / 2) * 2);
-  const height = Math.max(2, Math.round((REEL.height * scale) / 2) * 2);
-  const k = width / REEL.width;
-  // Stills at 2–3× the frame: slow moves keep sub-pixel precision.
-  const ss = style === 'cuts' || style === 'hook' ? 2 : 3;
-  const sw = width * ss;
-  const sh = height * ss;
-
-  const audioDuration = await probeDuration(env.ffprobe, options.audioPath);
-  const start = Math.min(Math.max(0, options.start ?? 0), Math.max(0, audioDuration - 1));
-  const duration = Math.min(options.duration ?? audioDuration - start, audioDuration - start);
-  if (duration < 1) throw new Error('Extrait trop court (1 seconde minimum)');
-
-  const work = path.join(env.workRoot, randomUUID());
-  const fontsWork = path.join(work, 'fonts');
-  mkdirSync(fontsWork, { recursive: true });
-  const partial = `${options.outputPath}.part`;
-  const run: Run = (args, onTime) =>
-    runFfmpeg({
-      ffmpeg: env.ffmpeg,
-      args,
-      cwd: work,
-      env: { FONTCONFIG_FILE: path.join(work, 'fonts.conf') },
-      signal: handlers.signal,
-      onTime,
-    });
-
-  try {
-    handlers.onProgress?.(0, 'Analyse de la cover…');
-    copyFileSync(path.join(env.fontsDir, FONT_FILE), path.join(fontsWork, FONT_FILE));
-    writeFileSync(
-      path.join(work, 'fonts.conf'),
-      buildFontsConfig(fontsWork, path.join(work, 'fc-cache')),
-    );
-
-    // Where the details of the cover are: crop of the full-frame view, close-ups.
-    const cover = await probeImageSize(env.ffprobe, options.coverPath);
-    const gray = await ffmpegStdout(env.ffmpeg, [
-      ...['-v', 'error', '-i', options.coverPath],
-      '-vf',
-      `scale=${ANALYSIS_SIZE}:${ANALYSIS_SIZE}:flags=area,format=gray`,
-      ...['-frames:v', '1', '-f', 'rawvideo', '-'],
-    ]);
-    const map = detailMap(new Uint8Array(gray), ANALYSIS_SIZE);
-    const crop = fillCrop(map, ANALYSIS_SIZE, cover.w / cover.h);
-    const points = focusPoints(map, ANALYSIS_SIZE, 3);
-    const details = points.map((p) => coverToFill(p, crop.window));
-
-    // The cover in the wide view: its own ratio inside the card box.
-    const box = REEL.card.size * k * ss;
-    const aspect = cover.w / cover.h;
-    const cw = aspect >= 1 ? box : box * aspect;
-    const ch = aspect >= 1 ? box / aspect : box;
-    const left = (sw - cw) / 2;
-    const top = REEL.card.centerY * k * ss - ch / 2;
-    // Start of « Révélation » (zoom 3): a detail, with the view entirely on the cover.
-    const clampTo = (value: number, min: number, max: number) =>
-      min > max ? (min + max) / 2 : Math.min(max, Math.max(min, value));
-    // Zoom 3 at least, more for a flat or narrow cover so that the first view is all cover.
-    const revealZoom = Math.min(6, Math.max(3.2, (sw / cw) * 1.25, (sh / ch) * 1.25));
-    // A margin, so that the start of the zoom-out still shows only the cover.
-    const halfW = (sw / (2 * revealZoom)) * 1.15;
-    const halfH = (sh / (2 * revealZoom)) * 1.15;
-    const focus = points[0]!;
-    const coverFocus = {
-      x: clampTo(left + cw * focus.x, left + halfW, left + cw - halfW) / sw,
-      y: clampTo(top + ch * focus.y, top + halfH, top + ch - halfH) / sh,
-    };
-
-    handlers.onProgress?.(0, 'Préparation des images…');
-    const scaled = (n: number) => Math.max(1, Math.round(n * k * ss));
-    await run(buildBackgroundArgs(options.coverPath, 'wash.png', sw, sh, scaled(90)));
-    await run(
-      buildCardArgs(options.coverPath, 'card.png', {
-        size: Math.round(box / 2) * 2,
-        radius: scaled(REEL.card.radius),
-        shadowPad: scaled(REEL.card.shadowPad),
-        shadowOffset: scaled(REEL.card.shadowOffset),
-      }),
-    );
-    await run(
-      buildWideStillArgs({
-        background: 'wash.png',
-        card: 'card.png',
-        centerY: scaled(REEL.card.centerY),
-        output: 'wide.png',
-      }),
-    );
-    await run(
-      buildFillStillArgs(options.coverPath, 'fill.png', sw, sh, {
-        x: crop.offsetX,
-        y: crop.offsetY,
-      }),
-    );
-    const veil = style === 'hook' ? 0.3 : 0;
-    await run(buildScrimArgs('scrim.png', width, height, veil));
-    if (style === 'ambient') await run(buildDustArgs('dust.png', width, height));
-
-    // Text colour from the brightness behind it (after the bottom darkening).
-    const textRegion = {
-      x: REEL.safe.left / REEL.width,
-      y: (REEL.text.titleTop - 20) / REEL.height,
-      w: (REEL.width - REEL.safe.left - REEL.safe.right) / REEL.width,
-      h: 150 / REEL.height,
-    };
-    const behind = await regionLuma(
-      env.ffmpeg,
-      path.join(work, style === 'reveal' ? 'wide.png' : 'fill.png'),
-      textRegion,
-    );
-    const tone = behind * (1 - veil) * 0.65 > 0.6 ? 'dark' : 'light';
-
-    // « Coupes sur le rythme »: shot changes on the attacks of the excerpt.
-    let cuts: number[] | undefined;
-    if (style === 'cuts') {
-      handlers.onProgress?.(0, 'Détection du rythme…');
-      const rate = 11025;
-      const raw = await ffmpegStdout(
-        env.ffmpeg,
-        [
-          ...['-v', 'error', '-ss', String(start), '-t', String(duration), '-i', options.audioPath],
-          ...['-ac', '1', '-ar', String(rate), '-f', 's16le', '-'],
-        ],
-        handlers.signal,
-      );
-      const samples = new Int16Array(raw.buffer, raw.byteOffset, Math.floor(raw.length / 2));
-      cuts = planCuts(detectOnsets(samples, rate), duration);
-    }
-    const shots = planShots(style, { duration, cuts, details, coverFocus, revealZoom });
-
-    writeFileSync(
-      path.join(work, 'text.ass'),
-      buildReelAss({
-        width,
-        height,
-        title: options.title,
-        artist: options.artist,
-        tone,
-        hook: style === 'hook' ? options.hookText : undefined,
-      }),
-    );
-
-    handlers.onProgress?.(0, 'Préparation du son…');
-    await renderSoundtrack(run, {
-      source: options.audioPath,
-      start,
-      duration,
-      fadeIn: preview ? 0 : Math.min(0.15, duration / 8),
-      fadeOut: preview ? 0 : Math.min(options.fadeSeconds ?? REEL.fadeOut, duration / 4),
-      bitrate: preview ? '128k' : format.encoding.audioBitrate,
-      verify: !preview,
-    });
-
-    mkdirSync(path.dirname(options.outputPath), { recursive: true });
-    await run(
-      buildReelArgs({
-        style,
-        width,
-        height,
-        duration,
-        shots,
-        encoding: preview ? null : format.encoding,
-        files: {
-          fill: 'fill.png',
-          wide: 'wide.png',
-          scrim: 'scrim.png',
-          dust: style === 'ambient' ? 'dust.png' : undefined,
-          ass: 'text.ass',
-          fontsDir: 'fonts',
-          audio: 'soundtrack.m4a',
-          output: partial,
-        },
-      }),
-      (seconds) => {
-        const fraction = Math.min(0.99, seconds / duration);
-        handlers.onProgress?.(fraction, `Encodage… ${Math.round(fraction * 100)} %`);
-      },
-    );
-    rmSync(options.outputPath, { force: true });
-    renameSync(partial, options.outputPath);
-    handlers.onProgress?.(1, 'Terminé');
-    return { file: options.outputPath, durationSec: duration, width, height };
-  } catch (error) {
-    rmSync(partial, { force: true });
-    throw error;
-  } finally {
-    rmSync(work, { recursive: true, force: true });
-  }
 }

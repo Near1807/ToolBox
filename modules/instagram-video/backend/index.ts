@@ -6,7 +6,7 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import { defineBackendModule, HttpError, type ModuleContext } from '@hub/sdk/backend';
 import type { MusicLibraryService, Track } from '../../music-library/contract';
-import type { ReelStyle, VideoEngineService } from '../../video-engine/contract';
+import type { VideoEngineService } from '../../video-engine/contract';
 import {
   analyzeFile,
   clampExcerpt,
@@ -16,14 +16,13 @@ import {
 } from './analysis';
 import { buildCaption, itemFileName, packFolderName } from './caption';
 import {
-  DEFAULT_STYLES,
   itemLabel,
-  itemStyle,
   MAX_REELS,
   migrationV2,
   migrationV3,
+  migrationV4,
   PackStore,
-  STYLE_LABELS,
+  RENDER_VERSION,
   type ItemRow,
   type PackRow,
 } from './packs';
@@ -82,6 +81,12 @@ export default defineBackendModule({
     // v0.6: the pack (post + 4 Reels + caption + publication). The v1 table is kept as is.
     { version: 2, description: 'Instagram packs and publication tracking', up: migrationV2 },
     { version: 3, description: 'one style per Reel, hook phrase', up: migrationV3 },
+    // v0.8: one sober look again; drops the style columns of v0.7 (explicit, see CHANGELOG).
+    {
+      version: 4,
+      description: 'drop Reel styles and hook phrases, add render version',
+      up: migrationV4,
+    },
   ],
 
   register(ctx: ModuleContext) {
@@ -111,18 +116,6 @@ export default defineBackendModule({
         throw new HttpError(400, `Durée d’un Reel : entre ${MIN_CLIP} et ${MAX_CLIP} secondes`);
       }
       return Math.round(clip);
-    };
-
-    /** Hook phrases of the settings, one per line. */
-    const hookPhrases = () =>
-      (ctx.settings.get<string>('hookPhrases') ?? '')
-        .split('\n')
-        .map((line) => line.trim())
-        .filter(Boolean);
-    /** A different phrase for each Reel of a pack (and from one track to the next). */
-    const hookFor = (trackId: number, position: number) => {
-      const phrases = hookPhrases();
-      return phrases.length ? phrases[(trackId + position - 1) % phrases.length]! : '';
     };
 
     const captionFor = (track: Track) =>
@@ -177,8 +170,6 @@ export default defineBackendModule({
     ) => ({
       id: item.id,
       outputId: records.get(`item:${item.id}`)?.id ?? null,
-      style: item.kind === 'reel' ? itemStyle(item) : null,
-      hookText: item.hook_text,
       packId: pack.id,
       kind: item.kind,
       position: item.position,
@@ -223,9 +214,7 @@ export default defineBackendModule({
             parent: `pack:${pack.id}`,
             subject: subject(pack.track_id),
             label:
-              item.kind === 'post'
-                ? 'Post Instagram'
-                : `${itemLabel(item.position)} Instagram — ${STYLE_LABELS[itemStyle(item)]}`,
+              item.kind === 'post' ? 'Post Instagram' : `${itemLabel(item.position)} Instagram`,
             kind: item.kind,
             createdAt: createdAt ?? item.rendered_at ?? undefined,
           })
@@ -247,7 +236,7 @@ export default defineBackendModule({
     for (const row of ctx.db.prepare(`SELECT * FROM ${legacyReels}`).all() as LegacyReelRow[]) {
       registerLegacy(row);
     }
-    /** Item without its file: back to « À générer », excerpt and style kept. */
+    /** Item without its file: back to « À générer », excerpt kept. */
     const resetItem = (id: number) => {
       const item = store.item(id);
       if (!item) return;
@@ -261,8 +250,7 @@ export default defineBackendModule({
         error: null,
         rendered_start_sec: null,
         rendered_duration_sec: null,
-        rendered_style: null,
-        rendered_hook_text: null,
+        render_version: null,
         rendered_at: null,
         published_at: null,
       });
@@ -326,7 +314,6 @@ export default defineBackendModule({
               coverPath,
               title: track.title,
               artist: track.artist,
-              badge: ctx.settings.get<string>('badge') ?? '',
               outputPath,
             })
           ).file;
@@ -343,8 +330,6 @@ export default defineBackendModule({
                 start: item.start_sec ?? 0,
                 duration: item.duration_sec ?? pack.clip_duration,
                 fadeSeconds: FADE_SECONDS,
-                reelStyle: itemStyle(item),
-                hookText: item.hook_text ?? '',
                 outputPath,
               },
               {
@@ -361,8 +346,7 @@ export default defineBackendModule({
           error: null,
           rendered_start_sec: item.start_sec,
           rendered_duration_sec: item.duration_sec,
-          rendered_style: item.kind === 'reel' ? itemStyle(item) : null,
-          rendered_hook_text: item.hook_text,
+          render_version: RENDER_VERSION,
           rendered_at: new Date().toISOString(),
         });
         registerItem(pack, store.item(item.id)!, new Date().toISOString());
@@ -478,7 +462,6 @@ export default defineBackendModule({
         caption: captionFor(track),
         folder: path.join(ctx.files.outputDir(), packFolderName(track)),
         starts,
-        hooks: starts.map((_, index) => hookFor(track.id, index + 1)),
       });
       return packDto(pack);
     });
@@ -607,18 +590,6 @@ export default defineBackendModule({
         }
         fields.caption = input.caption as string | null;
       }
-      if (input.style !== undefined) {
-        if (item.kind !== 'reel' || !DEFAULT_STYLES.includes(input.style as ReelStyle)) {
-          throw new HttpError(400, 'Style de Reel invalide');
-        }
-        fields.style = input.style as ReelStyle;
-      }
-      if (input.hookText !== undefined) {
-        if (typeof input.hookText !== 'string' || input.hookText.length > 120) {
-          throw new HttpError(400, 'Phrase d’accroche invalide (120 caractères au plus)');
-        }
-        fields.hook_text = input.hookText.trim();
-      }
       if (input.published !== undefined) {
         fields.published_at = input.published
           ? input.publishedAt
@@ -646,8 +617,6 @@ export default defineBackendModule({
         title: track.title,
         artist: track.artist,
         start: item.start_sec ?? 0,
-        reelStyle: itemStyle(item),
-        hookText: item.hook_text ?? '',
         previewSeconds: 6,
       });
       return { url: ctx.files.mediaUrl(result.file) };

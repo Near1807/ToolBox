@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildAssScript,
   buildAudioArgs,
+  buildBackgroundArgs,
   dbToLinear,
   parseTruePeak,
   POST_SPEC,
@@ -22,6 +23,23 @@ const files = {
   audio: 'soundtrack.m4a',
   output: 'out.mp4.part',
 };
+
+/** A YouTube render plan (3-minute track). */
+function plan() {
+  const { width, height, layout } = scaleFormat(FORMATS.youtube, 1);
+  return {
+    width,
+    height,
+    layout,
+    start: 12.5,
+    duration: 180,
+    fadeIn: 1.5,
+    fadeOut: 2,
+    encoding: FORMATS.youtube.encoding,
+    files,
+    source: 'audio.wav',
+  };
+}
 
 describe('FFmpeg command builders', () => {
   it('keeps full-quality dimensions and scales previews to even sizes', () => {
@@ -80,7 +98,7 @@ describe('FFmpeg command builders', () => {
     expect(graph).toContain('firequalizer=');
     // True-peak limiter before AAC encoding.
     expect(graph).toContain('subtitles=text.ass:fontsdir=fonts');
-    expect(graph).toContain("scale=w='iw*(1+0.05*t/180)'");
+    expect(graph).toContain("scale=w='iw*(1+0.05*t/180+0)'");
     expect(graph).toContain('format=yuv420p,setsar=1[vout]');
     expect(graph).toContain('fade=t=out:st=178:d=2');
     // No absolute path inside the filter graph (Windows escaping issues).
@@ -150,25 +168,44 @@ describe('FFmpeg command builders', () => {
     expect(parseTruePeak('nothing')).toBeNull();
   });
 
-  it('adds the optional badge to the post text', () => {
+  it('writes only the title and the artist on the post (no other text)', () => {
     const ass = buildAssScript({
       width: 1080,
       height: 1350,
       title: 'Titre',
       artist: 'Thomas',
-      badge: 'Nouveau son',
       layout: POST_SPEC.text,
     });
-    expect(ass).toContain('{\\pos(540,118)}NOUVEAU SON');
-    expect(
-      buildAssScript({
-        width: 1080,
-        height: 1350,
-        title: 'T',
-        artist: 'A',
-        layout: POST_SPEC.text,
-      }),
-    ).not.toContain('Badge,,');
+    expect(ass.match(/^Dialogue:/gm)).toHaveLength(2);
+    expect(ass).toContain('}Titre');
+    expect(ass).toContain('}THOMAS');
+  });
+
+  it('builds the background from the cover only: filled, blurred, square pixels', () => {
+    const args = buildBackgroundArgs('cover.png', 'bg.png', 1920, 1080, 60);
+    const filter = args[args.indexOf('-vf') + 1]!;
+    expect(filter).toMatch(
+      /^setsar=1,scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,/,
+    );
+    expect(filter).toContain('scale=120:68:flags=area,gblur=sigma=11');
+    expect(filter).toMatch(/setsar=1$/);
+    // No colour of its own: only brightness/saturation/contrast of the cover's pixels.
+    expect(filter).not.toMatch(/color=|drawbox/);
+  });
+
+  it('keeps the vertical layout inside the Instagram safe zones', () => {
+    const { layout, width, height } = FORMATS.instagram;
+    const right = width / 2 + (layout.cover.size * (1 + layout.zoom + 0.015)) / 2;
+    expect(right).toBeLessThanOrEqual(width - 150);
+    expect(layout.bars.top + layout.bars.height).toBeLessThanOrEqual(height - 350);
+    expect(layout.artist.top + layout.artist.fontSize).toBeLessThan(layout.bars.top);
+    expect(layout.title.top).toBeGreaterThan(layout.cover.centerY + layout.cover.size / 2);
+  });
+
+  it('adds the breathing of the card to the render graph', () => {
+    const args = buildRenderArgs({ ...plan(), pulse: 'min(0.015,0.01*t)' });
+    const graph = args[args.indexOf('-filter_complex') + 1]!;
+    expect(graph).toContain("scale=w='iw*(1+0.05*t/180+min(0.015,0.01*t))':h=-1:eval=frame");
   });
 
   it('escapes XML in the fontconfig file', () => {

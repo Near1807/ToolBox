@@ -4,6 +4,26 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.8.0] — 2026-10-20
+
+Retour au sobre : un rendu solide avec n'importe quelle cover, sans faute de goût possible.
+
+### Ajouté
+
+- **Charte de direction artistique** `docs/DIRECTION-ARTISTIQUE.md`, obligatoire pour tout visuel généré : le son est le produit ; cover toujours entière (jamais de recadrage, de zoom sur un détail ni de détection de zones) ; seuls mouvements lents de l'image entière ; couleurs de la cover ; typographie discrète ; en cas de doute, faire moins. ADR 0016.
+- Reels : **respiration** de la cover entière sur les temps forts de l'extrait (+1 à +1,5 %, montée douce, retour lent, sans à-coups).
+
+### Modifié
+
+- **Vidéo YouTube** revenue au design de base (cover arrondie avec ombre, titre et artiste dessous, visualisation en bas, zoom lent, fondus) : fond = cover agrandie juste assez puis très floutée et uniforme, adoucie, dégradé sombre en bas ; spectre logarithmique sur toute la largeur, lissé et plus discret. Aucun autre mouvement que le zoom lent.
+- **Reels** : un seul style sobre, commun aux 4 Reels du pack, déclinaison verticale de la vidéo YouTube (cover entière ~70 % de la largeur, titre et artiste dessous, visualisation fine, fondus de 0,5 s, zones de sécurité). Les Reels faits avant sont marqués « À régénérer ».
+- **Post** : fond, cover entière, titre et artiste ; la mention « Nouveau son » est retirée.
+- True peak : marge de 0,1 dB (ebur128 n'affiche qu'une décimale), la bande-son est garantie ≤ -1 dBTP.
+
+### Supprimé
+
+- Les styles de Reels de la v0.7 (Révélation, Coupes sur le rythme, Phrase d'accroche, Ambiance) et leur code (carte des détails, recadrages, gros plans, particules, phrases d'accroche, menu de style), les réglages « Phrases d'accroche » et « Mention sur l'image du post ». Migration 4 d'`instagram-video` : suppression explicite des colonnes de style, ajout de `render_version`.
+
 ## [0.7.0] — 2026-10-20
 
 Trois chantiers : vidéos déformées, Reels en quatre styles, suppression et synchronisation des fichiers générés.

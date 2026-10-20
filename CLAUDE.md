@@ -10,7 +10,7 @@ Application de bureau Windows personnelle de Thomas : un **hub** (page d'accueil
 
 **Pour ajouter ou modifier un module : lire `docs/MODULES.md` (le contrat) puis `docs/AJOUTER-UN-MODULE.md`.** Point de départ : copier `modules/_template/`.
 
-Modules actuels (section Musique) : `music-library` (bibliothèque, service `musicLibrary`), `video-engine` (moteur FFmpeg partagé, service `videoEngine`, sans page), `youtube-video` (générateur 16:9), `instagram-video` (pack Insta : 4 Reels 9:16 de styles différents, post 4:5, légende, suivi de publication). Chaque module a son `README.md`.
+Modules actuels (section Musique) : `music-library` (bibliothèque, service `musicLibrary`), `video-engine` (moteur FFmpeg partagé, service `videoEngine`, sans page), `youtube-video` (générateur 16:9), `instagram-video` (pack Insta : 4 Reels 9:16 au même style sobre, post 4:5, légende, suivi de publication). Chaque module a son `README.md`.
 
 ## Stack
 
@@ -48,7 +48,7 @@ packages/sdk/    @hub/sdk : backend.ts, frontend.tsx, manifest.ts, testing.ts �
 modules/         un dossier par module ; _template/ = module modèle (exemple, chargé à la demande)
 scripts/         dev, build (esbuild + découverte des modules), smoke test, vérification native
 tests/           tests Vitest du socle
-docs/            ARCHITECTURE, MODULES (contrat), AJOUTER-UN-MODULE, ROADMAP, WINDOWS, decisions/ (ADR)
+docs/            ARCHITECTURE, MODULES (contrat), AJOUTER-UN-MODULE, DIRECTION-ARTISTIQUE, ROADMAP, WINDOWS, decisions/ (ADR)
 ```
 
 ## Documentation de référence
@@ -56,6 +56,7 @@ docs/            ARCHITECTURE, MODULES (contrat), AJOUTER-UN-MODULE, ROADMAP, WI
 - `docs/MODULES.md` — **le contrat de module** (la pièce la plus importante).
 - `docs/AJOUTER-UN-MODULE.md` — guide pas à pas, dont « Intégrer une app existante ».
 - `docs/ARCHITECTURE.md` — vue d'ensemble, démarrage, API du socle, sécurité, données.
+- `docs/DIRECTION-ARTISTIQUE.md` — **règles obligatoires pour tout visuel généré** (sobriété, cover toujours entière, vérification sur trois covers).
 - `docs/ROADMAP.md` — fait / en cours / prévu. `CHANGELOG.md` — versions.
 - `docs/decisions/` — ADR : pourquoi chaque choix structurant.
 
@@ -68,7 +69,7 @@ docs/            ARCHITECTURE, MODULES (contrat), AJOUTER-UN-MODULE, ROADMAP, WI
 - Le backend n'importe jamais `electron` : il passe par `HostAdapter`.
 - Données utilisateur uniquement sous `userData`, jamais dans le dossier d'installation.
 - **Tout fichier généré passe par `ctx.outputs` et est supprimable depuis l'interface** (Corbeille, sélection multiple, « Fichier introuvable »). `docs/MODULES.md` §5.13.
-- Vidéos : pixels carrés (`setsar=1`) en fin de chaîne, la cover n'est jamais étirée. Les Reels n'ont pas de spectre (signature des vidéos YouTube).
+- Visuels : respecter `docs/DIRECTION-ARTISTIQUE.md` (sobre ; cover toujours entière, jamais recadrée ni étirée ; seuls mouvements lents de l'image entière ; couleurs de la cover). Pixels carrés (`setsar=1`) en fin de chaîne, son ≤ -1 dBTP.
 - **Données : une migration publiée ne se modifie jamais ; aucune suppression de données hors migration explicite** (ou demande explicite de l'utilisateur dans l'interface, avec confirmation). Le socle sauvegarde `hub.db` avant chaque migration et restaure en cas d'échec (`docs/MODULES.md` §6).
 - Toute modification du contrat de module ou de l'architecture met à jour la doc **dans le même commit**. Nouvelle décision structurante → nouvel ADR.
 - Fin de phase : mettre à jour `docs/ROADMAP.md` et `CHANGELOG.md`, versionnage sémantique (`package.json`).

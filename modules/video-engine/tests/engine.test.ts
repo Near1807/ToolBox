@@ -125,15 +125,14 @@ describe('renderVideo (real FFmpeg)', () => {
     expect(truePeak).toBeGreaterThan(-3);
   });
 
-  it('renders every Reel style vertically, without stretching', async () => {
-    for (const reelStyle of ['reveal', 'cuts', 'hook', 'ambient'] as const) {
-      const outputPath = path.join(fixtures.dir, 'out', `reel-${reelStyle}.mp4`);
+  it('renders the vertical Reel without stretching any cover', async () => {
+    for (const cover of [fixtures.wideCover, fixtures.cover]) {
+      const outputPath = path.join(fixtures.dir, 'out', `reel-${path.basename(cover)}.mp4`);
       const result = await renderVideo(env, {
         format: 'instagram',
-        reelStyle,
-        hookText: 'Monte le son',
+        fadeSeconds: 0.5,
         audioPath: fixtures.audio,
-        coverPath: fixtures.wideCover,
+        coverPath: cover,
         title: 'Reel',
         artist: 'Thomas',
         duration: 2,
@@ -226,7 +225,6 @@ describe('renderVideo (real FFmpeg)', () => {
       coverPath: fixtures.cover,
       title: 'Post',
       artist: 'Thomas',
-      badge: 'Nouveau son',
       outputPath,
     });
     expect(result).toMatchObject({ width: 1080, height: 1350 });

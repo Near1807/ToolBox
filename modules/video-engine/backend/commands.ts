@@ -58,26 +58,28 @@ export const FORMATS: Record<VideoFormat, FormatSpec> = {
       zoom: 0.05,
       title: { top: 700, fontSize: 58, minFontSize: 30, maxWidth: 1500 },
       artist: { top: 784, fontSize: 42 },
-      bars: { width: 1400, height: 210, top: 852, barWidth: 20, gap: 5, opacity: 0.7 },
+      bars: { width: 1400, height: 210, top: 852, barWidth: 20, gap: 5, opacity: 0.6 },
       grain: 6,
       blur: 90,
     },
   },
-  // Instagram Reels / YouTube Shorts: 1080×1920, 30 fps, H.264 + AAC 48 kHz.
-  // Text and bars stay out of the zones covered by the Instagram interface.
+  // Instagram Reels / YouTube Shorts: 1080×1920, 30 fps, H.264 + AAC 48 kHz. The
+  // vertical version of the YouTube layout. Everything stays out of the zones
+  // covered by the Instagram interface (350 px at the bottom, 150 px on the
+  // right): the 740 px cover spans x 170–910, and stays inside even zoomed.
   instagram: {
     label: 'Instagram Reel / Short 9:16 (1080×1920)',
     width: 1080,
     height: 1920,
     encoding: { videoBitrate: '6M', maxrate: '8M', bufsize: '12M', gop: 60, audioBitrate: '256k' },
     layout: {
-      cover: { size: 760, centerY: 880, radius: 32, shadowPad: 70, shadowOffset: 16 },
-      zoom: 0.05,
-      title: { top: 250, fontSize: 64, minFontSize: 34, maxWidth: 940 },
-      artist: { top: 342, fontSize: 46 },
-      bars: { width: 900, height: 270, top: 1370, barWidth: 20, gap: 5, opacity: 0.7 },
-      grain: 6,
-      blur: 90,
+      cover: { size: 740, centerY: 760, radius: 30, shadowPad: 64, shadowOffset: 14 },
+      zoom: 0.03,
+      title: { top: 1222, fontSize: 56, minFontSize: 32, maxWidth: 740 },
+      artist: { top: 1302, fontSize: 40 },
+      bars: { width: 744, height: 120, top: 1396, barWidth: 12, gap: 4, opacity: 0.5 },
+      grain: 5,
+      blur: 60,
     },
   },
 };
@@ -128,10 +130,11 @@ export function scaleFormat(
 }
 
 /**
- * Background: a soft colour wash of the cover. The whole cover is reduced to a
- * coarse grid of average colours (no crop, no big zoom: no visible blotches),
- * enlarged smoothly and blurred, then darkened towards the edges and, more
- * strongly, towards the bottom so the spectrum bars always stay readable.
+ * Background: the cover itself, scaled just enough to fill the frame, then very
+ * strongly blurred (reduced to 1/16, blurred, enlarged again: uniform, no
+ * blotches), softened and darkened towards the edges and, more strongly,
+ * towards the bottom so the visualisation stays readable. Only the cover's
+ * own colours (docs/DIRECTION-ARTISTIQUE.md).
  */
 export function buildBackgroundArgs(
   cover: string,
@@ -140,13 +143,13 @@ export function buildBackgroundArgs(
   height: number,
   blur: number,
 ): string[] {
-  const grid = width >= height ? '8:5' : '5:8';
-  // The two scales change the pixel shape (SAR) to keep the cover's display
-  // ratio: square pixels are forced back (setsar=1), otherwise players stretch the video.
-  // Bottom gradient (from 55 % of the height, up to -60 %) × soft radial vignette.
+  const small = (n: number) => Math.max(4, Math.round(n / 16));
+  // Blur radius on the reduced image: about a sixth of its short side.
+  const sigma = Math.max(2, Math.round(Math.min(small(width), small(height)) / 6));
+  // Bottom gradient (from 55 % of the height, up to -55 %) × soft radial vignette.
   const shade =
-    '(1-0.6*clip((Y/H-0.55)/0.45\\,0\\,1))' +
-    '*(1-0.35*(pow((X/W-0.5)*2\\,2)+pow((Y/H-0.5)*2\\,2))/2)';
+    '(1-0.55*clip((Y/H-0.55)/0.45\\,0\\,1))' +
+    '*(1-0.3*(pow((X/W-0.5)*2\\,2)+pow((Y/H-0.5)*2\\,2))/2)';
   return [
     '-v',
     'error',
@@ -154,8 +157,12 @@ export function buildBackgroundArgs(
     '-i',
     cover,
     '-vf',
-    `scale=${grid}:flags=area,scale=${width}:${height}:flags=bicubic,gblur=sigma=${blur},` +
-      `eq=brightness=-0.16:saturation=1.05:contrast=0.85,format=rgb24,` +
+    // Each scale step can change the pixel shape (SAR): square pixels are
+    // forced back (setsar=1), otherwise players stretch the video.
+    `setsar=1,scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},` +
+      `scale=${small(width)}:${small(height)}:flags=area,gblur=sigma=${sigma},` +
+      `scale=${width}:${height}:flags=bicubic,gblur=sigma=${Math.max(2, Math.round(blur / 3))},` +
+      `eq=brightness=-0.12:saturation=0.7:contrast=0.7,format=rgb24,` +
       `geq=r='r(X,Y)*${shade}':g='g(X,Y)*${shade}':b='b(X,Y)*${shade}',setsar=1`,
     '-frames:v',
     '1',
@@ -216,8 +223,6 @@ export function fitFontSize(text: string, base: number, maxWidth: number, min: n
 export interface TextLayout {
   title: Layout['title'];
   artist: Layout['artist'];
-  /** Optional small mention (post image). */
-  badge?: { top: number; fontSize: number };
 }
 
 export function buildAssScript(params: {
@@ -226,7 +231,6 @@ export function buildAssScript(params: {
   title: string;
   artist: string;
   layout: TextLayout;
-  badge?: string;
 }): string {
   const { width, height, layout } = params;
   const title = escapeAssText(params.title);
@@ -257,7 +261,6 @@ export function buildAssScript(params: {
     'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding',
     `Style: Title,Montserrat SemiBold,${titleSize},&H00FFFFFF,&H00FFFFFF,&H00000000,&H90000000,0,0,0,0,100,100,0.5,0,1,0,${shadow},8,0,0,0,1`,
     `Style: Artist,Montserrat SemiBold,${artistSize},&H00FFFFFF,&H00FFFFFF,&H00000000,&H60000000,0,0,0,0,100,100,${Math.max(1, Math.round(artistSize / 14))},0,1,0,${shadow},8,0,0,0,1`,
-    `Style: Badge,Montserrat SemiBold,${layout.badge?.fontSize ?? 24},&H40FFFFFF,&H40FFFFFF,&H00000000,&H80000000,0,0,0,0,100,100,${Math.max(2, Math.round((layout.badge?.fontSize ?? 24) / 5))},0,1,0,1,8,0,0,0,1`,
     '',
     '[Events]',
     'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
@@ -270,12 +273,6 @@ export function buildAssScript(params: {
     lines.push(
       `Dialogue: 0,0:00:00.00,9:59:59.00,Artist,,0,0,0,,{\\pos(${cx},${layout.artist.top})}${artist}`,
     );
-  const badge = escapeAssText(params.badge ?? '').toUpperCase();
-  if (badge && layout.badge) {
-    lines.push(
-      `Dialogue: 0,0:00:00.00,9:59:59.00,Badge,,0,0,0,,{\\pos(${cx},${layout.badge.top})}${badge}`,
-    );
-  }
   return lines.join('\n') + '\n';
 }
 
@@ -314,6 +311,8 @@ export interface RenderPlan {
   };
   /** Absolute path of the source audio file, read for the spectrum only. */
   source: string;
+  /** Extra scale of the card over time (FFmpeg expression of t), e.g. pulseExpression(). */
+  pulse?: string;
 }
 
 const round = (n: number) => Number(n.toFixed(3));
@@ -402,12 +401,15 @@ export function buildRenderArgs(plan: RenderPlan): string[] {
 
   // Frequencies on a logarithmic (musical) scale. Music carries far more energy
   // in the bass than in the treble, so the visualisation branch only (not the
-  // soundtrack) gets a treble tilt of +4 dB/octave above 120 Hz (max +15 dB)
+  // soundtrack) gets a treble tilt of +3 dB/octave above 120 Hz (max +12 dB)
   // and a compressed amplitude, to spread the movement over the whole width.
+  // A light temporal smoothing (3 frames) keeps it calm: it accompanies the
+  // music, it does not flicker.
   const spectrum =
-    `firequalizer=gain='min(15\\,max(0\\,4*log(f/120)/log(2)))',` +
-    `showcqt=s=${barCount}x${bars.height}:fps=${FPS}:sono_h=0:axis_h=0:bar_g=2:bar_v=11:` +
+    `firequalizer=gain='min(12\\,max(0\\,3*log(f/120)/log(2)))',` +
+    `showcqt=s=${barCount}x${bars.height}:fps=${FPS}:sono_h=0:axis_h=0:bar_g=2:bar_v=8:` +
     `cscheme=1|1|1|1|1|1:basefreq=45:endfreq=8000:count=2,` +
+    `tmix=frames=3:weights='1 2 1',` +
     `scale=${bars.width}:${bars.height}:flags=neighbor,` +
     `drawgrid=w=${bars.barWidth}:h=${bars.height}:t=${bars.gap}:c=black,` +
     `colorkey=black:0.08:0.05,colorchannelmixer=aa=${bars.opacity},format=rgba`;
@@ -420,7 +422,9 @@ export function buildRenderArgs(plan: RenderPlan): string[] {
   const graph = [
     `[2:a]${spectrum}[bars]`,
     `[0:v]setsar=1,format=yuv420p[bg]`,
-    `[1:v]scale=w='iw*(1+${l.zoom}*t/${round(d)})':h=-1:eval=frame,setsar=1[card]`,
+    // The only movements: a slow zoom of the whole card, plus (Reels) a soft
+    // breathing on the strong beats (see beats.ts). The cover is never cropped.
+    `[1:v]scale=w='iw*(1+${l.zoom}*t/${round(d)}+${plan.pulse ?? '0'})':h=-1:eval=frame,setsar=1[card]`,
     `[bg][card]overlay=x=(W-w)/2:y=${l.cover.centerY}-h/2:format=yuv420[v1]`,
     `[v1][bars]overlay=x=(W-w)/2:y=${bars.top}:format=yuv420[v2]`,
     `[v2]` +
@@ -516,7 +520,6 @@ export const POST_SPEC = {
   text: {
     title: { top: 1030, fontSize: 60, minFontSize: 32, maxWidth: 940 },
     artist: { top: 1112, fontSize: 40 },
-    badge: { top: 118, fontSize: 28 },
   } satisfies TextLayout,
 };
 
