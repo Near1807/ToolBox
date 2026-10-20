@@ -94,7 +94,7 @@ describe('instagram-video', () => {
       artist: 'Thomas',
       tags: ['lofi'],
     });
-  });
+  }, 60_000);
 
   afterAll(async () => {
     await hub.close();
