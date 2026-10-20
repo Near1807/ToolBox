@@ -1,12 +1,12 @@
 // instagram-video: the Instagram pack of a track (4 vertical Reels, a 4:5 post
 // image, an editable caption) and the tracking of what has been published.
 import { execFile } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { defineBackendModule, HttpError, type ModuleContext } from '@hub/sdk/backend';
 import type { MusicLibraryService, Track } from '../../music-library/contract';
-import type { VideoEngineService } from '../../video-engine/contract';
+import type { ReelStyle, VideoEngineService } from '../../video-engine/contract';
 import {
   analyzeFile,
   clampExcerpt,
@@ -15,7 +15,18 @@ import {
   type AudioAnalysis,
 } from './analysis';
 import { buildCaption, itemFileName, packFolderName } from './caption';
-import { itemLabel, MAX_REELS, migrationV2, PackStore, type ItemRow, type PackRow } from './packs';
+import {
+  DEFAULT_STYLES,
+  itemLabel,
+  itemStyle,
+  MAX_REELS,
+  migrationV2,
+  migrationV3,
+  PackStore,
+  STYLE_LABELS,
+  type ItemRow,
+  type PackRow,
+} from './packs';
 
 const FORMAT = 'instagram' as const;
 const MIN_CLIP = 15;
@@ -70,6 +81,7 @@ export default defineBackendModule({
     },
     // v0.6: the pack (post + 4 Reels + caption + publication). The v1 table is kept as is.
     { version: 2, description: 'Instagram packs and publication tracking', up: migrationV2 },
+    { version: 3, description: 'one style per Reel, hook phrase', up: migrationV3 },
   ],
 
   register(ctx: ModuleContext) {
@@ -99,6 +111,18 @@ export default defineBackendModule({
         throw new HttpError(400, `Durée d’un Reel : entre ${MIN_CLIP} et ${MAX_CLIP} secondes`);
       }
       return Math.round(clip);
+    };
+
+    /** Hook phrases of the settings, one per line. */
+    const hookPhrases = () =>
+      (ctx.settings.get<string>('hookPhrases') ?? '')
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean);
+    /** A different phrase for each Reel of a pack (and from one track to the next). */
+    const hookFor = (trackId: number, position: number) => {
+      const phrases = hookPhrases();
+      return phrases.length ? phrases[(trackId + position - 1) % phrases.length]! : '';
     };
 
     const captionFor = (track: Track) =>
@@ -146,8 +170,15 @@ export default defineBackendModule({
       }
     };
 
-    const itemDto = (pack: PackRow, item: ItemRow) => ({
+    const itemDto = (
+      pack: PackRow,
+      item: ItemRow,
+      records: Map<string, { id: number }> = outputsByRef(pack),
+    ) => ({
       id: item.id,
+      outputId: records.get(`item:${item.id}`)?.id ?? null,
+      style: item.kind === 'reel' ? itemStyle(item) : null,
+      hookText: item.hook_text,
       packId: pack.id,
       kind: item.kind,
       position: item.position,
@@ -167,7 +198,8 @@ export default defineBackendModule({
     });
 
     const packDto = (pack: PackRow) => {
-      const items = store.listItems(pack.id).map((item) => itemDto(pack, item));
+      const records = outputsByRef(pack);
+      const items = store.listItems(pack.id).map((item) => itemDto(pack, item, records));
       return {
         id: pack.id,
         trackId: pack.track_id,
@@ -180,6 +212,72 @@ export default defineBackendModule({
         total: items.length,
       };
     };
+
+    // Every generated file goes through ctx.outputs (deletion, missing files).
+    const subject = (trackId: number) => `music-library:track:${trackId}`;
+    const registerItem = (pack: PackRow, item: ItemRow, createdAt?: string) =>
+      item.file_path
+        ? ctx.outputs.register({
+            path: item.file_path,
+            ref: `item:${item.id}`,
+            parent: `pack:${pack.id}`,
+            subject: subject(pack.track_id),
+            label:
+              item.kind === 'post'
+                ? 'Post Instagram'
+                : `${itemLabel(item.position)} Instagram — ${STYLE_LABELS[itemStyle(item)]}`,
+            kind: item.kind,
+            createdAt: createdAt ?? item.rendered_at ?? undefined,
+          })
+        : null;
+    const registerLegacy = (row: LegacyReelRow) =>
+      ctx.outputs.register({
+        path: row.file_path,
+        ref: `legacy-reel:${row.id}`,
+        parent: `track:${row.track_id}`,
+        subject: subject(row.track_id),
+        label: 'Reel Instagram (v0.5)',
+        kind: 'reel',
+        createdAt: row.created_at,
+      });
+    // Files made before v0.7 are registered at startup (idempotent, nothing deleted).
+    for (const pack of store.allPacks()) {
+      for (const item of store.listItems(pack.id)) registerItem(pack, item);
+    }
+    for (const row of ctx.db.prepare(`SELECT * FROM ${legacyReels}`).all() as LegacyReelRow[]) {
+      registerLegacy(row);
+    }
+    /** Item without its file: back to « À générer », excerpt and style kept. */
+    const resetItem = (id: number) => {
+      const item = store.item(id);
+      if (!item) return;
+      if (item.thumbnail_path && item.thumbnail_path !== item.file_path) {
+        rmSync(item.thumbnail_path, { force: true }); // private miniature
+      }
+      store.updateItem(id, {
+        file_path: null,
+        thumbnail_path: null,
+        job_id: null,
+        error: null,
+        rendered_start_sec: null,
+        rendered_duration_sec: null,
+        rendered_style: null,
+        rendered_hook_text: null,
+        rendered_at: null,
+        published_at: null,
+      });
+    };
+    ctx.outputs.onRemoved((records) => {
+      for (const record of records) {
+        const [kind, id] = record.ref.split(':');
+        if (kind === 'item') resetItem(Number(id));
+        if (kind === 'legacy-reel') {
+          ctx.db.prepare(`DELETE FROM ${legacyReels} WHERE id = ?`).run(Number(id));
+        }
+      }
+    });
+    const outputsByRef = (pack: PackRow) =>
+      new Map(ctx.outputs.list({ parent: `pack:${pack.id}` }).map((r) => [r.ref, r]));
 
     // "Pack Instagram : 2/5 publiés" on the track page of the Library.
     library.registerTrackInfo({
@@ -219,7 +317,6 @@ export default defineBackendModule({
       try {
         const coverPath = requireCover(track);
         const outputPath = store.outputPath(pack, item, itemFileName(track.title, item.position));
-        const firstRender = !item.file_path;
         let file: string;
         let thumbnail: string | null;
         if (item.kind === 'post') {
@@ -246,6 +343,8 @@ export default defineBackendModule({
                 start: item.start_sec ?? 0,
                 duration: item.duration_sec ?? pack.clip_duration,
                 fadeSeconds: FADE_SECONDS,
+                reelStyle: itemStyle(item),
+                hookText: item.hook_text ?? '',
                 outputPath,
               },
               {
@@ -262,16 +361,11 @@ export default defineBackendModule({
           error: null,
           rendered_start_sec: item.start_sec,
           rendered_duration_sec: item.duration_sec,
+          rendered_style: item.kind === 'reel' ? itemStyle(item) : null,
+          rendered_hook_text: item.hook_text,
           rendered_at: new Date().toISOString(),
         });
-        if (firstRender) {
-          library.recordOutput(track.id, {
-            moduleId: ctx.id,
-            kind: item.kind === 'post' ? 'instagram-post' : 'instagram',
-            label: `${itemLabel(item.position)} Instagram`,
-            filePath: file,
-          });
-        }
+        registerItem(pack, store.item(item.id)!, new Date().toISOString());
         ctx.events.emit(item.kind === 'post' ? 'post.created' : 'video.created', {
           trackId: track.id,
           file,
@@ -330,6 +424,9 @@ export default defineBackendModule({
       const legacy = ctx.db
         .prepare(`SELECT * FROM ${legacyReels} WHERE track_id = ? ORDER BY created_at DESC`)
         .all(track.id) as LegacyReelRow[];
+      const legacyRecords = new Map(
+        ctx.outputs.list({ parent: `track:${track.id}` }).map((r) => [r.ref, r]),
+      );
       return {
         ...trackSummary(track),
         audioUrl: ctx.files.mediaUrl(track.audioPath),
@@ -342,6 +439,7 @@ export default defineBackendModule({
           durationSec: row.duration_sec,
           createdAt: row.created_at,
           exists: existsSync(row.file_path),
+          outputId: (legacyRecords.get(`legacy-reel:${row.id}`) ?? registerLegacy(row)).id,
         })),
       };
     });
@@ -380,6 +478,7 @@ export default defineBackendModule({
         caption: captionFor(track),
         folder: path.join(ctx.files.outputDir(), packFolderName(track)),
         starts,
+        hooks: starts.map((_, index) => hookFor(track.id, index + 1)),
       });
       return packDto(pack);
     });
@@ -471,6 +570,23 @@ export default defineBackendModule({
       return { ok: true };
     });
 
+    // « Supprimer le pack »: every file to the Recycle Bin, then the pack itself.
+    ctx.routes.delete('/packs/:id', async (request) => {
+      const pack = store.requirePack(idParam(request.params));
+      if (store.listItems(pack.id).some((item) => store.state(item) === 'rendering')) {
+        throw new HttpError(409, 'Un rendu de ce pack est en cours : annule-le d’abord');
+      }
+      const deleted = await ctx.outputs.delete({ parent: `pack:${pack.id}` });
+      for (const item of store.listItems(pack.id)) {
+        if (item.thumbnail_path && item.thumbnail_path !== item.file_path) {
+          rmSync(item.thumbnail_path, { force: true });
+        }
+      }
+      store.deletePack(pack.id);
+      ctx.logger.info(`Pack #${pack.id} supprimé (${deleted} fichier(s) à la Corbeille)`);
+      return { ok: true, deleted };
+    });
+
     ctx.routes.patch('/items/:id', (request) => {
       const item = store.requireItem(idParam(request.params));
       const { track } = packOfItem(item);
@@ -490,6 +606,18 @@ export default defineBackendModule({
           throw new HttpError(400, 'Légende invalide');
         }
         fields.caption = input.caption as string | null;
+      }
+      if (input.style !== undefined) {
+        if (item.kind !== 'reel' || !DEFAULT_STYLES.includes(input.style as ReelStyle)) {
+          throw new HttpError(400, 'Style de Reel invalide');
+        }
+        fields.style = input.style as ReelStyle;
+      }
+      if (input.hookText !== undefined) {
+        if (typeof input.hookText !== 'string' || input.hookText.length > 120) {
+          throw new HttpError(400, 'Phrase d’accroche invalide (120 caractères au plus)');
+        }
+        fields.hook_text = input.hookText.trim();
       }
       if (input.published !== undefined) {
         fields.published_at = input.published
@@ -518,6 +646,8 @@ export default defineBackendModule({
         title: track.title,
         artist: track.artist,
         start: item.start_sec ?? 0,
+        reelStyle: itemStyle(item),
+        hookText: item.hook_text ?? '',
         previewSeconds: 6,
       });
       return { url: ctx.files.mediaUrl(result.file) };

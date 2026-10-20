@@ -517,3 +517,41 @@ select.input {
   font-size: 0.85em;
   color: var(--text-muted);
 }
+
+/* Generated files: selection and missing files (SDK: SelectionBar, MissingFile, OutputList) */
+.selection-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0 10px;
+}
+
+.selection-bar__all {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: auto;
+  cursor: pointer;
+}
+
+.missing-file {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.output-list__item {
+  justify-content: flex-start;
+}
+
+.output-list__text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.output-list__item .inline-form {
+  margin-bottom: 0;
+}

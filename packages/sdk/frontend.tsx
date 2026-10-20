@@ -13,11 +13,11 @@ import {
   type ErrorInfo,
   type ReactNode,
 } from 'react';
-import type { JobInfo } from './backend';
+import type { JobInfo, OutputRecord } from './backend';
 import type { ModuleManifest } from './manifest';
 
 export type * from './manifest';
-export type { JobInfo, JobStatus } from './backend';
+export type { JobInfo, JobStatus, OutputRecord } from './backend';
 
 // ---------------------------------------------------------------------------
 // What a module exports
@@ -457,4 +457,226 @@ export class ErrorBoundary extends Component<
     }
     return this.props.children;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Generated files (ctx.outputs): deletion, selection, missing files
+// ---------------------------------------------------------------------------
+
+/** Generic client of the core registry of generated files. */
+export const outputs = {
+  list: (filter: { module?: string; subject?: string; missing?: boolean } = {}) => {
+    const query = new URLSearchParams();
+    if (filter.module) query.set('module', filter.module);
+    if (filter.subject) query.set('subject', filter.subject);
+    if (filter.missing) query.set('missing', '1');
+    return apiFetch<OutputRecord[]>(`/api/core/outputs?${query}`);
+  },
+  /** Files to the Recycle Bin + records forgotten (each owner module cleans its data). */
+  delete: (ids: number[]) => api.post<{ deleted: number }>('/api/core/outputs/delete', { ids }),
+  /** « Retirer de la liste »: forgets the records, the files are not touched. */
+  forget: (ids: number[]) => api.post<{ forgotten: number }>('/api/core/outputs/forget', { ids }),
+  cleanMissing: (module?: string) =>
+    api.post<{ forgotten: number }>('/api/core/outputs/clean-missing', { module }),
+  open: (id: number) => api.post(`/api/core/outputs/${id}/open`),
+  reveal: (id: number) => api.post(`/api/core/outputs/${id}/reveal`),
+};
+
+/**
+ * Confirmation before deleting generated files. `what`: « la vidéo
+ * “Night Drive - YouTube.mp4” », « 3 fichiers », « le pack de “Night Drive” »…
+ */
+export function confirmDelete(what: string): boolean {
+  return window.confirm(
+    `Supprimer ${what} ?\n\nLes fichiers partent dans la Corbeille et les informations liées sont effacées de ToolBox.`,
+  );
+}
+
+/** Multiple selection in a list (checkboxes + grouped actions). */
+export function useSelection<K extends string | number>() {
+  const [selected, setSelected] = useState<Set<K>>(() => new Set());
+  const toggle = useCallback((key: K, on?: boolean) => {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (on ?? !next.has(key)) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+  }, []);
+  const clear = useCallback(() => setSelected(new Set()), []);
+  const setAll = useCallback((keys: K[]) => setSelected(new Set(keys)), []);
+  return { selected, has: (key: K) => selected.has(key), toggle, clear, setAll };
+}
+
+/** Bar shown above a list: select all, count, « Supprimer la sélection ». */
+export function SelectionBar(props: {
+  total: number;
+  count: number;
+  onSelectAll: () => void;
+  onClear: () => void;
+  onDelete: () => void;
+  children?: ReactNode;
+}) {
+  if (props.total === 0) return null;
+  const all = props.count === props.total;
+  return (
+    <div className="selection-bar">
+      <label className="selection-bar__all">
+        <input
+          type="checkbox"
+          checked={all}
+          ref={(input) => {
+            if (input) input.indeterminate = props.count > 0 && !all;
+          }}
+          onChange={() => (all ? props.onClear() : props.onSelectAll())}
+        />
+        {props.count > 0 ? `${props.count} sélectionné(s)` : 'Tout sélectionner'}
+      </label>
+      {props.children}
+      {props.count > 0 && (
+        <Button variant="danger" small onClick={props.onDelete}>
+          Supprimer la sélection
+        </Button>
+      )}
+    </div>
+  );
+}
+
+/** « Fichier introuvable » with its two ways out. */
+export function MissingFile(props: { onForget: () => void; onRegenerate?: () => void }) {
+  return (
+    <span className="missing-file">
+      <span className="badge badge--warning">Fichier introuvable</span>
+      <Button variant="secondary" small onClick={props.onForget}>
+        Retirer de la liste
+      </Button>
+      {props.onRegenerate && (
+        <Button variant="secondary" small onClick={props.onRegenerate}>
+          Régénérer
+        </Button>
+      )}
+    </span>
+  );
+}
+
+/**
+ * Ready-made list of generated files (from ctx.outputs) with every action:
+ * open, show in folder, delete (one or a selection), missing files. Any module
+ * can use it; the « Fichiers générés » page of the shell does.
+ */
+export function OutputList(props: {
+  module?: string;
+  subject?: string;
+  /** Change it to reload the list (e.g. after a render). */
+  version?: number;
+  /** Show the module name on each line (lists mixing several modules). */
+  moduleNames?: Record<string, string>;
+  onRegenerate?: (record: OutputRecord) => void;
+  onChange?: () => void;
+  emptyText?: string;
+}) {
+  const query = new URLSearchParams();
+  if (props.module) query.set('module', props.module);
+  if (props.subject) query.set('subject', props.subject);
+  const list = useApi<OutputRecord[]>(`/api/core/outputs?${query}&v=${props.version ?? 0}`);
+  const selection = useSelection<number>();
+  const [error, setError] = useState<string | null>(null);
+  const records = list.data ?? [];
+  const missing = records.filter((r) => !r.exists);
+
+  const run = async (action: () => Promise<unknown>) => {
+    setError(null);
+    try {
+      await action();
+    } catch (err) {
+      setError(errorMessage(err));
+    }
+    selection.clear();
+    list.reload();
+    props.onChange?.();
+  };
+  const remove = (ids: number[], what: string) => {
+    if (confirmDelete(what)) void run(() => outputs.delete(ids));
+  };
+
+  if (list.error) return <ErrorMessage>{list.error}</ErrorMessage>;
+  if (!list.data) return null;
+  if (records.length === 0) return <p className="muted">{props.emptyText ?? 'Aucun fichier.'}</p>;
+  return (
+    <div className="output-list">
+      <SelectionBar
+        total={records.length}
+        count={selection.selected.size}
+        onSelectAll={() => selection.setAll(records.map((r) => r.id))}
+        onClear={selection.clear}
+        onDelete={() =>
+          remove([...selection.selected], `les ${selection.selected.size} fichiers sélectionnés`)
+        }
+      >
+        {missing.length > 0 && (
+          <Button
+            variant="secondary"
+            small
+            onClick={() => void run(() => outputs.forget(missing.map((r) => r.id)))}
+          >
+            Nettoyer les éléments introuvables ({missing.length})
+          </Button>
+        )}
+      </SelectionBar>
+      {error && <ErrorMessage>{error}</ErrorMessage>}
+      <ul className="list">
+        {records.map((record) => (
+          <li key={record.id} className="list__item output-list__item">
+            <input
+              type="checkbox"
+              aria-label={`Sélectionner ${record.fileName}`}
+              checked={selection.has(record.id)}
+              onChange={() => selection.toggle(record.id)}
+            />
+            <div className="output-list__text">
+              <strong>{record.label}</strong>
+              <span className="muted"> · {new Date(record.createdAt).toLocaleString('fr-FR')}</span>
+              {props.moduleNames && (
+                <span className="muted">
+                  {' '}
+                  · {props.moduleNames[record.moduleId] ?? record.moduleId}
+                </span>
+              )}
+              <div className="muted small">{record.fileName}</div>
+            </div>
+            {record.exists ? (
+              <span className="inline-form">
+                <Button
+                  variant="secondary"
+                  small
+                  onClick={() => void run(() => outputs.open(record.id))}
+                >
+                  Ouvrir
+                </Button>
+                <Button
+                  variant="secondary"
+                  small
+                  onClick={() => void run(() => outputs.reveal(record.id))}
+                >
+                  Dossier
+                </Button>
+                <Button
+                  variant="danger"
+                  small
+                  onClick={() => remove([record.id], `« ${record.fileName} »`)}
+                >
+                  Supprimer
+                </Button>
+              </span>
+            ) : (
+              <MissingFile
+                onForget={() => void run(() => outputs.forget([record.id]))}
+                onRegenerate={props.onRegenerate ? () => props.onRegenerate!(record) : undefined}
+              />
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }

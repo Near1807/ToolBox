@@ -5,6 +5,15 @@ export const VIDEO_ENGINE_SERVICE = 'videoEngine';
 
 export type VideoFormat = 'youtube' | 'instagram';
 
+/**
+ * Styles of the vertical Reels (format "instagram"), one per Reel of a pack:
+ * - reveal « Révélation »: starts on a close-up of the cover, slowly zooms out to the whole image;
+ * - cuts « Coupes sur le rythme »: 4–6 framings of the cover, changing on the beats;
+ * - hook « Phrase d'accroche »: a big short phrase from the first second, over the moving cover;
+ * - ambient « Ambiance »: the cover full screen, floating dust, film grain, fine progress bar.
+ */
+export type ReelStyle = 'reveal' | 'cuts' | 'hook' | 'ambient';
+
 export interface VideoFormatInfo {
   label: string;
   width: number;
@@ -21,8 +30,15 @@ export interface RenderRequest {
   start?: number;
   /** Excerpt length in seconds (default: until the end of the audio). */
   duration?: number;
-  /** Length of the fade in and fade out (picture and sound), in seconds. Default: 1.5 s in, 2 s out. */
+  /**
+   * Length of the fades, in seconds. YouTube: picture and sound, default 1.5 s in
+   * and 2 s out. Reels: fade-out only (0.5 s by default): no fade-in, the hook is immediate.
+   */
   fadeSeconds?: number;
+  /** Reels only: the style (default "reveal"). */
+  reelStyle?: ReelStyle;
+  /** Reels in the "hook" style: the phrase shown during the first seconds. */
+  hookText?: string;
 }
 
 export interface PostRequest {

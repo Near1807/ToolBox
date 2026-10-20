@@ -6,6 +6,7 @@ import { JobsPage } from './shell/JobsPage';
 import { Layout } from './shell/Layout';
 import { LogsPage } from './shell/LogsPage';
 import { NotFoundPage } from './shell/NotFoundPage';
+import { OutputsPage } from './shell/OutputsPage';
 import { SettingsPage } from './shell/settings/SettingsPage';
 
 export function App() {
@@ -17,6 +18,7 @@ export function App() {
           <Route path="m/:moduleId/*" element={<ModuleHost />} />
           <Route path="jobs" element={<JobsPage />} />
           <Route path="logs" element={<LogsPage />} />
+          <Route path="outputs" element={<OutputsPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>

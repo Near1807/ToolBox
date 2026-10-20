@@ -32,3 +32,5 @@ Modèle :
 | 0011 | [Tâches longues et planificateur dans le process](0011-taches-et-planificateur.md)         |
 | 0012 | [Fichiers locaux, médias et texte dans les vidéos](0012-fichiers-medias-et-texte-video.md) |
 | 0013 | [Glisser des fichiers hors de l'application](0013-glisser-deposer-vers-l-exterieur.md)     |
+| 0014 | [Registre des fichiers générés (`ctx.outputs`)](0014-registre-des-fichiers-generes.md)     |
+| 0015 | [Reels : quatre styles, sans spectre](0015-styles-de-reels.md)                             |

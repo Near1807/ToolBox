@@ -2,7 +2,7 @@
   "id": "music-library",
   "name": "Bibliothèque",
   "description": "Tes morceaux : son, cover et infos, prêts pour générer tes vidéos.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "section": "Musique",
   "icon": "🎵",
   "order": 10,

@@ -7,17 +7,19 @@ import {
   errorMessage,
   formatDuration,
   getFilePath,
+  OutputList,
   Page,
   pickFiles,
   useApi,
   useModule,
+  type OutputRecord,
 } from '@hub/sdk/frontend';
-import type { TrackDto, TrackOutputDto } from '../contract';
+import type { TrackDto } from '../contract';
 import { CoverImage } from './CoverImage';
 import { IMAGE_EXTENSIONS } from './pairing';
 
 type TrackDetail = TrackDto & {
-  outputs: TrackOutputDto[];
+  outputs: OutputRecord[];
   /** Lines added by other modules (e.g. Instagram pack status). */
   infos: { moduleId: string; label: string; value: string }[];
 };
@@ -62,6 +64,7 @@ export function TrackPage() {
   const { trackId } = useParams();
   const track = useApi<TrackDetail>(module.url(`/tracks/${trackId}`));
   const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   if (track.error) {
     return (
@@ -99,19 +102,10 @@ export function TrackPage() {
     if (path) void setCover(path);
   };
 
-  const remove = async () => {
-    const confirmed = window.confirm(
-      `Supprimer « ${data.title} » de la bibliothèque ?\n\nLe son et la cover copiés dans ToolBox seront effacés. ` +
-        'Tes fichiers d’origine et les vidéos déjà générées ne sont pas touchés.',
-    );
-    if (!confirmed) return;
-    await module.api.delete(`/tracks/${data.id}`);
-    navigate(module.path());
-  };
-
-  const outputAction = async (output: TrackOutputDto, action: 'open' | 'reveal') => {
+  const remove = async (withOutputs: boolean) => {
     try {
-      await module.api.post(`/outputs/${output.id}/${action}`);
+      await module.api.delete(`/tracks/${data.id}${withOutputs ? '?outputs=1' : ''}`);
+      navigate(module.path());
     } catch (error) {
       setStatus({ ok: false, text: errorMessage(error) });
     }
@@ -122,11 +116,19 @@ export function TrackPage() {
       title={data.title}
       subtitle={<Link to={module.path()}>← Bibliothèque</Link>}
       actions={
-        <Button variant="danger" onClick={() => void remove()}>
+        <Button variant="danger" onClick={() => setDeleting(true)}>
           Supprimer
         </Button>
       }
     >
+      {deleting && (
+        <DeleteTrack
+          title={data.title}
+          outputCount={data.outputs.length}
+          onCancel={() => setDeleting(false)}
+          onConfirm={(withOutputs) => void remove(withOutputs)}
+        />
+      )}
       {status && <p className={status.ok ? 'success' : 'error'}>{status.text}</p>}
       <div className="ml-detail">
         <div className="ml-detail__side">
@@ -170,49 +172,13 @@ export function TrackPage() {
           {/* Keyed by updatedAt: the form restarts from saved values after each save. */}
           <InfoForm key={data.updatedAt} track={data} onSaved={track.reload} />
 
-          <Card title="Vidéos générées">
-            {data.outputs.length === 0 ? (
-              <p className="muted">
-                Aucune pour l’instant. Les vidéos créées avec les outils de la section Musique
-                apparaîtront ici.
-              </p>
-            ) : (
-              <ul className="list">
-                {data.outputs.map((output) => (
-                  <li key={output.id} className="list__item">
-                    <div>
-                      <strong>{output.label}</strong>{' '}
-                      <span className="muted">
-                        · {new Date(output.createdAt).toLocaleString('fr-FR')}
-                      </span>
-                      <div className="muted small ml-break">
-                        {output.exists
-                          ? output.fileName
-                          : `${output.fileName} (fichier déplacé ou supprimé)`}
-                      </div>
-                    </div>
-                    {output.exists && (
-                      <span className="inline-form">
-                        <Button
-                          variant="secondary"
-                          small
-                          onClick={() => void outputAction(output, 'open')}
-                        >
-                          Lire
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          small
-                          onClick={() => void outputAction(output, 'reveal')}
-                        >
-                          Afficher dans le dossier
-                        </Button>
-                      </span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
+          <Card title="Fichiers générés">
+            <OutputList
+              subject={`music-library:track:${data.id}`}
+              version={data.outputs.length}
+              onChange={track.reload}
+              emptyText="Aucun pour l’instant. Les vidéos, Reels et posts créés avec les outils de la section Musique apparaîtront ici."
+            />
           </Card>
 
           <Card title="Statistiques">
@@ -223,6 +189,46 @@ export function TrackPage() {
         </div>
       </div>
     </Page>
+  );
+}
+
+/** Confirmation of a track deletion, with the choice to delete its generated files too. */
+function DeleteTrack(props: {
+  title: string;
+  outputCount: number;
+  onCancel: () => void;
+  onConfirm: (withOutputs: boolean) => void;
+}) {
+  const [withOutputs, setWithOutputs] = useState(true);
+  return (
+    <Card title={`Supprimer « ${props.title} » ?`}>
+      <p>
+        Le son et la cover copiés dans ToolBox seront effacés. Tes fichiers d’origine ne sont pas
+        touchés.
+      </p>
+      {props.outputCount > 0 && (
+        <label className="ml-check">
+          <input
+            type="checkbox"
+            checked={withOutputs}
+            onChange={(e) => setWithOutputs(e.target.checked)}
+          />
+          Supprimer aussi les {props.outputCount} fichier(s) généré(s) à partir de ce morceau
+          (vidéos, Reels, post) : ils partent dans la Corbeille.
+        </label>
+      )}
+      <div className="inline-form">
+        <Button
+          variant="danger"
+          onClick={() => props.onConfirm(withOutputs && props.outputCount > 0)}
+        >
+          Supprimer définitivement
+        </Button>
+        <Button variant="secondary" onClick={props.onCancel}>
+          Annuler
+        </Button>
+      </div>
+    </Card>
   );
 }
 

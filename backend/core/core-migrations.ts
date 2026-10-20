@@ -46,4 +46,26 @@ export const coreMigrations: Migration[] = [
       );
     `,
   },
+  {
+    version: 2,
+    description: 'generated files of the modules (ctx.outputs)',
+    up: `
+      CREATE TABLE core__outputs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        module_id TEXT NOT NULL,
+        ref TEXT NOT NULL,
+        parent TEXT,
+        subject TEXT,
+        label TEXT NOT NULL,
+        kind TEXT,
+        file_path TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        missing_since TEXT,
+        UNIQUE (module_id, file_path)
+      );
+      CREATE INDEX core__outputs_ref ON core__outputs (module_id, ref);
+      CREATE INDEX core__outputs_parent ON core__outputs (module_id, parent);
+      CREATE INDEX core__outputs_subject ON core__outputs (subject);
+    `,
+  },
 ];

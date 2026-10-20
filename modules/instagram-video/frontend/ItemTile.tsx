@@ -3,11 +3,12 @@ import {
   Button,
   copyText,
   formatDuration,
+  MissingFile,
   ProgressBar,
   startFileDrag,
   type JobInfo,
 } from '@hub/sdk/frontend';
-import { STATE_LABELS, type PackItem } from './types';
+import { STATE_LABELS, STYLE_NAMES, STYLES, type PackItem, type ReelStyle } from './types';
 
 const STATE_BADGES: Record<PackItem['state'], string> = {
   draft: '',
@@ -35,6 +36,15 @@ export function ItemTile(props: {
   onAction: (action: 'open' | 'reveal' | 'render') => void;
   onPublish: (fields: { published?: boolean; publishedAt?: string }) => void;
   onCancel?: (jobId: string) => void;
+  /** Style and hook phrase of a Reel (pack page only). */
+  onUpdate?: (fields: { style?: ReelStyle; hookText?: string }) => void;
+  /** Multiple selection (checkbox on the preview). */
+  selected?: boolean;
+  onSelect?: () => void;
+  /** File to the Recycle Bin (after confirmation by the caller). */
+  onDelete?: () => void;
+  /** « Retirer de la liste » when the file is missing. */
+  onForget?: () => void;
 }) {
   const { item, job } = props;
   const rendering = item.state === 'rendering';
@@ -58,6 +68,15 @@ export function ItemTile(props: {
           <span className="muted small">{item.kind === 'post' ? 'Image 4:5' : 'Reel 9:16'}</span>
         )}
         {draggable && <span className="iv-tile__drag">⇱ glisser</span>}
+        {props.onSelect && item.outputId !== null && (
+          <input
+            type="checkbox"
+            className="iv-tile__select"
+            aria-label={`Sélectionner ${item.label}`}
+            checked={Boolean(props.selected)}
+            onChange={props.onSelect}
+          />
+        )}
       </div>
       <div className="iv-tile__body">
         <div className="iv-tile__title">
@@ -70,6 +89,28 @@ export function ItemTile(props: {
             {formatDuration(item.startSec + (item.durationSec ?? 0))}
           </span>
         )}
+        {item.kind === 'reel' && props.onUpdate && (
+          <select
+            className="input iv-tile__style"
+            aria-label={`Style du ${item.label}`}
+            value={item.style ?? 'reveal'}
+            disabled={rendering}
+            onChange={(e) => props.onUpdate!({ style: e.target.value as ReelStyle })}
+          >
+            {STYLES.map((style) => (
+              <option key={style} value={style}>
+                {STYLE_NAMES[style]}
+              </option>
+            ))}
+          </select>
+        )}
+        {item.style === 'hook' && props.onUpdate && (
+          <HookInput
+            key={item.hookText ?? ''}
+            saved={item.hookText ?? ''}
+            onSave={(hookText) => props.onUpdate!({ hookText })}
+          />
+        )}
         {rendering && job && (
           <div className="iv-tile__progress">
             <ProgressBar value={job.status === 'running' ? job.progress : null} />
@@ -81,6 +122,9 @@ export function ItemTile(props: {
           </div>
         )}
         {item.error && !rendering && <span className="error small">{item.error}</span>}
+        {item.state === 'missing' && props.onForget && (
+          <MissingFile onForget={props.onForget} onRegenerate={() => props.onAction('render')} />
+        )}
         <label className="iv-tile__published">
           <input
             type="checkbox"
@@ -108,7 +152,7 @@ export function ItemTile(props: {
               Dossier
             </Button>
           )}
-          {item.state !== 'draft' && (
+          {item.state !== 'draft' && item.state !== 'missing' && (
             <Button
               variant="secondary"
               small
@@ -118,9 +162,30 @@ export function ItemTile(props: {
               Régénérer
             </Button>
           )}
+          {item.url && props.onDelete && (
+            <Button variant="danger" small disabled={rendering} onClick={props.onDelete}>
+              Supprimer
+            </Button>
+          )}
         </div>
       </div>
     </div>
+  );
+}
+
+/** Hook phrase of a Reel, saved when leaving the field. */
+function HookInput(props: { saved: string; onSave: (text: string) => void }) {
+  const [text, setText] = useState(props.saved);
+  return (
+    <input
+      className="input iv-tile__hook"
+      aria-label="Phrase d’accroche"
+      placeholder="Phrase d’accroche"
+      maxLength={120}
+      value={text}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={() => text.trim() !== props.saved && props.onSave(text.trim())}
+    />
   );
 }
 

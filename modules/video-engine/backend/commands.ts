@@ -141,6 +141,8 @@ export function buildBackgroundArgs(
   blur: number,
 ): string[] {
   const grid = width >= height ? '8:5' : '5:8';
+  // The two scales change the pixel shape (SAR) to keep the cover's display
+  // ratio: square pixels are forced back (setsar=1), otherwise players stretch the video.
   // Bottom gradient (from 55 % of the height, up to -60 %) × soft radial vignette.
   const shade =
     '(1-0.6*clip((Y/H-0.55)/0.45\\,0\\,1))' +
@@ -154,15 +156,23 @@ export function buildBackgroundArgs(
     '-vf',
     `scale=${grid}:flags=area,scale=${width}:${height}:flags=bicubic,gblur=sigma=${blur},` +
       `eq=brightness=-0.16:saturation=1.05:contrast=0.85,format=rgb24,` +
-      `geq=r='r(X,Y)*${shade}':g='g(X,Y)*${shade}':b='b(X,Y)*${shade}'`,
+      `geq=r='r(X,Y)*${shade}':g='g(X,Y)*${shade}':b='b(X,Y)*${shade}',setsar=1`,
     '-frames:v',
     '1',
     output,
   ];
 }
 
-/** Sharp cover with rounded corners and a soft drop shadow, as a transparent PNG. */
-export function buildCardArgs(cover: string, output: string, layout: Layout['cover']): string[] {
+/**
+ * Sharp cover with rounded corners and a soft drop shadow, as a transparent PNG.
+ * The cover keeps its own ratio: it fits inside a `size` × `size` box (a square
+ * cover fills it), never stretched, never cropped.
+ */
+export function buildCardArgs(
+  cover: string,
+  output: string,
+  layout: Omit<Layout['cover'], 'centerY'>,
+): string[] {
   const { size: s, radius: r, shadowPad: p, shadowOffset: o } = layout;
   const rounded =
     `geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':` +
@@ -175,11 +185,11 @@ export function buildCardArgs(cover: string, output: string, layout: Layout['cov
     '-i',
     cover,
     '-filter_complex',
-    `[0:v]scale=${s}:${s}:force_original_aspect_ratio=increase,crop=${s}:${s},format=rgba,${rounded}[c];` +
+    `[0:v]setsar=1,scale=${s}:${s}:force_original_aspect_ratio=decrease:force_divisible_by=2,setsar=1,format=rgba,${rounded}[c];` +
       `[c]split[c1][c2];` +
       `[c2]colorchannelmixer=rr=0:gg=0:bb=0:aa=0.6,` +
-      `pad=${s + 2 * p}:${s + 2 * p}:${p}:${p + o}:color=black@0,gblur=sigma=${Math.max(2, Math.round(p / 3))}[sh];` +
-      `[sh][c1]overlay=${p}:${p}:format=auto`,
+      `pad=iw+${2 * p}:ih+${2 * p}:${p}:${p + o}:color=black@0,gblur=sigma=${Math.max(2, Math.round(p / 3))}[sh];` +
+      `[sh][c1]overlay=${p}:${p}:format=auto,setsar=1`,
     '-frames:v',
     '1',
     output,
@@ -354,6 +364,11 @@ export function buildAudioArgs(params: {
     filters.join(','),
     '-c:a',
     'aac',
+    // The default "twoloop" coder adds up to +5 dB of overshoot on hot, clipped
+    // masters (measured), which the true-peak loop then pays in loudness; the
+    // "fast" coder stays within ~0.5 dB, transparent at these bitrates.
+    '-aac_coder',
+    'fast',
     '-b:a',
     params.bitrate,
     '-ar',
@@ -404,8 +419,8 @@ export function buildRenderArgs(plan: RenderPlan): string[] {
 
   const graph = [
     `[2:a]${spectrum}[bars]`,
-    `[0:v]format=yuv420p[bg]`,
-    `[1:v]scale=w='${l.cover.size + 2 * l.cover.shadowPad}*(1+${l.zoom}*t/${round(d)})':h=-1:eval=frame[card]`,
+    `[0:v]setsar=1,format=yuv420p[bg]`,
+    `[1:v]scale=w='iw*(1+${l.zoom}*t/${round(d)})':h=-1:eval=frame,setsar=1[card]`,
     `[bg][card]overlay=x=(W-w)/2:y=${l.cover.centerY}-h/2:format=yuv420[v1]`,
     `[v1][bars]overlay=x=(W-w)/2:y=${bars.top}:format=yuv420[v2]`,
     `[v2]` +
@@ -414,6 +429,8 @@ export function buildRenderArgs(plan: RenderPlan): string[] {
         `noise=alls=${l.grain}:allf=t`,
         ...videoFades,
         'format=yuv420p',
+        // Square pixels: the file plays at exactly width × height everywhere.
+        'setsar=1',
       ].join(',') +
       `[vout]`,
   ].join(';');
@@ -522,7 +539,7 @@ export function buildPostArgs(files: {
     files.card,
     '-filter_complex',
     `[0:v][1:v]overlay=x=(W-w)/2:y=${cover.centerY}-h/2,` +
-      `subtitles=${files.ass}:fontsdir=${files.fontsDir},format=yuvj444p`,
+      `subtitles=${files.ass}:fontsdir=${files.fontsDir},format=yuvj444p,setsar=1`,
     '-frames:v',
     '1',
     '-q:v',

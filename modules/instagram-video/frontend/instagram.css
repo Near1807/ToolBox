@@ -423,3 +423,24 @@
 .iv-panel {
   min-width: 0;
 }
+
+.iv-track__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.iv-tile__select {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.iv-tile__style,
+.iv-tile__hook {
+  padding: 4px 8px;
+  font-size: 0.85rem;
+}

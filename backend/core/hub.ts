@@ -19,6 +19,7 @@ import type { HostAdapter } from './host';
 import { JobManager } from './jobs';
 import { LogStore } from './logger';
 import { MediaSigner } from './media';
+import { OutputStore } from './outputs';
 import {
   applyMigrations,
   assertNotSchemaChange,
@@ -97,6 +98,7 @@ export class Hub {
   readonly jobs: JobManager;
   readonly scheduler: Scheduler;
   readonly media: MediaSigner;
+  readonly outputs: OutputStore;
   private readonly records = new Map<string, ModuleRecord>();
 
   private constructor(readonly options: HubOptions) {
@@ -117,6 +119,7 @@ export class Hub {
       this.getOutputRoot(),
       options.assetsRoot,
     ]);
+    this.outputs = new OutputStore(this.handle, options.host, (file) => this.media.url(file));
   }
 
   static async create(options: HubOptions): Promise<Hub> {
@@ -159,6 +162,12 @@ export class Hub {
 
     this.discover();
     await this.loadModules();
+
+    // Generated files deleted or moved outside the app since the last start.
+    const missing = this.outputs.sync();
+    if (missing > 0) {
+      this.logger.warn(`${missing} fichier(s) généré(s) introuvable(s) sur le disque`);
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -344,6 +353,7 @@ export class Hub {
         host: this.host,
         mediaUrl: (filePath) => this.media.url(filePath),
       }),
+      outputs: this.outputs.forModule(id),
       settings: {
         get: <T>(key: string) => this.settings.get(id, key) as T | null,
         set: (key, value) => this.settings.set(id, key, value),
@@ -391,6 +401,7 @@ export class Hub {
       for (const dispose of disposers) dispose();
       this.jobs.forget(id);
       this.scheduler.forget(id);
+      this.outputs.forgetModule(id);
       this.settings.unregister(id);
       record.shutdownHandlers = [];
       record.status = 'failed';

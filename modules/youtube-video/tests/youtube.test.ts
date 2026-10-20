@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import ffmpegPath from 'ffmpeg-static';
@@ -128,5 +128,28 @@ describe('youtube-video', () => {
       `${API}/tracks/${trackId}`,
     );
     expect(detail.videos).toHaveLength(1);
+  });
+
+  it('shows a video deleted outside the app as missing, and deletes from the app', async () => {
+    interface Video {
+      id: number;
+      outputId: number;
+      exists: boolean;
+    }
+    const file = path.join(outputRoot, 'youtube-video', 'Thomas - Night Drive (YouTube).mp4');
+    const { body } = await hub.request<{ videos: Video[] }>('GET', `${API}/tracks/${trackId}`);
+    const [video] = body.videos;
+    expect(video!.exists).toBe(true);
+
+    copyFileSync(file, `${file}.bak`);
+    rmSync(file);
+    const missing = await hub.request<{ videos: Video[] }>('GET', `${API}/tracks/${trackId}`);
+    expect(missing.body.videos[0]!.exists).toBe(false);
+    copyFileSync(`${file}.bak`, file);
+
+    await hub.request('POST', '/api/core/outputs/delete', { ids: [video!.outputId] });
+    expect(existsSync(file)).toBe(false);
+    const after = await hub.request<{ videos: Video[] }>('GET', `${API}/tracks/${trackId}`);
+    expect(after.body.videos).toEqual([]);
   });
 });

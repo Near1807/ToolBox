@@ -49,6 +49,8 @@ export interface ModuleContext {
   readonly manifest: ModuleManifest;
   readonly db: ModuleDatabase;
   readonly files: ModuleFiles;
+  /** Registry of the files the module generates: every output must go through it. */
+  readonly outputs: ModuleOutputs;
   readonly settings: ModuleSettings;
   readonly routes: ModuleRoutes;
   readonly jobs: ModuleJobs;
@@ -101,6 +103,74 @@ export interface ModuleFiles {
   readonly assetsDir: string;
   /** Path inside assetsDir; throws if it escapes the folder. */
   assetPath(...segments: string[]): string;
+}
+
+/** A generated file, as registered in ctx.outputs. */
+export interface OutputRecord {
+  id: number;
+  moduleId: string;
+  /** The module's own identifier of the element, e.g. "video:12". */
+  ref: string;
+  /** Group the element belongs to (e.g. "pack:3"): deleting the group deletes all of it. */
+  parent: string | null;
+  /** What the file is about, shared across modules (e.g. "music-library:track:7"). */
+  subject: string | null;
+  /** Short French label shown in lists ("Vidéo YouTube", "Reel 2"…). */
+  label: string;
+  kind: string | null;
+  path: string;
+  fileName: string;
+  createdAt: string;
+  /** Checked on disk at every read: false when the file was moved or deleted outside the app. */
+  exists: boolean;
+  /** Signed media URL when the file exists. */
+  url: string | null;
+}
+
+export interface OutputFilter {
+  ids?: number[];
+  refs?: string[];
+  ref?: string;
+  parent?: string;
+  /** Only the records whose file is missing. */
+  missing?: boolean;
+}
+
+/**
+ * Called after records of this module were removed — by the module itself,
+ * the « Fichiers générés » page or the cleaning of missing files. The module
+ * deletes or resets its own rows for these refs ("deleted": files sent to the
+ * Recycle Bin; "forgotten": files left as they are, only removed from the lists).
+ */
+export type OutputRemovedHandler = (
+  records: OutputRecord[],
+  reason: 'deleted' | 'forgotten',
+) => void;
+
+export interface ModuleOutputs {
+  /** Records (or updates, same path) a generated file. Call it after every render. */
+  register(output: {
+    path: string;
+    ref: string;
+    label: string;
+    kind?: string;
+    parent?: string;
+    subject?: string;
+    /** Default: now. */
+    createdAt?: string;
+  }): OutputRecord;
+  /** Records of this module, newest first, with `exists` checked on disk. */
+  list(filter?: OutputFilter): OutputRecord[];
+  /** Sends the files to the Recycle Bin and forgets the records. Returns the count. */
+  delete(filter: OutputFilter): Promise<number>;
+  /** Forgets the records, leaving the files alone (« Retirer de la liste »). */
+  forget(filter: OutputFilter): number;
+  /** Declares how the module cleans its own data when records are removed. */
+  onRemoved(handler: OutputRemovedHandler): void;
+  /** Records of every module about a subject (e.g. all files made from a track). */
+  bySubject(subject: string): OutputRecord[];
+  /** Deletes the files of every module about a subject; each owner cleans its data. */
+  deleteBySubject(subject: string): Promise<number>;
 }
 
 /** Executables embedded in the app, usable by any module (child_process.execFile/spawn). */

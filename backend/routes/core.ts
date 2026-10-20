@@ -132,6 +132,62 @@ export function registerCoreRoutes(app: FastifyInstance, hub: Hub, appVersion: s
     stream.onClose(off);
   });
 
+  // Generated files (ctx.outputs) -----------------------------------------
+
+  const outputIds = (body: unknown): number[] | null => {
+    const ids = (body as { ids?: unknown } | undefined)?.ids;
+    return Array.isArray(ids) && ids.length > 0 && ids.every((id) => Number.isInteger(id))
+      ? (ids as number[])
+      : null;
+  };
+
+  // Every list reads the disk: a file deleted in the Explorer shows as missing.
+  app.get<{ Querystring: { module?: string; missing?: string; subject?: string } }>(
+    '/api/core/outputs',
+    async (request) =>
+      hub.outputs.list({
+        moduleId: request.query.module || undefined,
+        subject: request.query.subject || undefined,
+        missing: request.query.missing === '1',
+      }),
+  );
+
+  app.post('/api/core/outputs/delete', async (request, reply) => {
+    const ids = outputIds(request.body);
+    if (!ids) return reply.code(400).send({ error: 'Liste « ids » attendue' });
+    const removed = await hub.outputs.delete({ ids });
+    return { deleted: removed.length };
+  });
+
+  app.post('/api/core/outputs/forget', async (request, reply) => {
+    const ids = outputIds(request.body);
+    if (!ids) return reply.code(400).send({ error: 'Liste « ids » attendue' });
+    return { forgotten: hub.outputs.forget({ ids }).length };
+  });
+
+  app.post<{ Params: { id: string; action: string } }>(
+    '/api/core/outputs/:id/:action',
+    async (request, reply) => {
+      const { action } = request.params;
+      if (action !== 'open' && action !== 'reveal') {
+        return reply.code(404).send({ error: 'Action inconnue' });
+      }
+      const [record] = hub.outputs.list({ ids: [Number(request.params.id)] });
+      if (!record) return reply.code(404).send({ error: 'Fichier inconnu' });
+      if (!record.exists) {
+        return reply.code(404).send({ error: `Fichier introuvable : ${record.path}` });
+      }
+      if (action === 'open') await hub.host.openPath(record.path);
+      else hub.host.showItemInFolder(record.path);
+      return { ok: true };
+    },
+  );
+
+  app.post<{ Body: { module?: string } }>('/api/core/outputs/clean-missing', async (request) => ({
+    forgotten: hub.outputs.forget({ missing: true, moduleId: request.body?.module || undefined })
+      .length,
+  }));
+
   // Logs ------------------------------------------------------------------
 
   app.get<{ Querystring: { source?: string; level?: LogLevel; limit?: string } }>(

@@ -1,9 +1,24 @@
 // Shapes returned by the instagram-video backend.
 
+export type ReelStyle = 'reveal' | 'cuts' | 'hook' | 'ambient';
+
+export const STYLES: ReelStyle[] = ['reveal', 'cuts', 'hook', 'ambient'];
+
+export const STYLE_NAMES: Record<ReelStyle, string> = {
+  reveal: 'Révélation',
+  cuts: 'Coupes sur le rythme',
+  hook: 'Phrase d’accroche',
+  ambient: 'Ambiance',
+};
+
 export type ItemState = 'draft' | 'rendering' | 'ready' | 'outdated' | 'failed' | 'missing';
 
 export interface PackItem {
   id: number;
+  /** Record in ctx.outputs (null until the file is rendered). */
+  outputId: number | null;
+  style: ReelStyle | null;
+  hookText: string | null;
   packId: number;
   kind: 'post' | 'reel';
   position: number;
@@ -50,6 +65,7 @@ export interface LegacyReel {
   durationSec: number;
   createdAt: string;
   exists: boolean;
+  outputId: number;
 }
 
 export interface TrackDetail extends Omit<TrackSummary, 'pack'> {

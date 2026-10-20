@@ -80,7 +80,8 @@ describe('FFmpeg command builders', () => {
     expect(graph).toContain('firequalizer=');
     // True-peak limiter before AAC encoding.
     expect(graph).toContain('subtitles=text.ass:fontsdir=fonts');
-    expect(graph).toContain("scale=w='680*(1+0.05*t/180)'");
+    expect(graph).toContain("scale=w='iw*(1+0.05*t/180)'");
+    expect(graph).toContain('format=yuv420p,setsar=1[vout]');
     expect(graph).toContain('fade=t=out:st=178:d=2');
     // No absolute path inside the filter graph (Windows escaping issues).
     expect(graph).not.toMatch(/[A-Z]:\\/);
@@ -136,6 +137,7 @@ describe('FFmpeg command builders', () => {
         'alimiter=limit=0.8414:attack=1:release=50:level=0,aresample=48000',
     );
     expect(args.slice(-3)).toEqual(['-f', 'mp4', 'soundtrack.m4a']);
+    expect(args.join(' ')).toContain('-c:a aac -aac_coder fast');
     expect(dbToLinear(-1)).toBe(0.8913);
   });
 

@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import ffmpegPath from 'ffmpeg-static';
@@ -79,6 +79,9 @@ describe('instagram-video', () => {
 
   interface Item {
     id: number;
+    outputId: number | null;
+    style: string | null;
+    hookText: string | null;
     kind: string;
     position: number;
     startSec: number | null;
@@ -228,5 +231,67 @@ describe('instagram-video', () => {
       published: false,
     });
     expect(unchecked.body.publishedAt).toBeNull();
+  });
+
+  it('gives each Reel its own style, editable one by one', async () => {
+    const { body } = await hub.request<{ pack: Pack }>('GET', `${API}/tracks/${trackId}`);
+    const [post, reel1, reel2] = body.pack.items;
+    expect([post!.style, reel1!.style, reel2!.style]).toEqual([null, 'reveal', 'cuts']);
+    // Each Reel was prefilled with a hook phrase from the settings.
+    expect(reel1!.hookText).toBeTruthy();
+    const changed = await hub.request<Item>('PATCH', `${API}/items/${reel2!.id}`, {
+      style: 'hook',
+      hookText: 'Monte le son',
+    });
+    expect(changed.body).toMatchObject({
+      style: 'hook',
+      hookText: 'Monte le son',
+      state: 'outdated',
+    });
+    expect((await hub.request('PATCH', `${API}/items/${reel2!.id}`, { style: 'x' })).status).toBe(
+      400,
+    );
+    expect((await hub.request('PATCH', `${API}/items/${post!.id}`, { style: 'hook' })).status).toBe(
+      400,
+    );
+  });
+
+  it('shows a file deleted outside the app as missing, and can remove it from the list', async () => {
+    const { body } = await hub.request<{ pack: Pack }>('GET', `${API}/tracks/${trackId}`);
+    const reel1 = body.pack.items[1]!;
+    rmSync(path.join(outputRoot, 'instagram-video', 'Thomas - Drop', 'Drop - Reel 1.mp4'));
+    const after = await hub.request<{ pack: Pack }>('GET', `${API}/tracks/${trackId}`);
+    expect(after.body.pack.items[1]!.state).toBe('missing');
+    const missing = await hub.request<{ id: number }[]>(
+      'GET',
+      '/api/core/outputs?module=instagram-video&missing=1',
+    );
+    expect(missing.body.map((r) => r.id)).toEqual([reel1.outputId]);
+
+    await hub.request('POST', '/api/core/outputs/forget', { ids: [reel1.outputId] });
+    const forgotten = await hub.request<{ pack: Pack }>('GET', `${API}/tracks/${trackId}`);
+    expect(forgotten.body.pack.items[1]).toMatchObject({
+      state: 'draft',
+      outputId: null,
+      style: 'reveal',
+    });
+  });
+
+  it('deletes one file, then the whole pack (files to the Recycle Bin)', async () => {
+    const folder = path.join(outputRoot, 'instagram-video', 'Thomas - Drop');
+    const { body } = await hub.request<{ pack: Pack }>('GET', `${API}/tracks/${trackId}`);
+    const post = body.pack.items[0]!;
+    await hub.request('POST', '/api/core/outputs/delete', { ids: [post.outputId] });
+    expect(existsSync(path.join(folder, 'Drop - Post.jpg'))).toBe(false);
+    const after = await hub.request<{ pack: Pack }>('GET', `${API}/tracks/${trackId}`);
+    expect(after.body.pack.items[0]).toMatchObject({ state: 'draft', outputId: null });
+
+    const deleted = await hub.request<{ deleted: number }>('DELETE', `${API}/packs/${pack.id}`);
+    expect(deleted.body.deleted).toBe(1); // Reel 2, the only file left
+    expect(existsSync(path.join(folder, 'Drop - Reel 2.mp4'))).toBe(false);
+    const gone = await hub.request<{ pack: Pack | null }>('GET', `${API}/tracks/${trackId}`);
+    expect(gone.body.pack).toBeNull();
+    const records = await hub.request<unknown[]>('GET', '/api/core/outputs?module=instagram-video');
+    expect(records.body).toEqual([]);
   });
 });

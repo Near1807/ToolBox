@@ -11,6 +11,7 @@ export function createElectronHost(): HostAdapter {
       if (error) throw new Error(error);
     },
     showItemInFolder: (target) => shell.showItemInFolder(target),
+    trashItem: (target) => shell.trashItem(target),
     selectFolder: async ({ title, defaultPath }) => {
       const window = parent();
       const options: Electron.OpenDialogOptions = {

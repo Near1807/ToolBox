@@ -2,7 +2,7 @@
   "id": "template",
   "name": "Module modèle",
   "description": "Exemple complet à copier pour créer un nouvel outil : notes, réglage, tâche longue.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "section": "Exemples",
   "icon": "🧩",
   "order": 100,

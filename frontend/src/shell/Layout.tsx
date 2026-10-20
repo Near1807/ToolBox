@@ -26,6 +26,9 @@ export function Layout() {
           </div>
         ))}
         <div className="sidebar__spacer" />
+        <NavLink to="/outputs" className="nav-link">
+          Fichiers générés
+        </NavLink>
         <NavLink to="/jobs" className="nav-link">
           Tâches
         </NavLink>

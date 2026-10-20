@@ -92,6 +92,9 @@ Les migrations de **tous** les modules passent avant le premier `register()` : r
 | `GET /api/media/:jeton/:nom`                                                                     | Fichier multimédia par URL signée (sans jeton de session)            |
 | `GET /api/core/jobs` · `POST /api/core/jobs/:id/cancel` · `GET /api/core/jobs/stream` (SSE)      | Tâches longues                                                       |
 | `GET /api/core/logs`                                                                             | Journaux filtrés                                                     |
+| `GET /api/core/outputs` (`?module=`, `?subject=`, `?missing=1`)                                  | Fichiers générés de tous les modules, vérifiés sur le disque         |
+| `POST /api/core/outputs/delete` · `/forget` (`{ ids }`) · `/clean-missing`                       | Corbeille / retirer de la liste / oublier les introuvables           |
+| `POST /api/core/outputs/:id/open` · `/:id/reveal`                                                | Ouvrir un fichier généré / le montrer dans l'Explorateur             |
 | `GET /api/core/backups` · `POST /api/core/backups/export` · `POST /api/core/backups/open-folder` | Sauvegardes                                                          |
 | `POST /api/core/stream-tickets`                                                                  | Ticket à usage unique pour un flux SSE                               |
 | `POST /api/core/open-data-dir`                                                                   | Ouvre le dossier de données                                          |
@@ -142,14 +145,14 @@ L'interface n'a accès qu'à trois choses hors de l'API REST (`electron/preload.
 
 ## Données
 
-| Donnée                     | Emplacement (Windows)                                                             |
-| -------------------------- | --------------------------------------------------------------------------------- |
-| Base SQLite                | `%APPDATA%\ToolBox\hub.db` (tables `core__*` du socle, `<module>__*` des modules) |
-| Fichiers des modules       | `%APPDATA%\ToolBox\modules\<id>\`                                                 |
-| Sauvegardes automatiques   | `%APPDATA%\ToolBox\backups\` (10 dernières, avant chaque migration)               |
-| Journaux                   | `%APPDATA%\ToolBox\logs\` (14 jours)                                              |
-| Fichiers générés (vidéos…) | dossier de sortie réglable (par défaut `Vidéos\ToolBox\<id>\`)                    |
-| Application                | dossier d'installation, en lecture seule                                          |
+| Donnée                     | Emplacement (Windows)                                                                                                                                                 |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Base SQLite                | `%APPDATA%\ToolBox\hub.db` (tables `core__*` du socle, `<module>__*` des modules)                                                                                     |
+| Fichiers des modules       | `%APPDATA%\ToolBox\modules\<id>\`                                                                                                                                     |
+| Sauvegardes automatiques   | `%APPDATA%\ToolBox\backups\` (10 dernières, avant chaque migration)                                                                                                   |
+| Journaux                   | `%APPDATA%\ToolBox\logs\` (14 jours)                                                                                                                                  |
+| Fichiers générés (vidéos…) | dossier de sortie réglable (par défaut `Vidéos\ToolBox\<id>\`), registre `core__outputs` (vérifié au démarrage et à chaque affichage ; suppression vers la Corbeille) |
+| Application                | dossier d'installation, en lecture seule                                                                                                                              |
 
 Rien n'est jamais écrit dans le dossier d'installation. La variable `TOOLBOX_USER_DATA_DIR` permet d'utiliser un profil isolé (tests, CI).
 

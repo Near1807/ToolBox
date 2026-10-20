@@ -4,6 +4,29 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.7.0] — 2026-10-20
+
+Trois chantiers : vidéos déformées, Reels en quatre styles, suppression et synchronisation des fichiers générés.
+
+### Corrigé
+
+- **Vidéos déformées (étirées en largeur)** : les Reels sortaient avec un rapport de pixel de 16:9 (SAR) que les lecteurs appliquaient. Toutes les chaînes de filtres finissent désormais par `setsar=1` (Reels 1080×1920, YouTube 1920×1080, post 1080×1350) et la cover garde toujours son ratio d'origine (jamais étirée, jamais recadrée dans la carte). Test automatique au ffprobe : dimensions, SAR 1:1, DAR.
+- **Son des masters très forts** : le codeur AAC par défaut dépassait le plafond de jusqu'à +5 dB, que la boucle true peak compensait en baissant le volume (jusqu'à -7 LU). Codeur « fast » : -1 dBTP tenu sans perte de volume.
+
+### Ajouté
+
+- **Reels en quatre styles**, un par Reel du pack, sans visualisation audio : **Révélation** (gros plan sur un détail, dézoom jusqu'à l'image entière), **Coupes sur le rythme** (4 à 6 cadrages, changements sur les attaques détectées), **Phrase d'accroche** (grand texte dès la 1re seconde, liste de phrases dans les réglages, modifiable par Reel), **Ambiance** (plein écran recadré sur les éléments importants, poussières, grain, barre de progression). Menu déroulant par Reel puis « Régénérer ». Titre et artiste discrets à contraste automatique, zones de sécurité Instagram, fondu de sortie 0,5 s.
+- **Socle — `ctx.outputs`** : registre des fichiers générés par tous les modules. Suppression avec confirmation vers la **Corbeille**, sélection multiple, fichier effacé à la main signalé « Fichier introuvable » (« Retirer de la liste » ou « Régénérer »), « Nettoyer les éléments introuvables », nouvelle page **« Fichiers générés »**. Règle du contrat : tout fichier généré passe par `ctx.outputs` (MODULES.md §5.13, ADR 0014). Composants SDK : `OutputList`, `SelectionBar`, `MissingFile`, `useSelection`, `confirmDelete`.
+- **Pack Instagram** : « Supprimer » sur chaque fichier, « Supprimer le pack », suppression des anciens Reels.
+- **Vidéo YouTube** : « Supprimer », sélection multiple, vidéos introuvables.
+- **Bibliothèque** : la fiche liste les fichiers générés par tous les modules ; supprimer un morceau propose de supprimer aussi ses fichiers.
+- Module modèle : export d'une note en .txt enregistré dans `ctx.outputs`.
+
+### Modifié
+
+- Fichiers déjà générés : enregistrés dans le registre au démarrage, sans rien supprimer. Migration de la base : `core__outputs` (socle v2), styles des Reels (`instagram-video` v3).
+- `recordOutput` de la Bibliothèque est déprécié (conservé pour compatibilité).
+
 ## [0.6.0] — 2026-10-19
 
 Changement de périmètre de la phase 4 : le Reel unique devient un **pack Insta** par morceau.

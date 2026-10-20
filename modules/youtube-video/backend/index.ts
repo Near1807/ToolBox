@@ -85,22 +85,52 @@ export default defineBackendModule({
       };
     };
 
-    const listVideos = (trackId: number) =>
-      (
+    // Every video goes through ctx.outputs (deletion, missing files). Videos made
+    // before v0.7 are registered at startup: idempotent, nothing is deleted.
+    const subject = (trackId: number) => `music-library:track:${trackId}`;
+    const registerVideo = (row: VideoRow) =>
+      ctx.outputs.register({
+        path: row.file_path,
+        ref: `video:${row.id}`,
+        parent: `track:${row.track_id}`,
+        subject: subject(row.track_id),
+        label: 'Vidéo YouTube',
+        kind: 'video',
+        createdAt: row.created_at,
+      });
+    for (const row of ctx.db.prepare(`SELECT * FROM ${videos}`).all() as VideoRow[]) {
+      registerVideo(row);
+    }
+    // Deleted (Recycle Bin) or removed from the list: the video row goes too.
+    ctx.outputs.onRemoved((records) => {
+      const remove = ctx.db.prepare(`DELETE FROM ${videos} WHERE id = ?`);
+      for (const record of records) {
+        const id = Number(record.ref.replace(/^video:/, ''));
+        if (Number.isInteger(id)) remove.run(id);
+      }
+    });
+
+    const listVideos = (trackId: number) => {
+      const records = new Map(
+        ctx.outputs.list({ parent: `track:${trackId}` }).map((r) => [r.ref, r]),
+      );
+      return (
         ctx.db
           .prepare(`SELECT * FROM ${videos} WHERE track_id = ? ORDER BY created_at DESC, id DESC`)
           .all(trackId) as VideoRow[]
       ).map((row) => {
-        const exists = existsSync(row.file_path);
+        const record = records.get(`video:${row.id}`) ?? registerVideo(row);
         return {
           id: row.id,
+          outputId: record.id,
           fileName: path.basename(row.file_path),
           createdAt: row.created_at,
-          exists,
-          url: exists ? ctx.files.mediaUrl(row.file_path) : null,
+          exists: record.exists,
+          url: record.url,
           youtubeVideoId: row.youtube_video_id,
         };
       });
+    };
 
     const requireVideo = (params: unknown): VideoRow => {
       const row = ctx.db
@@ -143,12 +173,11 @@ export default defineBackendModule({
             `INSERT INTO ${videos} (track_id, file_path, title, created_at) VALUES (?, ?, ?, ?)`,
           )
           .run(track.id, result.file, texts(track).videoTitle, new Date().toISOString());
-        library.recordOutput(track.id, {
-          moduleId: ctx.id,
-          kind: 'youtube',
-          label: 'Vidéo YouTube',
-          filePath: result.file,
-        });
+        registerVideo(
+          ctx.db
+            .prepare(`SELECT * FROM ${videos} WHERE id = ?`)
+            .get(Number(inserted.lastInsertRowid)) as VideoRow,
+        );
         ctx.events.emit('video.created', { trackId: track.id, file: result.file });
         return { videoId: Number(inserted.lastInsertRowid), file: result.file };
       },

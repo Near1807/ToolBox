@@ -204,6 +204,41 @@ Réservé à la phase 5 (OAuth Google, jetons chiffrés). `ctx.accounts.availabl
 
 Appelé à la fermeture de l'app : arrêter un process FFmpeg, fermer un watcher… Les tâches en cours reçoivent aussi `job.signal` (abort).
 
+### 5.13 `ctx.outputs` — fichiers générés (obligatoire)
+
+> **Règle : tout ce qu'un module génère doit passer par `ctx.outputs` et être supprimable depuis l'interface.**
+
+Le socle tient un registre unique (`core__outputs`) des fichiers produits par les modules (vidéos, images, exports…). Grâce à lui, chaque fichier est listé, vérifié sur le disque à chaque affichage, supprimable (vers la Corbeille) et retirable de la liste s'il a disparu. La page **« Fichiers générés »** du shell liste ceux de tous les modules.
+
+```ts
+// Après chaque rendu (même chemin = mise à jour, pas de doublon).
+ctx.outputs.register({
+  path: file, // dans ctx.files.outputDir()
+  ref: `video:${row.id}`, // l'élément, dans les termes du module
+  parent: `pack:${pack.id}`, // facultatif : groupe (supprimer le groupe = tous ses fichiers)
+  subject: `music-library:track:${trackId}`, // facultatif : sujet partagé entre modules
+  label: 'Vidéo YouTube', // affiché dans les listes
+});
+
+// Le module nettoie SES données quand des fichiers sont supprimés ou retirés
+// (depuis sa page, la page « Fichiers générés » ou « Nettoyer les éléments introuvables »).
+ctx.outputs.onRemoved((records, reason) => {
+  for (const r of records) deleteMyRow(r.ref); // reason : 'deleted' (Corbeille) | 'forgotten' (liste seulement)
+});
+```
+
+| Méthode                                                                | Rôle                                                                                                |
+| ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `register({ path, ref, label, parent?, subject?, kind?, createdAt? })` | Enregistre ou met à jour (même chemin) un fichier généré                                            |
+| `list({ ref?, refs?, parent?, ids?, missing? })`                       | Fichiers du module, avec `exists` vérifié **sur le disque** et une `url` signée                     |
+| `delete(filtre)`                                                       | Envoie les fichiers à la **Corbeille** (`shell.trashItem`), oublie les entrées, appelle `onRemoved` |
+| `forget(filtre)`                                                       | « Retirer de la liste » : oublie les entrées sans toucher aux fichiers, appelle `onRemoved`         |
+| `bySubject(sujet)` · `deleteBySubject(sujet)`                          | Fichiers de **tous** les modules sur un sujet (ex. tous ceux faits à partir d'un morceau)           |
+
+- Un filtre vide est refusé (jamais de « tout supprimer » par accident).
+- Fichiers déjà produits avant l'arrivée du registre : le module les enregistre au démarrage (`register` est idempotent), sans rien supprimer.
+- Interface : chaque élément généré a un bouton **« Supprimer »** avec confirmation (`confirmDelete`), les listes ont la **sélection multiple** (`useSelection` + `SelectionBar`), un fichier introuvable s'affiche **« Fichier introuvable »** avec « Retirer de la liste » et, si possible, « Régénérer » (`MissingFile`), et un bouton **« Nettoyer les éléments introuvables »**. `OutputList` fait tout cela d'un coup pour une liste simple. Routes du socle : `/api/core/outputs` (voir `ARCHITECTURE.md`).
+
 ## 6. Migrations et sécurité des données
 
 ```ts
@@ -232,7 +267,7 @@ migrations: [
 
 1. Versions `1, 2, 3…` contiguës. Une migration publiée n'est **jamais modifiée ni supprimée** : on en ajoute une nouvelle.
 2. Une migration ne crée, modifie ou supprime que des objets portant le préfixe du module. Sinon elle est refusée et annulée.
-3. **Un module ne supprime jamais de données existantes sans migration explicite.** Aucune suppression de table, de colonne ou de lignes « de nettoyage » en dehors d'une migration dédiée, décrite comme telle (`description`) et mentionnée dans le `CHANGELOG.md`. Le code courant (`ctx.db.prepare`) ne peut pas modifier le schéma.
+3. **Un module ne supprime jamais de données existantes sans migration explicite.** Aucune suppression de table, de colonne ou de lignes « de nettoyage » en dehors d'une migration dédiée, décrite comme telle (`description`) et mentionnée dans le `CHANGELOG.md`. Le code courant (`ctx.db.prepare`) ne peut pas modifier le schéma. Seule exception : ce que **l'utilisateur demande explicitement** de supprimer depuis l'interface, après confirmation (un élément, ses fichiers via `ctx.outputs`, ses lignes liées).
 4. Préférer les migrations additives (nouvelle colonne avec valeur par défaut, nouvelle table). Pour transformer des données, copier vers la nouvelle structure dans la même migration avant de retirer l'ancienne.
 5. Une migration doit fonctionner sur une base qui contient déjà des données réelles : la tester ainsi (voir `tests/backend/modules.test.ts`).
 
@@ -276,6 +311,7 @@ export default defineFrontendModule({
 - Glisser un fichier **hors de l'app** (vers Instagram dans le navigateur, l'Explorateur…) : dans `onDragStart`, appeler `startFileDrag(mediaUrl)` avec l'URL signée du fichier (`ctx.files.mediaUrl`) et `event.preventDefault()` s'il renvoie `true` (`false` dans un navigateur). Le process principal vérifie la signature avant de lancer le glisser (`webContents.startDrag`).
 - Navigation interne : `useModule().path('tracks/3')` donne l'adresse d'une page du module (pour `<Link to>` / `navigate()`).
 - CSS propre à un module : un fichier importé depuis `frontend/`, classes préfixées par les initiales du module (ex. `ml-` pour music-library).
+- Fichiers générés : `outputs` (client des routes `/api/core/outputs`), `confirmDelete`, `useSelection`, et les composants `SelectionBar`, `MissingFile`, `OutputList` (voir §5.13).
 - Outils du SDK : `useModule`, `useApi`, `useJobs`, `api`, `apiFetch`, `openEventStream`, `getFilePath`, `startFileDrag`, `pickFiles`, `pickFolder`, `copyText`, `formatDuration`, et les composants `Page`, `Card`, `Button`, `EmptyState`, `ErrorMessage`, `ProgressBar`, `ErrorBoundary`. Styles : classes et variables CSS de `frontend/src/styles.css` (thème sombre).
 - Textes de l'interface en français.
 
@@ -315,6 +351,7 @@ L'état de chaque module est visible dans **Réglages > Modules** (avec bouton D
 - [ ] N'importe que `@hub/sdk/*` (et npm/Node) — `npm run lint` passe
 - [ ] Tables préfixées, schéma uniquement par migrations, aucune suppression de données hors migration explicite
 - [ ] Fichiers uniquement dans `ctx.files.dataDir` / `outputDir()`
+- [ ] Chaque fichier généré enregistré dans `ctx.outputs` (avec `onRemoved` pour nettoyer ses données) ; dans l'interface : « Supprimer » avec confirmation, sélection multiple, « Fichier introuvable », « Nettoyer les éléments introuvables »
 - [ ] Dépendances et services déclarés dans le manifest ; types publics dans `contract.ts`
 - [ ] Textes en français, code en anglais
 - [ ] `README.md` du module à jour (rôle, données, réglages, événements, services, API)

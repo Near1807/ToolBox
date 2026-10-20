@@ -24,5 +24,8 @@ export function createRenderFixtures() {
   ]);
   const cover = path.join(dir, 'cover.png');
   ffmpeg(['-f', 'lavfi', '-i', 'testsrc2=s=600x600', '-frames:v', '1', cover]);
-  return { dir, audio, cover };
+  // A landscape cover: its ratio must survive every layout.
+  const wideCover = path.join(dir, 'cover-wide.png');
+  ffmpeg(['-f', 'lavfi', '-i', 'testsrc2=s=800x500', '-frames:v', '1', wideCover]);
+  return { dir, audio, cover, wideCover };
 }

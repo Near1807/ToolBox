@@ -8,6 +8,7 @@ import {
   EmptyState,
   ErrorMessage,
   errorMessage,
+  OutputList,
   Page,
   ProgressBar,
   useApi,
@@ -34,6 +35,7 @@ function NotesPage() {
   const { jobs, cancel } = useJobs(module.id);
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [exports, setExports] = useState(0);
 
   const refresh = () => {
     notes.reload();
@@ -80,12 +82,30 @@ function NotesPage() {
           {notes.data?.map((note) => (
             <li key={note.id} className="list__item">
               <span>{note.text}</span>
-              <Button variant="secondary" small onClick={() => void removeNote(note.id)}>
-                Supprimer
-              </Button>
+              <span className="inline-form">
+                <Button
+                  variant="secondary"
+                  small
+                  onClick={() =>
+                    void module.api
+                      .post(`/notes/${note.id}/export`)
+                      .then(() => setExports((v) => v + 1))
+                  }
+                >
+                  Exporter en .txt
+                </Button>
+                <Button variant="secondary" small onClick={() => void removeNote(note.id)}>
+                  Supprimer
+                </Button>
+              </span>
             </li>
           ))}
         </ul>
+      </Card>
+
+      {/* Generated files: the ready-made list does open / delete / missing files. */}
+      <Card title="Fichiers générés">
+        <OutputList module={module.id} version={exports} emptyText="Aucun export." />
       </Card>
 
       <Card

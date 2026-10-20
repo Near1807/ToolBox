@@ -7,7 +7,8 @@ import {
   type DiscoveredModule,
   type TestHub,
 } from '@hub/sdk/testing';
-import type { MusicLibraryService, TrackDto, TrackOutputDto } from '../contract';
+import type { ModuleContext, OutputRecord } from '@hub/sdk/backend';
+import type { MusicLibraryService, TrackDto } from '../contract';
 import { parseProbe } from '../backend/probe';
 import { titleFromFileName, validateTrackUpdate } from '../backend/library';
 import { createMediaFixtures } from './fixtures';
@@ -20,6 +21,7 @@ let musicLibrary: DiscoveredModule;
 
 /** A module consuming the service, as the video generators do. */
 let library: MusicLibraryService;
+let consumerCtx: ModuleContext;
 const consumer: DiscoveredModule = {
   folder: 'consumer',
   manifest: {
@@ -32,7 +34,10 @@ const consumer: DiscoveredModule = {
     dependsOn: { services: ['musicLibrary'] },
   },
   backend: {
-    register: (ctx) => void (library = ctx.services.get<MusicLibraryService>('musicLibrary')),
+    register: (ctx) => {
+      library = ctx.services.get<MusicLibraryService>('musicLibrary');
+      consumerCtx = ctx;
+    },
   },
 };
 
@@ -158,25 +163,50 @@ describe('music-library', () => {
     expect((await hub.request('GET', `${API}/tracks/${track.id}`)).status).toBe(404);
   });
 
-  it('provides the musicLibrary service and lists generated outputs', async () => {
+  it('lists the files generated from a track by other modules (ctx.outputs)', async () => {
     const { body: track } = await add({ audioPath: media.wav });
     expect(library.getTrack(track.id)?.audioPath).toMatch(/audio\.wav$/);
 
-    const video = path.join(media.dir, 'video.mp4');
+    const video = path.join(consumerCtx.files.outputDir(), 'video.mp4');
     writeFileSync(video, 'fake video');
-    library.recordOutput(track.id, {
-      moduleId: 'youtube-video',
-      kind: 'youtube',
+    consumerCtx.outputs.register({
+      path: video,
+      ref: 'video:1',
       label: 'Vidéo YouTube',
-      filePath: video,
+      subject: `music-library:track:${track.id}`,
     });
-    const { body } = await hub.request<TrackDto & { outputs: TrackOutputDto[] }>(
+    const { body } = await hub.request<TrackDto & { outputs: OutputRecord[] }>(
       'GET',
       `${API}/tracks/${track.id}`,
     );
     expect(body.outputs).toEqual([
       expect.objectContaining({ label: 'Vidéo YouTube', fileName: 'video.mp4', exists: true }),
     ]);
+  });
+
+  it('deletes a track with or without its generated files', async () => {
+    const make = async (name: string) => {
+      const { body: track } = await add({ audioPath: media.wav });
+      const file = path.join(consumerCtx.files.outputDir(), name);
+      writeFileSync(file, 'x');
+      consumerCtx.outputs.register({
+        path: file,
+        ref: name,
+        label: 'Vidéo',
+        subject: `music-library:track:${track.id}`,
+      });
+      return { track, file };
+    };
+    const kept = await make('kept.mp4');
+    const removed = await make('removed.mp4');
+    await hub.request('DELETE', `${API}/tracks/${kept.track.id}`);
+    const { body } = await hub.request<{ deletedOutputs: number }>(
+      'DELETE',
+      `${API}/tracks/${removed.track.id}?outputs=1`,
+    );
+    expect(body.deletedOutputs).toBe(1);
+    expect(existsSync(kept.file)).toBe(true);
+    expect(existsSync(removed.file)).toBe(false);
   });
 });
 

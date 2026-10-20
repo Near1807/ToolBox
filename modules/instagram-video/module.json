@@ -1,8 +1,8 @@
 {
   "id": "instagram-video",
   "name": "Pack Instagram",
-  "description": "Pour chaque morceau : 4 Reels verticaux, une image de post 4:5 et la légende, avec le suivi de publication.",
-  "version": "2.0.0",
+  "description": "Pour chaque morceau : 4 Reels de styles différents, une image de post 4:5 et la légende, avec le suivi de publication.",
+  "version": "3.0.0",
   "section": "Musique",
   "icon": "📱",
   "order": 30,
@@ -34,6 +34,13 @@
       "label": "Hashtags par défaut",
       "description": "Ajoutés après les tags du morceau.",
       "placeholder": "#music #reels"
+    },
+    {
+      "key": "hookPhrases",
+      "type": "text",
+      "label": "Phrases d'accroche",
+      "description": "Une par ligne. Le Reel « Phrase d'accroche » en reçoit une (modifiable sur chaque Reel). Courtes : 3 lignes au plus à l'écran.",
+      "default": "Monte le son\nCelui-là, tu vas le garder en tête\nÉcoute jusqu'au bout\nLe son de ta nuit\nNouveau son, dis-moi ce que t'en penses\nÀ écouter au casque"
     },
     {
       "key": "badge",

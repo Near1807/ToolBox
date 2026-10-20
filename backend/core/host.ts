@@ -1,3 +1,4 @@
+import { rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -11,6 +12,8 @@ export interface HostAdapter {
   openPath(path: string): Promise<void>;
   /** Reveals a file in the OS file explorer. */
   showItemInFolder(path: string): void;
+  /** Moves a file to the OS Recycle Bin (recoverable deletion). */
+  trashItem(path: string): Promise<void>;
   /** Native folder picker; null when cancelled. */
   selectFolder(options: { title: string; defaultPath?: string }): Promise<string | null>;
   /** Native file picker; empty when cancelled. */
@@ -43,6 +46,8 @@ export function createNullHost(overrides: Partial<HostAdapter> = {}): HostAdapte
   return {
     openPath: async () => {},
     showItemInFolder: () => {},
+    // Outside Electron there is no Recycle Bin: tests and the standalone backend delete.
+    trashItem: async (target) => rm(target, { force: true }),
     selectFolder: async () => null,
     selectFiles: async () => [],
     selectSaveFile: async () => null,

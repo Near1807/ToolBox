@@ -37,6 +37,8 @@ function probe(file: string) {
       width?: number;
       height?: number;
       pix_fmt?: string;
+      sample_aspect_ratio?: string;
+      display_aspect_ratio?: string;
     }[];
     format: { duration: string };
   };
@@ -79,6 +81,8 @@ describe('renderVideo (real FFmpeg)', () => {
       width: 480,
       height: 270,
       pix_fmt: 'yuv420p',
+      sample_aspect_ratio: '1:1',
+      display_aspect_ratio: '16:9',
     });
     expect(info.streams.find((s) => s.codec_type === 'audio')?.codec_name).toBe('aac');
     expect(Number(info.format.duration)).toBeCloseTo(3, 0);
@@ -121,20 +125,59 @@ describe('renderVideo (real FFmpeg)', () => {
     expect(truePeak).toBeGreaterThan(-3);
   });
 
-  it('renders the vertical Instagram layout', async () => {
-    const outputPath = path.join(fixtures.dir, 'out', 'reel.mp4');
-    const result = await renderVideo(env, {
-      format: 'instagram',
-      audioPath: fixtures.audio,
-      coverPath: fixtures.cover,
-      title: 'Reel',
-      artist: 'Thomas',
-      duration: 2,
-      outputPath,
-      scale: 0.25,
-    });
-    expect(result).toMatchObject({ width: 270, height: 480 });
+  it('renders every Reel style vertically, without stretching', async () => {
+    for (const reelStyle of ['reveal', 'cuts', 'hook', 'ambient'] as const) {
+      const outputPath = path.join(fixtures.dir, 'out', `reel-${reelStyle}.mp4`);
+      const result = await renderVideo(env, {
+        format: 'instagram',
+        reelStyle,
+        hookText: 'Monte le son',
+        audioPath: fixtures.audio,
+        coverPath: fixtures.wideCover,
+        title: 'Reel',
+        artist: 'Thomas',
+        duration: 2,
+        outputPath,
+        scale: 0.25,
+      });
+      expect(result).toMatchObject({ width: 270, height: 480 });
+      const video = probe(outputPath).streams.find((s) => s.codec_type === 'video')!;
+      expect(video).toMatchObject({
+        width: 270,
+        height: 480,
+        sample_aspect_ratio: '1:1',
+        display_aspect_ratio: '9:16',
+      });
+    }
   });
+
+  // The bug of v0.6: a non-square pixel shape (SAR 16:9) made players stretch the Reels.
+  it('writes square pixels at full size: 1080×1920 (9:16) and 1920×1080 (16:9)', async () => {
+    const cases = [
+      { format: 'instagram', width: 1080, height: 1920, dar: '9:16' },
+      { format: 'youtube', width: 1920, height: 1080, dar: '16:9' },
+    ] as const;
+    for (const { format, width, height, dar } of cases) {
+      const outputPath = path.join(fixtures.dir, 'out', `full-${format}.mp4`);
+      await renderVideo(env, {
+        format,
+        audioPath: fixtures.audio,
+        coverPath: fixtures.wideCover,
+        title: 'Plein format',
+        artist: 'Thomas',
+        duration: 1,
+        outputPath,
+        quality: 'preview',
+      });
+      const video = probe(outputPath).streams.find((s) => s.codec_type === 'video')!;
+      expect(video).toMatchObject({
+        width,
+        height,
+        sample_aspect_ratio: '1:1',
+        display_aspect_ratio: dar,
+      });
+    }
+  }, 120_000);
 
   it('can be cancelled: FFmpeg stops and no file is left', async () => {
     const outputPath = path.join(fixtures.dir, 'out', 'cancelled.mp4');
@@ -189,6 +232,7 @@ describe('renderVideo (real FFmpeg)', () => {
     expect(result).toMatchObject({ width: 1080, height: 1350 });
     const image = probe(outputPath).streams[0]!;
     expect(image).toMatchObject({ codec_name: 'mjpeg', width: 1080, height: 1350 });
+    expect(['1:1', undefined]).toContain(image.sample_aspect_ratio);
   });
 
   it('reports a missing cover clearly', async () => {

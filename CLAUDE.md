@@ -10,7 +10,7 @@ Application de bureau Windows personnelle de Thomas : un **hub** (page d'accueil
 
 **Pour ajouter ou modifier un module : lire `docs/MODULES.md` (le contrat) puis `docs/AJOUTER-UN-MODULE.md`.** Point de départ : copier `modules/_template/`.
 
-Modules actuels (section Musique) : `music-library` (bibliothèque, service `musicLibrary`), `video-engine` (moteur FFmpeg partagé, service `videoEngine`, sans page), `youtube-video` (générateur 16:9), `instagram-video` (pack Insta : 4 Reels 9:16, post 4:5, légende, suivi de publication). Chaque module a son `README.md`.
+Modules actuels (section Musique) : `music-library` (bibliothèque, service `musicLibrary`), `video-engine` (moteur FFmpeg partagé, service `videoEngine`, sans page), `youtube-video` (générateur 16:9), `instagram-video` (pack Insta : 4 Reels 9:16 de styles différents, post 4:5, légende, suivi de publication). Chaque module a son `README.md`.
 
 ## Stack
 
@@ -42,8 +42,8 @@ Sous Linux en root (conteneur) : ajouter `--no-sandbox` à Electron, et `xvfb-ru
 ```
 electron/        process principal : fenêtre, démarrage, preload, HostAdapter Electron, smoke test
 backend/         server.ts (Fastify) · core/ (hub.ts = chargeur de modules et ctx, migrations, sauvegardes,
-                 réglages, tâches, planificateur, événements, services, journaux) · routes/core.ts (/api/core/*)
-frontend/src/    shell React : modules/ (découverte, hôte des pages), shell/ (accueil, tâches, journaux, réglages), styles.css
+                 réglages, tâches, planificateur, événements, services, fichiers générés, journaux) · routes/core.ts (/api/core/*)
+frontend/src/    shell React : modules/ (découverte, hôte des pages), shell/ (accueil, fichiers générés, tâches, journaux, réglages), styles.css
 packages/sdk/    @hub/sdk : backend.ts, frontend.tsx, manifest.ts, testing.ts — seul import autorisé aux modules
 modules/         un dossier par module ; _template/ = module modèle (exemple, chargé à la demande)
 scripts/         dev, build (esbuild + découverte des modules), smoke test, vérification native
@@ -67,7 +67,9 @@ docs/            ARCHITECTURE, MODULES (contrat), AJOUTER-UN-MODULE, ROADMAP, WI
 - Tout appel API passe par `/api/...` avec l'en-tête `x-toolbox-token`. Les routes SSE (EventSource) utilisent un ticket à usage unique (`POST /api/core/stream-tickets`, puis `?ticket=`) et déclarent `streamTicket: true`.
 - Le backend n'importe jamais `electron` : il passe par `HostAdapter`.
 - Données utilisateur uniquement sous `userData`, jamais dans le dossier d'installation.
-- **Données : une migration publiée ne se modifie jamais ; aucune suppression de données hors migration explicite.** Le socle sauvegarde `hub.db` avant chaque migration et restaure en cas d'échec (`docs/MODULES.md` §6).
+- **Tout fichier généré passe par `ctx.outputs` et est supprimable depuis l'interface** (Corbeille, sélection multiple, « Fichier introuvable »). `docs/MODULES.md` §5.13.
+- Vidéos : pixels carrés (`setsar=1`) en fin de chaîne, la cover n'est jamais étirée. Les Reels n'ont pas de spectre (signature des vidéos YouTube).
+- **Données : une migration publiée ne se modifie jamais ; aucune suppression de données hors migration explicite** (ou demande explicite de l'utilisateur dans l'interface, avec confirmation). Le socle sauvegarde `hub.db` avant chaque migration et restaure en cas d'échec (`docs/MODULES.md` §6).
 - Toute modification du contrat de module ou de l'architecture met à jour la doc **dans le même commit**. Nouvelle décision structurante → nouvel ADR.
 - Fin de phase : mettre à jour `docs/ROADMAP.md` et `CHANGELOG.md`, versionnage sémantique (`package.json`).
 

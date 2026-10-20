@@ -3,14 +3,19 @@ import { Link, useSearchParams } from 'react-router';
 import {
   Button,
   Card,
+  confirmDelete,
   EmptyState,
   ErrorMessage,
   errorMessage,
   formatDuration,
+  MissingFile,
+  outputs,
   Page,
+  SelectionBar,
   useApi,
   useJobs,
   useModule,
+  useSelection,
 } from '@hub/sdk/frontend';
 import { CopyButton, ItemTile } from './ItemTile';
 import type { Pack, PackItem, TrackDetail, TrackSummary, WaveformData } from './types';
@@ -127,6 +132,7 @@ function TrackPanel(props: { trackId: number; onChange: () => void }) {
   const [preview, setPreview] = useState<{ id: number; url: string | null } | null>(null);
   const audio = useRef<HTMLAudioElement>(null);
   const seenJobs = useRef(new Set<string>());
+  const selection = useSelection<number>();
 
   const pack = detail.data?.pack ?? null;
   const waveform = useApi<WaveformData>(
@@ -184,6 +190,27 @@ function TrackPanel(props: { trackId: number; onChange: () => void }) {
       await module.api.patch(`/items/${item.id}`, fields);
       refresh();
     });
+  // Deletion and « Retirer de la liste » go through the core registry (ctx.outputs).
+  const changeOutputs = (action: () => Promise<unknown>) =>
+    run(async () => {
+      await action();
+      selection.clear();
+      refresh();
+    });
+  const deleteItems = (items: PackItem[], what: string) => {
+    const ids = items.map((item) => item.outputId).filter((id): id is number => id !== null);
+    if (ids.length && confirmDelete(what)) void changeOutputs(() => outputs.delete(ids));
+  };
+  const deletePack = () => {
+    if (!pack) return;
+    const files = pack.items.filter((item) => item.outputId !== null).length;
+    const what = `le pack de « ${track.title} »${files ? ` et ses ${files} fichier(s)` : ''}`;
+    if (confirmDelete(what)) {
+      void changeOutputs(() => module.api.delete(`/packs/${pack.id}`));
+    }
+  };
+  const missingItems = (pack?.items ?? []).filter((item) => item.state === 'missing');
+
   const itemAction = (item: PackItem, action: 'open' | 'reveal' | 'render') =>
     run(async () => {
       await module.api.post(`/items/${item.id}/${action}`);
@@ -256,6 +283,9 @@ function TrackPanel(props: { trackId: number; onChange: () => void }) {
                 onClick={() => void run(() => module.api.post(`/packs/${pack.id}/open-folder`))}
               >
                 Ouvrir le dossier
+              </Button>
+              <Button variant="danger" onClick={deletePack}>
+                Supprimer le pack
               </Button>
             </div>
           )}
@@ -446,6 +476,36 @@ function TrackPanel(props: { trackId: number; onChange: () => void }) {
             Glisse une vignette vers une autre fenêtre (Instagram dans le navigateur,
             l’Explorateur…) pour y déposer le fichier.
           </p>
+          <SelectionBar
+            total={pack.items.filter((item) => item.outputId !== null).length}
+            count={selection.selected.size}
+            onSelectAll={() =>
+              selection.setAll(pack.items.filter((i) => i.outputId !== null).map((i) => i.id))
+            }
+            onClear={selection.clear}
+            onDelete={() =>
+              deleteItems(
+                pack.items.filter((item) => selection.has(item.id)),
+                `les ${selection.selected.size} fichiers sélectionnés`,
+              )
+            }
+          >
+            {missingItems.length > 0 && (
+              <Button
+                variant="secondary"
+                small
+                onClick={() =>
+                  void changeOutputs(() =>
+                    outputs.forget(
+                      missingItems.map((i) => i.outputId).filter((id): id is number => id !== null),
+                    ),
+                  )
+                }
+              >
+                Nettoyer les éléments introuvables ({missingItems.length})
+              </Button>
+            )}
+          </SelectionBar>
           <div className="iv-tiles">
             {pack.items.map((item) => (
               <ItemTile
@@ -454,7 +514,15 @@ function TrackPanel(props: { trackId: number; onChange: () => void }) {
                 job={jobs.find((job) => job.id === item.jobId) ?? null}
                 onAction={(action) => void itemAction(item, action)}
                 onPublish={(fields) => void patchItem(item, fields)}
+                onUpdate={(fields) => void patchItem(item, fields)}
                 onCancel={(id) => void cancel(id)}
+                selected={selection.has(item.id)}
+                onSelect={() => selection.toggle(item.id)}
+                onDelete={() => deleteItems([item], `« ${item.fileName ?? item.label} »`)}
+                onForget={() =>
+                  item.outputId !== null &&
+                  void changeOutputs(() => outputs.forget([item.outputId!]))
+                }
               />
             ))}
           </div>
@@ -518,17 +586,33 @@ function TrackPanel(props: { trackId: number; onChange: () => void }) {
                   <div className="muted small">
                     {new Date(reel.createdAt).toLocaleString('fr-FR')} · extrait de{' '}
                     {formatDuration(reel.startSec)} ({Math.round(reel.durationSec)} s)
-                    {!reel.exists && ' · fichier déplacé ou supprimé'}
                   </div>
                 </div>
-                {reel.exists && (
-                  <Button
-                    variant="secondary"
-                    small
-                    onClick={() => void run(() => module.api.post(`/reels/${reel.id}/reveal`))}
-                  >
-                    Ouvrir le dossier
-                  </Button>
+                {reel.exists ? (
+                  <span className="inline-form">
+                    <Button
+                      variant="secondary"
+                      small
+                      onClick={() => void run(() => module.api.post(`/reels/${reel.id}/reveal`))}
+                    >
+                      Ouvrir le dossier
+                    </Button>
+                    <Button
+                      variant="danger"
+                      small
+                      onClick={() => {
+                        if (confirmDelete(`« ${reel.fileName} »`)) {
+                          void changeOutputs(() => outputs.delete([reel.outputId]));
+                        }
+                      }}
+                    >
+                      Supprimer
+                    </Button>
+                  </span>
+                ) : (
+                  <MissingFile
+                    onForget={() => void changeOutputs(() => outputs.forget([reel.outputId]))}
+                  />
                 )}
               </li>
             ))}

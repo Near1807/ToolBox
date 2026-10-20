@@ -2,9 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import {
   Card,
+  confirmDelete,
   EmptyState,
   ErrorMessage,
   errorMessage,
+  outputs,
   Page,
   useApi,
   useJobs,
@@ -91,6 +93,11 @@ export function ToPublishPage() {
                   onPublish={(fields) =>
                     void run(() => module.api.patch(`/items/${item.id}`, fields))
                   }
+                  onDelete={() => {
+                    if (item.outputId !== null && confirmDelete(`« ${item.fileName} »`)) {
+                      void run(() => outputs.delete([item.outputId!]));
+                    }
+                  }}
                 />
                 <CopyButton text={item.caption} label="Copier la légende" />
               </div>

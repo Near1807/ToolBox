@@ -53,7 +53,10 @@ export interface TrackInfoProvider {
 export interface MusicLibraryService {
   listTracks(): Track[];
   getTrack(id: number): Track | null;
-  /** Records a file generated from a track; it is listed on the track page. */
+  /**
+   * @deprecated Since v0.7 generated files go through ctx.outputs with the subject
+   * `music-library:track:<id>`: the track page lists them from there. Kept for compatibility.
+   */
   recordOutput(
     trackId: number,
     output: { moduleId: string; kind: string; label: string; filePath: string },
