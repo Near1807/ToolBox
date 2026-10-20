@@ -8,6 +8,7 @@ import { generateToken } from '../backend/core/security';
 import { startServer, type RunningServer } from '../backend/server';
 import { createElectronHost } from './host';
 import { runSmokeTest } from './smoke-test';
+import { attachWindowControls, startsFullscreen, applyDarkWindowChrome } from './window-controls';
 
 const devServerUrl = process.env.VITE_DEV_SERVER_URL;
 const isDev = !app.isPackaged && Boolean(devServerUrl);
@@ -65,6 +66,7 @@ function createWindow(appUrl: string): BrowserWindow {
     backgroundColor: '#0f1115',
     show: false,
     autoHideMenuBar: true,
+    fullscreen: !smokeTestFile && startsFullscreen(),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -73,6 +75,7 @@ function createWindow(appUrl: string): BrowserWindow {
     },
   });
 
+  attachWindowControls(window);
   window.once('ready-to-show', () => {
     if (!smokeTestFile) window.show();
   });
@@ -91,6 +94,7 @@ function createWindow(appUrl: string): BrowserWindow {
 }
 
 async function bootstrap(): Promise<void> {
+  applyDarkWindowChrome();
   server = await startServer({
     dataDir: app.getPath('userData'),
     token,

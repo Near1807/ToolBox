@@ -41,7 +41,7 @@ Sous Linux en root (conteneur) : ajouter `--no-sandbox` à Electron, et `xvfb-ru
 ## Structure
 
 ```
-electron/        process principal : fenêtre, démarrage, preload, HostAdapter Electron, smoke test
+electron/        process principal : fenêtre (plein écran, barre sombre), démarrage, preload, HostAdapter Electron, smoke test
 backend/         server.ts (Fastify) · core/ (hub.ts = chargeur de modules et ctx, migrations, sauvegardes,
                  réglages, tâches, planificateur, événements, services, fichiers générés, journaux) · routes/core.ts (/api/core/*)
 frontend/src/    shell React : modules/ (découverte, hôte des pages), shell/ (accueil, fichiers générés, tâches, journaux, réglages), styles.css

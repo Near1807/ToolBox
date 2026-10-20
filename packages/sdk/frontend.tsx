@@ -53,6 +53,14 @@ declare global {
       token: string;
       getPathForFile?: (file: File) => string;
       startDrag?: (mediaUrl: string) => void;
+      /** Desktop window buttons (absent in a browser). */
+      window?: {
+        isFullscreen: () => Promise<boolean>;
+        onFullscreenChange: (listener: (fullscreen: boolean) => void) => () => void;
+        toggleFullscreen: () => void;
+        minimize: () => void;
+        close: () => void;
+      };
     };
   }
 }

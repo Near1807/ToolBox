@@ -1,8 +1,10 @@
 import { NavLink, Outlet } from 'react-router';
 import { groupBySection, hasMainPage, useModules } from '../modules/ModulesContext';
+import { FullscreenButton, useFullscreen, WindowButtons } from './WindowControls';
 
 export function Layout() {
   const { modules } = useModules();
+  const fullscreen = useFullscreen();
   const sections = groupBySection(
     modules.filter((m) => hasMainPage(m) && !m.frontend?.nav?.hidden),
   );
@@ -38,10 +40,12 @@ export function Layout() {
         <NavLink to="/settings" className="nav-link">
           Réglages
         </NavLink>
+        <FullscreenButton fullscreen={fullscreen} />
       </nav>
       <main className="content">
         <Outlet />
       </main>
+      <WindowButtons fullscreen={fullscreen} />
     </div>
   );
 }

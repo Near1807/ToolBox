@@ -4,6 +4,16 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.10.0] — 2026-10-20
+
+### Ajouté
+
+- **Plein écran** : F11 ou bouton « Plein écran » en bas de la barre latérale. En plein écran, l'app affiche ses propres boutons en haut à droite (réduire, quitter le plein écran, fermer) ; le choix est retenu au prochain lancement.
+
+### Modifié
+
+- La barre de titre Windows est sombre, assortie à l'app (elle était blanche).
+
 ## [0.9.0] — 2026-10-20
 
 Reels en rythme : un mouvement hors rythme est pire que pas de mouvement.

@@ -151,7 +151,15 @@ Un ticket ne vaut donc que pour ouvrir un flux, et ne peut être ni rejoué ni u
 
 ### Ce que le preload expose
 
-L'interface n'a accès qu'à trois choses hors de l'API REST (`electron/preload.ts`) : le jeton de session, le chemin réel d'un fichier glissé **dans** la fenêtre (`webUtils.getPathForFile`), et le glisser d'un fichier **hors** de la fenêtre (`startDrag`). Ce dernier ne reçoit qu'une URL de média signée : le process principal en vérifie la signature (`hub.media.resolve`) avant d'appeler `webContents.startDrag`, si bien qu'une page ne peut pas faire glisser un fichier arbitraire.
+L'interface n'a accès qu'à quatre choses hors de l'API REST (`electron/preload.ts`) : le jeton de session, le chemin réel d'un fichier glissé **dans** la fenêtre (`webUtils.getPathForFile`), le glisser d'un fichier **hors** de la fenêtre (`startDrag`), et les boutons de la fenêtre (`window` : plein écran, réduire, fermer). Ce dernier ne reçoit qu'une URL de média signée : le process principal en vérifie la signature (`hub.media.resolve`) avant d'appeler `webContents.startDrag`, si bien qu'une page ne peut pas faire glisser un fichier arbitraire.
+
+### Fenêtre et plein écran
+
+La barre de titre native suit le thème sombre de l'app (`nativeTheme.themeSource = 'dark'`) : elle n'est plus blanche sous Windows.
+
+On passe en plein écran avec **F11** (géré par le process principal) ou avec le bouton « Plein écran » en bas de la barre latérale. En plein écran, il n'y a plus de barre de titre : l'interface dessine en haut à droite ses propres boutons (réduire, quitter le plein écran, fermer).
+
+Le choix est retenu d'un lancement à l'autre (`<userData>/window-state.json`). Le code est dans `electron/window-controls.ts` (process principal) et `frontend/src/shell/WindowControls.tsx` (interface). Dans un navigateur (dev), ces boutons n'apparaissent pas.
 
 ### Fichiers multimédias : URL signées
 

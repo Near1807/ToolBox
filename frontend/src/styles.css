@@ -120,6 +120,65 @@ code {
   box-shadow: inset 3px 0 0 var(--accent);
 }
 
+.nav-link--button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  border: none;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.nav-link__key {
+  font-family: inherit;
+  font-size: 0.75em;
+  padding: 0 5px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-muted);
+}
+
+/* Window buttons drawn by the app in full screen (no native title bar there). */
+.window-buttons {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 1000;
+  display: flex;
+}
+
+.window-buttons button {
+  width: 46px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.window-buttons button:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.window-buttons .window-buttons__close:hover {
+  background: #c42b1c;
+  color: #fff;
+}
+
+.window-buttons svg {
+  width: 10px;
+  height: 10px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.1;
+}
+
 .content {
   flex: 1;
   overflow-y: auto;
