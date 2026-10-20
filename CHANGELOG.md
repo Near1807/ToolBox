@@ -4,6 +4,21 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.11.1] — 2026-10-20
+
+### Ajouté
+
+- **Site public** (GitHub Pages, dossier `site/`, déployé depuis `hub-v1`) : page d'accueil et politique de confidentialité FR/EN de ToolBox, exigées par Google pour passer l'écran de consentement OAuth en Production. <https://near1807.github.io/ToolBox/>.
+- Aide « Compte Google » et README du Planning de sortie : marche à suivre complète dans la console Google (Branding avec ces URL, passage en Production sans validation, écran « application non validée »).
+
+### Modifié
+
+- **Autorisation Google expirée ou retirée** (ex. 7 jours en mode « Test ») :
+  - bandeau « Compte Google à reconnecter » avec bouton **Reconnecter**, et alerte sur le widget de l'accueil ;
+  - une notification Windows par expiration ;
+  - les envois restent **en attente** (au lieu d'échouer) et repartent après la reconnexion. L'expiration est détectée aussi sans vidéo à vérifier (contrôle toutes les 30 min).
+- Google injoignable après les nouvelles tentatives : l'envoi est retenté 15 min plus tard au lieu d'échouer.
+
 ## [0.11.0] — 2026-10-20
 
 Planning de sortie : YouTube programmé à l'avance, Instagram avec rappels.

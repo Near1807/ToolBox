@@ -60,9 +60,54 @@ Le calendrier de sortie de chaque morceau, tous morceaux confondus.
    - Une nouvelle vidéo YouTube générée remplace automatiquement celle qui a disparu.
 10. **Retirer** un élément ou un morceau du planning ne supprime jamais une vidéo déjà en ligne sans choix explicite : « Retirer du planning seulement » ou « Supprimer aussi sur YouTube » (confirmé).
 
+## Mise en place du compte Google (une seule fois)
+
+Google exige une page d'accueil et une politique de confidentialité publiques pour passer l'écran de consentement en Production. Elles sont publiées par GitHub Pages depuis ce dépôt (dossier `site/`, workflow `.github/workflows/pages.yml`, branche `hub-v1`) :
+
+- Page d'accueil : <https://near1807.github.io/ToolBox/>
+- Confidentialité : <https://near1807.github.io/ToolBox/privacy.html>
+
+**Activer GitHub Pages** (une fois, dans le dépôt GitHub) :
+
+1. Settings › **Pages** › Build and deployment › Source : **GitHub Actions**.
+2. Settings › **Environments** › `github-pages` › Deployment branches and tags › « Add deployment branch or tag rule » › `hub-v1`. Par défaut, seul `main` peut déployer.
+3. Actions › « Site (GitHub Pages) » › relancer le dernier run, ou pousser un changement de `site/`. Les pages répondent ensuite aux adresses ci-dessus.
+
+**Console Google Cloud** (<https://console.cloud.google.com>, connecté avec le compte de ta chaîne) :
+
+1. **Projet** : « Nouveau projet », nom « ToolBox ».
+2. **API** : API et services › Bibliothèque › « YouTube Data API v3 » › **Activer**.
+3. **Google Auth Platform › Branding** :
+   - Nom de l'application : « ToolBox ». E-mail d'assistance : ton adresse.
+   - Logo : **aucun** (un logo déclenche une validation par Google).
+   - Page d'accueil de l'application : `https://near1807.github.io/ToolBox/`.
+   - Lien vers les règles de confidentialité : `https://near1807.github.io/ToolBox/privacy.html`.
+   - Conditions d'utilisation : vide.
+   - Domaines autorisés : `near1807.github.io`. Coordonnées du développeur : ton e-mail.
+   - « Enregistrer ».
+4. **Audience** :
+   - Type d'utilisateur : **Externe**.
+   - Puis **« Publier l'application »** › « Confirmer » : statut **En production**.
+   - **Ne pas soumettre à la validation** (« Préparer la validation » / « Valider l'application ») : inutile pour un usage personnel. L'app reste « non validée » : 100 utilisateurs au plus et un avertissement à la connexion.
+5. **Accès aux données** : n'ajoute aucun champ d'application. ToolBox demande `youtube` à la connexion ; en déclarer un champ sensible ici pousse vers la validation.
+6. **Clients** : « Créer un client » › type **Application de bureau** › nom « ToolBox ». Copie l'**ID client** et le **code secret** dans ToolBox (onglet « Compte Google », ou Réglages › Comptes connectés).
+7. **Connexion** depuis ToolBox : « Connecter mon compte Google ».
+   - Dans le navigateur, choisis le compte de ta chaîne.
+   - À l'écran **« Google n'a pas validé cette application »** : « Paramètres avancés » › **« Accéder à ToolBox (non sécurisé) »**. C'est normal : c'est ton propre projet.
+   - Coche l'autorisation YouTube si elle est proposée, puis « Continuer ».
+   - ToolBox affiche « Connecté » et le nom de la chaîne.
+
+**Si l'autorisation expire ou est retirée**, par exemple au bout de 7 jours si l'app est restée en mode « Test » :
+
+- bandeau rouge « Compte Google à reconnecter » avec un bouton **Reconnecter** dans le planning, et alerte sur le widget de l'accueil ;
+- une notification Windows, une seule par expiration ;
+- les envois ne partent pas en erreur : ils restent **en attente** et repartent seuls après la reconnexion.
+
+Si Google est injoignable (réseau coupé), l'envoi est retenté 15 minutes plus tard.
+
 ## Premier essai (vidéo de test en privé)
 
-1. **Google Cloud** : suis l'onglet « Compte Google » du module, étapes 1 à 4. Écran de consentement en **Production**, identifiant de type **Application de bureau**.
+1. **Google Cloud** : fais la mise en place ci-dessus (ou suis l'onglet « Compte Google » du module, mêmes étapes).
 2. **Identifiants** : colle l'ID client et le code secret, puis « Enregistrer les identifiants ».
 3. **Connexion** : « Connecter mon compte Google ». Dans le navigateur, choisis le compte de ta chaîne. À l'écran « Google n'a pas validé cette application », clique « Paramètres avancés » › « Accéder à ToolBox », puis « Autoriser ». ToolBox doit afficher « Connecté » et le nom de ta chaîne.
 4. **Plan de test** : prends un morceau qui a déjà une vidéo YouTube générée. « Planifier un morceau », J = **après-demain**, heure = maintenant + quelques heures, « Valider le plan ».

@@ -514,26 +514,55 @@ describe('release-planner (mock YouTube)', () => {
     );
   });
 
-  it('asks to reconnect when the authorization was revoked', async () => {
+  it('keeps uploads waiting when the authorization expires (7 days in « Test » mode)', async () => {
+    // Expired on Google's side, not yet noticed by the app: the upload discovers it.
+    hub.hub.handle.db.prepare('DELETE FROM release_planner__quota').run(); // new quota day
     google.expireToken();
     google.refreshInvalid = true;
-    const failed = await hub.request<{ error: string; account: string }>(
-      'POST',
-      `${API}/check-now`,
+    const before = notifications.length;
+    const video = second.items.find((i) => i.kind === 'youtube')!;
+    const queued = await hub.request('POST', `${API}/items/${video.id}/upload`);
+    expect(queued.status).toBe(200);
+    second = await waitFor(
+      () => release(second.id),
+      (r) => {
+        const item = r.items.find((i) => i.kind === 'youtube')!;
+        return item.state === 'queued' && Boolean(item.warning);
+      },
     );
-    expect(failed.status).toBe(409);
-    expect(failed.body.account).toBe('reauth-required');
+    const waiting = second.items.find((i) => i.kind === 'youtube')!;
+    expect(waiting.warning).toContain('Reconnecte le compte');
+    expect(waiting.error).toBeNull();
+    // Clearly shown, and one notification (not one per attempt).
     const account = await hub.request<{ status: { needsReconnect: boolean } }>(
       'GET',
       `${API}/account`,
     );
     expect(account.body.status.needsReconnect).toBe(true);
-    const upload = await hub.request<{ error: string }>(
-      'POST',
-      `${API}/items/${second.items[0]!.id}/upload`,
+    const today = await hub.request<{ account: { needsReconnect: boolean } }>(
+      'GET',
+      `${API}/today`,
     );
-    expect(upload.status).toBe(409);
-    expect(upload.body.error).toContain('reconnecté');
+    expect(today.body.account.needsReconnect).toBe(true);
+    const sent = notifications.slice(before);
+    expect(sent).toEqual([
+      expect.objectContaining({
+        title: 'Compte Google à reconnecter',
+        target: '/m/release-planner/?tab=compte',
+      }),
+    ]);
+    // Nothing is checked on YouTube until reconnection (no error loop, no new notification).
+    const checked = await hub.request<{ checked: number }>('POST', `${API}/check-now`);
+    expect(checked.body).toEqual({ checked: 0 });
+    expect(notifications.length).toBe(before + 1);
+    // New uploads wait too, instead of failing.
+    const short = second.items.find((i) => i.label === 'Short 1')!;
+    const more = await hub.request('POST', `${API}/items/${short.id}/upload`);
+    expect(more.status).toBe(200);
+    const after = await release(second.id);
+    expect(after.items.find((i) => i.id === short.id)).toMatchObject({ state: 'queued' });
+    expect(after.items.find((i) => i.id === short.id)!.warning).toContain('Reconnecte');
+    await hub.request('POST', `${API}/items/${short.id}/cancel`);
     google.refreshInvalid = false;
   });
 
