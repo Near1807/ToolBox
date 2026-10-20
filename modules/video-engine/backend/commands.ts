@@ -541,8 +541,17 @@ export function buildFramesEncodeArgs(params: {
   ];
 }
 
+/** A still image (post, thumbnail): background, card of the cover, title and artist. */
+export interface StillSpec {
+  width: number;
+  height: number;
+  blur: number;
+  cover: Omit<Layout['cover'], never>;
+  text: TextLayout;
+}
+
 /** Still image 4:5 for an Instagram post, in the same style as the videos. */
-export const POST_SPEC = {
+export const POST_SPEC: StillSpec = {
   width: 1080,
   height: 1350,
   blur: 90,
@@ -550,18 +559,37 @@ export const POST_SPEC = {
   text: {
     title: { top: 1030, fontSize: 60, minFontSize: 32, maxWidth: 940 },
     artist: { top: 1112, fontSize: 40 },
-  } satisfies TextLayout,
+  },
 };
 
-/** Composes the post image (background + card + text) into a high-quality JPEG. */
-export function buildPostArgs(files: {
-  background: string;
-  card: string;
-  ass: string;
-  fontsDir: string;
-  output: string;
-}): string[] {
-  const { cover } = POST_SPEC;
+/**
+ * YouTube thumbnail 16:9 (1280×720, the recommended size; JPEG well under the
+ * 2 MB limit): the first image of the video without the spectrum, with a
+ * larger title since it is seen small.
+ */
+export const THUMBNAIL_SPEC: StillSpec = {
+  width: 1280,
+  height: 720,
+  blur: 60,
+  cover: { size: 400, centerY: 285, radius: 22, shadowPad: 46, shadowOffset: 10 },
+  text: {
+    title: { top: 518, fontSize: 56, minFontSize: 30, maxWidth: 1120 },
+    artist: { top: 590, fontSize: 36 },
+  },
+};
+
+/** Composes a still image (background + card + text) into a high-quality JPEG. */
+export function buildPostArgs(
+  files: {
+    background: string;
+    card: string;
+    ass: string;
+    fontsDir: string;
+    output: string;
+  },
+  spec: StillSpec = POST_SPEC,
+): string[] {
+  const { cover } = spec;
   return [
     '-v',
     'error',

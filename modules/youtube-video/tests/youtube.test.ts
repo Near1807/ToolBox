@@ -5,10 +5,44 @@ import path from 'node:path';
 import ffmpegPath from 'ffmpeg-static';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { JobInfo } from '@hub/sdk/backend';
-import { createTestHost, createTestHub, loadModuleFolder, type TestHub } from '@hub/sdk/testing';
+import {
+  createTestHost,
+  createTestHub,
+  loadModuleFolder,
+  type DiscoveredModule,
+  type TestHub,
+} from '@hub/sdk/testing';
+import type { YouTubeVideoService } from '../contract';
 
 const MODULES = path.resolve(import.meta.dirname, '../..');
 const API = '/api/modules/youtube-video';
+
+/** Another module using the youtubeVideo service (like the release planner). */
+const consumer: DiscoveredModule = {
+  folder: 'consumer',
+  manifest: {
+    id: 'consumer',
+    name: 'Consumer',
+    description: 'test',
+    version: '1.0.0',
+    section: 'Tests',
+    icon: '🧪',
+    dependsOn: { modules: ['youtube-video'], services: ['youtubeVideo'] },
+  },
+  backend: {
+    register(ctx) {
+      const videos = ctx.services.get<YouTubeVideoService>('youtubeVideo');
+      ctx.routes.get('/tracks/:id', (request) => {
+        const id = Number((request.params as { id: string }).id);
+        return { videos: videos.listVideos(id), texts: videos.texts(id) };
+      });
+      ctx.routes.post('/videos/:id/uploaded', (request) => {
+        videos.setUploaded(Number((request.params as { id: string }).id), 'abc123');
+        return { ok: true };
+      });
+    },
+  },
+};
 
 describe('youtube-video', () => {
   let hub: TestHub;
@@ -36,7 +70,7 @@ describe('youtube-video', () => {
         ['music-library', 'video-engine', 'youtube-video'].map((m) =>
           loadModuleFolder(path.join(MODULES, m)),
         ),
-      ),
+      ).then((modules) => [...modules, consumer]),
       host: createTestHost({ getDefaultOutputRoot: () => outputRoot }),
     });
     const add = (body: object) =>
@@ -128,6 +162,22 @@ describe('youtube-video', () => {
       `${API}/tracks/${trackId}`,
     );
     expect(detail.videos).toHaveLength(1);
+  });
+
+  it('shares its videos with other modules (service youtubeVideo)', async () => {
+    const shared = await hub.request<{
+      videos: { id: number; exists: boolean; youtubeVideoId: string | null }[];
+      texts: { videoTitle: string; tags: string[] };
+    }>('GET', `/api/modules/consumer/tracks/${trackId}`);
+    expect(shared.body.videos).toHaveLength(1);
+    expect(shared.body.videos[0]).toMatchObject({ exists: true, youtubeVideoId: null });
+    expect(shared.body.texts).toMatchObject({ videoTitle: 'Thomas - Night Drive', tags: ['lofi'] });
+    await hub.request('POST', `/api/modules/consumer/videos/${shared.body.videos[0]!.id}/uploaded`);
+    const { body } = await hub.request<{ videos: { youtubeUrl: string | null }[] }>(
+      'GET',
+      `${API}/tracks/${trackId}`,
+    );
+    expect(body.videos[0]!.youtubeUrl).toBe('https://www.youtube.com/watch?v=abc123');
   });
 
   it('shows a video deleted outside the app as missing, and deletes from the app', async () => {

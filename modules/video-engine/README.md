@@ -55,6 +55,10 @@ Pour chaque attaque de basse, on mesure l'écart entre l'attaque et l'image où 
 
 Aucun écart ne dépasse une image. Les écarts négatifs viennent de la règle de la tranche : un coup qui tombe dans les dernières millisecondes d'une image fait grossir la cover dès cette image. Un test automatique (`tests/audio-analysis.test.ts`) vérifie la même chose sur des coups de synthèse irréguliers, un passage calme et un extrait sans basses.
 
+## Miniature YouTube (16:9)
+
+`renderThumbnail()` compose une image **1280×720** (JPEG haute qualité, bien sous la limite de 2 Mo de YouTube) : même fond flouté, cover entière arrondie avec ombre (boîte de 400 px), titre plus grand (vu en petit) et artiste. Pas de spectre. Utilisée par le Planning de sortie pour la vidéo longue.
+
 ## Post image (4:5)
 
 `renderPost()` compose une image **1080×1350** (JPEG haute qualité) : même fond, cover entière arrondie avec ombre (700 px), titre, artiste. Rien d'autre.
@@ -81,12 +85,12 @@ Les rendus complets passent **un par un** (file d'attente interne : « En attent
 
 ## Données
 
-| Élément        | Détail                                                                                                                                                                                |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Tables         | aucune                                                                                                                                                                                |
-| Fichiers       | `<userData>/modules/video-engine/work/` (temporaire, vidé au démarrage) · `previews/` (6 derniers aperçus)                                                                            |
-| Assets         | `assets/fonts/Montserrat-SemiBold.ttf` (libass et canvas)                                                                                                                             |
-| Service fourni | `videoEngine` (types dans [`contract.ts`](contract.ts)) : `formats`, `render(request, { signal, onProgress })`, `preview(request)`, `renderPost(request)`, `probeDuration(audioPath)` |
+| Élément        | Détail                                                                                                                                                                                                                                                                   |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Tables         | aucune                                                                                                                                                                                                                                                                   |
+| Fichiers       | `<userData>/modules/video-engine/work/` (temporaire, vidé au démarrage) · `previews/` (6 derniers aperçus)                                                                                                                                                               |
+| Assets         | `assets/fonts/Montserrat-SemiBold.ttf` (libass et canvas)                                                                                                                                                                                                                |
+| Service fourni | `videoEngine` (types dans [`contract.ts`](contract.ts)) : `formats`, `render(request, { signal, onProgress })`, `preview(request)`, `renderPost(request)`, `renderThumbnail(request)` (miniature YouTube 1280×720, même style, sans spectre), `probeDuration(audioPath)` |
 
 ## Dépendances
 

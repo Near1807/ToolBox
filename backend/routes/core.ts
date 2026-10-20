@@ -1,6 +1,6 @@
 import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
-import { openEventStream, type JobInfo } from '../../packages/sdk/backend';
+import { AccountError, openEventStream, type JobInfo } from '../../packages/sdk/backend';
 import { listAutomaticBackups } from '../core/backups';
 import { getSqliteVersion } from '../core/database';
 import { exportBackupZip } from '../core/export';
@@ -65,6 +65,37 @@ export function registerCoreRoutes(app: FastifyInstance, hub: Hub, appVersion: s
       }
       hub.setModuleEnabled(id, request.body.enabled, 'Désactivé dans les réglages');
       return { ok: true, restartRequired: true };
+    },
+  );
+
+  // Connected accounts (ctx.accounts) ------------------------------------
+
+  app.get('/api/core/accounts', async () => hub.accounts.describe());
+
+  // Reconnect with the scopes already granted (e.g. after an expired authorization).
+  app.post<{ Params: { provider: string } }>(
+    '/api/core/accounts/:provider/reconnect',
+    async (request, reply) => {
+      try {
+        const status = hub.accounts.status(request.params.provider);
+        return await hub.accounts.connect(request.params.provider, status.scopes);
+      } catch (error) {
+        if (error instanceof AccountError) return reply.code(400).send({ error: error.message });
+        throw error;
+      }
+    },
+  );
+
+  app.delete<{ Params: { provider: string } }>(
+    '/api/core/accounts/:provider',
+    async (request, reply) => {
+      try {
+        await hub.accounts.disconnect(request.params.provider);
+        return { ok: true };
+      } catch (error) {
+        if (error instanceof AccountError) return reply.code(400).send({ error: error.message });
+        throw error;
+      }
     },
   );
 

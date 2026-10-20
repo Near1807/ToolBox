@@ -1,10 +1,14 @@
-import { NavLink, Outlet } from 'react-router';
+import { useEffect } from 'react';
+import { NavLink, Outlet, useNavigate } from 'react-router';
 import { groupBySection, hasMainPage, useModules } from '../modules/ModulesContext';
 import { FullscreenButton, useFullscreen, WindowButtons } from './WindowControls';
 
 export function Layout() {
   const { modules } = useModules();
   const fullscreen = useFullscreen();
+  const navigate = useNavigate();
+  // A desktop notification was clicked: open the page it points to.
+  useEffect(() => window.toolbox?.onNavigate?.((target) => void navigate(target)), [navigate]);
   const sections = groupBySection(
     modules.filter((m) => hasMainPage(m) && !m.frontend?.nav?.hidden),
   );

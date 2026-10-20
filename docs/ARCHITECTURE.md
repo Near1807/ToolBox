@@ -51,6 +51,8 @@ Le socle (`electron/`, `backend/`, `frontend/`, `packages/sdk/`) est **génériq
 | `backend/core/events.ts`, `services.ts`    | Bus d'événements et registre de services entre modules                                             |
 | `backend/core/logger.ts`                   | Journaux JSON lines dans `userData/logs/` (fichiers : ils survivent à une restauration de la base) |
 | `backend/core/export.ts`                   | Export d'une sauvegarde complète en `.zip`                                                         |
+| `backend/core/accounts.ts`                 | Comptes connectés (`ctx.accounts`) : OAuth installé (boucle locale + PKCE), jetons chiffrés        |
+| `backend/core/notifications.ts`            | Notifications Windows des modules (`ctx.notifications`)                                            |
 | `backend/routes/core.ts`                   | API générique `/api/core/*`                                                                        |
 
 ### Séquence de démarrage
@@ -81,23 +83,24 @@ Les migrations de **tous** les modules passent avant le premier `register()` : r
 
 ### API du socle
 
-| Route                                                                                            | Rôle                                                                 |
-| ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------- |
-| `GET /api/health`                                                                                | Vivacité (sans jeton)                                                |
-| `GET /api/core/system`                                                                           | Versions (app, SQLite, FFmpeg), dossier de données                   |
-| `GET /api/core/modules` · `PUT /api/core/modules/:id/enabled`                                    | État des modules ; activer/désactiver (au redémarrage)               |
-| `POST /api/core/restart`                                                                         | Redémarre l'app                                                      |
-| `GET /api/core/settings` · `PUT /api/core/settings/:scope`                                       | Réglages (schéma + valeurs, secrets masqués) ; enregistrement validé |
-| `POST /api/core/dialogs/select-folder` · `POST /api/core/dialogs/select-files`                   | Sélecteurs natifs de dossier et de fichiers                          |
-| `GET /api/media/:jeton/:nom`                                                                     | Fichier multimédia par URL signée (sans jeton de session)            |
-| `GET /api/core/jobs` · `POST /api/core/jobs/:id/cancel` · `GET /api/core/jobs/stream` (SSE)      | Tâches longues                                                       |
-| `GET /api/core/logs`                                                                             | Journaux filtrés                                                     |
-| `GET /api/core/outputs` (`?module=`, `?subject=`, `?missing=1`)                                  | Fichiers générés de tous les modules, vérifiés sur le disque         |
-| `POST /api/core/outputs/delete` · `/forget` (`{ ids }`) · `/clean-missing`                       | Corbeille / retirer de la liste / oublier les introuvables           |
-| `POST /api/core/outputs/:id/open` · `/:id/reveal`                                                | Ouvrir un fichier généré / le montrer dans l'Explorateur             |
-| `GET /api/core/backups` · `POST /api/core/backups/export` · `POST /api/core/backups/open-folder` | Sauvegardes                                                          |
-| `POST /api/core/stream-tickets`                                                                  | Ticket à usage unique pour un flux SSE                               |
-| `POST /api/core/open-data-dir`                                                                   | Ouvre le dossier de données                                          |
+| Route                                                                                            | Rôle                                                                                  |
+| ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| `GET /api/health`                                                                                | Vivacité (sans jeton)                                                                 |
+| `GET /api/core/system`                                                                           | Versions (app, SQLite, FFmpeg), dossier de données                                    |
+| `GET /api/core/modules` · `PUT /api/core/modules/:id/enabled`                                    | État des modules ; activer/désactiver (au redémarrage)                                |
+| `POST /api/core/restart`                                                                         | Redémarre l'app                                                                       |
+| `GET /api/core/settings` · `PUT /api/core/settings/:scope`                                       | Réglages (schéma + valeurs, secrets masqués) ; enregistrement validé                  |
+| `POST /api/core/dialogs/select-folder` · `POST /api/core/dialogs/select-files`                   | Sélecteurs natifs de dossier et de fichiers                                           |
+| `GET /api/media/:jeton/:nom`                                                                     | Fichier multimédia par URL signée (sans jeton de session)                             |
+| `GET /api/core/jobs` · `POST /api/core/jobs/:id/cancel` · `GET /api/core/jobs/stream` (SSE)      | Tâches longues                                                                        |
+| `GET /api/core/logs`                                                                             | Journaux filtrés                                                                      |
+| `GET /api/core/outputs` (`?module=`, `?subject=`, `?missing=1`)                                  | Fichiers générés de tous les modules, vérifiés sur le disque                          |
+| `POST /api/core/outputs/delete` · `/forget` (`{ ids }`) · `/clean-missing`                       | Corbeille / retirer de la liste / oublier les introuvables                            |
+| `POST /api/core/outputs/:id/open` · `/:id/reveal`                                                | Ouvrir un fichier généré / le montrer dans l'Explorateur                              |
+| `GET /api/core/backups` · `POST /api/core/backups/export` · `POST /api/core/backups/open-folder` | Sauvegardes                                                                           |
+| `POST /api/core/stream-tickets`                                                                  | Ticket à usage unique pour un flux SSE                                                |
+| `POST /api/core/open-data-dir`                                                                   | Ouvre le dossier de données                                                           |
+| `GET /api/core/accounts` · `POST /api/core/accounts/:provider/reconnect` · `DELETE …/:provider`  | Comptes connectés : état, reconnexion (mêmes autorisations), déconnexion (révocation) |
 
 ## Pourquoi le backend tourne dans le process principal
 
@@ -151,7 +154,15 @@ Un ticket ne vaut donc que pour ouvrir un flux, et ne peut être ni rejoué ni u
 
 ### Ce que le preload expose
 
-L'interface n'a accès qu'à quatre choses hors de l'API REST (`electron/preload.ts`) : le jeton de session, le chemin réel d'un fichier glissé **dans** la fenêtre (`webUtils.getPathForFile`), le glisser d'un fichier **hors** de la fenêtre (`startDrag`), et les boutons de la fenêtre (`window` : plein écran, réduire, fermer). Ce dernier ne reçoit qu'une URL de média signée : le process principal en vérifie la signature (`hub.media.resolve`) avant d'appeler `webContents.startDrag`, si bien qu'une page ne peut pas faire glisser un fichier arbitraire.
+L'interface n'a accès qu'à cinq choses hors de l'API REST (`electron/preload.ts`) :
+
+- le jeton de session ;
+- le chemin réel d'un fichier glissé **dans** la fenêtre (`webUtils.getPathForFile`) ;
+- le glisser d'un fichier **hors** de la fenêtre (`startDrag`) ;
+- les boutons de la fenêtre (`window` : plein écran, réduire, fermer) ;
+- la page à ouvrir quand on clique une notification (`onNavigate`, une route de l'interface uniquement).
+
+Le glisser hors de la fenêtre Ce dernier ne reçoit qu'une URL de média signée : le process principal en vérifie la signature (`hub.media.resolve`) avant d'appeler `webContents.startDrag`, si bien qu'une page ne peut pas faire glisser un fichier arbitraire.
 
 ### Fenêtre et plein écran
 
@@ -160,6 +171,47 @@ La barre de titre native suit le thème sombre de l'app (`nativeTheme.themeSourc
 On passe en plein écran avec **F11** (géré par le process principal) ou avec le bouton « Plein écran » en bas de la barre latérale. En plein écran, il n'y a plus de barre de titre : l'interface dessine en haut à droite ses propres boutons (réduire, quitter le plein écran, fermer).
 
 Le choix est retenu d'un lancement à l'autre (`<userData>/window-state.json`). Le code est dans `electron/window-controls.ts` (process principal) et `frontend/src/shell/WindowControls.tsx` (interface). Dans un navigateur (dev), ces boutons n'apparaissent pas.
+
+### Zone de notification, démarrage avec Windows, notifications
+
+`electron/desktop.ts` (ADR 0019) :
+
+- **Réglage du socle « Lancer ToolBox au démarrage de Windows »** (Général, désactivé par défaut).
+  - Il inscrit l'app au démarrage de la session (`app.setLoginItemSettings`, argument `--hidden`), uniquement dans l'app installée.
+  - L'app démarre alors sans fenêtre, avec une **icône dans la zone de notification** (Ouvrir / Quitter).
+  - Tant que l'option est active, fermer la fenêtre (croix Windows ou celle de l'app) la **réduit dans la zone** : les rappels et les tâches planifiées continuent. « Quitter » dans le menu de l'icône ferme vraiment l'app.
+  - Le backend applique le réglage via `HostAdapter.setLaunchAtStartup`, au démarrage et à chaque modification.
+- **`ctx.notifications.notify({ title, body, path })`** passe par `HostAdapter.notify`, une notification Windows (`Notification` d'Electron).
+  - Un clic remet la fenêtre au premier plan et ouvre `/m/<module>/<path>` (IPC `toolbox:navigate`).
+  - Chaque notification est aussi consignée dans les journaux du module.
+
+### Comptes connectés (`ctx.accounts`)
+
+`backend/core/accounts.ts` (ADR 0018). Le socle gère des **fournisseurs OAuth** (aujourd'hui `google`), jamais ce qu'un module en fait.
+
+```mermaid
+sequenceDiagram
+  participant UI as Interface (module)
+  participant B as Backend (socle)
+  participant N as Navigateur
+  participant G as Google
+  UI->>B: POST /api/modules/<id>/account/connect
+  B->>B: serveur d'écoute 127.0.0.1:<port libre>, PKCE (S256), state aléatoire
+  B->>N: HostAdapter.openExternal(page de consentement)
+  N->>G: l'utilisateur choisit son compte et autorise
+  G->>N: redirection vers http://127.0.0.1:<port>/?code&state
+  N->>B: code (state vérifié)
+  B->>G: échange code + code_verifier (+ ID/secret client)
+  G->>B: jeton d'accès + jeton de longue durée
+  B->>B: chiffrés (safeStorage) dans core__accounts
+```
+
+- **Client OAuth** : l'ID client et le code secret du projet Google Cloud de l'utilisateur se saisissent dans **Réglages › Comptes connectés** (portée de réglages `accounts`, le secret chiffré). Rien n'est livré avec l'app.
+- **Jetons** : chiffrés par `safeStorage` (DPAPI), jamais renvoyés à l'interface. Le jeton d'accès est rafraîchi automatiquement (une minute avant expiration, un seul rafraîchissement à la fois).
+  - Autorisation révoquée ou expirée (`invalid_grant`) : compte « À reconnecter », message clair aux modules (`AccountError`, réponse 409 avec `account: "reauth-required"`).
+- **`ctx.accounts.fetch(provider, url, init)`** : requête authentifiée (`/chemin` résolu sur l'API du fournisseur). Un 401 rafraîchit le jeton et renvoie la requête une fois.
+- **Périmètre** : un module n'accède qu'aux fournisseurs déclarés dans `permissions.accounts`. Les autorisations (scopes) sont demandées par le module et cumulées (`include_granted_scopes`) : `youtube-stats` pourra réutiliser le même compte.
+- **Déconnexion** : révocation chez le fournisseur, puis oubli des jetons.
 
 ### Fichiers multimédias : URL signées
 
@@ -173,6 +225,7 @@ Le choix est retenu d'un lancement à l'autre (`<userData>/window-state.json`). 
 | Fichiers des modules       | `%APPDATA%\ToolBox\modules\<id>\`                                                                                                                                     |
 | Sauvegardes automatiques   | `%APPDATA%\ToolBox\backups\` (10 dernières, avant chaque migration)                                                                                                   |
 | Journaux                   | `%APPDATA%\ToolBox\logs\` (14 jours)                                                                                                                                  |
+| Comptes connectés          | table `core__accounts` (jetons OAuth chiffrés par safeStorage) ; client OAuth dans `core__settings` (portée `accounts`, secret chiffré)                               |
 | Fichiers générés (vidéos…) | dossier de sortie réglable (par défaut `Vidéos\ToolBox\<id>\`), registre `core__outputs` (vérifié au démarrage et à chaque affichage ; suppression vers la Corbeille) |
 | Application                | dossier d'installation, en lecture seule                                                                                                                              |
 

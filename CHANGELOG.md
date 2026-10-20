@@ -4,6 +4,40 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.11.0] — 2026-10-20
+
+Planning de sortie : YouTube programmé à l'avance, Instagram avec rappels.
+
+### Ajouté
+
+- **Module « Planning de sortie »** (`release-planner`, section Musique) :
+  - **calendrier** mois / semaine de tout ce qui est planifié, tous morceaux confondus : icône par plateforme (vidéo YouTube, Short, post Insta, Reel), couleur par morceau, **glisser-déposer** pour déplacer ;
+  - **« Planifier un morceau »** : jour J et heure ; plan proposé par un modèle réglable (J : vidéo + post ; J+2 Reel 1 ; J+3 Short 1 … J+14 Short 4), chaque date modifiable ;
+  - **anti-embouteillage** : N publications max par jour et par plateforme, décalage automatique signalé.
+  - **Publication YouTube** :
+    - vidéo 16:9 et les 4 Reels en **Shorts** envoyés à l'avance et **programmés sur YouTube** (`publishAt`, heure de Bruxelles convertie, changements d'heure compris) ;
+    - upload résumable avec progression, **reprise après coupure** (même après redémarrage), nouvelles tentatives, annulation ;
+    - métadonnées préremplies par des modèles et modifiables avant l'envoi ; catégorie Musique, « conçue pour les enfants » : non ;
+    - miniature personnalisée faite depuis la cover (avertissement si la chaîne n'y a pas droit) ; playlist facultative ;
+    - statut relu sur YouTube toutes les 30 min ; date d'une vidéo déjà programmée déplaçable (`videos.update`).
+  - **Quota YouTube** : envois et unités comptés par jour (minuit, heure du Pacifique), limites réglables (6 envois/jour par défaut), file d'attente étalée sur plusieurs jours avec message clair.
+  - **Projet Google non audité** : si YouTube garde une vidéo privée sans date, elle passe en « À programmer dans Studio » avec lien direct et rappel.
+  - **Instagram** :
+    - vue **« Aujourd'hui »** et **widget d'accueil** : fichier à glisser, « Copier la légende », case « Publié » synchronisée avec le pack Insta ;
+    - « en retard » quand la date passe ;
+    - **notifications Windows** à l'heure prévue et au démarrage.
+  - Éléments liés aux fichiers par `ctx.outputs` : fichier supprimé ou introuvable signalé, « Régénérer » ou « Retirer ». Une vidéo déjà en ligne n'est jamais supprimée sans choix explicite.
+  - Écran d'aide **Compte Google** pas à pas : projet Google Cloud, API YouTube Data v3, identifiants « Application de bureau », écran de consentement en Production (sinon expiration au bout de 7 jours).
+- **Socle** :
+  - **`ctx.accounts`** : comptes OAuth (Google) en flux pour application installée (navigateur + boucle locale 127.0.0.1 + PKCE). Jetons chiffrés (safeStorage) dans `core__accounts` (migration 3 du socle, additive). Client OAuth saisi dans Réglages › Comptes connectés. Réutilisable par `youtube-stats`. ADR 0018.
+  - **`ctx.notifications`** : notifications Windows qui ouvrent une page du module.
+  - Réglage **« Lancer ToolBox au démarrage de Windows »** (désactivé par défaut) : démarrage réduit dans la zone de notification, fermer la fenêtre l'y garde. ADR 0019.
+- Services : `youtubeVideo` (Vidéo YouTube), `instagramPack` (Pack Instagram), `videoEngine.renderThumbnail` (miniature 1280×720).
+
+### Modifié
+
+- Vidéo YouTube : le bouton grisé « Publier sur YouTube » est remplacé par le lien « Sur YouTube » d'une vidéo envoyée par le Planning de sortie ; `backend/upload.ts` (emplacement jamais implémenté) est retiré. ADR 0020.
+
 ## [0.10.0] — 2026-10-20
 
 ### Ajouté

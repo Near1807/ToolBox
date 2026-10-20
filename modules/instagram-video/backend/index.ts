@@ -14,6 +14,7 @@ import {
   pickExcerpts,
   type AudioAnalysis,
 } from './analysis';
+import { INSTAGRAM_PACK_SERVICE, type InstagramPackService, type PackItem } from '../contract';
 import { buildCaption, itemFileName, packFolderName } from './caption';
 import {
   itemLabel,
@@ -656,6 +657,55 @@ export default defineBackendModule({
           }));
       }),
     );
+
+    // Service for the other modules (Planning de sortie: reminders, « Publié » in sync).
+    const toPackItem = (pack: PackRow, item: ItemRow): PackItem => ({
+      id: item.id,
+      kind: item.kind,
+      position: item.position,
+      label: itemLabel(item.position),
+      filePath: item.file_path,
+      thumbnailPath: item.thumbnail_path,
+      caption: (pack.per_reel_captions && item.caption) || pack.caption,
+      state: store.state(item),
+      durationSec: item.duration_sec,
+      publishedAt: item.published_at,
+    });
+    const service: InstagramPackService = {
+      getPack: (trackId) => {
+        const pack = store.byTrack(trackId);
+        if (!pack) return null;
+        return {
+          id: pack.id,
+          trackId: pack.track_id,
+          caption: pack.caption,
+          items: store.listItems(pack.id).map((item) => toPackItem(pack, item)),
+        };
+      },
+      getItem: (itemId) => {
+        const item = store.item(itemId);
+        const pack = item ? store.pack(item.pack_id) : null;
+        return item && pack ? { ...toPackItem(pack, item), trackId: pack.track_id } : null;
+      },
+      setPublished: (itemId, published, at) => {
+        const item = store.item(itemId);
+        if (!item) throw new Error('Élément du pack introuvable');
+        store.updateItem(item.id, {
+          published_at: published ? (at ?? item.published_at ?? new Date().toISOString()) : null,
+        });
+        const updated = store.item(item.id)!;
+        return toPackItem(store.pack(updated.pack_id)!, updated);
+      },
+      renderItem: (itemId) => {
+        const item = store.item(itemId);
+        if (!item) throw new Error('Élément du pack introuvable');
+        if (store.state(item) === 'rendering') throw new Error('Rendu déjà en cours');
+        const { pack, track } = packOfItem(item);
+        if (!track.coverPath) throw new Error('Ce morceau n’a pas de cover');
+        return { jobId: enqueueItem(pack, item, track).id };
+      },
+    };
+    ctx.services.provide(INSTAGRAM_PACK_SERVICE, service);
 
     // Reels made by v0.5 (one per render, before the packs).
     const requireLegacy = (params: unknown): LegacyReelRow => {

@@ -5,7 +5,7 @@ import { defineBackendModule, HttpError, type ModuleContext } from '@hub/sdk/bac
 import type { MusicLibraryService, Track } from '../../music-library/contract';
 import type { VideoEngineService } from '../../video-engine/contract';
 import { buildDescription, buildHashtags, buildVideoTitle, videoFileName } from './description';
-import { UPLOAD_AVAILABLE } from './upload';
+import { YOUTUBE_VIDEO_SERVICE, type YouTubeVideo, type YouTubeVideoService } from '../contract';
 
 const FORMAT = 'youtube' as const;
 
@@ -128,6 +128,9 @@ export default defineBackendModule({
           exists: record.exists,
           url: record.url,
           youtubeVideoId: row.youtube_video_id,
+          youtubeUrl: row.youtube_video_id
+            ? `https://www.youtube.com/watch?v=${row.youtube_video_id}`
+            : null,
         };
       });
     };
@@ -203,7 +206,6 @@ export default defineBackendModule({
         coverUrl: track.coverPath ? ctx.files.mediaUrl(track.coverPath) : null,
         ...texts(track),
         videos: listVideos(track.id),
-        uploadAvailable: UPLOAD_AVAILABLE,
       };
     });
 
@@ -224,15 +226,58 @@ export default defineBackendModule({
       return { url: ctx.files.mediaUrl(result.file) };
     });
 
-    ctx.routes.post('/tracks/:id/render', (request) => {
-      const track = requireTrack(request.params);
-      requireCover(track);
-      return ctx.jobs.enqueue(
+    const enqueueRender = (track: Track) =>
+      ctx.jobs.enqueue(
         'render',
         { trackId: track.id },
         { title: `Vidéo YouTube — ${track.title}` },
       );
+
+    ctx.routes.post('/tracks/:id/render', (request) => {
+      const track = requireTrack(request.params);
+      requireCover(track);
+      return enqueueRender(track);
     });
+
+    // Service for the other modules (Planning de sortie: upload of the video).
+    const toVideo = (row: VideoRow): YouTubeVideo => ({
+      id: row.id,
+      trackId: row.track_id,
+      filePath: row.file_path,
+      exists: existsSync(row.file_path),
+      createdAt: row.created_at,
+      youtubeVideoId: row.youtube_video_id,
+      uploadedAt: row.uploaded_at,
+    });
+    const service: YouTubeVideoService = {
+      listVideos: (trackId) =>
+        (
+          ctx.db
+            .prepare(`SELECT * FROM ${videos} WHERE track_id = ? ORDER BY created_at DESC, id DESC`)
+            .all(trackId) as VideoRow[]
+        ).map(toVideo),
+      getVideo: (id) => {
+        const row = ctx.db.prepare(`SELECT * FROM ${videos} WHERE id = ?`).get(id) as
+          VideoRow | undefined;
+        return row ? toVideo(row) : null;
+      },
+      texts: (trackId) => {
+        const track = library.getTrack(trackId);
+        return track ? texts(track) : null;
+      },
+      render: (trackId) => {
+        const track = library.getTrack(trackId);
+        if (!track) throw new Error('Morceau introuvable');
+        if (!track.coverPath) throw new Error('Ce morceau n’a pas de cover');
+        return { jobId: enqueueRender(track).id };
+      },
+      setUploaded: (videoId, youtubeVideoId) => {
+        ctx.db
+          .prepare(`UPDATE ${videos} SET youtube_video_id = ?, uploaded_at = ? WHERE id = ?`)
+          .run(youtubeVideoId, youtubeVideoId ? new Date().toISOString() : null, videoId);
+      },
+    };
+    ctx.services.provide(YOUTUBE_VIDEO_SERVICE, service);
 
     ctx.routes.post('/videos/:id/open', async (request) => {
       await ctx.files.open(requireVideo(request.params).file_path);

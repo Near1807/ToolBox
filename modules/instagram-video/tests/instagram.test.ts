@@ -6,9 +6,44 @@ import Database from 'better-sqlite3';
 import ffmpegPath from 'ffmpeg-static';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { JobInfo } from '@hub/sdk/backend';
-import { createTestHost, createTestHub, loadModuleFolder, type TestHub } from '@hub/sdk/testing';
+import {
+  createTestHost,
+  createTestHub,
+  loadModuleFolder,
+  type DiscoveredModule,
+  type TestHub,
+} from '@hub/sdk/testing';
+import type { InstagramPackService, PackItem } from '../contract';
 
 const MODULES = path.resolve(import.meta.dirname, '../..');
+
+/** Another module using the instagramPack service (like the release planner). */
+const consumer: DiscoveredModule = {
+  folder: 'consumer',
+  manifest: {
+    id: 'consumer',
+    name: 'Consumer',
+    description: 'test',
+    version: '1.0.0',
+    section: 'Tests',
+    icon: '🧪',
+    dependsOn: { modules: ['instagram-video'], services: ['instagramPack'] },
+  },
+  backend: {
+    register(ctx) {
+      const packs = ctx.services.get<InstagramPackService>('instagramPack');
+      ctx.routes.get('/pack/:trackId', (request) =>
+        packs.getPack(Number((request.params as { trackId: string }).trackId)),
+      );
+      ctx.routes.post('/items/:id/published', (request) =>
+        packs.setPublished(
+          Number((request.params as { id: string }).id),
+          (request.body as { published: boolean }).published,
+        ),
+      );
+    },
+  },
+};
 const API = '/api/modules/instagram-video';
 
 describe('instagram-video', () => {
@@ -45,7 +80,7 @@ describe('instagram-video', () => {
         ['music-library', 'video-engine', 'instagram-video'].map((m) =>
           loadModuleFolder(path.join(MODULES, m)),
         ),
-      ),
+      ).then((modules) => [...modules, consumer]),
       host: createTestHost({ getDefaultOutputRoot: () => outputRoot }),
     });
     trackId = (
@@ -237,6 +272,30 @@ describe('instagram-video', () => {
       published: false,
     });
     expect(unchecked.body.publishedAt).toBeNull();
+  });
+
+  it('shares the pack with other modules (service instagramPack, « Publié » in sync)', async () => {
+    const shared = await hub.request<{ items: PackItem[] }>(
+      'GET',
+      `/api/modules/consumer/pack/${trackId}`,
+    );
+    expect(shared.body.items.map((i) => [i.label, i.kind])).toEqual([
+      ['Post', 'post'],
+      ['Reel 1', 'reel'],
+      ['Reel 2', 'reel'],
+    ]);
+    expect(shared.body.items[1]!.filePath).toMatch(/Reel 1\.mp4$/);
+    const reel = shared.body.items[1]!;
+    await hub.request('POST', `/api/modules/consumer/items/${reel.id}/published`, {
+      published: true,
+    });
+    const own = await hub.request<{ pack: Pack }>('GET', `${API}/tracks/${trackId}`);
+    expect(own.body.pack.items[1]!.publishedAt).not.toBeNull();
+    await hub.request('POST', `/api/modules/consumer/items/${reel.id}/published`, {
+      published: false,
+    });
+    const back = await hub.request<{ pack: Pack }>('GET', `${API}/tracks/${trackId}`);
+    expect(back.body.pack.items[1]!.publishedAt).toBeNull();
   });
 
   it('has no Reel styles any more: one sober look for the whole pack', async () => {

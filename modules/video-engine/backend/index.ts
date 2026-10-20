@@ -10,7 +10,7 @@ import {
   type VideoFormat,
   type VideoFormatInfo,
 } from '../contract';
-import { FORMATS } from './commands';
+import { FORMATS, THUMBNAIL_SPEC } from './commands';
 import {
   FONT_FILE,
   probeDuration,
@@ -108,6 +108,7 @@ export default defineBackendModule({
       },
       // A still image takes a second or two: no queue.
       renderPost: (request) => renderPostImage(env(), request),
+      renderThumbnail: (request) => renderPostImage(env(), request, THUMBNAIL_SPEC),
       probeDuration: (audioPath) => probeDuration(ctx.binaries.ffprobe, audioPath),
     };
 

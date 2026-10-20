@@ -11,6 +11,7 @@ import {
   buildBackgroundArgs,
   buildPostArgs,
   POST_SPEC,
+  type StillSpec,
   buildCardArgs,
   buildFontsConfig,
   buildRenderArgs,
@@ -216,15 +217,16 @@ export async function renderVideo(
   }
 }
 
-/** Renders the 4:5 post image (JPEG). */
+/** Renders a still image (JPEG): the 4:5 post, or the 16:9 YouTube thumbnail. */
 export async function renderPostImage(
   env: EngineEnvironment,
   request: PostRequest,
+  spec: StillSpec = POST_SPEC,
 ): Promise<{ file: string; width: number; height: number }> {
   if (!request.coverPath || !existsSync(request.coverPath)) {
     throw new Error(`Fichier cover introuvable : ${request.coverPath || '(aucun)'}`);
   }
-  const { width, height } = POST_SPEC;
+  const { width, height } = spec;
   const work = path.join(env.workRoot, randomUUID());
   const fontsWork = path.join(work, 'fonts');
   mkdirSync(fontsWork, { recursive: true });
@@ -242,7 +244,7 @@ export async function renderPostImage(
         height,
         title: request.title,
         artist: request.artist,
-        layout: POST_SPEC.text,
+        layout: spec.text,
       }),
     );
     const run = (args: string[]) =>
@@ -252,19 +254,20 @@ export async function renderPostImage(
         cwd: work,
         env: { FONTCONFIG_FILE: path.join(work, 'fonts.conf') },
       });
-    await run(
-      buildBackgroundArgs(request.coverPath, 'background.png', width, height, POST_SPEC.blur),
-    );
-    await run(buildCardArgs(request.coverPath, 'card.png', POST_SPEC.cover));
+    await run(buildBackgroundArgs(request.coverPath, 'background.png', width, height, spec.blur));
+    await run(buildCardArgs(request.coverPath, 'card.png', spec.cover));
     mkdirSync(path.dirname(request.outputPath), { recursive: true });
     await run(
-      buildPostArgs({
-        background: 'background.png',
-        card: 'card.png',
-        ass: 'post.ass',
-        fontsDir: 'fonts',
-        output: partial,
-      }),
+      buildPostArgs(
+        {
+          background: 'background.png',
+          card: 'card.png',
+          ass: 'post.ass',
+          fontsDir: 'fonts',
+          output: partial,
+        },
+        spec,
+      ),
     );
     rmSync(request.outputPath, { force: true });
     renameSync(partial, request.outputPath);

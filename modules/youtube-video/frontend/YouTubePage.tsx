@@ -35,13 +35,13 @@ interface VideoItem {
   createdAt: string;
   exists: boolean;
   url: string | null;
+  youtubeUrl: string | null;
 }
 
 interface TrackDetail extends TrackSummary {
   videoTitle: string;
   description: string;
   videos: VideoItem[];
-  uploadAvailable: boolean;
 }
 
 function CopyField(props: { label: string; value: string; multiline?: boolean }) {
@@ -276,14 +276,17 @@ function TrackPanel(props: { trackId: number }) {
                       >
                         Ouvrir le dossier
                       </Button>
-                      <Button
-                        variant="secondary"
-                        small
-                        disabled
-                        title="Bientôt : publication directe sur YouTube depuis ToolBox"
-                      >
-                        Publier sur YouTube
-                      </Button>
+                      {video.youtubeUrl && (
+                        <a
+                          className="button button--secondary button--small"
+                          href={video.youtubeUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          title="Envoyée par le Planning de sortie"
+                        >
+                          Sur YouTube ↗
+                        </a>
+                      )}
                       <Button
                         variant="danger"
                         small

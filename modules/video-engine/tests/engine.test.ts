@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync } from 'node:fs';
+import { existsSync, mkdtempSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import ffprobeStatic from '@derhuerst/ffprobe-static';
@@ -14,6 +14,7 @@ import {
 import type { VideoEngineService } from '../contract';
 import { renderPostImage, renderVideo, type EngineEnvironment } from '../backend/engine';
 import { RenderCancelled } from '../backend/runner';
+import { THUMBNAIL_SPEC } from '../backend/commands';
 import { createRenderFixtures } from './fixtures';
 
 const MODULE_DIR = path.resolve(import.meta.dirname, '..');
@@ -231,6 +232,19 @@ describe('renderVideo (real FFmpeg)', () => {
     const image = probe(outputPath).streams[0]!;
     expect(image).toMatchObject({ codec_name: 'mjpeg', width: 1080, height: 1350 });
     expect(['1:1', undefined]).toContain(image.sample_aspect_ratio);
+  });
+
+  it('renders the YouTube thumbnail: 1280×720 JPEG under 2 MB', async () => {
+    const outputPath = path.join(fixtures.dir, 'out', 'thumbnail.jpg');
+    const result = await renderPostImage(
+      env,
+      { coverPath: fixtures.cover, title: 'Miniature', artist: 'Thomas', outputPath },
+      THUMBNAIL_SPEC,
+    );
+    expect(result).toMatchObject({ width: 1280, height: 720 });
+    const image = probe(outputPath).streams[0]!;
+    expect(image).toMatchObject({ codec_name: 'mjpeg', width: 1280, height: 720 });
+    expect(statSync(outputPath).size).toBeLessThan(2 * 1024 * 1024);
   });
 
   it('reports a missing cover clearly', async () => {

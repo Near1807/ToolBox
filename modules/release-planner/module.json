@@ -1,0 +1,132 @@
+{
+  "id": "release-planner",
+  "name": "Planning de sortie",
+  "description": "Calendrier de sortie de chaque morceau : vidéo YouTube et Shorts envoyés et programmés sur YouTube, rappels pour le post et les Reels Instagram.",
+  "version": "1.0.0",
+  "section": "Musique",
+  "icon": "🗓️",
+  "order": 40,
+  "dependsOn": {
+    "modules": ["music-library", "video-engine", "youtube-video", "instagram-video"],
+    "services": ["musicLibrary", "videoEngine", "youtubeVideo", "instagramPack"]
+  },
+  "permissions": { "accounts": ["google"] },
+  "settings": [
+    {
+      "key": "defaultTime",
+      "type": "string",
+      "label": "Heure de publication par défaut",
+      "description": "Format HH:MM, heure du fuseau ci-dessous.",
+      "default": "18:00"
+    },
+    {
+      "key": "timeZone",
+      "type": "string",
+      "label": "Fuseau horaire",
+      "description": "Les dates du calendrier et la programmation YouTube sont dans ce fuseau (nom IANA).",
+      "default": "Europe/Brussels"
+    },
+    {
+      "key": "planTemplate",
+      "type": "text",
+      "label": "Modèle de plan de sortie",
+      "description": "Une ligne par jour : « J+2 : Reel 1, Short 1 ». Éléments : vidéo YouTube, post Insta, Reel 1…4, Short 1…4 (le Short n est le Reel n publié sur YouTube).",
+      "default": "J : vidéo YouTube, post Insta\nJ+2 : Reel 1\nJ+3 : Short 1\nJ+5 : Reel 2\nJ+6 : Short 2\nJ+9 : Reel 3\nJ+10 : Short 3\nJ+13 : Reel 4\nJ+14 : Short 4"
+    },
+    {
+      "key": "maxPerDay",
+      "type": "number",
+      "label": "Publications max par jour et par plateforme",
+      "description": "Au-delà, la planification décale automatiquement au jour libre suivant et le signale.",
+      "min": 1,
+      "max": 10,
+      "step": 1,
+      "default": 1
+    },
+    {
+      "key": "videoTitle",
+      "type": "string",
+      "label": "Titre de la vidéo YouTube",
+      "description": "Repères : {titre}, {artiste}, {titre_youtube} (titre préparé par Vidéo YouTube).",
+      "default": "{titre_youtube}"
+    },
+    {
+      "key": "videoDescription",
+      "type": "text",
+      "label": "Description de la vidéo YouTube",
+      "description": "Repères : {description_youtube} (description préparée par Vidéo YouTube : liens, hashtags), {titre}, {artiste}, {hashtags}, {date}.",
+      "default": "{description_youtube}"
+    },
+    {
+      "key": "shortTitle",
+      "type": "string",
+      "label": "Titre des Shorts",
+      "description": "Repères : {titre}, {artiste}, {n} (numéro du Short), {total}.",
+      "default": "{titre} — {artiste} ({n}/{total})"
+    },
+    {
+      "key": "shortDescription",
+      "type": "text",
+      "label": "Description des Shorts",
+      "description": "Repères : {titre}, {artiste}, {hashtags}, {n}, {lien_video} (lien de la vidéo complète, ajouté à l’envoi ; la ligne disparaît si elle n’est pas encore en ligne).",
+      "default": "{titre} — {artiste}\nLe morceau en entier : {lien_video}\n\n{hashtags}"
+    },
+    {
+      "key": "extraTags",
+      "type": "string",
+      "label": "Tags YouTube supplémentaires",
+      "description": "Séparés par des virgules, ajoutés aux tags du morceau.",
+      "placeholder": "musique, beat"
+    },
+    {
+      "key": "language",
+      "type": "select",
+      "label": "Langue des titres et descriptions",
+      "options": [
+        { "value": "fr", "label": "Français" },
+        { "value": "en", "label": "Anglais" },
+        { "value": "nl", "label": "Néerlandais" },
+        { "value": "es", "label": "Espagnol" },
+        { "value": "de", "label": "Allemand" },
+        { "value": "it", "label": "Italien" },
+        { "value": "pt", "label": "Portugais" },
+        { "value": "zxx", "label": "Aucune (instrumental)" }
+      ],
+      "default": "fr"
+    },
+    {
+      "key": "playlist",
+      "type": "string",
+      "label": "Playlist YouTube (facultatif)",
+      "description": "Nom exact ou ID (PL…) d’une playlist de ta chaîne : chaque vidéo et chaque Short y est ajouté.",
+      "placeholder": "GrosKaillou – Sons"
+    },
+    {
+      "key": "uploadsPerDay",
+      "type": "number",
+      "label": "Envois YouTube max par jour (quota)",
+      "description": "Prudent par défaut (6 = ancien quota de 10 000 unités à 1 600 par envoi). Ton quota réel est dans Google Cloud > API et services > Quotas : augmente si tu as plus.",
+      "min": 1,
+      "max": 100,
+      "step": 1,
+      "default": 6
+    },
+    {
+      "key": "unitsPerDay",
+      "type": "number",
+      "label": "Unités de quota YouTube par jour (hors envois)",
+      "description": "10 000 par défaut pour un projet Google Cloud.",
+      "min": 100,
+      "max": 1000000,
+      "step": 100,
+      "default": 10000
+    },
+    {
+      "key": "remindInstagram",
+      "type": "boolean",
+      "label": "Notifications de rappel",
+      "description": "Notification Windows à l’heure prévue (si l’app tourne) et au démarrage pour ce qui est dû ou en retard.",
+      "default": true
+    }
+  ]
+}

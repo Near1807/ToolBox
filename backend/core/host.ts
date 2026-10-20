@@ -32,6 +32,15 @@ export interface HostAdapter {
   getDefaultOutputRoot(): string;
   /** Restarts the whole application. */
   relaunch(): void;
+  /** Opens a web page in the user's default browser (OAuth consent, YouTube Studio…). */
+  openExternal(url: string): Promise<void>;
+  /**
+   * Shows a desktop notification; clicking it brings the window to the front
+   * and opens `target` (a route of the UI, e.g. "/m/release-planner").
+   */
+  notify(notification: { title: string; body: string; target?: string }): void;
+  /** Starts the app with Windows (minimised to the notification area), or not. */
+  setLaunchAtStartup(enabled: boolean): void;
   /** True when OS-level encryption (Electron safeStorage / DPAPI) is usable. */
   isEncryptionAvailable(): boolean;
   encryptString(plainText: string): Buffer;
@@ -53,6 +62,9 @@ export function createNullHost(overrides: Partial<HostAdapter> = {}): HostAdapte
     selectSaveFile: async () => null,
     getDefaultOutputRoot: () => path.join(os.tmpdir(), 'ToolBox'),
     relaunch: () => {},
+    openExternal: async () => {},
+    notify: () => {},
+    setLaunchAtStartup: () => {},
     isEncryptionAvailable: () => false,
     encryptString: unavailable,
     decryptString: unavailable,

@@ -7,6 +7,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { BackendModule } from './backend';
 import { createNullHost, type HostAdapter } from '../../backend/core/host';
+import type { OAuthProvider } from '../../backend/core/accounts';
 import type { DiscoveredModule, Hub } from '../../backend/core/hub';
 
 export type { DiscoveredModule } from '../../backend/core/hub';
@@ -63,6 +64,8 @@ export async function createTestHub(options: {
   loadExamples?: boolean;
   /** Defaults to the repository's modules/ folder. */
   assetsRoot?: string;
+  /** OAuth endpoints of a mock server, e.g. { google: { tokenUrl, apiBase… } }. */
+  accountProviders?: Record<string, Partial<OAuthProvider>>;
 }): Promise<TestHub> {
   const dataDir = options.dataDir ?? mkdtempSync(path.join(tmpdir(), 'toolbox-test-'));
   const built = await buildServer({
@@ -73,6 +76,7 @@ export async function createTestHub(options: {
     modules: options.modules,
     loadExamples: options.loadExamples ?? true,
     assetsRoot: options.assetsRoot ?? path.resolve(import.meta.dirname, '../../modules'),
+    accountProviders: options.accountProviders,
   });
   built.setPort(TEST_PORT);
 

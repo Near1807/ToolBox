@@ -68,4 +68,21 @@ export const coreMigrations: Migration[] = [
       CREATE INDEX core__outputs_subject ON core__outputs (subject);
     `,
   },
+  {
+    version: 3,
+    description: 'connected accounts (ctx.accounts, OAuth tokens encrypted)',
+    up: `
+      CREATE TABLE core__accounts (
+        provider TEXT PRIMARY KEY,
+        scopes TEXT NOT NULL,
+        refresh_token TEXT NOT NULL,
+        access_token TEXT,
+        access_expires_at TEXT,
+        status TEXT NOT NULL,
+        error TEXT,
+        connected_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+    `,
+  },
 ];

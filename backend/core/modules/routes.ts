@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import {
+  AccountError,
   HttpError,
   type ModuleLogger,
   type ModuleRoutes,
@@ -64,6 +65,10 @@ export function mountModuleRoutes(
             } catch (error) {
               if (error instanceof HttpError) {
                 return reply.code(error.statusCode).send({ error: error.message });
+              }
+              // Account not configured, not connected, expired…: a clear message, not a crash.
+              if (error instanceof AccountError) {
+                return reply.code(409).send({ error: error.message, account: error.code });
               }
               logger.error(`Erreur sur ${route.method} ${route.path}`, error);
               const message = error instanceof Error ? error.message : String(error);

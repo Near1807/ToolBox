@@ -14,6 +14,11 @@ files:
   - '!node_modules/better-sqlite3/{src,deps,binding.gyp}'
 
 # Executables and native addons cannot run from inside app.asar.
+# Tray and notification icon, read at runtime (electron/desktop.ts).
+extraResources:
+  - from: resources/build/icon.png
+    to: icon.png
+
 asarUnpack:
   - build/modules/*/assets/**
   - node_modules/ffmpeg-static/**

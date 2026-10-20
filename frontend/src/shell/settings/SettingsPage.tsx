@@ -151,6 +151,110 @@ function BackupsCard() {
   );
 }
 
+interface AccountInfo {
+  provider: string;
+  label: string;
+  configured: boolean;
+  connected: boolean;
+  needsReconnect: boolean;
+  scopes: string[];
+  connectedAt: string | null;
+  error: string | null;
+  connecting: boolean;
+}
+
+/** OAuth client (ID, secret) of each provider, and the state of the connected accounts. */
+function AccountsCard(props: { section?: SettingsSectionData; onSaved: () => void }) {
+  const accounts = useApi<AccountInfo[]>('/api/core/accounts');
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const act = async (provider: string, action: 'reconnect' | 'disconnect') => {
+    if (
+      action === 'disconnect' &&
+      !window.confirm(
+        'Déconnecter ce compte ? ToolBox perd l’accès (envois et programmations en attente compris) jusqu’à la prochaine connexion.',
+      )
+    ) {
+      return;
+    }
+    setBusy(provider);
+    setError(null);
+    try {
+      if (action === 'reconnect') await api.post(`/api/core/accounts/${provider}/reconnect`);
+      else await api.delete(`/api/core/accounts/${provider}`);
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(null);
+      accounts.reload();
+    }
+  };
+
+  return (
+    <Card title="Comptes connectés">
+      <p className="muted">
+        Les outils qui publient pour toi (Planning de sortie…) utilisent ces comptes. Les
+        autorisations sont enregistrées chiffrées sur ce PC ; l’ID client vient de ton propre projet
+        Google Cloud (voir l’aide du Planning de sortie).
+      </p>
+      {error && <ErrorMessage>{error}</ErrorMessage>}
+      <ul className="list">
+        {accounts.data?.map((account) => (
+          <li key={account.provider} className="list__item list__item--top">
+            <div>
+              <strong>{account.label}</strong>{' '}
+              {account.connected ? (
+                account.needsReconnect ? (
+                  <span className="badge badge--failed">À reconnecter</span>
+                ) : (
+                  <span className="badge badge--loaded">Connecté</span>
+                )
+              ) : (
+                <span className="badge">
+                  {account.configured ? 'Non connecté' : 'Non configuré'}
+                </span>
+              )}
+              {account.connectedAt && (
+                <span className="muted small">
+                  {' '}
+                  depuis le {formatDateTime(account.connectedAt)}
+                </span>
+              )}
+              {account.error && <p className="error small">{account.error}</p>}
+              {account.scopes.length > 0 && (
+                <p className="muted small">Autorisations : {account.scopes.join(', ')}</p>
+              )}
+            </div>
+            {account.connected && (
+              <span className="inline-form">
+                {account.needsReconnect && (
+                  <Button
+                    small
+                    disabled={busy === account.provider}
+                    onClick={() => void act(account.provider, 'reconnect')}
+                  >
+                    {busy === account.provider ? 'Dans le navigateur…' : 'Reconnecter'}
+                  </Button>
+                )}
+                <Button
+                  variant="secondary"
+                  small
+                  disabled={busy === account.provider}
+                  onClick={() => void act(account.provider, 'disconnect')}
+                >
+                  Déconnecter
+                </Button>
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+      {props.section && <SettingsForm section={props.section} onSaved={props.onSaved} />}
+    </Card>
+  );
+}
+
 function AboutCard() {
   const { data, error } = useApi<SystemInfo>('/api/core/system');
   return (
@@ -191,8 +295,11 @@ function AboutCard() {
 export function SettingsPage() {
   const settings = useApi<SettingsSectionData[]>('/api/core/settings');
   const general = settings.data?.find((s) => s.scope === 'core');
+  const accountSection = settings.data?.find((s) => s.scope === 'accounts');
   const moduleSections =
-    settings.data?.filter((s) => s.scope !== 'core' && s.fields.length > 0) ?? [];
+    settings.data?.filter(
+      (s) => s.scope !== 'core' && s.scope !== 'accounts' && s.fields.length > 0,
+    ) ?? [];
 
   return (
     <Page title="Réglages">
@@ -203,6 +310,7 @@ export function SettingsPage() {
         </Card>
       )}
       <ModulesCard />
+      <AccountsCard section={accountSection} onSaved={settings.reload} />
       {moduleSections.map((section) => (
         <Card key={section.scope} title={section.title}>
           <SettingsForm section={section} onSaved={settings.reload} />

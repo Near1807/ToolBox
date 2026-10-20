@@ -61,6 +61,8 @@ declare global {
         minimize: () => void;
         close: () => void;
       };
+      /** Called with a UI route when a desktop notification is clicked. */
+      onNavigate?: (listener: (target: string) => void) => () => void;
     };
   }
 }

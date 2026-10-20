@@ -24,7 +24,7 @@ modules/<id>/
 └─ tests/*.test.ts        tests Vitest (obligatoire)
 ```
 
-- `id` : kebab-case (`music-library`), **identique au nom du dossier**. Ids réservés : `core`, `hub`, `api`, `settings`, `jobs`, `logs`.
+- `id` : kebab-case (`music-library`), **identique au nom du dossier**. Ids réservés : `core`, `hub`, `api`, `settings`, `jobs`, `logs`, `accounts`, `notifications`.
 - **Dossiers commençant par `_`** (ex. `_template`) : modules d'exemple, d'id `template`. Ils ne sont chargés que par le smoke test de la CI ou avec `TOOLBOX_LOAD_EXAMPLES=1`.
 - Un module sans frontend est un module de service (ex. `video-engine`) ; sans backend, un module purement visuel.
 
@@ -57,7 +57,7 @@ modules/<id>/
 | `dependsOn.modules`    | non         | Modules qui doivent être présents **et chargés**                                                                   |
 | `dependsOn.services`   | non         | Services consommés via `ctx.services.get()` (fournis par n'importe quel module)                                    |
 | `provides.services`    | non         | Services que le module **doit** fournir via `ctx.services.provide()`                                               |
-| `permissions.accounts` | non         | Comptes externes nécessaires via `ctx.accounts` (ex. `"google"`, phase 5)                                          |
+| `permissions.accounts` | non         | Comptes externes utilisés via `ctx.accounts` : `"google"` (seul fournisseur aujourd'hui)                           |
 | `settings`             | non         | Réglages du module, affichés automatiquement dans la page Réglages (§5.3)                                          |
 
 Le manifest est validé au démarrage (`backend/core/modules/manifest.ts`) : un champ inconnu ou invalide rend le module « en erreur » avec un message précis, sans empêcher les autres de démarrer.
@@ -190,7 +190,25 @@ ctx.scheduler.schedule('refresh', { everyMinutes: 60 }, async () => {
 
 ### 5.9 `ctx.accounts` — comptes connectés
 
-Réservé à la phase 5 (OAuth Google, jetons chiffrés). `ctx.accounts.available` vaut `false` d'ici là. Les comptes requis se déclarent dans `permissions.accounts`.
+Comptes OAuth de l'utilisateur, gérés par le socle (ADR 0018). Le module déclare le fournisseur dans `permissions.accounts` (`"google"`) ; sinon tout appel lève une erreur.
+
+```ts
+const SCOPES = ['https://www.googleapis.com/auth/youtube'];
+ctx.routes.post('/account/connect', () => ctx.accounts.connect('google', SCOPES)); // ouvre le navigateur
+const response = await ctx.accounts.fetch('google', '/youtube/v3/channels?part=snippet&mine=true');
+```
+
+| Membre                        | Rôle                                                                                                                                                       |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `status(provider)`            | `{ configured, connected, needsReconnect, scopes, connectedAt, error, connecting }`                                                                        |
+| `connect(provider, scopes)`   | Ouvre la page de consentement dans le navigateur, attend la réponse (5 min) ; les autorisations déjà accordées sont gardées (cumul)                        |
+| `accessToken(provider)`       | Jeton d'accès valide (rafraîchi si besoin)                                                                                                                 |
+| `fetch(provider, url, init?)` | `fetch` avec le jeton ; `/chemin` → API du fournisseur (`https://www.googleapis.com`) ; un 401 rafraîchit et renvoie une fois (corps en texte ou `Buffer`) |
+| `disconnect(provider)`        | Révoque l'autorisation et oublie les jetons                                                                                                                |
+
+- Les erreurs sont des `AccountError` (`code` : `not-configured`, `not-connected`, `reauth-required`, `denied`, `cancelled`, `network`, `encryption`) au message français. Levées dans une route, elles deviennent une réponse **409** `{ error, account: code }` : l'interface peut proposer « Connecter » ou « Reconnecter ».
+- L'ID client OAuth et son secret appartiennent à l'utilisateur (son projet Google Cloud) : **Réglages › Comptes connectés**, jamais dans le code. Les jetons sont chiffrés (safeStorage) et ne sortent jamais du backend.
+- Demander les autorisations les plus petites qui suffisent, et le dire à l'utilisateur.
 
 ### 5.10 `ctx.logger` — journaux
 
@@ -238,6 +256,10 @@ ctx.outputs.onRemoved((records, reason) => {
 - Un filtre vide est refusé (jamais de « tout supprimer » par accident).
 - Fichiers déjà produits avant l'arrivée du registre : le module les enregistre au démarrage (`register` est idempotent), sans rien supprimer.
 - Interface : chaque élément généré a un bouton **« Supprimer »** avec confirmation (`confirmDelete`), les listes ont la **sélection multiple** (`useSelection` + `SelectionBar`), un fichier introuvable s'affiche **« Fichier introuvable »** avec « Retirer de la liste » et, si possible, « Régénérer » (`MissingFile`), et un bouton **« Nettoyer les éléments introuvables »**. `OutputList` fait tout cela d'un coup pour une liste simple. Routes du socle : `/api/core/outputs` (voir `ARCHITECTURE.md`).
+
+### 5.14 `ctx.notifications` — notifications Windows
+
+`ctx.notifications.notify({ title, body, path })` : notification Windows (si l'app tourne). Un clic ouvre la page `path` du module (`''` = page principale, `'?item=3'`, `'tracks/3'`…). Elle est aussi écrite dans les journaux du module. Pour les rappels, l'utilisateur peut faire tourner l'app en arrière-plan : réglage du socle « Lancer ToolBox au démarrage de Windows » (zone de notification).
 
 ## 6. Migrations et sécurité des données
 
@@ -353,6 +375,7 @@ L'état de chaque module est visible dans **Réglages > Modules** (avec bouton D
 - [ ] Fichiers uniquement dans `ctx.files.dataDir` / `outputDir()`
 - [ ] Chaque fichier généré enregistré dans `ctx.outputs` (avec `onRemoved` pour nettoyer ses données) ; dans l'interface : « Supprimer » avec confirmation, sélection multiple, « Fichier introuvable », « Nettoyer les éléments introuvables »
 - [ ] Dépendances et services déclarés dans le manifest ; types publics dans `contract.ts`
+- [ ] Comptes externes déclarés dans `permissions.accounts`, autorisations minimales
 - [ ] Textes en français, code en anglais
 - [ ] `README.md` du module à jour (rôle, données, réglages, événements, services, API)
 - [ ] Tests dans `tests/`, `npm test` passe

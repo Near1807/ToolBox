@@ -10,7 +10,7 @@ Application de bureau Windows personnelle de Thomas : un **hub** (page d'accueil
 
 **Pour ajouter ou modifier un module : lire `docs/MODULES.md` (le contrat) puis `docs/AJOUTER-UN-MODULE.md`.** Point de départ : copier `modules/_template/`.
 
-Modules actuels (section Musique) : `music-library` (bibliothèque, service `musicLibrary`), `video-engine` (moteur FFmpeg partagé, Reels dessinés image par image, service `videoEngine`, sans page), `youtube-video` (générateur 16:9), `instagram-video` (pack Insta : 4 Reels 9:16 au même style sobre, post 4:5, légende, suivi de publication). Chaque module a son `README.md`.
+Modules actuels (section Musique) : `music-library` (bibliothèque, service `musicLibrary`), `video-engine` (moteur FFmpeg partagé, Reels dessinés image par image, service `videoEngine`, sans page), `youtube-video` (générateur 16:9), `instagram-video` (pack Insta : 4 Reels 9:16 au même style sobre, post 4:5, légende, suivi de publication, service `instagramPack`), `release-planner` (planning de sortie : calendrier, upload et programmation YouTube via `ctx.accounts`, rappels Instagram). `youtube-video` fournit le service `youtubeVideo`. Chaque module a son `README.md`.
 
 ## Stack
 
@@ -19,7 +19,7 @@ Modules actuels (section Musique) : `music-library` (bibliothèque, service `mus
 - **SQLite** via `better-sqlite3` (N-API, aucun rebuild pour Electron), base unique `hub.db` dans `app.getPath('userData')`.
 - **FFmpeg/FFprobe** embarqués : `ffmpeg-static` + `@derhuerst/ffprobe-static` (même build ; FFmpeg **6.1** sous Windows, 7.0 sous Linux : rester compatible 6.1), dépaquetés de l'asar.
 - **Canvas** `@napi-rs/canvas` (Skia, N-API précompilé, dépaqueté de l'asar) : rendu des Reels image par image (ADR 0017).
-- Secrets chiffrés avec `safeStorage` via l'interface `HostAdapter` (`backend/core/host.ts`).
+- Secrets et jetons OAuth chiffrés avec `safeStorage` via l'interface `HostAdapter` (`backend/core/host.ts`). Comptes connectés (`ctx.accounts`, OAuth Google installé : boucle locale + PKCE, ADR 0018) ; notifications Windows et zone de notification (ADR 0019).
 - Qualité : ESLint 10 + Prettier, Vitest 5, TypeScript 6 (pas 7 : non supporté par typescript-eslint). zod (manifests), yazl (export .zip).
 
 ## Commandes
@@ -41,9 +41,9 @@ Sous Linux en root (conteneur) : ajouter `--no-sandbox` à Electron, et `xvfb-ru
 ## Structure
 
 ```
-electron/        process principal : fenêtre (plein écran, barre sombre), démarrage, preload, HostAdapter Electron, smoke test
+electron/        process principal : fenêtre (plein écran, barre sombre), zone de notification et démarrage avec Windows, preload, HostAdapter Electron, smoke test
 backend/         server.ts (Fastify) · core/ (hub.ts = chargeur de modules et ctx, migrations, sauvegardes,
-                 réglages, tâches, planificateur, événements, services, fichiers générés, journaux) · routes/core.ts (/api/core/*)
+                 réglages, tâches, planificateur, événements, services, fichiers générés, comptes, notifications, journaux) · routes/core.ts (/api/core/*)
 frontend/src/    shell React : modules/ (découverte, hôte des pages), shell/ (accueil, fichiers générés, tâches, journaux, réglages), styles.css
 packages/sdk/    @hub/sdk : backend.ts, frontend.tsx, manifest.ts, testing.ts — seul import autorisé aux modules
 modules/         un dossier par module ; _template/ = module modèle (exemple, chargé à la demande)
@@ -79,4 +79,4 @@ docs/            ARCHITECTURE, MODULES (contrat), AJOUTER-UN-MODULE, DIRECTION-A
 
 - Travail sur la branche `hub-v1`. **Jamais** de push, merge ou rebase sur `main` : Thomas décide des fusions.
 - Un commit par étape logique, messages clairs. Push à la fin de chaque phase au minimum. La CI construit le `.exe` à chaque push sur `hub-v1`.
-- Aucun secret dans le dépôt (`.env` ignoré, `.env.example` documenté).
+- Aucun secret dans le dépôt (`.env` ignoré, `.env.example` documenté). Les identifiants OAuth (ID client, secret) se saisissent dans les réglages de l'app, jamais en dur.

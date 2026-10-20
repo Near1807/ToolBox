@@ -70,6 +70,11 @@ export interface VideoEngineService {
    * videos: colour-wash background, rounded cover with shadow, title, artist.
    */
   renderPost(request: PostRequest): Promise<{ file: string; width: number; height: number }>;
+  /**
+   * YouTube thumbnail 16:9 (1280×720 JPEG, < 2 MB) in the same style: blurred
+   * background, whole rounded cover with shadow, title, artist — no spectrum.
+   */
+  renderThumbnail(request: PostRequest): Promise<{ file: string; width: number; height: number }>;
   /** Duration of an audio file, in seconds. */
   probeDuration(audioPath: string): Promise<number>;
 }

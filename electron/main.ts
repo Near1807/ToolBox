@@ -6,6 +6,7 @@ import { toUnpackedPath } from '../backend/core/ffmpeg-binaries';
 import { mediaTokenFromUrl } from '../backend/core/media';
 import { generateToken } from '../backend/core/security';
 import { startServer, type RunningServer } from '../backend/server';
+import { attachDesktop, showWindow, startedHidden } from './desktop';
 import { createElectronHost } from './host';
 import { runSmokeTest } from './smoke-test';
 import { attachWindowControls, startsFullscreen, applyDarkWindowChrome } from './window-controls';
@@ -76,8 +77,9 @@ function createWindow(appUrl: string): BrowserWindow {
   });
 
   attachWindowControls(window);
+  attachDesktop(window);
   window.once('ready-to-show', () => {
-    if (!smokeTestFile) window.show();
+    if (!smokeTestFile && !startedHidden) window.show();
   });
 
   // Links to external sites open in the default browser, never inside the app.
@@ -130,11 +132,7 @@ async function bootstrap(): Promise<void> {
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
-  app.on('second-instance', () => {
-    if (!mainWindow) return;
-    if (mainWindow.isMinimized()) mainWindow.restore();
-    mainWindow.focus();
-  });
+  app.on('second-instance', () => showWindow());
 
   app
     .whenReady()

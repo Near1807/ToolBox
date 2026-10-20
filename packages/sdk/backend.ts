@@ -57,7 +57,10 @@ export interface ModuleContext {
   readonly scheduler: ModuleScheduler;
   readonly events: ModuleEvents;
   readonly services: ModuleServices;
+  /** Connected accounts (OAuth), for the providers declared in permissions.accounts. */
   readonly accounts: ModuleAccounts;
+  /** Desktop notifications (Windows), opening a page of the module when clicked. */
+  readonly notifications: ModuleNotifications;
   readonly binaries: ModuleBinaries;
   readonly logger: ModuleLogger;
   /** Called when the hub shuts down (close watchers, kill processes…). */
@@ -304,9 +307,70 @@ export interface ModuleServices {
   get<T extends object>(name: string): T;
 }
 
+/** State of a connected account (OAuth), as seen by modules and the Settings page. */
+export interface AccountStatus {
+  /** Provider id, e.g. "google". */
+  provider: string;
+  label: string;
+  /** True when the OAuth client (ID, secret) is entered in Réglages > Comptes connectés. */
+  configured: boolean;
+  connected: boolean;
+  /** The authorization expired or was revoked: connect again. */
+  needsReconnect: boolean;
+  /** Scopes granted by the user. */
+  scopes: string[];
+  connectedAt: string | null;
+  error: string | null;
+  /** A consent page is open in the browser, waiting for the user. */
+  connecting: boolean;
+}
+
+export type AccountErrorCode =
+  | 'not-configured'
+  | 'not-connected'
+  | 'reauth-required'
+  | 'denied'
+  | 'cancelled'
+  | 'network'
+  | 'encryption';
+
+/** Error of ctx.accounts, with a French message ready to show. */
+export class AccountError extends Error {
+  constructor(
+    readonly code: AccountErrorCode,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'AccountError';
+  }
+}
+
 export interface ModuleAccounts {
-  /** Available from phase 5 (OAuth Google). Throws until then. */
   readonly available: boolean;
+  status(provider: string): AccountStatus;
+  /**
+   * Opens the provider's consent page in the browser and resolves once the user
+   * answered (5 min max). Scopes already granted are kept (incremental).
+   */
+  connect(provider: string, scopes: string[]): Promise<AccountStatus>;
+  /** Revokes the authorization at the provider and forgets the tokens. */
+  disconnect(provider: string): Promise<void>;
+  /** A valid access token (refreshed when needed). Throws AccountError. */
+  accessToken(provider: string): Promise<string>;
+  /**
+   * fetch() with the bearer token; "/path" is resolved against the provider's
+   * API base (Google: https://www.googleapis.com). A 401 refreshes the token and
+   * sends the request once more, so the body must be a string or a Buffer.
+   */
+  fetch(provider: string, url: string, init?: RequestInit): Promise<Response>;
+}
+
+export interface ModuleNotifications {
+  /**
+   * Shows a Windows notification (when the app runs). `path` is a page of the
+   * module ("" = its main page, "items/3"…) opened when the notification is clicked.
+   */
+  notify(notification: { title: string; body: string; path?: string }): void;
 }
 
 export interface ModuleLogger {
