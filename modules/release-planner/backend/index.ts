@@ -1443,27 +1443,107 @@ export default defineBackendModule({
       });
     };
 
-    // A Reel perso added to a release already planned: { customReelId, kind, date, time? }.
+    // A Reel perso added to a release already planned (« Ajouter un Reel perso »).
+    const DAY_NAMES = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
+    const CUSTOM_KINDS = ['insta-reel', 'short'] as const;
+    const customOptionsOf = (release: ReleaseRow) => {
+      const days = allowedDays();
+      const items = store.itemsOf(release.id);
+      const today = local(new Date().toISOString()).date;
+      let date = items.reduce(
+        (last, item) => {
+          const day = local(item.scheduled_at).date;
+          return day > last ? day : last;
+        },
+        release.release_date > today ? release.release_date : today,
+      );
+      const all = customReels.listReels(release.track_id);
+      const included = all.filter((reel) => library.isIncluded('custom-reels', `reel:${reel.id}`));
+      return {
+        allowedDays: days,
+        time: release.release_time,
+        excluded: all.length - included.length,
+        options: included.flatMap((reel) => {
+          const planned = Object.fromEntries(
+            CUSTOM_KINDS.map((kind) => [
+              kind,
+              items.some((i) => i.kind === kind && i.custom_reel_id === reel.id),
+            ]),
+          ) as Record<(typeof CUSTOM_KINDS)[number], boolean>;
+          if (planned['insta-reel'] && planned.short) return [];
+          date = nextAllowed(date, days);
+          return [
+            {
+              customReelId: reel.id,
+              label: reel.label,
+              rendered: reel.exists,
+              planned,
+              date,
+            },
+          ];
+        }),
+      };
+    };
+
+    ctx.routes.get('/releases/:id/custom-reels', (request) =>
+      customOptionsOf(store.requireRelease(idParam(request.params))),
+    );
+
+    /** { customReelId, kinds: ['insta-reel', 'short'], date, time? } — the date on an allowed day. */
     ctx.routes.post('/releases/:id/items', (request) => {
       const release = store.requireRelease(idParam(request.params));
       const input = body(request);
       const reel = customReels.getReel(Number(input.customReelId));
       if (!reel || reel.trackId !== release.track_id)
         throw new HttpError(400, 'Reel perso inconnu');
-      const kind = input.kind === 'short' ? 'short' : 'insta-reel';
+      if (!library.isIncluded('custom-reels', `reel:${reel.id}`)) {
+        throw new HttpError(400, 'Ce Reel perso est exclu de la sortie (page du morceau)');
+      }
+      const raw = Array.isArray(input.kinds) ? input.kinds : [input.kind ?? 'insta-reel'];
+      const kinds = CUSTOM_KINDS.filter((kind) => raw.includes(kind));
+      if (kinds.length === 0) throw new HttpError(400, 'Choisis Reel Insta et/ou Short');
       if (!isDate(input.date)) throw new HttpError(400, 'Date invalide');
+      const days = allowedDays();
+      if (!days.includes(weekday(input.date))) {
+        throw new HttpError(
+          400,
+          `Le ${shortDate(input.date)} est un ${DAY_NAMES[weekday(input.date)]} : jour non autorisé (Réglages › Jours de publication autorisés : ${days.map((d) => DAY_NAMES[d]).join(', ')})`,
+        );
+      }
       const time = isTime(input.time) ? input.time : release.release_time;
       const position = CUSTOM_OFFSET + reel.position;
-      if (store.itemsOf(release.id).some((i) => i.kind === kind && i.position === position)) {
-        throw new HttpError(409, 'Déjà dans le planning');
+      const items = store.itemsOf(release.id);
+      const already = kinds.filter((kind) =>
+        items.some((i) => i.kind === kind && i.custom_reel_id === reel.id),
+      );
+      if (already.length > 0) {
+        throw new HttpError(
+          409,
+          `Déjà dans le planning : ${already.map((kind) => itemLabel(kind, position)).join(', ')}`,
+        );
       }
-      store.addItem(release.id, {
-        kind,
-        position,
-        scheduledAt: zonedToUtc(input.date, time, timeZone()).toISOString(),
-        customReelId: reel.id,
-      });
-      return releaseDto(store.requireRelease(release.id));
+      const scheduledAt = zonedToUtc(input.date, time, timeZone()).toISOString();
+      const warnings: string[] = [];
+      for (const kind of kinds) {
+        const taken = store
+          .allItems()
+          .filter(
+            (other) =>
+              PLATFORM[other.kind] === PLATFORM[kind] &&
+              local(other.scheduled_at).date === input.date,
+          ).length;
+        if (taken >= maxPerDay()) {
+          warnings.push(
+            `Déjà ${taken} publication(s) ${PLATFORM[kind] === 'youtube' ? 'YouTube' : 'Instagram'} le ${shortDate(input.date)}.`,
+          );
+        }
+        store.addItem(release.id, { kind, position, scheduledAt, customReelId: reel.id });
+      }
+      if (Date.parse(scheduledAt) < Date.now()) warnings.push('Cette date est passée.');
+      if (!reel.exists) {
+        warnings.push(`${reel.label} n’est pas encore généré : fais-le avant la date.`);
+      }
+      return { release: releaseDto(store.requireRelease(release.id)), warnings };
     });
 
     ctx.routes.post('/releases', (request) => {

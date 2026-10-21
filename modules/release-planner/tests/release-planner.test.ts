@@ -20,6 +20,7 @@ import {
 import type { CustomReel, CustomReelsService } from '../../custom-reels/contract';
 import type { InstagramPackService, PackItem } from '../../instagram-video/contract';
 import type { YouTubeVideoService } from '../../youtube-video/contract';
+import { addDays } from '../backend/time';
 import { MockGoogle } from './mock-google';
 
 const MODULES = path.resolve(import.meta.dirname, '../..');
@@ -710,6 +711,63 @@ describe('release-planner (mock YouTube)', () => {
     );
     expect(today.body.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(notifications.every((n) => n.target?.startsWith('/m/release-planner'))).toBe(true);
+  });
+
+  it('« Ajouter un Reel perso » to a planned release: Reel and/or Short, on an allowed day', async () => {
+    await hub.request('PUT', '/api/core/settings/release-planner', { allowedDays: '1,2,3,4,5' });
+    type Options = {
+      allowedDays: number[];
+      options: {
+        customReelId: number;
+        planned: { 'insta-reel': boolean; short: boolean };
+        date: string;
+      }[];
+    };
+    const options = async () =>
+      (await hub.request<Options>('GET', `${API}/releases/${first.id}/custom-reels`)).body;
+    const current = await options();
+    expect(current.allowedDays).toEqual([0, 1, 2, 3, 4]);
+    const [option] = current.options;
+    expect(option).toMatchObject({
+      customReelId: 500 + trackIds[0]!,
+      planned: { 'insta-reel': false, short: false },
+    });
+    // Proposed on an allowed day, after the last element of the plan.
+    const last = (await release(first.id)).items
+      .map((i) => i.date)
+      .sort()
+      .at(-1)!;
+    expect(option!.date > last).toBe(true);
+    expect([1, 2, 3, 4, 5]).toContain(new Date(`${option!.date}T00:00:00Z`).getUTCDay());
+
+    const add = (kinds: string[], date: string) =>
+      hub.request<{ release: Release; warnings: string[]; error?: string }>(
+        'POST',
+        `${API}/releases/${first.id}/items`,
+        { customReelId: option!.customReelId, kinds, date, time: '19:00' },
+      );
+    // A Saturday: refused, with the allowed days.
+    const saturday = addDays(
+      option!.date,
+      (6 - new Date(`${option!.date}T00:00:00Z`).getUTCDay() + 7) % 7,
+    );
+    const refused = await add(['short'], saturday);
+    expect(refused.status).toBe(400);
+    expect(refused.body.error).toMatch(
+      /samedi : jour non autorisé.*lundi, mardi, mercredi, jeudi, vendredi/,
+    );
+
+    const added = await add(['short'], option!.date);
+    expect(added.status).toBe(200);
+    const short = added.body.release.items.find((i) => i.label === 'Short perso 1')!;
+    expect(short).toMatchObject({ date: option!.date, time: '19:00', state: 'planned' });
+    expect((await options()).options[0]!.planned).toEqual({ 'insta-reel': false, short: true });
+    expect((await add(['short'], option!.date)).status).toBe(409);
+    expect((await add([], option!.date)).status).toBe(400);
+    expect((await add(['insta-reel'], option!.date)).status).toBe(200);
+    // Both planned: not offered any more.
+    expect((await options()).options).toEqual([]);
+    await hub.request('PUT', '/api/core/settings/release-planner', { allowedDays: null });
   });
 
   it('removes a whole release, keeping what is online when asked', async () => {

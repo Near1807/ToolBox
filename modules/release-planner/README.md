@@ -25,7 +25,8 @@ Le calendrier de sortie de chaque morceau, tous morceaux confondus.
    - Le Short n est le Reel n du pack, publié sur YouTube.
    - **« J tombe toujours un lundi »** (réglage, activé par défaut) : la date choisie est reportée au lundi suivant, et c'est dit. Avec les **jours de publication autorisés** (réglage, lundi à vendredi par défaut), le plan par défaut tient dans la semaine.
    - **Seulement ce qui est coché « Inclure dans la sortie »** sur la page du morceau (Bibliothèque) : exclure le Reel n retire le Reel n et le Short n ; les éléments exclus sont listés.
-   - **Reels perso** (« Reels depuis mes vidéos ») : proposés à part, décochés, comme Reel Instagram et/ou Short YouTube, chacun un jour autorisé après la fin du plan (`POST /releases/:id/items` pour en ajouter plus tard).
+   - **Reels perso** (« Reels depuis mes vidéos ») : proposés à part, décochés, comme Reel Instagram et/ou Short YouTube, chacun un jour autorisé après la fin du plan.
+   - **« Ajouter un Reel perso »** (sur une sortie déjà planifiée, si « Reels depuis mes vidéos » est présent) : choix du Reel (seulement ceux inclus dans la sortie), de la plateforme (Reel Insta et/ou Short, ceux déjà planifiés sont grisés) et de la date, proposée le jour autorisé suivant la fin du plan. Un jour non autorisé est refusé, avec la liste des jours autorisés.
    - **Anti-embouteillage** : au plus N publications par jour et par plateforme (réglage). Quand deux morceaux se chevauchent, l'élément de trop passe au premier jour libre **et autorisé** (jamais un jour non coché), l'ordre du plan est gardé, et l'app le signale (« Post Insta décalé du 23/10 au 24/10 » ; un élément qui tombait un jour non autorisé est signalé à part).
 
 3. **Avant l'envoi**, chaque élément YouTube a ses métadonnées, préremplies par les modèles des réglages et modifiables : titre, description, tags, visibilité.
@@ -191,7 +192,8 @@ Sans un module facultatif, le Planning se charge quand même : ses éléments ne
 | POST    | `/releases/:id/upload`                        | Envoie tous les éléments YouTube                                                                             |
 | PATCH   | `/items/:id`                                  | `{ date?, time?, title?, description?, tags?, visibility?, resetTexts? }` (déjà programmé : `videos.update`) |
 | POST    | `/items/:id/texts/template`                   | « Enregistrer comme modèle par défaut » (`{ title?, description? }`)                                         |
-| POST    | `/releases/:id/items`                         | Ajoute un Reel perso `{ customReelId, kind, date, time? }`                                                   |
+| GET     | `/releases/:id/custom-reels`                  | Reels perso à ajouter : jours autorisés, déjà planifiés, date proposée                                       |
+| POST    | `/releases/:id/items`                         | Ajoute un Reel perso `{ customReelId, kinds: ['insta-reel', 'short'], date, time? }` (jour autorisé)         |
 | PATCH   | `/items/:id/caption`                          | Instagram : `{ caption \| null }`, enregistrée dans le pack (`instagramPack.setCaption`)                     |
 | POST    | `/items/:id/upload` · `/items/:id/cancel`     | Envoyer / annuler                                                                                            |
 | POST    | `/items/:id/published`                        | Instagram : case « Publié » du pack                                                                          |
