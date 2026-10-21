@@ -4,6 +4,27 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.13.0] — 2026-10-22
+
+Modules indépendants, rattachement « Sans projet » complet, Reel perso ajouté à une sortie planifiée, place disque des vidéos importées.
+
+### Ajouté
+
+- **Services facultatifs** (socle) : `dependsOn.optionalServices` et `ctx.services.optional()`. Règle du contrat : un module n'exige que ce sans quoi il n'a aucun sens (ADR 0024).
+- **Rattachement complet** : rattacher un élément « Sans projet » met aussi à jour la ligne du module (vidéo, pack, Reel perso, miniature), par le nouveau crochet obligatoire `ctx.outputs.onReattach`, tout ou rien ; un refus (place déjà prise) est expliqué (ADR 0025). Service `musicLibrary.trackIdOf`.
+- **Planning : « Ajouter un Reel perso »** sur une sortie déjà planifiée : Reel, Reel Insta et/ou Short, date proposée sur un jour autorisé (un jour non autorisé est refusé).
+- **Reels perso : libérer la place** : place occupée par les vidéos importées (morceau, total, déjà libéré) ; après génération, « Supprimer la copie » (Corbeille) ou « Garder » ; « Réimporter » pour modifier un Reel dont la copie a été supprimée. Réglage « Proposer de supprimer la copie des vidéos importées ».
+- SDK : `formatBytes`. Vue projet : groupe « Vidéos importées » (`kind: 'source'`).
+
+### Modifié
+
+- Le Planning de sortie n'exige plus que la Bibliothèque : Vidéo YouTube, Pack Instagram, Reels perso et moteur vidéo sont facultatifs (désactiver « Reels depuis mes vidéos » ne désactive plus le Planning).
+- Les copies des vidéos importées passent par `ctx.outputs` : « Retirer » une vidéo l'envoie à la Corbeille.
+
+### Données
+
+- Migration 2 de « Reels depuis mes vidéos » : colonnes `size_bytes`, `removed_at`, `keep_copy` (ajouts seulement, sauvegarde automatique avant).
+
 ## [0.12.0] — 2026-10-21
 
 Nouveau look et thèmes, barre latérale à catégories, textes modifiables sur place, projets par morceau, Reels depuis mes vidéos, Planning amélioré.
