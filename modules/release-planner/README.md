@@ -134,14 +134,14 @@ Si Google est injoignable (réseau coupé), l'envoi est retenté 15 minutes plus
 
 ## Données
 
-| Élément              | Détail                                                                                                                                                                                                                                                                                                                                              |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Tables (migration 1) | `release_planner__releases` : une par morceau, jour J, vidéo choisie, miniature. `release_planner__items` : un élément par publication — date UTC, date d'origine si décalée, élément du pack, métadonnées YouTube, état, session d'envoi, ID YouTube, avertissement/erreur, rappel. `release_planner__quota` : envois et unités par jour de quota. |
-| Fichiers             | miniatures YouTube dans `<dossier de sortie>/release-planner/`, enregistrées dans `ctx.outputs` (ref `thumbnail:<id>`)                                                                                                                                                                                                                              |
-| Compte               | `google` via `ctx.accounts` (jetons chiffrés par le socle, table `core__accounts`)                                                                                                                                                                                                                                                                  |
-| Tâches               | `upload` `{ itemId }` (une à la fois)                                                                                                                                                                                                                                                                                                               |
-| Tâches planifiées    | `dispatch` (chaque minute : envois autorisés par le quota, rappels) · `youtube-status` (toutes les 30 min)                                                                                                                                                                                                                                          |
-| Événement écouté     | `youtube-video:video.created` (remplace une vidéo disparue)                                                                                                                                                                                                                                                                                         |
+| Élément                 | Détail                                                                                                                                                                                                                                                                                                                                              |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tables (migrations 1–2) | `release_planner__releases` : une par morceau, jour J, vidéo choisie, miniature. `release_planner__items` : un élément par publication — date UTC, date d'origine si décalée, élément du pack, métadonnées YouTube, état, session d'envoi, ID YouTube, avertissement/erreur, rappel. `release_planner__quota` : envois et unités par jour de quota. |
+| Fichiers                | miniatures YouTube dans `<dossier de sortie>/release-planner/`, enregistrées dans `ctx.outputs` (ref `thumbnail:<id>`)                                                                                                                                                                                                                              |
+| Compte                  | `google` via `ctx.accounts` (jetons chiffrés par le socle, table `core__accounts`)                                                                                                                                                                                                                                                                  |
+| Tâches                  | `upload` `{ itemId }` (une à la fois)                                                                                                                                                                                                                                                                                                               |
+| Tâches planifiées       | `dispatch` (chaque minute : envois autorisés par le quota, rappels) · `youtube-status` (toutes les 30 min)                                                                                                                                                                                                                                          |
+| Événement écouté        | `youtube-video:video.created` (remplace une vidéo disparue)                                                                                                                                                                                                                                                                                         |
 
 ## Réglages
 
@@ -152,11 +152,13 @@ Si Google est injoignable (réseau coupé), l'envoi est retenté 15 minutes plus
 | `maxPerDay`                      | publications max par jour et par plateforme (anti-embouteillage)                                                                                                                |
 | `videoTitle`, `videoDescription` | modèles de la vidéo longue. Repères : `{titre}`, `{artiste}`, `{titre_youtube}`, `{description_youtube}` (préparés par Vidéo YouTube : liens, hashtags), `{hashtags}`, `{date}` |
 | `shortTitle`, `shortDescription` | modèles des Shorts. Repères : `{n}`, `{total}`, `{lien_video}`…                                                                                                                 |
-| `extraTags`                      | tags YouTube en plus de ceux du morceau                                                                                                                                         |
-| `language`                       | langue des métadonnées (`defaultLanguage`, `defaultAudioLanguage`)                                                                                                              |
-| `playlist`                       | playlist de la chaîne (nom ou ID), facultative                                                                                                                                  |
-| `uploadsPerDay`, `unitsPerDay`   | limites de quota                                                                                                                                                                |
-| `remindInstagram`                | notifications de rappel                                                                                                                                                         |
+
+Les modèles **ne font que pré-remplir** : dans le panneau d'un élément, titre, description et tags (YouTube) ou légende (Instagram, enregistrée dans le pack) se modifient sur place avec le composant partagé `TextFields`. Tant qu'un élément n'est pas modifié, ses textes suivent les modèles (et les textes de Vidéo YouTube) ; une fois modifié, il est « Personnalisé » (colonne `texts_custom`, migration 2 : les éléments créés avant sont considérés personnalisés, leurs textes ne bougent pas). « Rétablir le modèle » y revient ; « Enregistrer comme modèle par défaut » met à jour le modèle des réglages.
+| `extraTags` | tags YouTube en plus de ceux du morceau |
+| `language` | langue des métadonnées (`defaultLanguage`, `defaultAudioLanguage`) |
+| `playlist` | playlist de la chaîne (nom ou ID), facultative |
+| `uploadsPerDay`, `unitsPerDay` | limites de quota |
+| `remindInstagram` | notifications de rappel |
 
 ## Dépendances
 
@@ -168,25 +170,27 @@ Si Google est injoignable (réseau coupé), l'envoi est retenté 15 minutes plus
 
 ## API
 
-| Méthode | Route                                         | Rôle                                                                                            |
-| ------- | --------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| GET     | `/summary`                                    | Aujourd'hui, fuseau, compte, quota, message de file d'attente, erreurs du modèle                |
-| GET     | `/calendar?from=&to=`                         | Éléments d'une période (dates locales)                                                          |
-| GET     | `/today`                                      | À publier aujourd'hui, en retard, 7 prochains jours                                             |
-| GET     | `/tracks`                                     | Morceaux, avec vidéo, pack et sortie existante                                                  |
-| POST    | `/plan`                                       | Proposition : `{ trackId, date, time, videoId? }` → éléments, décalages, avertissements         |
-| POST    | `/releases`                                   | Crée le plan (`items` : dates modifiées, facultatif)                                            |
-| GET     | `/releases` · `/releases/:id`                 | Sorties planifiées                                                                              |
-| PATCH   | `/releases/:id`                               | `{ videoId }` : autre vidéo générée                                                             |
-| DELETE  | `/releases/:id?online=keep\|delete`           | Retire le morceau du planning                                                                   |
-| POST    | `/releases/:id/upload`                        | Envoie tous les éléments YouTube                                                                |
-| PATCH   | `/items/:id`                                  | `{ date?, time?, title?, description?, tags?, visibility? }` (déjà programmé : `videos.update`) |
-| POST    | `/items/:id/upload` · `/items/:id/cancel`     | Envoyer / annuler                                                                               |
-| POST    | `/items/:id/published`                        | Instagram : case « Publié » du pack                                                             |
-| POST    | `/items/:id/regenerate` · `/items/:id/reveal` | Régénérer le fichier / le montrer                                                               |
-| DELETE  | `/items/:id?online=keep\|delete`              | Retire l'élément                                                                                |
-| POST    | `/check-now`                                  | Relit le statut sur YouTube                                                                     |
-| GET     | `/account` · POST `/account/connect`          | Compte Google (chaîne) / connexion                                                              |
+| Méthode | Route                                         | Rôle                                                                                                         |
+| ------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| GET     | `/summary`                                    | Aujourd'hui, fuseau, compte, quota, message de file d'attente, erreurs du modèle                             |
+| GET     | `/calendar?from=&to=`                         | Éléments d'une période (dates locales)                                                                       |
+| GET     | `/today`                                      | À publier aujourd'hui, en retard, 7 prochains jours                                                          |
+| GET     | `/tracks`                                     | Morceaux, avec vidéo, pack et sortie existante                                                               |
+| POST    | `/plan`                                       | Proposition : `{ trackId, date, time, videoId? }` → éléments, décalages, avertissements                      |
+| POST    | `/releases`                                   | Crée le plan (`items` : dates modifiées, facultatif)                                                         |
+| GET     | `/releases` · `/releases/:id`                 | Sorties planifiées                                                                                           |
+| PATCH   | `/releases/:id`                               | `{ videoId }` : autre vidéo générée                                                                          |
+| DELETE  | `/releases/:id?online=keep\|delete`           | Retire le morceau du planning                                                                                |
+| POST    | `/releases/:id/upload`                        | Envoie tous les éléments YouTube                                                                             |
+| PATCH   | `/items/:id`                                  | `{ date?, time?, title?, description?, tags?, visibility?, resetTexts? }` (déjà programmé : `videos.update`) |
+| POST    | `/items/:id/texts/template`                   | « Enregistrer comme modèle par défaut » (`{ title?, description? }`)                                         |
+| PATCH   | `/items/:id/caption`                          | Instagram : `{ caption \| null }`, enregistrée dans le pack (`instagramPack.setCaption`)                     |
+| POST    | `/items/:id/upload` · `/items/:id/cancel`     | Envoyer / annuler                                                                                            |
+| POST    | `/items/:id/published`                        | Instagram : case « Publié » du pack                                                                          |
+| POST    | `/items/:id/regenerate` · `/items/:id/reveal` | Régénérer le fichier / le montrer                                                                            |
+| DELETE  | `/items/:id?online=keep\|delete`              | Retire l'élément                                                                                             |
+| POST    | `/check-now`                                  | Relit le statut sur YouTube                                                                                  |
+| GET     | `/account` · POST `/account/connect`          | Compte Google (chaîne) / connexion                                                                           |
 
 ## Code
 

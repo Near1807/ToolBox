@@ -4,8 +4,21 @@ import path from 'node:path';
 import { defineBackendModule, HttpError, type ModuleContext } from '@hub/sdk/backend';
 import type { MusicLibraryService, Track } from '../../music-library/contract';
 import type { VideoEngineService } from '../../video-engine/contract';
-import { buildDescription, buildHashtags, buildVideoTitle, videoFileName } from './description';
-import { YOUTUBE_VIDEO_SERVICE, type YouTubeVideo, type YouTubeVideoService } from '../contract';
+import { fillTemplate, parseTags, toTemplate } from '@hub/sdk/texts';
+import {
+  buildDescription,
+  buildHashtags,
+  buildVideoTitle,
+  templateValues,
+  videoFileName,
+  type DescriptionInput,
+} from './description';
+import {
+  YOUTUBE_VIDEO_SERVICE,
+  type YouTubeTexts,
+  type YouTubeVideo,
+  type YouTubeVideoService,
+} from '../contract';
 
 const FORMAT = 'youtube' as const;
 
@@ -48,6 +61,19 @@ export default defineBackendModule({
         CREATE INDEX youtube_video__videos_track ON youtube_video__videos (track_id);
       `,
     },
+    {
+      version: 2,
+      description: 'texts of the video edited per track (null = template text)',
+      up: `
+        CREATE TABLE youtube_video__texts (
+          track_id INTEGER PRIMARY KEY,
+          title TEXT,
+          description TEXT,
+          tags TEXT,
+          updated_at TEXT NOT NULL
+        );
+      `,
+    },
   ],
 
   register(ctx: ModuleContext) {
@@ -69,20 +95,88 @@ export default defineBackendModule({
       return track.coverPath;
     };
 
-    const texts = (track: Track) => {
-      const input = {
-        title: track.title,
-        artist: track.artist,
-        releaseDate: track.releaseDate,
-        tags: track.tags,
-        links: ctx.settings.get<string>('links') ?? '',
-        hashtags: ctx.settings.get<string>('hashtags') ?? '',
-      };
+    const textsTable = ctx.db.table('texts');
+    interface TextsRow {
+      title: string | null;
+      description: string | null;
+      tags: string | null;
+    }
+
+    const descriptionInput = (track: Track): DescriptionInput => ({
+      title: track.title,
+      artist: track.artist,
+      releaseDate: track.releaseDate,
+      tags: track.tags,
+      links: ctx.settings.get<string>('links') ?? '',
+      hashtags: ctx.settings.get<string>('hashtags') ?? '',
+    });
+
+    /** Texts from the templates of the settings (built-in format when empty). */
+    const templateTexts = (track: Track) => {
+      const input = descriptionInput(track);
+      const values = templateValues(input);
+      const titleTemplate = (ctx.settings.get<string>('titleTemplate') ?? '').trim();
+      const descriptionTemplate = (ctx.settings.get<string>('descriptionTemplate') ?? '').trim();
       return {
-        videoTitle: buildVideoTitle(input),
-        description: buildDescription(input),
+        videoTitle: titleTemplate ? fillTemplate(titleTemplate, values) : buildVideoTitle(input),
+        description: descriptionTemplate
+          ? fillTemplate(descriptionTemplate, values)
+          : buildDescription(input),
         tags: buildHashtags(track.tags, input.hashtags).map((t) => t.slice(1)),
       };
+    };
+
+    /** Texts of the track's video: the edited ones, otherwise the template ones. */
+    const texts = (track: Track): YouTubeTexts => {
+      const defaults = templateTexts(track);
+      const own = ctx.db
+        .prepare(`SELECT title, description, tags FROM ${textsTable} WHERE track_id = ?`)
+        .get(track.id) as TextsRow | undefined;
+      const custom = Boolean(
+        own && (own.title !== null || own.description !== null || own.tags !== null),
+      );
+      return {
+        videoTitle: own?.title ?? defaults.videoTitle,
+        description: own?.description ?? defaults.description,
+        tags: own?.tags ? (JSON.parse(own.tags) as string[]) : defaults.tags,
+        custom,
+      };
+    };
+
+    /** Saves edited texts; a text equal to the template one is stored as « follow the template ». */
+    const setTexts = (
+      track: Track,
+      change: { videoTitle?: string; description?: string; tags?: string[] } | null,
+    ) => {
+      if (change === null) {
+        ctx.db.prepare(`DELETE FROM ${textsTable} WHERE track_id = ?`).run(track.id);
+        return;
+      }
+      const defaults = templateTexts(track);
+      const current = ctx.db
+        .prepare(`SELECT title, description, tags FROM ${textsTable} WHERE track_id = ?`)
+        .get(track.id) as TextsRow | undefined;
+      const pick = (value: string | undefined, fallback: string, before: string | null) =>
+        value === undefined ? before : value === fallback ? null : value;
+      const tags =
+        change.tags === undefined
+          ? (current?.tags ?? null)
+          : JSON.stringify(change.tags) === JSON.stringify(defaults.tags)
+            ? null
+            : JSON.stringify(change.tags);
+      ctx.db
+        .prepare(
+          `INSERT INTO ${textsTable} (track_id, title, description, tags, updated_at) VALUES (?, ?, ?, ?, ?)
+           ON CONFLICT (track_id) DO UPDATE SET title = excluded.title,
+             description = excluded.description, tags = excluded.tags, updated_at = excluded.updated_at`,
+        )
+        .run(
+          track.id,
+          pick(change.videoTitle, defaults.videoTitle, current?.title ?? null),
+          pick(change.description, defaults.description, current?.description ?? null),
+          tags,
+          new Date().toISOString(),
+        );
     };
 
     // Every video goes through ctx.outputs (deletion, missing files). Videos made
@@ -209,6 +303,58 @@ export default defineBackendModule({
       };
     });
 
+    // Texts edited under the video (title, description, tags).
+    ctx.routes.patch('/tracks/:id/texts', (request) => {
+      const track = requireTrack(request.params);
+      const body = (request.body ?? {}) as Record<string, unknown>;
+      const text = (key: string, max: number) => {
+        const value = body[key];
+        if (value === undefined) return undefined;
+        if (typeof value !== 'string' || value.length > max) {
+          throw new HttpError(400, `Texte invalide : ${key}`);
+        }
+        return value;
+      };
+      const tags = body.tags;
+      if (tags !== undefined && typeof tags !== 'string' && !Array.isArray(tags)) {
+        throw new HttpError(400, 'Tags invalides');
+      }
+      setTexts(track, {
+        videoTitle: text('videoTitle', 1000),
+        description: text('description', 20_000),
+        tags:
+          tags === undefined
+            ? undefined
+            : parseTags(Array.isArray(tags) ? tags.map(String).join(',') : tags),
+      });
+      return texts(track);
+    });
+
+    ctx.routes.delete('/tracks/:id/texts', (request) => {
+      const track = requireTrack(request.params);
+      setTexts(track, null);
+      return texts(track);
+    });
+
+    // « Enregistrer comme modèle par défaut »: the track's values become placeholders.
+    ctx.routes.post('/tracks/:id/texts/template', (request) => {
+      const track = requireTrack(request.params);
+      const body = (request.body ?? {}) as { videoTitle?: unknown; description?: unknown };
+      const values = templateValues(descriptionInput(track));
+      if (typeof body.videoTitle === 'string' && body.videoTitle.trim()) {
+        ctx.settings.set('titleTemplate', toTemplate(body.videoTitle, values));
+      }
+      if (typeof body.description === 'string' && body.description.trim()) {
+        ctx.settings.set('descriptionTemplate', toTemplate(body.description, values));
+      }
+      // This track now follows the new template.
+      setTexts(track, {
+        videoTitle: body.videoTitle as string,
+        description: body.description as string,
+      });
+      return texts(track);
+    });
+
     // A few low-resolution seconds from the middle of the track, before the full render.
     ctx.routes.post('/tracks/:id/preview', async (request) => {
       const track = requireTrack(request.params);
@@ -264,6 +410,12 @@ export default defineBackendModule({
       texts: (trackId) => {
         const track = library.getTrack(trackId);
         return track ? texts(track) : null;
+      },
+      setTexts: (trackId, change) => {
+        const track = library.getTrack(trackId);
+        if (!track) throw new Error('Morceau introuvable');
+        setTexts(track, change);
+        return texts(track);
       },
       render: (trackId) => {
         const track = library.getTrack(trackId);

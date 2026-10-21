@@ -194,13 +194,8 @@ export function spreadPlan(
   return { items: placed, shifts };
 }
 
-/** Fills a text template: {titre}, {artiste}, {n}… Unknown keys are left as they are. */
-export function fillTemplate(template: string, values: Record<string, string>): string {
-  return template
-    .replace(/\{([a-z_]+)\}/g, (whole, key: string) => values[key] ?? whole)
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
-}
+/** Fills a text template: {titre}, {artiste}, {n}… (shared with every module, docs/MODULES.md §7.3). */
+export { fillTemplate } from '@hub/sdk/texts';
 
 /**
  * YouTube refuses "<" and ">" in titles and descriptions; titles are limited

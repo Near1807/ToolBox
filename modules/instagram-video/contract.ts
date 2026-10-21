@@ -36,6 +36,11 @@ export interface InstagramPackService {
   getItem(itemId: number): (PackItem & { trackId: number }) | null;
   /** Ticks or unticks « Publié » (date kept when already ticked, unless `at` is given). */
   setPublished(itemId: number, published: boolean, at?: string): PackItem;
+  /**
+   * Edits the caption of an element: the post carries the pack caption, a Reel
+   * gets its own (null: back to the pack caption, or to the template for the post).
+   */
+  setCaption(itemId: number, caption: string | null): PackItem;
   /** Renders the item again (job of instagram-video, visible in Tâches). */
   renderItem(itemId: number): { jobId: string };
 }

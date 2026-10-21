@@ -389,3 +389,161 @@ export function ExcerptChip(props: {
     </button>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Texts edited in place (title, description, caption, tags)
+// ---------------------------------------------------------------------------
+
+export interface TextFieldSpec {
+  key: string;
+  label: string;
+  multiline?: boolean;
+  rows?: number;
+  /** Counter shown next to the label; red above the limit. */
+  max?: number;
+  /** YouTube counts descriptions in bytes. */
+  maxUnit?: 'chars' | 'bytes';
+  placeholder?: string;
+  help?: ReactNode;
+  /** « Copier » button next to the label. */
+  copy?: boolean;
+}
+
+const sizeOf = (text: string, unit: 'chars' | 'bytes' = 'chars') =>
+  unit === 'bytes' ? new TextEncoder().encode(text).length : text.length;
+
+/**
+ * Texts of a generated element, edited under it: saved when leaving a field,
+ * with « Enregistrer » or Ctrl+Entrée. Templates of the settings only pre-fill:
+ * `onReset` goes back to the template text, `onSaveAsTemplate` makes the
+ * current text the default template (« Enregistrer comme modèle par défaut »).
+ */
+export function TextFields(props: {
+  fields: TextFieldSpec[];
+  values: Record<string, string>;
+  onSave: (values: Record<string, string>) => Promise<unknown>;
+  /** The texts differ from the template (shown as « Personnalisé »). */
+  custom?: boolean;
+  onReset?: () => Promise<unknown>;
+  resetLabel?: string;
+  /** Status shown while the text is not custom (default « Texte du modèle »). */
+  templateLabel?: string;
+  onSaveAsTemplate?: (values: Record<string, string>) => Promise<unknown>;
+  /** Locked (e.g. already published). */
+  readOnly?: boolean;
+  /** Extra buttons in the action row. */
+  children?: ReactNode;
+}) {
+  const saved = JSON.stringify(props.values);
+  const [draft, setDraft] = useState(props.values);
+  const [base, setBase] = useState(saved);
+  const [status, setStatus] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  // New values from the server (after a reset, another page…) replace the draft.
+  if (saved !== base) {
+    setBase(saved);
+    setDraft(props.values);
+  }
+  const dirty = props.fields.some((f) => (draft[f.key] ?? '') !== (props.values[f.key] ?? ''));
+
+  const run = async (action: () => Promise<unknown>, done: string) => {
+    setBusy(true);
+    setStatus(null);
+    try {
+      await action();
+      setStatus(done);
+      setTimeout(() => setStatus(null), 2500);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const save = () => {
+    if (dirty && !props.readOnly) void run(() => props.onSave(draft), 'Enregistré ✓');
+  };
+
+  return (
+    <div className="ui-texts">
+      {props.fields.map((field) => {
+        const value = draft[field.key] ?? '';
+        const size = sizeOf(value, field.maxUnit);
+        const common = {
+          className: 'input',
+          value,
+          placeholder: field.placeholder,
+          readOnly: props.readOnly,
+          'aria-label': field.label,
+          onChange: (event: { target: { value: string } }) =>
+            setDraft((current) => ({ ...current, [field.key]: event.target.value })),
+          onBlur: save,
+          onKeyDown: (event: { key: string; ctrlKey: boolean; metaKey: boolean }) => {
+            if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) save();
+          },
+        };
+        return (
+          <div key={field.key} className="ui-texts__field">
+            <div className="ui-texts__label">
+              <span className="label">{field.label}</span>
+              <span className="ui-actions">
+                {field.max !== undefined && (
+                  <span
+                    className={`ui-texts__count${size > field.max ? ' ui-texts__count--over' : ''}`}
+                  >
+                    {size}/{field.max}
+                  </span>
+                )}
+                {field.copy && <CopyButton text={value} disabled={!value} />}
+              </span>
+            </div>
+            {field.multiline ? (
+              <textarea rows={field.rows ?? 4} {...common} />
+            ) : (
+              <input {...common} />
+            )}
+            {field.help && <span className="faint small">{field.help}</span>}
+          </div>
+        );
+      })}
+      <div className="ui-texts__actions">
+        {!props.readOnly && (
+          <Button small disabled={!dirty || busy} onClick={save}>
+            Enregistrer
+          </Button>
+        )}
+        {props.onReset && !props.readOnly && (
+          <Button
+            variant="secondary"
+            small
+            disabled={busy || (!props.custom && !dirty)}
+            onClick={() => void run(() => props.onReset!(), 'Texte du modèle rétabli')}
+          >
+            {props.resetLabel ?? 'Rétablir le modèle'}
+          </Button>
+        )}
+        {props.onSaveAsTemplate && (
+          <Button
+            variant="secondary"
+            small
+            disabled={busy}
+            title="Ce texte devient le modèle des prochains morceaux (le titre, l’artiste… y sont remplacés par leurs repères)."
+            onClick={() =>
+              void run(() => props.onSaveAsTemplate!(draft), 'Modèle par défaut enregistré ✓')
+            }
+          >
+            Enregistrer comme modèle par défaut
+          </Button>
+        )}
+        {props.children}
+        <span className="ui-texts__status">
+          {status ??
+            (props.custom
+              ? 'Personnalisé'
+              : props.onReset
+                ? (props.templateLabel ?? 'Texte du modèle')
+                : '')}
+        </span>
+      </div>
+    </div>
+  );
+}

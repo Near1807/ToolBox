@@ -4,12 +4,12 @@ import {
   Button,
   Card,
   confirmDelete,
-  CopyButton,
   EmptyState,
   ErrorMessage,
   errorMessage,
   FileActions,
   formatDuration,
+  formatTags,
   MediaThumb,
   OutputCard,
   outputs,
@@ -17,6 +17,7 @@ import {
   ProgressBar,
   SelectionBar,
   StateBadge,
+  TextFields,
   useApi,
   useJobs,
   useModule,
@@ -44,23 +45,9 @@ interface VideoItem {
 interface TrackDetail extends TrackSummary {
   videoTitle: string;
   description: string;
+  tags: string[];
+  custom: boolean;
   videos: VideoItem[];
-}
-
-function CopyField(props: { label: string; value: string; multiline?: boolean }) {
-  return (
-    <div className="yv-copy">
-      <div className="yv-copy__header">
-        <strong>{props.label}</strong>
-        <CopyButton text={props.value} />
-      </div>
-      {props.multiline ? (
-        <textarea className="input" readOnly rows={8} value={props.value} />
-      ) : (
-        <input className="input" readOnly value={props.value} />
-      )}
-    </div>
-  );
 }
 
 function TrackPanel(props: { trackId: number }) {
@@ -308,13 +295,44 @@ function TrackPanel(props: { trackId: number }) {
         )}
       </Card>
 
-      <Card title="Texte pour YouTube">
+      <Card title="Textes pour YouTube">
         <p className="muted small">
-          Liens et hashtags par défaut : Réglages › Vidéo YouTube. Les tags du morceau deviennent
-          des hashtags.
+          Pré-remplis avec les modèles de Réglages › Vidéo YouTube (liens, hashtags), modifiables
+          ici. Le Planning de sortie envoie ces textes avec la vidéo.
         </p>
-        <CopyField label="Titre" value={track.videoTitle} />
-        <CopyField label="Description" value={track.description} multiline />
+        <TextFields
+          fields={[
+            { key: 'videoTitle', label: 'Titre', max: 100, copy: true },
+            {
+              key: 'description',
+              label: 'Description',
+              multiline: true,
+              rows: 8,
+              max: 5000,
+              maxUnit: 'bytes',
+              copy: true,
+            },
+            { key: 'tags', label: 'Tags', placeholder: 'lofi, chill, beat', copy: true },
+          ]}
+          values={{
+            videoTitle: track.videoTitle,
+            description: track.description,
+            tags: formatTags(track.tags),
+          }}
+          custom={track.custom}
+          onSave={async (values) => {
+            await module.api.patch(`/tracks/${track.id}/texts`, values);
+            reload();
+          }}
+          onReset={async () => {
+            await module.api.delete(`/tracks/${track.id}/texts`);
+            reload();
+          }}
+          onSaveAsTemplate={async (values) => {
+            await module.api.post(`/tracks/${track.id}/texts/template`, values);
+            reload();
+          }}
+        />
       </Card>
     </>
   );

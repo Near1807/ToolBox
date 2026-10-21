@@ -6,12 +6,14 @@ import {
   Button,
   ErrorMessage,
   errorMessage,
+  formatTags,
   ProgressBar,
+  TextFields,
   useModule,
   type JobInfo,
 } from '@hub/sdk/frontend';
 import { longDate } from './dates';
-import { CopyCaption, DragPreview, PlatformIcon, StatusBadge, trackColor } from './ItemParts';
+import { DragPreview, PlatformIcon, StatusBadge, trackColor } from './ItemParts';
 import type { PlannerItem, Visibility } from './types';
 
 const VISIBILITY_LABELS: Record<Visibility, string> = {
@@ -32,9 +34,6 @@ export function ItemPanel(props: {
   const { item } = props;
   const [date, setDate] = useState(item.date);
   const [time, setTime] = useState(item.time);
-  const [title, setTitle] = useState(item.title ?? '');
-  const [description, setDescription] = useState(item.description ?? '');
-  const [tags, setTags] = useState(item.tags.join(', '));
   const [visibility, setVisibility] = useState<Visibility>(item.visibility);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -69,17 +68,7 @@ export function ItemPanel(props: {
         module.api.patch(`/items/${item.id}`, {
           date,
           time,
-          ...(editable
-            ? {
-                title,
-                description,
-                tags: tags
-                  .split(',')
-                  .map((tag) => tag.trim())
-                  .filter(Boolean),
-                visibility,
-              }
-            : {}),
+          ...(editable ? { visibility } : {}),
         }),
       (result) => (result as { warnings: string[] }).warnings.join(' ') || 'Enregistré.',
     );
@@ -199,33 +188,39 @@ export function ItemPanel(props: {
           <h3>Sur YouTube</h3>
           {editable ? (
             <>
-              <label className="rp-field">
-                <span>Titre</span>
-                <input
-                  className="input"
-                  value={title}
-                  maxLength={100}
-                  onChange={(e) => setTitle(e.target.value)}
-                />
-              </label>
-              <label className="rp-field">
-                <span>Description</span>
-                <textarea
-                  className="input"
-                  rows={6}
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                />
-                {description.includes('{lien_video}') && (
-                  <span className="muted small">
-                    {'{lien_video}'} sera remplacé par le lien de la vidéo complète à l’envoi.
-                  </span>
-                )}
-              </label>
-              <label className="rp-field">
-                <span>Tags (séparés par des virgules)</span>
-                <input className="input" value={tags} onChange={(e) => setTags(e.target.value)} />
-              </label>
+              <TextFields
+                fields={[
+                  { key: 'title', label: 'Titre', max: 100 },
+                  {
+                    key: 'description',
+                    label: 'Description',
+                    multiline: true,
+                    rows: 6,
+                    max: 5000,
+                    maxUnit: 'bytes',
+                    help: '{lien_video} est remplacé à l’envoi par le lien de la vidéo complète.',
+                  },
+                  { key: 'tags', label: 'Tags', placeholder: 'lofi, chill' },
+                ]}
+                values={{
+                  title: item.title ?? '',
+                  description: item.description ?? '',
+                  tags: formatTags(item.tags),
+                }}
+                custom={item.textsCustom}
+                onSave={async (values) => {
+                  await module.api.patch(`/items/${item.id}`, values);
+                  props.onChanged();
+                }}
+                onReset={async () => {
+                  await module.api.patch(`/items/${item.id}`, { resetTexts: true });
+                  props.onChanged();
+                }}
+                onSaveAsTemplate={async (values) => {
+                  await module.api.post(`/items/${item.id}/texts/template`, values);
+                  props.onChanged('Modèle par défaut enregistré (Réglages › Planning de sortie).');
+                }}
+              />
               <label className="rp-field">
                 <span>Visibilité</span>
                 <select
@@ -286,9 +281,32 @@ export function ItemPanel(props: {
           <div className="rp-insta">
             <DragPreview item={item} size="large" />
             <div className="rp-insta__text">
-              <p className="rp-caption">{item.caption}</p>
+              <TextFields
+                fields={[
+                  {
+                    key: 'caption',
+                    label: 'Légende',
+                    multiline: true,
+                    rows: 5,
+                    max: 2200,
+                    copy: true,
+                  },
+                ]}
+                values={{ caption: item.caption ?? '' }}
+                readOnly={item.caption === null || item.status === 'published'}
+                resetLabel={
+                  item.kind === 'insta-post' ? 'Rétablir le modèle' : 'Reprendre celle du pack'
+                }
+                onSave={async ({ caption }) => {
+                  await module.api.patch(`/items/${item.id}/caption`, { caption });
+                  props.onChanged();
+                }}
+                onReset={async () => {
+                  await module.api.patch(`/items/${item.id}/caption`, { caption: null });
+                  props.onChanged();
+                }}
+              />
               <div className="inline-form">
-                {item.caption && <CopyCaption text={item.caption} />}
                 {item.source.exists && (
                   <Button
                     variant="secondary"

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import {
   CopyButton,
   FileActions,
@@ -39,6 +40,8 @@ export function ItemTile(props: {
   onDelete?: () => void;
   /** « Retirer de la liste » when the file is missing. */
   onForget?: () => void;
+  /** Shown under the tile (e.g. the Reel's caption). */
+  children?: ReactNode;
 }) {
   const { item, job } = props;
   const rendering = item.state === 'rendering';
@@ -89,6 +92,8 @@ export function ItemTile(props: {
           onDelete={item.url ? props.onDelete : undefined}
         />
       }
-    />
+    >
+      {props.children}
+    </OutputCard>
   );
 }

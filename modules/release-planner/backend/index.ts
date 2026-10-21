@@ -11,6 +11,7 @@ import {
   type ModuleContext,
   type OutputRecord,
 } from '@hub/sdk/backend';
+import { parseTags, toTemplate } from '@hub/sdk/texts';
 import type { InstagramPackService, PackItem } from '../../instagram-video/contract';
 import type { MusicLibraryService, Track } from '../../music-library/contract';
 import type { VideoEngineService } from '../../video-engine/contract';
@@ -31,6 +32,7 @@ import { canUpload, planUploads, quotaMessage, UNIT_COST, type QuotaLimits } fro
 import { displayStatus, isOnline, stateFromYouTube, type ItemState } from './status';
 import {
   migrationV1,
+  migrationV2,
   PlannerStore,
   VISIBILITIES,
   type ItemRow,
@@ -89,6 +91,7 @@ function message(error: unknown): string {
 export default defineBackendModule({
   migrations: [
     { version: 1, description: 'releases, planned elements, YouTube quota', up: migrationV1 },
+    { version: 2, description: 'texts that follow the templates until edited', up: migrationV2 },
   ],
 
   register(ctx: ModuleContext) {
@@ -218,6 +221,7 @@ export default defineBackendModule({
       const template = (key: string, fallback: string) => ctx.settings.get<string>(key) ?? fallback;
       return kind === 'youtube'
         ? {
+            values,
             title: fillTemplate(template('videoTitle', '{titre_youtube}'), values),
             description: fillTemplate(
               template('videoDescription', '{description_youtube}'),
@@ -226,6 +230,7 @@ export default defineBackendModule({
             tags,
           }
         : {
+            values,
             title: fillTemplate(
               template('shortTitle', '{titre} — {artiste} ({n}/{total})'),
               values,
@@ -238,12 +243,31 @@ export default defineBackendModule({
           };
     };
 
+    /** Template texts of a planned element (YouTube only), from its release. */
+    const templateTextsOf = (release: ReleaseRow, item: ItemRow, track: Track) => {
+      const totalShorts = store.itemsOf(release.id).filter((i) => i.kind === 'short').length;
+      return defaultTexts(track, item.kind, item.position, totalShorts, release.release_date);
+    };
+
+    /** Texts of an element: edited ones, otherwise the templates' (kept up to date). */
+    const textsOf = (release: ReleaseRow, item: ItemRow, track: Track | null) => {
+      const stored = {
+        title: item.title,
+        description: item.description,
+        tags: item.tags ? (JSON.parse(item.tags) as string[]) : [],
+      };
+      if (item.texts_custom || PLATFORM[item.kind] !== 'youtube' || !track) return stored;
+      const { title, description, tags } = templateTextsOf(release, item, track);
+      return { title, description, tags };
+    };
+
     /** What is sent to YouTube: {lien_video} filled in now, the line dropped if unknown. */
     const uploadMetadata = (release: ReleaseRow, item: ItemRow): VideoMetadata => {
+      const texts = textsOf(release, item, library.getTrack(release.track_id));
       const video = store
         .itemsOf(release.id)
         .find((other) => other.kind === 'youtube' && other.yt_video_id);
-      const description = (item.description ?? '')
+      const description = (texts.description ?? '')
         .split('\n')
         .map((line) =>
           line.includes('{lien_video}')
@@ -254,11 +278,7 @@ export default defineBackendModule({
         )
         .filter((line): line is string => line !== null)
         .join('\n');
-      const clean = sanitizeMetadata({
-        title: item.title ?? '',
-        description,
-        tags: item.tags ? (JSON.parse(item.tags) as string[]) : [],
-      });
+      const clean = sanitizeMetadata({ title: texts.title ?? '', description, tags: texts.tags });
       const visibility = item.visibility;
       return {
         ...clean,
@@ -306,9 +326,8 @@ export default defineBackendModule({
         status,
         late,
         visibility: item.visibility,
-        title: item.title,
-        description: item.description,
-        tags: item.tags ? (JSON.parse(item.tags) as string[]) : [],
+        ...textsOf(release, item, track),
+        textsCustom: Boolean(item.texts_custom),
         caption: source.packItem?.caption ?? null,
         publishedAt: source.packItem?.publishedAt ?? item.published_at,
         source: {
@@ -1174,6 +1193,50 @@ export default defineBackendModule({
       return { ok: true };
     });
 
+    // Caption of an Instagram element: edited in the pack (one place for the texts).
+    ctx.routes.patch('/items/:id/caption', (request) => {
+      const item = store.requireItem(idParam(request.params));
+      const release = store.requireRelease(item.release_id);
+      const source = sourceOf(release, item);
+      if (PLATFORM[item.kind] !== 'instagram' || !source.packItem) {
+        throw new HttpError(400, 'Pas de légende pour cet élément');
+      }
+      const caption = body(request).caption;
+      if (caption !== null && typeof caption !== 'string') {
+        throw new HttpError(400, 'Légende invalide');
+      }
+      packs.setCaption(source.packItem.id, caption);
+      return { ok: true };
+    });
+
+    // « Enregistrer comme modèle par défaut » from the panel: the element's values become placeholders.
+    ctx.routes.post('/items/:id/texts/template', (request) => {
+      const item = store.requireItem(idParam(request.params));
+      if (PLATFORM[item.kind] !== 'youtube') {
+        throw new HttpError(400, 'Les modèles de texte ne concernent que YouTube');
+      }
+      const release = store.requireRelease(item.release_id);
+      const track = library.getTrack(release.track_id);
+      if (!track) throw new HttpError(404, 'Morceau introuvable');
+      const input = body(request);
+      const { values } = templateTextsOf(release, item, track);
+      const asTemplate = (text: string) =>
+        toTemplate(text.replaceAll(`(${values.n}/${values.total})`, '({n}/{total})'), values);
+      const keys =
+        item.kind === 'youtube'
+          ? ['videoTitle', 'videoDescription']
+          : ['shortTitle', 'shortDescription'];
+      if (typeof input.title === 'string' && input.title.trim()) {
+        ctx.settings.set(keys[0]!, asTemplate(input.title));
+      }
+      if (typeof input.description === 'string' && input.description.trim()) {
+        ctx.settings.set(keys[1]!, asTemplate(input.description));
+      }
+      // This element follows the new templates.
+      store.updateItem(item.id, { texts_custom: 0 });
+      return { ok: true };
+    });
+
     ctx.routes.patch('/items/:id', async (request) => {
       const item = store.requireItem(idParam(request.params));
       const input = body(request);
@@ -1182,7 +1245,7 @@ export default defineBackendModule({
       const fields: Parameters<PlannerStore['updateItem']>[1] = {};
 
       const editable = !isOnline(item.state) && item.state !== 'uploading';
-      for (const key of ['title', 'description', 'tags', 'visibility'] as const) {
+      for (const key of ['title', 'description', 'tags', 'visibility', 'resetTexts'] as const) {
         if (input[key] === undefined) continue;
         if (!youtubeItem) throw new HttpError(400, 'Les métadonnées ne concernent que YouTube');
         if (!editable) {
@@ -1192,9 +1255,35 @@ export default defineBackendModule({
           );
         }
       }
+      if (input.resetTexts === true) {
+        // Back to the templates: the texts follow them again.
+        const release = store.requireRelease(item.release_id);
+        const track = library.getTrack(release.track_id);
+        if (track) {
+          const texts = templateTextsOf(release, item, track);
+          fields.title = texts.title;
+          fields.description = texts.description;
+          fields.tags = JSON.stringify(texts.tags);
+        }
+        fields.texts_custom = 0;
+      } else if (
+        input.title !== undefined ||
+        input.description !== undefined ||
+        input.tags !== undefined
+      ) {
+        // Edited: the current texts are frozen, then the change applied.
+        const release = store.requireRelease(item.release_id);
+        const current = textsOf(release, item, library.getTrack(release.track_id));
+        fields.title = current.title;
+        fields.description = current.description;
+        fields.tags = JSON.stringify(current.tags);
+        fields.texts_custom = 1;
+      }
       if (typeof input.title === 'string') fields.title = input.title;
       if (typeof input.description === 'string') fields.description = input.description;
-      if (Array.isArray(input.tags)) fields.tags = JSON.stringify(input.tags.map(String));
+      if (Array.isArray(input.tags))
+        fields.tags = JSON.stringify(parseTags(input.tags.map(String).join(',')));
+      if (typeof input.tags === 'string') fields.tags = JSON.stringify(parseTags(input.tags));
       if (input.visibility !== undefined) {
         if (!VISIBILITIES.includes(input.visibility as Visibility))
           throw new HttpError(400, 'Visibilité invalide');

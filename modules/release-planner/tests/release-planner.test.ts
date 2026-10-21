@@ -47,7 +47,11 @@ interface Release {
 /** Fake providers of the services the planner uses, with real files on disk. */
 function fakeProviders(
   dir: string,
-  calls: { uploaded: [number, string | null][]; published: Map<number, string | null> },
+  calls: {
+    uploaded: [number, string | null][];
+    published: Map<number, string | null>;
+    captions: Map<number, string | null>;
+  },
 ) {
   const file = (name: string, bytes: number) => {
     const target = path.join(dir, name);
@@ -106,7 +110,11 @@ function fakeProviders(
             videoTitle: 'Thomas - Drop',
             description: 'Le son.\nSpotify : https://example.com',
             tags: ['lofi', 'chill'],
+            custom: false,
           }),
+          setTexts: () => {
+            throw new Error('not used');
+          },
           render: () => ({ jobId: 'none' }),
           setUploaded: (videoId, youtubeId) => calls.uploaded.push([videoId, youtubeId]),
         };
@@ -132,6 +140,10 @@ function fakeProviders(
           }),
           setPublished: (itemId, published) => {
             calls.published.set(itemId, published ? new Date().toISOString() : null);
+            return packItem(Math.floor(itemId / 10), itemId % 10);
+          },
+          setCaption: (itemId, caption) => {
+            calls.captions.set(itemId, caption);
             return packItem(Math.floor(itemId / 10), itemId % 10);
           },
           renderItem: () => ({ jobId: 'none' }),
@@ -167,6 +179,7 @@ describe('release-planner (mock YouTube)', () => {
   const calls = {
     uploaded: [] as [number, string | null][],
     published: new Map<number, string | null>(),
+    captions: new Map<number, string | null>(),
   };
   const trackIds: number[] = [];
 
@@ -359,6 +372,50 @@ describe('release-planner (mock YouTube)', () => {
       from: '2030-01-12',
       to: '2030-01-13',
     });
+  });
+
+  it('lets texts follow the templates until edited, in place', async () => {
+    type T = Item & { title: string; description: string; tags: string[]; textsCustom: boolean };
+    const items = async () =>
+      (await hub.request<{ items: T[] }>('GET', `${API}/releases/${first.id}`)).body.items;
+    const short1 = (await items()).find((i) => i.kind === 'short' && i.position === 1)!;
+    expect(short1).toMatchObject({ title: 'Drop — Thomas (1/4)', textsCustom: false });
+
+    // A template changed in the settings: elements not edited follow it.
+    await hub.request('PUT', '/api/core/settings/release-planner', { shortTitle: '{titre} #{n}' });
+    expect((await items()).find((i) => i.id === short1.id)!.title).toBe('Drop #1');
+
+    // Edited under the element: frozen, marked as custom.
+    await hub.request('PATCH', `${API}/items/${short1.id}`, { title: 'Mon Short', tags: 'a, #b' });
+    await hub.request('PUT', '/api/core/settings/release-planner', { shortTitle: null });
+    let edited = (await items()).find((i) => i.id === short1.id)!;
+    expect(edited).toMatchObject({ title: 'Mon Short', tags: ['a', 'b'], textsCustom: true });
+
+    // « Enregistrer comme modèle par défaut »: values become placeholders.
+    await hub.request('POST', `${API}/items/${short1.id}/texts/template`, {
+      title: 'Drop par Thomas (1/4)',
+    });
+    edited = (await items()).find((i) => i.id === short1.id)!;
+    expect(edited).toMatchObject({ title: 'Drop par Thomas (1/4)', textsCustom: false });
+    const short2 = (await items()).find((i) => i.kind === 'short' && i.position === 2)!;
+    expect(short2.title).toBe('Drop par Thomas (2/4)');
+    await hub.request('PUT', '/api/core/settings/release-planner', { shortTitle: null });
+
+    // « Rétablir le modèle ».
+    await hub.request('PATCH', `${API}/items/${short1.id}`, { title: 'X' });
+    await hub.request('PATCH', `${API}/items/${short1.id}`, { resetTexts: true });
+    expect((await items()).find((i) => i.id === short1.id)!).toMatchObject({
+      title: 'Drop — Thomas (1/4)',
+      textsCustom: false,
+    });
+
+    // Instagram caption: edited in the pack through its service.
+    const post = (await items()).find((i) => i.kind === 'insta-post')!;
+    const caption = await hub.request('PATCH', `${API}/items/${post.id}/caption`, {
+      caption: 'Nouvelle légende',
+    });
+    expect(caption.status).toBe(200);
+    expect([...calls.captions.values()]).toContain('Nouvelle légende');
   });
 
   it('uploads and schedules the video and the Shorts (resume after a network cut)', async () => {

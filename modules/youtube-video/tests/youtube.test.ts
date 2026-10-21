@@ -113,6 +113,53 @@ describe('youtube-video', () => {
     expect(body.description).toContain('#lofi');
   });
 
+  it('edits the texts under the video; templates only pre-fill', async () => {
+    type Texts = { videoTitle: string; description: string; tags: string[]; custom: boolean };
+    const before = (await hub.request<Texts>('GET', `${API}/tracks/${trackId}`)).body;
+    expect(before.custom).toBe(false);
+
+    const edited = await hub.request<Texts>('PATCH', `${API}/tracks/${trackId}/texts`, {
+      videoTitle: 'Mon titre à moi',
+      tags: 'lofi, #nuit, lofi',
+    });
+    expect(edited.body).toMatchObject({ videoTitle: 'Mon titre à moi', tags: ['lofi', 'nuit'] });
+    expect(edited.body.custom).toBe(true);
+    expect(edited.body.description).toBe(before.description);
+    // Shared with the other modules (planner).
+    const shared = await hub.request<{ texts: Texts }>(
+      'GET',
+      `/api/modules/consumer/tracks/${trackId}`,
+    );
+    expect(shared.body.texts.videoTitle).toBe('Mon titre à moi');
+
+    // Back to the template text.
+    const reset = await hub.request<Texts>('DELETE', `${API}/tracks/${trackId}/texts`);
+    expect(reset.body).toEqual({
+      videoTitle: before.videoTitle,
+      description: before.description,
+      tags: before.tags,
+      custom: false,
+    });
+
+    // « Enregistrer comme modèle par défaut »: the title of this track becomes {titre}.
+    const track = (
+      await hub.request<{ title: string }>('GET', `/api/modules/music-library/tracks/${trackId}`)
+    ).body;
+    await hub.request('POST', `${API}/tracks/${trackId}/texts/template`, {
+      videoTitle: `${track.title} (clip officiel)`,
+    });
+    const settings = await hub.request<
+      { scope: string; fields: { field: { key: string }; value: unknown }[] }[]
+    >('GET', '/api/core/settings');
+    const template = settings.body
+      .find((s) => s.scope === 'youtube-video')!
+      .fields.find((f) => f.field.key === 'titleTemplate')!.value;
+    expect(template).toBe('{titre} (clip officiel)');
+    const after = (await hub.request<Texts>('GET', `${API}/tracks/${trackId}`)).body;
+    expect(after).toMatchObject({ videoTitle: `${track.title} (clip officiel)`, custom: false });
+    await hub.request('PUT', '/api/core/settings/youtube-video', { titleTemplate: null });
+  });
+
   it('refuses a track without cover with a clear message', async () => {
     const { status, body } = await hub.request<{ error: string }>(
       'POST',

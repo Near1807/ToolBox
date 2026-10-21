@@ -113,22 +113,6 @@
   background: var(--media-bg);
 }
 
-.yv-copy {
-  margin-top: 12px;
-}
-
-.yv-copy__header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 6px;
-}
-
-.yv-copy textarea {
-  font-family: inherit;
-  resize: vertical;
-}
-
 .yv-video {
   justify-content: flex-start;
 }

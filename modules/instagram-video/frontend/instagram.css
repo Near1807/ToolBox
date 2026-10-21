@@ -220,3 +220,12 @@
   flex-direction: column;
   gap: 8px;
 }
+
+.iv-tile-caption summary {
+  cursor: pointer;
+  color: var(--text-2);
+}
+
+.iv-tile-caption[open] summary {
+  margin-bottom: 6px;
+}

@@ -693,3 +693,4 @@ export function OutputList(props: {
 }
 
 export * from './components';
+export { fillTemplate, toTemplate, parseTags, formatTags } from './texts';

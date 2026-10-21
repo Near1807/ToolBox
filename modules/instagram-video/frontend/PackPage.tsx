@@ -14,40 +14,49 @@ import {
   outputs,
   Page,
   SelectionBar,
+  TextFields,
   useApi,
   useJobs,
   useModule,
   useSelection,
 } from '@hub/sdk/frontend';
-import { CopyButton, ItemTile } from './ItemTile';
+import { ItemTile } from './ItemTile';
 import type { Pack, PackItem, TrackDetail, TrackSummary, WaveformData } from './types';
 
 const REELS = 4;
 
-/** Text area saved on blur or with « Enregistrer ». Keyed by its saved value. */
-function CaptionEditor(props: {
-  saved: string;
-  rows?: number;
-  onSave: (text: string) => Promise<void>;
+/** Caption of one Reel, under its tile: the pack caption unless it has its own. */
+function ReelCaption(props: {
+  item: PackItem;
+  pack: Pack;
+  onSave: (caption: string) => Promise<void>;
+  onReset: () => Promise<void>;
 }) {
-  const [text, setText] = useState(props.saved);
-  const dirty = text !== props.saved;
+  const own = props.pack.perReelCaptions && props.item.ownCaption !== null;
+  const custom = own && props.item.ownCaption !== props.pack.caption;
   return (
-    <div className="iv-caption">
-      <textarea
-        className="input"
-        rows={props.rows ?? 6}
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        onBlur={() => dirty && void props.onSave(text)}
+    <details className="iv-tile-caption">
+      <summary className="small">Légende {custom ? '· personnalisée' : '· celle du pack'}</summary>
+      <TextFields
+        fields={[
+          {
+            key: 'caption',
+            label: 'Légende du Reel',
+            multiline: true,
+            rows: 4,
+            max: 2200,
+            copy: true,
+          },
+        ]}
+        values={{ caption: props.item.caption }}
+        custom={custom}
+        resetLabel="Reprendre celle du pack"
+        templateLabel="Légende du pack"
+        readOnly={Boolean(props.item.publishedAt)}
+        onSave={({ caption }) => props.onSave(caption ?? '')}
+        onReset={props.onReset}
       />
-      <div className="inline-form">
-        <CopyButton text={text} />
-        <Button variant="secondary" small disabled={!dirty} onClick={() => void props.onSave(text)}>
-          {dirty ? 'Enregistrer' : 'Enregistrée'}
-        </Button>
-      </div>
-    </div>
+    </details>
   );
 }
 
@@ -522,34 +531,58 @@ function TrackPanel(props: { trackId: number; onChange: () => void }) {
                   item.outputId !== null &&
                   void changeOutputs(() => outputs.forget([item.outputId!]))
                 }
-              />
+              >
+                {item.kind === 'reel' && (
+                  <ReelCaption
+                    item={item}
+                    pack={pack}
+                    onSave={async (caption) => {
+                      // A caption of its own: per-Reel captions are switched on.
+                      if (!pack.perReelCaptions) {
+                        await module.api.patch(`/packs/${pack.id}`, { perReelCaptions: true });
+                      }
+                      await module.api.patch(`/items/${item.id}`, { caption });
+                      refresh();
+                    }}
+                    onReset={async () => {
+                      await module.api.patch(`/items/${item.id}`, { caption: null });
+                      refresh();
+                    }}
+                  />
+                )}
+              </ItemTile>
             ))}
           </div>
         </Card>
       )}
 
       {pack && (
-        <Card
-          title="Légende"
-          actions={
-            <Button
-              variant="secondary"
-              small
-              onClick={() =>
-                void run(async () => {
-                  await module.api.post(`/packs/${pack.id}/caption/reset`);
-                  refresh();
-                })
-              }
-            >
-              Repartir du modèle
-            </Button>
-          }
-        >
-          <CaptionEditor
-            key={pack.caption}
-            saved={pack.caption}
-            onSave={(caption) => patchPack({ caption })}
+        <Card title="Légende du pack">
+          <TextFields
+            fields={[
+              {
+                key: 'caption',
+                label: 'Légende (post et Reels)',
+                multiline: true,
+                rows: 6,
+                max: 2200,
+                copy: true,
+              },
+            ]}
+            values={{ caption: pack.caption }}
+            custom={pack.captionCustom}
+            onSave={async ({ caption }) => {
+              await module.api.patch(`/packs/${pack.id}`, { caption });
+              refresh();
+            }}
+            onReset={async () => {
+              await module.api.post(`/packs/${pack.id}/caption/reset`);
+              refresh();
+            }}
+            onSaveAsTemplate={async ({ caption }) => {
+              await module.api.post(`/packs/${pack.id}/caption/template`, { caption });
+              refresh();
+            }}
           />
           <label className="iv-check">
             <input
@@ -557,21 +590,12 @@ function TrackPanel(props: { trackId: number; onChange: () => void }) {
               checked={pack.perReelCaptions}
               onChange={(e) => void patchPack({ perReelCaptions: e.target.checked })}
             />
-            Une légende différente par Reel
+            Une légende différente par Reel (modifiable sous chaque Reel)
           </label>
-          {pack.perReelCaptions &&
-            reels.map((reel) => (
-              <div key={reel.id} className="iv-reel-caption">
-                <strong>{reel.label}</strong>
-                <CaptionEditor
-                  key={reel.ownCaption ?? ''}
-                  saved={reel.ownCaption ?? pack.caption}
-                  rows={4}
-                  onSave={(caption) => patchItem(reel, { caption })}
-                />
-              </div>
-            ))}
-          <p className="muted small">Modèle et hashtags par défaut : Réglages › Pack Instagram.</p>
+          <p className="muted small">
+            Modèle et hashtags par défaut : Réglages › Pack Instagram. Le modèle ne fait que
+            pré-remplir : le texte ci-dessus est celui qui sera publié.
+          </p>
         </Card>
       )}
 

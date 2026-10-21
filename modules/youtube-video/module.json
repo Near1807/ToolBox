@@ -2,7 +2,7 @@
   "id": "youtube-video",
   "name": "Vidéo YouTube",
   "description": "Transforme un morceau en vidéo 16:9 pour YouTube, avec sa description prête à copier.",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "section": "Musique",
   "icon": "📺",
   "order": 20,
@@ -12,6 +12,20 @@
   },
   "provides": { "services": ["youtubeVideo"] },
   "settings": [
+    {
+      "key": "titleTemplate",
+      "type": "string",
+      "label": "Modèle de titre",
+      "description": "Pré-remplit le titre de chaque vidéo, modifiable ensuite sous la vidéo. Repères : {titre}, {artiste}, {titre_youtube} (« Artiste - Titre »). Vide : « Artiste - Titre ».",
+      "placeholder": "{artiste} - {titre}"
+    },
+    {
+      "key": "descriptionTemplate",
+      "type": "text",
+      "label": "Modèle de description",
+      "description": "Pré-remplit la description, modifiable ensuite sous la vidéo. Repères : {titre_youtube}, {titre}, {artiste}, {sortie} (« Sortie le … »), {liens}, {hashtags}. Vide : titre, date de sortie, liens puis hashtags.",
+      "placeholder": "{titre_youtube}\n{sortie}\n\n{liens}\n\n{hashtags}"
+    },
     {
       "key": "links",
       "type": "text",

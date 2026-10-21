@@ -29,6 +29,8 @@ export interface PlannerItem {
   description: string | null;
   tags: string[];
   caption: string | null;
+  /** Title / description / tags edited (otherwise they follow the templates). */
+  textsCustom: boolean;
   publishedAt: string | null;
   source: {
     gone: boolean;

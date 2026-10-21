@@ -5,6 +5,11 @@ import type { ItemKind } from './plan';
 import type { QuotaUsage } from './quota';
 import { assertTransition, type ItemState } from './status';
 
+/** v2: texts that follow the templates until edited (existing elements keep theirs). */
+export const migrationV2 = `
+  ALTER TABLE release_planner__items ADD COLUMN texts_custom INTEGER NOT NULL DEFAULT 1;
+`;
+
 export const migrationV1 = `
   CREATE TABLE release_planner__releases (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -87,6 +92,8 @@ export interface ItemRow {
   description: string | null;
   /** JSON array. */
   tags: string | null;
+  /** 1: texts edited by the user; 0: they follow the templates (refreshed on display and upload). */
+  texts_custom: number;
   visibility: Visibility;
   state: ItemState;
   /** Resumable session of an interrupted upload. */
@@ -207,8 +214,8 @@ export class PlannerStore {
       );
       const insert = this.ctx.db.prepare(
         `INSERT INTO ${this.items} (release_id, kind, position, scheduled_at, shifted_from,
-           pack_item_id, title, description, tags, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           pack_item_id, title, description, tags, texts_custom, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
       );
       for (const item of input.items) {
         insert.run(

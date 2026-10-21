@@ -349,12 +349,20 @@ export default defineFrontendModule({
 | `FileActions`                    | boutons, toujours dans cet ordre : Lire/Voir, Dossier, Régénérer, (spécifiques), Supprimer                                                                                                      |
 | `CopyButton`                     | « Copier » avec confirmation                                                                                                                                                                    |
 | `ExcerptWaveform`, `ExcerptChip` | choix d'extraits (1 à 4, couleurs `--series-1..4`) sur la forme d'onde d'un morceau                                                                                                             |
+| `TextFields`                     | titre, description, légende, tags d'un élément, **modifiables sous l'élément** (§7.3)                                                                                                           |
 
 Un besoin non couvert : enrichir le composant du SDK (pour tous), pas en écrire un autre dans le module.
 
 ### 7.2 Couleurs et thèmes
 
 L'interface a plusieurs thèmes (Réglages › Apparence, `docs/THEMES.md`). **Aucune couleur écrite en dur dans le frontend d'un module** (ni `#hex`, ni `rgb()`, ni `hsl()`, en CSS comme en TSX) : uniquement les variables du thème (`var(--accent)`, `var(--series-3)`…) et les classes du shell (`card`, `button`, `badge`, `input`, `list`, `ui-*`). `npm run lint` échoue sinon (`scripts/check-ui-colors.mjs`). Les visuels **générés** ne sont pas concernés : ils suivent `docs/DIRECTION-ARTISTIQUE.md`.
+
+### 7.3 Textes des éléments (titre, description, légende, tags)
+
+- Les textes d'un élément généré se modifient **sur place, sous l'élément**, avec `TextFields` (enregistrement en quittant le champ, « Enregistrer » ou Ctrl+Entrée ; compteur ; « Copier »).
+- Les **modèles des réglages ne font que pré-remplir**. Un texte modifié est « Personnalisé » et ne bouge plus ; « Rétablir le modèle » y revient ; « **Enregistrer comme modèle par défaut** » transforme le texte en modèle avec `toTemplate` (les valeurs du morceau redeviennent des repères `{titre}`, `{artiste}`…).
+- Repères et remplissage : `fillTemplate`, `toTemplate`, `parseTags`, `formatTags` de `@hub/sdk/texts` (backend et frontend), une seule implémentation pour tous les modules.
+- Un texte a **un seul propriétaire** (le module qui publie l'élément ou le génère) ; un autre module le modifie via son service, jamais par une copie.
 
 - Textes de l'interface en français.
 
