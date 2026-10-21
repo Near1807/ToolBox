@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router';
+import { Activity, FolderOpen, House, ScrollText, Settings, Wrench } from 'lucide-react';
 import { groupBySection, hasMainPage, useModules } from '../modules/ModulesContext';
 import { FullscreenButton, useFullscreen, WindowButtons } from './WindowControls';
 
@@ -16,9 +17,15 @@ export function Layout() {
   return (
     <div className="app">
       <nav className="sidebar" aria-label="Navigation principale">
-        <div className="sidebar__brand">ToolBox</div>
+        <div className="sidebar__brand">
+          <span className="sidebar__brand-mark">
+            <Wrench size={15} />
+          </span>
+          ToolBox
+        </div>
         <NavLink to="/" end className="nav-link">
-          Accueil
+          <House size={16} />
+          <span className="nav-link__label">Accueil</span>
         </NavLink>
         {sections.map((section) => (
           <div key={section.name} className="sidebar__section">
@@ -26,23 +33,29 @@ export function Layout() {
             {section.modules.map((module) => (
               <NavLink key={module.id} to={`/m/${module.id}`} className="nav-link">
                 <span className="nav-link__icon">{module.manifest.icon}</span>
-                {module.frontend?.nav?.label ?? module.manifest.name}
+                <span className="nav-link__label">
+                  {module.frontend?.nav?.label ?? module.manifest.name}
+                </span>
               </NavLink>
             ))}
           </div>
         ))}
         <div className="sidebar__spacer" />
         <NavLink to="/outputs" className="nav-link">
-          Fichiers générés
+          <FolderOpen size={16} />
+          <span className="nav-link__label">Fichiers générés</span>
         </NavLink>
         <NavLink to="/jobs" className="nav-link">
-          Tâches
+          <Activity size={16} />
+          <span className="nav-link__label">Tâches</span>
         </NavLink>
         <NavLink to="/logs" className="nav-link">
-          Journaux
+          <ScrollText size={16} />
+          <span className="nav-link__label">Journaux</span>
         </NavLink>
         <NavLink to="/settings" className="nav-link">
-          Réglages
+          <Settings size={16} />
+          <span className="nav-link__label">Réglages</span>
         </NavLink>
         <FullscreenButton fullscreen={fullscreen} />
       </nav>

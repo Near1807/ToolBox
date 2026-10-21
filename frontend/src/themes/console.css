@@ -1,0 +1,50 @@
+/* @theme id=console; label=Console (tableau de bord technique); scheme=dark; swatch=#0a0d0c,#3ddc84,#f5c542 */
+/* Graphite, sharp corners, terminal green + amber, monospaced titles. */
+:root[data-theme='console'] {
+  color-scheme: dark;
+  --bg: #0a0d0c;
+  --bg-glow-1: rgb(61 220 132 / 7%);
+  --bg-glow-2: rgb(245 197 66 / 5%);
+  --surface: rgb(17 22 20 / 88%);
+  --surface-2: rgb(24 31 28 / 92%);
+  --surface-hover: rgb(33 43 38 / 95%);
+  --surface-solid: #111614;
+  --field: #070908;
+  --border: rgb(140 255 190 / 11%);
+  --border-strong: rgb(140 255 190 / 24%);
+  --text: #e3efe7;
+  --text-2: #93a89b;
+  --text-3: #5f7166;
+  --text-on-accent: #04110a;
+  --accent: #3ddc84;
+  --accent-2: #f5c542;
+  --accent-soft: rgb(61 220 132 / 13%);
+  --accent-grad: linear-gradient(135deg, #3ddc84 0%, #2bb673 100%);
+  --success: #3ddc84;
+  --warning: #f5c542;
+  --danger: #ff6b5e;
+  --info: #5ec8e5;
+  --series-1: #3ddc84;
+  --series-2: #f5c542;
+  --series-3: #5ec8e5;
+  --series-4: #ff8f5e;
+  --series-5: #c792ea;
+  --series-6: #82aaff;
+  --series-7: #ff6b9a;
+  --series-8: #c3e88d;
+  --brand-youtube: #ff4e45;
+  --brand-instagram: #e1306c;
+  --overlay: rgb(2 4 3 / 78%);
+  --on-overlay: #ffffff;
+  --media-bg: #000000;
+  --shadow: 0 6px 24px rgb(0 0 0 / 50%);
+  --glow: 0 0 0 1px rgb(61 220 132 / 35%);
+  --glow-2: 0 0 0 1px rgb(245 197 66 / 30%);
+  --radius-lg: 8px;
+  --radius: 6px;
+  --radius-sm: 4px;
+  --blur: 0px;
+  --font-sans: 'Inter Variable', system-ui, 'Segoe UI', sans-serif;
+  --font-display: 'JetBrains Mono Variable', ui-monospace, monospace;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, 'Cascadia Code', monospace;
+}

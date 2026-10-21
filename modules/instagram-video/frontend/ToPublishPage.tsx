@@ -81,7 +81,7 @@ export function ToPublishPage() {
             </Link>
           }
         >
-          <div className="iv-tiles">
+          <div className="ui-cards">
             {items.map((item) => (
               <div key={item.id} className="iv-publish">
                 <ItemTile

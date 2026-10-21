@@ -334,7 +334,28 @@ export default defineFrontendModule({
 - Navigation interne : `useModule().path('tracks/3')` donne l'adresse d'une page du module (pour `<Link to>` / `navigate()`).
 - CSS propre à un module : un fichier importé depuis `frontend/`, classes préfixées par les initiales du module (ex. `ml-` pour music-library).
 - Fichiers générés : `outputs` (client des routes `/api/core/outputs`), `confirmDelete`, `useSelection`, et les composants `SelectionBar`, `MissingFile`, `OutputList` (voir §5.13).
-- Outils du SDK : `useModule`, `useApi`, `useJobs`, `api`, `apiFetch`, `openEventStream`, `getFilePath`, `startFileDrag`, `pickFiles`, `pickFolder`, `copyText`, `formatDuration`, et les composants `Page`, `Card`, `Button`, `EmptyState`, `ErrorMessage`, `ProgressBar`, `ErrorBoundary`. Styles : classes et variables CSS de `frontend/src/styles.css` (thème sombre).
+- Outils du SDK : `useModule`, `useApi`, `useJobs`, `api`, `apiFetch`, `openEventStream`, `getFilePath`, `startFileDrag`, `pickFiles`, `pickFolder`, `copyText`, `formatDuration`, et les composants `Page`, `Card`, `Button`, `EmptyState`, `ErrorMessage`, `ProgressBar`, `ErrorBoundary`.
+
+### 7.1 Composants partagés (obligatoires)
+
+**Cohérence : un même type d'élément s'affiche et se manipule de la même façon dans tous les modules.** Les éléments générés et leurs textes passent par les composants partagés de `@hub/sdk/frontend` (fichier `packages/sdk/components.tsx`), jamais par une version maison :
+
+| Composant                        | Rôle                                                                                                                                                                                            |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OutputCard`                     | carte d'un élément généré (vidéo, Reel, post) : miniature, titre + état, détails, progression, erreur, « Fichier introuvable », case « Publié », actions. Grille : `<div className="ui-cards">` |
+| `MediaThumb`                     | miniature (16:9, 9:16, 4:5, carrée) qu'on peut glisser hors de l'app, case de sélection                                                                                                         |
+| `StateBadge`                     | pastille d'état (Généré, Planifié, Programmé, Publié, Erreur…)                                                                                                                                  |
+| `PublishedCheck`                 | case « Publié » + date de publication modifiable                                                                                                                                                |
+| `FileActions`                    | boutons, toujours dans cet ordre : Lire/Voir, Dossier, Régénérer, (spécifiques), Supprimer                                                                                                      |
+| `CopyButton`                     | « Copier » avec confirmation                                                                                                                                                                    |
+| `ExcerptWaveform`, `ExcerptChip` | choix d'extraits (1 à 4, couleurs `--series-1..4`) sur la forme d'onde d'un morceau                                                                                                             |
+
+Un besoin non couvert : enrichir le composant du SDK (pour tous), pas en écrire un autre dans le module.
+
+### 7.2 Couleurs et thèmes
+
+L'interface a plusieurs thèmes (Réglages › Apparence, `docs/THEMES.md`). **Aucune couleur écrite en dur dans le frontend d'un module** (ni `#hex`, ni `rgb()`, ni `hsl()`, en CSS comme en TSX) : uniquement les variables du thème (`var(--accent)`, `var(--series-3)`…) et les classes du shell (`card`, `button`, `badge`, `input`, `list`, `ui-*`). `npm run lint` échoue sinon (`scripts/check-ui-colors.mjs`). Les visuels **générés** ne sont pas concernés : ils suivent `docs/DIRECTION-ARTISTIQUE.md`.
+
 - Textes de l'interface en français.
 
 ## 8. Tests
@@ -376,6 +397,7 @@ L'état de chaque module est visible dans **Réglages > Modules** (avec bouton D
 - [ ] Chaque fichier généré enregistré dans `ctx.outputs` (avec `onRemoved` pour nettoyer ses données) ; dans l'interface : « Supprimer » avec confirmation, sélection multiple, « Fichier introuvable », « Nettoyer les éléments introuvables »
 - [ ] Dépendances et services déclarés dans le manifest ; types publics dans `contract.ts`
 - [ ] Comptes externes déclarés dans `permissions.accounts`, autorisations minimales
+- [ ] Éléments générés affichés avec les composants partagés du SDK (§7.1), aucune couleur en dur (§7.2)
 - [ ] Textes en français, code en anglais
 - [ ] `README.md` du module à jour (rôle, données, réglages, événements, services, API)
 - [ ] Tests dans `tests/`, `npm test` passe

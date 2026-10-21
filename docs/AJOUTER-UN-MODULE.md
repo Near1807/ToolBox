@@ -38,7 +38,8 @@ Supprimer tout ce qui ne sert pas (route de démo, tâche planifiée…).
 
 - Une page principale `{ path: '', component: MaPage }` ; d'autres pages si besoin (`'details/:id'`).
 - `useModule()` pour appeler son backend (`module.api.post('/x', data)`), `useApi(module.url('/x'))` pour charger des données, `useJobs(module.id)` pour suivre ses tâches.
-- Composants du SDK (`Page`, `Card`, `Button`…) pour rester homogène avec le reste de l'app.
+- Composants du SDK (`Page`, `Card`, `Button`…) pour rester homogène avec le reste de l'app. Éléments générés : **composants partagés** `OutputCard`, `MediaThumb`, `FileActions`, `PublishedCheck`, `StateBadge`, `CopyButton`, `ExcerptWaveform` (`docs/MODULES.md` §7.1), obligatoires.
+- CSS du module : mise en page et variables du thème uniquement (`var(--accent)`, `var(--surface-2)`…), **aucune couleur en dur** — `npm run lint` le vérifie. Liste des variables : `docs/THEMES.md`.
 - Fichiers générés : `<OutputList module={module.id} />` donne une liste complète (ouvrir, supprimer avec confirmation, sélection multiple, fichiers introuvables). Pour une présentation sur mesure (vignettes…), utiliser `outputs.delete/forget`, `confirmDelete`, `useSelection` + `SelectionBar` et `MissingFile`.
 - Pas de frontend ? Supprimer le dossier `frontend/` (module de service).
 
@@ -106,7 +107,7 @@ Copier `modules/_template` vers `modules/<id>/`, choisir la section (ex. `Produc
 1. **Logique métier** (fonctions pures) : copier dans `modules/<id>/backend/`, sans dépendance à Electron ni au DOM. C'est la partie la plus réutilisable.
 2. **Accès aux données** : réécrire en requêtes `ctx.db.prepare(...)` sur les tables préfixées. Schéma dans `migrations`.
 3. **API** : chaque action de l'ancienne UI devient une route.
-4. **Interface** : porter les composants React (ou réécrire les vues si l'app n'était pas en React) dans `frontend/`. Remplacer les appels directs (IPC, fs, fetch vers l'ancien serveur) par `module.api`. Retirer le layout global : le shell fournit la navigation.
+4. **Interface** : porter les composants React (ou réécrire les vues si l'app n'était pas en React) dans `frontend/`. Remplacer les appels directs (IPC, fs, fetch vers l'ancien serveur) par `module.api`. Retirer le layout global : le shell fournit la navigation. Remplacer les couleurs de l'ancienne app par les variables du thème (`docs/THEMES.md`) et ses cartes / boutons de fichiers par les composants partagés du SDK.
 5. Vérifier `npm run lint` : il signale toute importation interdite restante (electron, autre module, socle).
 
 ### Étape 4 — Reprendre les données existantes

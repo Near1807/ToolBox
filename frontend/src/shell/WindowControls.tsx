@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Maximize2, Minimize2 } from 'lucide-react';
 
 /** Desktop window buttons; nothing in a browser (dev UI on localhost:5173). */
 const desktop = typeof window !== 'undefined' ? window.toolbox?.window : undefined;
@@ -19,7 +20,10 @@ export function FullscreenButton({ fullscreen }: { fullscreen: boolean }) {
   if (!desktop) return null;
   return (
     <button type="button" className="nav-link nav-link--button" onClick={desktop.toggleFullscreen}>
-      {fullscreen ? 'Quitter le plein écran' : 'Plein écran'}
+      {fullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+      <span className="nav-link__label">
+        {fullscreen ? 'Quitter le plein écran' : 'Plein écran'}
+      </span>
       <kbd className="nav-link__key">F11</kbd>
     </button>
   );

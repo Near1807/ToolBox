@@ -1,34 +1,30 @@
-import { useState, type DragEvent } from 'react';
 import {
-  Button,
-  copyText,
+  CopyButton,
+  FileActions,
   formatDuration,
-  MissingFile,
-  ProgressBar,
-  startFileDrag,
+  MediaThumb,
+  OutputCard,
+  PublishedCheck,
+  StateBadge,
   type JobInfo,
+  type StateTone,
 } from '@hub/sdk/frontend';
 import { STATE_LABELS, type PackItem } from './types';
 
-const STATE_BADGES: Record<PackItem['state'], string> = {
-  draft: '',
-  rendering: 'badge--running',
-  ready: 'badge--succeeded',
-  outdated: 'badge--warning',
-  failed: 'badge--failed',
-  missing: 'badge--warning',
+export { CopyButton };
+
+const STATE_TONES: Record<PackItem['state'], StateTone> = {
+  draft: 'neutral',
+  rendering: 'running',
+  ready: 'success',
+  outdated: 'warning',
+  failed: 'danger',
+  missing: 'warning',
 };
 
-/** "2026-10-19T…" → "2026-10-19" for <input type="date">. */
-function dateValue(iso: string): string {
-  const date = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
-
 /**
- * One file of the pack (post or Reel): preview to drag out of the app,
- * state, publication checkbox and date, actions.
+ * One file of the pack (post or Reel), with the shared SDK components:
+ * preview to drag out of the app, state, publication checkbox and date, actions.
  */
 export function ItemTile(props: {
   item: PackItem;
@@ -46,124 +42,53 @@ export function ItemTile(props: {
 }) {
   const { item, job } = props;
   const rendering = item.state === 'rendering';
-  const draggable = Boolean(item.url);
-
-  const dragStart = (event: DragEvent) => {
-    if (item.url && startFileDrag(item.url)) event.preventDefault();
-  };
 
   return (
-    <div className={`iv-tile${item.publishedAt ? ' iv-tile--published' : ''}`}>
-      <div
-        className={`iv-tile__preview iv-tile__preview--${item.kind}`}
-        draggable={draggable}
-        onDragStart={dragStart}
-        title={draggable ? 'Glisse ce fichier vers Instagram, l’Explorateur…' : undefined}
-      >
-        {item.thumbnailUrl ? (
-          <img src={item.thumbnailUrl} alt="" draggable={false} />
-        ) : (
-          <span className="muted small">{item.kind === 'post' ? 'Image 4:5' : 'Reel 9:16'}</span>
-        )}
-        {draggable && <span className="iv-tile__drag">⇱ glisser</span>}
-        {props.onSelect && item.outputId !== null && (
-          <input
-            type="checkbox"
-            className="iv-tile__select"
-            aria-label={`Sélectionner ${item.label}`}
-            checked={Boolean(props.selected)}
-            onChange={props.onSelect}
-          />
-        )}
-      </div>
-      <div className="iv-tile__body">
-        <div className="iv-tile__title">
-          <strong>{item.label}</strong>
-          <span className={`badge ${STATE_BADGES[item.state]}`}>{STATE_LABELS[item.state]}</span>
-        </div>
-        {item.kind === 'reel' && item.startSec !== null && (
-          <span className="muted small">
-            {formatDuration(item.startSec)} →{' '}
-            {formatDuration(item.startSec + (item.durationSec ?? 0))}
-          </span>
-        )}
-        {rendering && job && (
-          <div className="iv-tile__progress">
-            <ProgressBar value={job.status === 'running' ? job.progress : null} />
-            {props.onCancel && (
-              <Button variant="secondary" small onClick={() => props.onCancel!(job.id)}>
-                Annuler
-              </Button>
-            )}
-          </div>
-        )}
-        {item.error && !rendering && <span className="error small">{item.error}</span>}
-        {item.state === 'missing' && props.onForget && (
-          <MissingFile onForget={props.onForget} onRegenerate={() => props.onAction('render')} />
-        )}
-        <label className="iv-tile__published">
-          <input
-            type="checkbox"
-            checked={Boolean(item.publishedAt)}
-            onChange={(e) => props.onPublish({ published: e.target.checked })}
-          />
-          Publié
-          {item.publishedAt && (
-            <input
-              type="date"
-              className="input iv-tile__date"
-              value={dateValue(item.publishedAt)}
-              onChange={(e) => e.target.value && props.onPublish({ publishedAt: e.target.value })}
-            />
-          )}
-        </label>
-        <div className="iv-tile__actions">
-          {item.url && (
-            <Button variant="secondary" small onClick={() => props.onAction('open')}>
-              {item.kind === 'post' ? 'Voir' : 'Lire'}
-            </Button>
-          )}
-          {item.url && (
-            <Button variant="secondary" small onClick={() => props.onAction('reveal')}>
-              Dossier
-            </Button>
-          )}
-          {item.state !== 'draft' && item.state !== 'missing' && (
-            <Button
-              variant="secondary"
-              small
-              disabled={rendering}
-              onClick={() => props.onAction('render')}
-            >
-              Régénérer
-            </Button>
-          )}
-          {item.url && props.onDelete && (
-            <Button variant="danger" small disabled={rendering} onClick={props.onDelete}>
-              Supprimer
-            </Button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/** « Copier » button that confirms for a moment. */
-export function CopyButton(props: { text: string; label?: string }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <Button
-      variant="secondary"
-      small
-      onClick={() =>
-        void copyText(props.text).then((ok) => {
-          setCopied(ok);
-          setTimeout(() => setCopied(false), 1500);
-        })
+    <OutputCard
+      title={item.label}
+      badge={<StateBadge tone={STATE_TONES[item.state]}>{STATE_LABELS[item.state]}</StateBadge>}
+      dimmed={Boolean(item.publishedAt)}
+      selected={props.selected}
+      thumb={
+        <MediaThumb
+          src={item.thumbnailUrl}
+          aspect={item.kind === 'post' ? 'portrait' : 'vertical'}
+          dragUrl={item.url}
+          placeholder={item.kind === 'post' ? 'Image 4:5' : 'Reel 9:16'}
+          selected={props.selected}
+          onSelect={props.onSelect && item.outputId !== null ? props.onSelect : undefined}
+          selectLabel={`Sélectionner ${item.label}`}
+        />
       }
-    >
-      {copied ? 'Copié ✓' : (props.label ?? 'Copier')}
-    </Button>
+      meta={
+        item.kind === 'reel' && item.startSec !== null
+          ? `${formatDuration(item.startSec)} → ${formatDuration(item.startSec + (item.durationSec ?? 0))}`
+          : undefined
+      }
+      rendering={rendering && job !== null}
+      progress={job?.status === 'running' ? job.progress : null}
+      onCancel={job && props.onCancel ? () => props.onCancel!(job.id) : undefined}
+      error={item.error}
+      missing={
+        item.state === 'missing' && props.onForget
+          ? { onForget: props.onForget, onRegenerate: () => props.onAction('render') }
+          : null
+      }
+      published={<PublishedCheck publishedAt={item.publishedAt} onChange={props.onPublish} />}
+      actions={
+        <FileActions
+          busy={rendering}
+          onOpen={item.url ? () => props.onAction('open') : undefined}
+          openLabel={item.kind === 'post' ? 'Voir' : 'Lire'}
+          onReveal={item.url ? () => props.onAction('reveal') : undefined}
+          onRegenerate={
+            item.state !== 'draft' && item.state !== 'missing'
+              ? () => props.onAction('render')
+              : undefined
+          }
+          onDelete={item.url ? props.onDelete : undefined}
+        />
+      }
+    />
   );
 }

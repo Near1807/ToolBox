@@ -1,6 +1,8 @@
 # Direction artistique
 
 > Règles **obligatoires** pour tout visuel généré par ToolBox (vidéos YouTube, Reels, images de post), présent et futur. Toute nouvelle fonction visuelle s'y conforme ; en cas de conflit, ce document l'emporte sur l'envie d'en faire plus.
+>
+> Ce document ne concerne que les **visuels générés**. L'apparence de l'**interface** de l'app (couleurs, polices, thèmes au choix dans Réglages › Apparence) est décrite dans `docs/THEMES.md` : changer de thème ne change jamais une vidéo.
 
 ## Principe
 

@@ -166,7 +166,7 @@ Le glisser hors de la fenêtre Ce dernier ne reçoit qu'une URL de média signé
 
 ### Fenêtre et plein écran
 
-La barre de titre native suit le thème sombre de l'app (`nativeTheme.themeSource = 'dark'`) : elle n'est plus blanche sous Windows.
+La barre de titre native suit le mode clair ou sombre du thème choisi (`nativeTheme.themeSource`, message `toolbox:color-scheme` du preload, retenu dans `window-state.json` pour le démarrage suivant). Thèmes de l'interface : `docs/THEMES.md` (tokens CSS, préférences dans le réglage caché `ui`, routes `GET/PUT /api/core/ui`).
 
 On passe en plein écran avec **F11** (géré par le process principal) ou avec le bouton « Plein écran » en bas de la barre latérale. En plein écran, il n'y a plus de barre de titre : l'interface dessine en haut à droite ses propres boutons (réduire, quitter le plein écran, fermer).
 

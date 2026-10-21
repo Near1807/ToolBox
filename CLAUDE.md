@@ -30,7 +30,7 @@ Modules actuels (section Musique) : `music-library` (bibliothèque, service `mus
 | `TOOLBOX_LOAD_EXAMPLES=1 npm run dev`      | Idem, en chargeant aussi les modules d'exemple (`modules/_*`)                                                                                 |
 | `npm run build` / `npm start`              | Build (`build/renderer`, `build/main`) / lance Electron sur le build                                                                          |
 | `npm test` / `npm run test:watch`          | Tests Vitest (socle dans `tests/`, modules dans `modules/*/tests/`)                                                                           |
-| `npm run lint` / `npm run format`          | ESLint (dont la règle des frontières de modules) + Prettier                                                                                   |
+| `npm run lint` / `npm run format`          | ESLint (dont la règle des frontières de modules) + Prettier + aucune couleur en dur dans l'interface (`check:ui-colors`)                      |
 | `npm run typecheck`                        | `tsc --noEmit`                                                                                                                                |
 | `npm run check:native`                     | Vérifie que better-sqlite3 et @napi-rs/canvas se chargent dans le Node d'Electron                                                             |
 | `npm run dist:win`                         | Installateur NSIS + portable dans `dist/` (sous Windows, ou via la CI)                                                                        |
@@ -44,12 +44,12 @@ Sous Linux en root (conteneur) : ajouter `--no-sandbox` à Electron, et `xvfb-ru
 electron/        process principal : fenêtre (plein écran, barre sombre), zone de notification et démarrage avec Windows, preload, HostAdapter Electron, smoke test
 backend/         server.ts (Fastify) · core/ (hub.ts = chargeur de modules et ctx, migrations, sauvegardes,
                  réglages, tâches, planificateur, événements, services, fichiers générés, comptes, notifications, journaux) · routes/core.ts (/api/core/*)
-frontend/src/    shell React : modules/ (découverte, hôte des pages), shell/ (accueil, fichiers générés, tâches, journaux, réglages), styles.css
-packages/sdk/    @hub/sdk : backend.ts, frontend.tsx, manifest.ts, testing.ts — seul import autorisé aux modules
+frontend/src/    shell React : modules/ (découverte, hôte des pages), shell/ (accueil, fichiers générés, tâches, journaux, réglages), themes/ (un fichier par thème), styles.css
+packages/sdk/    @hub/sdk : backend.ts, frontend.tsx, components.tsx (composants partagés), manifest.ts, testing.ts — seul import autorisé aux modules
 modules/         un dossier par module ; _template/ = module modèle (exemple, chargé à la demande)
 scripts/         dev, build (esbuild + découverte des modules), smoke test, vérification native
 tests/           tests Vitest du socle
-docs/            ARCHITECTURE, MODULES (contrat), AJOUTER-UN-MODULE, DIRECTION-ARTISTIQUE, ROADMAP, WINDOWS, decisions/ (ADR)
+docs/            ARCHITECTURE, MODULES (contrat), AJOUTER-UN-MODULE, DIRECTION-ARTISTIQUE (visuels générés), THEMES (interface), ROADMAP, WINDOWS, decisions/ (ADR)
 site/            site public statique (accueil + confidentialité, exigés par Google OAuth), publié par GitHub Pages depuis hub-v1
 ```
 
@@ -59,6 +59,7 @@ site/            site public statique (accueil + confidentialité, exigés par G
 - `docs/AJOUTER-UN-MODULE.md` — guide pas à pas, dont « Intégrer une app existante ».
 - `docs/ARCHITECTURE.md` — vue d'ensemble, démarrage, API du socle, sécurité, données.
 - `docs/DIRECTION-ARTISTIQUE.md` — **règles obligatoires pour tout visuel généré** (sobriété, cover toujours entière, vérification sur trois covers).
+- `docs/THEMES.md` — thèmes de l'interface : tokens, ajouter un thème (sans rapport avec les visuels générés).
 - `docs/ROADMAP.md` — fait / en cours / prévu. `CHANGELOG.md` — versions.
 - `docs/decisions/` — ADR : pourquoi chaque choix structurant.
 
@@ -71,6 +72,8 @@ site/            site public statique (accueil + confidentialité, exigés par G
 - Le backend n'importe jamais `electron` : il passe par `HostAdapter`.
 - Données utilisateur uniquement sous `userData`, jamais dans le dossier d'installation.
 - **Tout fichier généré passe par `ctx.outputs` et est supprimable depuis l'interface** (Corbeille, sélection multiple, « Fichier introuvable »). `docs/MODULES.md` §5.13.
+- **Cohérence de l'interface** : les éléments générés (carte, miniature, case « Publié », boutons Supprimer/Régénérer/Dossier, forme d'onde des extraits, champs de texte) passent par les **composants partagés du SDK** (`packages/sdk/components.tsx`, `docs/MODULES.md` §7.1), jamais par une copie dans un module.
+- **Thèmes** : couleurs, arrondis, ombres et polices de l'interface = variables CSS des thèmes (`frontend/src/themes/`, `docs/THEMES.md`). Aucune couleur en dur dans le shell ni dans les modules (`npm run lint` le vérifie). Les thèmes concernent l'interface ; les visuels générés suivent la direction artistique.
 - Visuels : respecter `docs/DIRECTION-ARTISTIQUE.md` (sobre ; cover toujours entière, jamais recadrée ni étirée ; seuls mouvements lents de l'image entière ; couleurs de la cover). Pixels carrés (`setsar=1`) en fin de chaîne, son ≤ -1 dBTP. **Tout mouvement est piloté directement par le son, jamais par des événements détectés** (synchro mesurée, ≤ 1 image).
 - **Données : une migration publiée ne se modifie jamais ; aucune suppression de données hors migration explicite** (ou demande explicite de l'utilisateur dans l'interface, avec confirmation). Le socle sauvegarde `hub.db` avant chaque migration et restaure en cas d'échec (`docs/MODULES.md` §6).
 - Toute modification du contrat de module ou de l'architecture met à jour la doc **dans le même commit**. Nouvelle décision structurante → nouvel ADR.

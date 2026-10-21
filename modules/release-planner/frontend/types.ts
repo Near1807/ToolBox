@@ -141,14 +141,5 @@ export const STATUS_LABELS: Record<ItemStatus, string> = {
   failed: 'Erreur',
 };
 
-/** Muted colours, one per track (colorIndex 0..7), readable on the dark theme. */
-export const TRACK_COLORS = [
-  '#7c8cff',
-  '#4cd4a0',
-  '#f5b84a',
-  '#e07a9f',
-  '#5ec8e5',
-  '#b48cf2',
-  '#e8916a',
-  '#a6c96a',
-];
+/** One colour per track (colorIndex 0..7): the theme's series tokens (docs/THEMES.md). */
+export const TRACK_COLORS = Array.from({ length: 8 }, (_, i) => `var(--series-${i + 1})`);

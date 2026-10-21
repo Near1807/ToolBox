@@ -5,7 +5,7 @@ import { listAutomaticBackups } from '../core/backups';
 import { getSqliteVersion } from '../core/database';
 import { exportBackupZip } from '../core/export';
 import { getBinaryVersion, getFfmpegPath, getFfprobePath } from '../core/ffmpeg-binaries';
-import type { Hub } from '../core/hub';
+import { UI_SCOPE, UI_SETTINGS, type Hub } from '../core/hub';
 import { JOB_UPDATED_EVENT } from '../core/jobs';
 import type { LogLevel } from '../core/logger';
 import { SettingsValidationError } from '../core/settings';
@@ -102,6 +102,23 @@ export function registerCoreRoutes(app: FastifyInstance, hub: Hub, appVersion: s
   // Settings --------------------------------------------------------------
 
   app.get('/api/core/settings', async () => hub.settings.describe());
+
+  // Interface preferences (theme, sidebar layout), stored like settings but not listed.
+  app.get('/api/core/ui', async () =>
+    Object.fromEntries(UI_SETTINGS.map((f) => [f.key, hub.settings.get(UI_SCOPE, f.key)])),
+  );
+
+  app.put<{ Body: Record<string, unknown> }>('/api/core/ui', async (request, reply) => {
+    try {
+      hub.settings.update(UI_SCOPE, request.body ?? {});
+      return { ok: true };
+    } catch (error) {
+      if (error instanceof SettingsValidationError) {
+        return reply.code(400).send({ error: error.message });
+      }
+      throw error;
+    }
+  });
 
   app.put<{ Params: { scope: string }; Body: Record<string, unknown> }>(
     '/api/core/settings/:scope',

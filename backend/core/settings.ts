@@ -30,7 +30,10 @@ interface Row {
 
 /** Stores settings of the core and of every module (table core__settings). */
 export class SettingsStore {
-  private readonly sections = new Map<string, { title: string; fields: SettingField[] }>();
+  private readonly sections = new Map<
+    string,
+    { title: string; fields: SettingField[]; hidden: boolean }
+  >();
 
   constructor(
     private readonly handle: DatabaseHandle,
@@ -38,8 +41,14 @@ export class SettingsStore {
     private readonly bus: EventBus,
   ) {}
 
-  register(scope: string, title: string, fields: SettingField[]): void {
-    this.sections.set(scope, { title, fields });
+  /** A hidden section is not listed on the Settings page (e.g. interface preferences). */
+  register(
+    scope: string,
+    title: string,
+    fields: SettingField[],
+    options: { hidden?: boolean } = {},
+  ): void {
+    this.sections.set(scope, { title, fields, hidden: options.hidden === true });
   }
 
   unregister(scope: string): void {
@@ -104,17 +113,19 @@ export class SettingsStore {
   }
 
   describe(): SettingsSection[] {
-    return [...this.sections.entries()].map(([scope, section]) => ({
-      scope,
-      title: section.title,
-      fields: section.fields.map((field) => {
-        if (field.type === 'secret') {
-          return { field, value: null, isSet: Boolean(this.row(scope, field.key)?.value) };
-        }
-        const isSet = this.row(scope, field.key) !== undefined;
-        return { field, value: this.get(scope, field.key), isSet };
-      }),
-    }));
+    return [...this.sections.entries()]
+      .filter(([, section]) => !section.hidden)
+      .map(([scope, section]) => ({
+        scope,
+        title: section.title,
+        fields: section.fields.map((field) => {
+          if (field.type === 'secret') {
+            return { field, value: null, isSet: Boolean(this.row(scope, field.key)?.value) };
+          }
+          const isSet = this.row(scope, field.key) !== undefined;
+          return { field, value: this.get(scope, field.key), isSet };
+        }),
+      }));
   }
 
   private upsert(scope: string, key: string, value: string, encrypted: number, now: string): void {

@@ -5,6 +5,8 @@ import {
   Card,
   confirmDelete,
   EmptyState,
+  ExcerptChip,
+  ExcerptWaveform,
   ErrorMessage,
   errorMessage,
   formatDuration,
@@ -19,7 +21,6 @@ import {
 } from '@hub/sdk/frontend';
 import { CopyButton, ItemTile } from './ItemTile';
 import type { Pack, PackItem, TrackDetail, TrackSummary, WaveformData } from './types';
-import { Waveform } from './Waveform';
 
 const REELS = 4;
 
@@ -349,7 +350,8 @@ function TrackPanel(props: { trackId: number; onChange: () => void }) {
           {waveform.error && <ErrorMessage>{waveform.error}</ErrorMessage>}
           {!waveform.data && !waveform.error && <p className="muted">Analyse du son…</p>}
           {waveform.data && (
-            <Waveform
+            <ExcerptWaveform
+              label="Extraits des Reels sur la forme d’onde"
               peaks={waveform.data.peaks}
               durationSec={waveform.data.durationSec}
               regions={reels.map((r) => ({
@@ -388,14 +390,12 @@ function TrackPanel(props: { trackId: number; onChange: () => void }) {
                 key={reel.id}
                 className={`iv-excerpt${reel.id === active?.id ? ' iv-excerpt--active' : ''}`}
               >
-                <button
-                  type="button"
-                  className={`iv-excerpt__chip iv-excerpt__chip--${reel.position}`}
+                <ExcerptChip
+                  position={reel.position}
+                  active={reel.id === active?.id}
                   onClick={() => setActiveId(reel.id)}
                   title="Choisir cet extrait sur la forme d’onde"
-                >
-                  {reel.position}
-                </button>
+                />
                 <span className="iv-excerpt__time">
                   {formatDuration(reel.startSec ?? 0)} →{' '}
                   {formatDuration((reel.startSec ?? 0) + (reel.durationSec ?? 0))}
@@ -506,7 +506,7 @@ function TrackPanel(props: { trackId: number; onChange: () => void }) {
               </Button>
             )}
           </SelectionBar>
-          <div className="iv-tiles">
+          <div className="ui-cards">
             {pack.items.map((item) => (
               <ItemTile
                 key={item.id}

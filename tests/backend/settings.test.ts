@@ -82,4 +82,13 @@ describe('settings', () => {
     expect(body[0]).toMatchObject({ scope: 'core', title: 'Général' });
     expect(body[0]!.fields[0]!.field.key).toBe('outputRoot');
   });
+
+  it('keeps interface preferences (theme, sidebar) apart from the Settings page', async () => {
+    expect((await hub.request('GET', '/api/core/ui')).body).toEqual({ theme: '', navigation: '' });
+    expect((await hub.request('PUT', '/api/core/ui', { theme: 'clair' })).status).toBe(200);
+    expect((await hub.request('GET', '/api/core/ui')).body).toMatchObject({ theme: 'clair' });
+    const { body } = await hub.request<SettingsSection[]>('GET', '/api/core/settings');
+    expect(body.some((s) => s.scope === 'ui')).toBe(false);
+    expect((await hub.request('PUT', '/api/core/ui', { unknown: 1 })).status).toBe(400);
+  });
 });
