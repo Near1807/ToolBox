@@ -17,6 +17,7 @@ import {
   type DiscoveredModule,
   type TestHub,
 } from '@hub/sdk/testing';
+import type { CustomReel, CustomReelsService } from '../../custom-reels/contract';
 import type { InstagramPackService, PackItem } from '../../instagram-video/contract';
 import type { YouTubeVideoService } from '../../youtube-video/contract';
 import { MockGoogle } from './mock-google';
@@ -47,7 +48,11 @@ interface Release {
 /** Fake providers of the services the planner uses, with real files on disk. */
 function fakeProviders(
   dir: string,
-  calls: { uploaded: [number, string | null][]; published: Map<number, string | null> },
+  calls: {
+    uploaded: [number, string | null][];
+    published: Map<number, string | null>;
+    captions: Map<number, string | null>;
+  },
 ) {
   const file = (name: string, bytes: number) => {
     const target = path.join(dir, name);
@@ -106,7 +111,11 @@ function fakeProviders(
             videoTitle: 'Thomas - Drop',
             description: 'Le son.\nSpotify : https://example.com',
             tags: ['lofi', 'chill'],
+            custom: false,
           }),
+          setTexts: () => {
+            throw new Error('not used');
+          },
           render: () => ({ jobId: 'none' }),
           setUploaded: (videoId, youtubeId) => calls.uploaded.push([videoId, youtubeId]),
         };
@@ -134,6 +143,10 @@ function fakeProviders(
             calls.published.set(itemId, published ? new Date().toISOString() : null);
             return packItem(Math.floor(itemId / 10), itemId % 10);
           },
+          setCaption: (itemId, caption) => {
+            calls.captions.set(itemId, caption);
+            return packItem(Math.floor(itemId / 10), itemId % 10);
+          },
           renderItem: () => ({ jobId: 'none' }),
         };
         ctx.services.provide('instagramPack', service);
@@ -155,7 +168,46 @@ function fakeProviders(
       },
     },
   };
-  return [youtubeVideo, instagram, engine];
+  // One Reel perso per track (custom-reels), id = 500 + track.
+  const customFile = file('custom1.mp4', 100_000);
+  const customReel = (id: number): CustomReel => ({
+    id,
+    trackId: id - 500,
+    position: 1,
+    label: 'Reel perso 1',
+    startSec: 30,
+    durationSec: 28,
+    effect: 'rhythm',
+    state: 'ready',
+    filePath: customFile,
+    exists: true,
+    thumbnailPath: null,
+    caption: 'Légende perso',
+    publishedAt: calls.published.get(id) ?? null,
+  });
+  const custom: DiscoveredModule = {
+    folder: 'custom-reels',
+    manifest: manifest('custom-reels', ['customReels']),
+    backend: {
+      register(ctx: ModuleContext) {
+        const service: CustomReelsService = {
+          listReels: (trackId) => [customReel(500 + trackId)],
+          getReel: (id) => (id > 500 ? customReel(id) : null),
+          setPublished: (id, published) => {
+            calls.published.set(id, published ? new Date().toISOString() : null);
+            return customReel(id);
+          },
+          setCaption: (id, caption) => {
+            calls.captions.set(id, caption);
+            return customReel(id);
+          },
+          renderReel: () => ({ jobId: 'none' }),
+        };
+        ctx.services.provide('customReels', service);
+      },
+    },
+  };
+  return [youtubeVideo, instagram, engine, custom];
 }
 
 describe('release-planner (mock YouTube)', () => {
@@ -167,6 +219,7 @@ describe('release-planner (mock YouTube)', () => {
   const calls = {
     uploaded: [] as [number, string | null][],
     published: new Map<number, string | null>(),
+    captions: new Map<number, string | null>(),
   };
   const trackIds: number[] = [];
 
@@ -214,7 +267,7 @@ describe('release-planner (mock YouTube)', () => {
       }),
       accountProviders: { google: google.provider },
     });
-    for (const title of ['Drop', 'Nuit']) {
+    for (const title of ['Drop', 'Nuit', 'Aube']) {
       const { body } = await hub.request<{ id: number }>(
         'POST',
         '/api/modules/music-library/tracks',
@@ -311,20 +364,28 @@ describe('release-planner (mock YouTube)', () => {
     const plan = await hub.request<{
       items: { label: string; date: string; title: string; description: string }[];
       shifts: unknown[];
-    }>('POST', `${API}/plan`, { trackId: trackIds[0], date: '2030-01-10', time: '18:00' });
+    }>('POST', `${API}/plan`, { trackId: trackIds[0], date: '2030-01-14', time: '18:00' });
     expect(plan.status).toBe(200);
     expect(plan.body.items.map((i) => `${i.date} ${i.label}`)).toEqual([
-      '2030-01-10 Vidéo YouTube',
-      '2030-01-10 Post Insta',
-      '2030-01-12 Reel 1',
-      '2030-01-13 Short 1',
-      '2030-01-15 Reel 2',
+      '2030-01-14 Vidéo YouTube',
+      '2030-01-14 Post Insta',
+      '2030-01-15 Reel 1',
+      '2030-01-15 Short 1',
+      '2030-01-16 Reel 2',
       '2030-01-16 Short 2',
-      '2030-01-19 Reel 3',
-      '2030-01-20 Short 3',
-      '2030-01-23 Reel 4',
-      '2030-01-24 Short 4',
+      '2030-01-17 Reel 3',
+      '2030-01-17 Short 3',
+      '2030-01-18 Reel 4',
+      '2030-01-18 Short 4',
     ]);
+    // « J tombe toujours un lundi » (on by default): a Thursday becomes the next Monday.
+    const thursday = await hub.request<{ releaseDate: string; warnings: string[] }>(
+      'POST',
+      `${API}/plan`,
+      { trackId: trackIds[0], date: '2030-01-10', time: '18:00' },
+    );
+    expect(thursday.body.releaseDate).toBe('2030-01-14');
+    expect(thursday.body.warnings.join(' ')).toContain('lundi 14/01/2030');
     expect(plan.body.shifts).toEqual([]);
     const short = plan.body.items.find((i) => i.label === 'Short 2')!;
     expect(short.title).toBe('Drop — Thomas (2/4)');
@@ -332,15 +393,15 @@ describe('release-planner (mock YouTube)', () => {
 
     const created = await hub.request<{ release: Release }>('POST', `${API}/releases`, {
       trackId: trackIds[0],
-      date: '2030-01-10',
+      date: '2030-01-14',
       time: '18:00',
     });
     expect(created.status).toBe(200);
     first = created.body.release;
     expect(first.items).toHaveLength(10);
     const video = first.items.find((i) => i.kind === 'youtube')!;
-    expect(video.scheduledAt).toBe('2030-01-10T17:00:00.000Z');
-    expect(video).toMatchObject({ date: '2030-01-10', time: '18:00', status: 'planned' });
+    expect(video.scheduledAt).toBe('2030-01-14T17:00:00.000Z');
+    expect(video).toMatchObject({ date: '2030-01-14', time: '18:00', status: 'planned' });
     const again = await hub.request('POST', `${API}/releases`, {
       trackId: trackIds[0],
       date: '2030-02-01',
@@ -356,9 +417,54 @@ describe('release-planner (mock YouTube)', () => {
     expect(plan.body.shifts.length).toBeGreaterThan(0);
     expect(plan.body.shifts).toContainEqual({
       label: 'Post Insta',
-      from: '2030-01-12',
-      to: '2030-01-13',
+      from: '2030-01-14',
+      to: '2030-01-21',
+      reason: 'full',
     });
+  });
+
+  it('lets texts follow the templates until edited, in place', async () => {
+    type T = Item & { title: string; description: string; tags: string[]; textsCustom: boolean };
+    const items = async () =>
+      (await hub.request<{ items: T[] }>('GET', `${API}/releases/${first.id}`)).body.items;
+    const short1 = (await items()).find((i) => i.kind === 'short' && i.position === 1)!;
+    expect(short1).toMatchObject({ title: 'Drop — Thomas (1/4)', textsCustom: false });
+
+    // A template changed in the settings: elements not edited follow it.
+    await hub.request('PUT', '/api/core/settings/release-planner', { shortTitle: '{titre} #{n}' });
+    expect((await items()).find((i) => i.id === short1.id)!.title).toBe('Drop #1');
+
+    // Edited under the element: frozen, marked as custom.
+    await hub.request('PATCH', `${API}/items/${short1.id}`, { title: 'Mon Short', tags: 'a, #b' });
+    await hub.request('PUT', '/api/core/settings/release-planner', { shortTitle: null });
+    let edited = (await items()).find((i) => i.id === short1.id)!;
+    expect(edited).toMatchObject({ title: 'Mon Short', tags: ['a', 'b'], textsCustom: true });
+
+    // « Enregistrer comme modèle par défaut »: values become placeholders.
+    await hub.request('POST', `${API}/items/${short1.id}/texts/template`, {
+      title: 'Drop par Thomas (1/4)',
+    });
+    edited = (await items()).find((i) => i.id === short1.id)!;
+    expect(edited).toMatchObject({ title: 'Drop par Thomas (1/4)', textsCustom: false });
+    const short2 = (await items()).find((i) => i.kind === 'short' && i.position === 2)!;
+    expect(short2.title).toBe('Drop par Thomas (2/4)');
+    await hub.request('PUT', '/api/core/settings/release-planner', { shortTitle: null });
+
+    // « Rétablir le modèle ».
+    await hub.request('PATCH', `${API}/items/${short1.id}`, { title: 'X' });
+    await hub.request('PATCH', `${API}/items/${short1.id}`, { resetTexts: true });
+    expect((await items()).find((i) => i.id === short1.id)!).toMatchObject({
+      title: 'Drop — Thomas (1/4)',
+      textsCustom: false,
+    });
+
+    // Instagram caption: edited in the pack through its service.
+    const post = (await items()).find((i) => i.kind === 'insta-post')!;
+    const caption = await hub.request('PATCH', `${API}/items/${post.id}/caption`, {
+      caption: 'Nouvelle légende',
+    });
+    expect(caption.status).toBe(200);
+    expect([...calls.captions.values()]).toContain('Nouvelle légende');
   });
 
   it('uploads and schedules the video and the Shorts (resume after a network cut)', async () => {
@@ -384,7 +490,7 @@ describe('release-planner (mock YouTube)', () => {
     expect(uploaded.bytes).toBe(300_000);
     expect(uploaded.status).toMatchObject({
       privacyStatus: 'private',
-      publishAt: '2030-01-10T17:00:00.000Z',
+      publishAt: '2030-01-14T17:00:00.000Z',
     });
     expect(uploaded.snippet).toMatchObject({
       title: 'Thomas - Drop',
@@ -397,7 +503,7 @@ describe('release-planner (mock YouTube)', () => {
     expect(shortVideo.snippet.description).toContain(
       `https://www.youtube.com/watch?v=${video.youtube!.id}`,
     );
-    expect(shortVideo.status.publishAt).toBe('2030-01-13T17:00:00.000Z');
+    expect(shortVideo.status.publishAt).toBe('2030-01-15T17:00:00.000Z');
     expect(google.thumbnails).toEqual([video.youtube!.id]);
     expect(google.playlistItems).toHaveLength(5);
     expect(google.playlistItems.every((p) => p.playlistId === 'PLsons')).toBe(true);
@@ -586,6 +692,9 @@ describe('release-planner (mock YouTube)', () => {
     );
     const item = done.items.find((i) => i.kind === 'youtube')!;
     expect(item.warning).toContain('YouTube Studio');
+    // C. Notified at once, with the direct link to YouTube Studio.
+    const studio = notifications.find((n) => n.title === 'À programmer dans YouTube Studio');
+    expect(studio?.body).toContain('studio.youtube.com');
     google.restrictToPrivate = false;
   });
 
@@ -645,5 +754,159 @@ describe('release-planner (mock YouTube)', () => {
     expect(notifications.length).toBe(before + 1);
     const today = await hub.request<{ late: Item[] }>('GET', `${API}/today`);
     expect(today.body.late.length).toBeGreaterThanOrEqual(10);
+  });
+
+  // --- v0.12: planner improvements ------------------------------------------------
+
+  const tick = async () => {
+    hub.hub.handle.db
+      .prepare(
+        `UPDATE core__schedules SET last_success_at = '2000-01-01T00:00:00Z', last_attempt_at = '2000-01-01T00:00:00Z' WHERE module_id = 'release-planner' AND name = 'dispatch'`,
+      )
+      .run();
+    await hub.hub.scheduler.tick();
+  };
+  /** Local date and time (Brussels) `hours` from now. */
+  const inHours = (hours: number) => {
+    const parts = new Intl.DateTimeFormat('sv-SE', {
+      timeZone: 'Europe/Brussels',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    }).format(new Date(Date.now() + hours * 3_600_000));
+    const [date, time] = parts.split(' ');
+    return { date: date!, time: time! };
+  };
+  let third: Release;
+
+  it('E. moving the date of a video sent as « Privée » only changes the calendar', async () => {
+    const release = (await hub.request<Release[]>('GET', `${API}/releases`)).body.find((r) =>
+      r.items.some((i) => i.date === '2026-01-05'),
+    )!;
+    const video = release.items.find((i) => i.kind === 'youtube')!;
+    await hub.request('PATCH', `${API}/items/${video.id}`, { visibility: 'private' });
+    hub.hub.handle.db.prepare('DELETE FROM release_planner__quota').run();
+    await hub.request('POST', `${API}/items/${video.id}/upload`);
+    const sent = await waitFor(
+      async () =>
+        (await hub.request<{ items: Item[] }>('GET', `${API}/releases/${release.id}`)).body,
+      (r) =>
+        ['to-schedule', 'scheduled', 'published'].includes(
+          r.items.find((i) => i.id === video.id)!.state,
+        ),
+    );
+    const online = sent.items.find((i) => i.id === video.id)!;
+    const before = { ...google.videos.get(online.youtube!.id)!.status };
+    const moved = await hub.request<{ item: Item }>('PATCH', `${API}/items/${video.id}`, {
+      date: '2030-06-03',
+    });
+    expect(moved.status).toBe(200);
+    expect(moved.body.item.date).toBe('2030-06-03');
+    // Nothing sent to YouTube: still private, no publication date.
+    expect(google.videos.get(online.youtube!.id)!.status).toEqual(before);
+    expect(moved.body.item.state).not.toBe('scheduled');
+  });
+
+  it('proposes only the elements « inclus dans la sortie », and the Reels perso on request', async () => {
+    await hub.request('PUT', '/api/core/settings/release-planner', {
+      mondayRelease: false,
+      allowedDays: '1,2,3,4,5,6,7',
+      uploadsPerDay: 50,
+    });
+    const trackId = trackIds[2]!;
+    // Reel 2 of the pack excluded on the project page (library).
+    await hub.request('PUT', `/api/modules/music-library/tracks/${trackId}/project/included`, {
+      moduleId: 'instagram-video',
+      ref: `item:${trackId * 10 + 2}`,
+      included: false,
+    });
+    const when = inHours(48);
+    type Proposal = {
+      items: { label: string }[];
+      warnings: string[];
+      customReels: { customReelId: number; label: string; date: string }[];
+    };
+    const plan = await hub.request<Proposal>('POST', `${API}/plan`, {
+      trackId,
+      date: when.date,
+      time: when.time,
+    });
+    const labels = plan.body.items.map((i) => i.label);
+    expect(labels).not.toContain('Reel 2');
+    expect(labels).not.toContain('Short 2');
+    expect(labels).toContain('Reel 3');
+    expect(plan.body.warnings.join(' ')).toContain('Exclus de la sortie');
+    expect(plan.body.customReels).toEqual([
+      expect.objectContaining({ customReelId: 500 + trackId, label: 'Reel perso 1' }),
+    ]);
+
+    const created = await hub.request<{ release: Release }>('POST', `${API}/releases`, {
+      trackId,
+      date: when.date,
+      time: when.time,
+      custom: [{ customReelId: 500 + trackId, kinds: ['insta-reel', 'short'] }],
+    });
+    expect(created.status).toBe(200);
+    third = created.body.release;
+    const perso = third.items.filter((i) => i.label.includes('perso')).map((i) => i.label);
+    expect(perso.sort()).toEqual(['Reel perso 1', 'Short perso 1']);
+    const reelPerso = third.items.find((i) => i.label === 'Reel perso 1')!;
+    await hub.request('POST', `${API}/items/${reelPerso.id}/published`, { published: true });
+    expect(calls.published.get(500 + trackId)).toBeTruthy();
+  });
+
+  it('A. alerts at J-3 then J-1 for YouTube videos not sent yet (once each)', async () => {
+    const summary = await hub.request<{ alerts: { releaseId: number; level: string }[] }>(
+      'GET',
+      `${API}/summary`,
+    );
+    expect(summary.body.alerts).toContainEqual(
+      expect.objectContaining({ releaseId: third.id, level: 'J-3' }),
+    );
+    const before = notifications.length;
+    await tick();
+    await tick();
+    const j3 = notifications.slice(before).filter((n) => n.title.startsWith('J-3'));
+    expect(j3).toHaveLength(1);
+    expect(j3[0]!.body).toContain('Aube');
+    // The video now tomorrow morning: J-1.
+    const video = third.items.find((i) => i.kind === 'youtube')!;
+    const soon = inHours(12);
+    await hub.request('PATCH', `${API}/items/${video.id}`, soon);
+    await tick();
+    await tick();
+    expect(notifications.slice(before).filter((n) => n.title.startsWith('J-1'))).toHaveLength(1);
+  });
+
+  it('G. automatic upload (off by default): starts X days before, then says when it is done', async () => {
+    const before = notifications.length;
+    await tick();
+    // Off: nothing sent.
+    let current = await release(third.id);
+    expect(youtubeItems(current).every((i) => i.state === 'planned')).toBe(true);
+    await hub.request('PUT', '/api/core/settings/release-planner', { autoUpload: true });
+    await tick();
+    const started = notifications
+      .slice(before)
+      .find((n) => n.title === 'Envoi automatique sur YouTube');
+    expect(started?.body).toContain('Aube');
+    current = await waitFor(
+      () => release(third.id),
+      (r) => youtubeItems(r).every((i) => ['scheduled', 'to-schedule', 'failed'].includes(i.state)),
+    );
+    expect(youtubeItems(current).every((i) => i.state === 'scheduled')).toBe(true);
+    await tick();
+    await tick();
+    const done = notifications.slice(before).filter((n) => n.title === 'Envoi automatique terminé');
+    expect(done).toHaveLength(1);
+    await hub.request('PUT', '/api/core/settings/release-planner', {
+      autoUpload: null,
+      mondayRelease: null,
+      allowedDays: null,
+      uploadsPerDay: null,
+    });
   });
 });

@@ -1,11 +1,7 @@
 import { Link } from 'react-router';
 import { EmptyState, ErrorBoundary, ErrorMessage, ModuleProvider, Page } from '@hub/sdk/frontend';
-import {
-  groupBySection,
-  hasMainPage,
-  useModules,
-  type ShellModule,
-} from '../modules/ModulesContext';
+import { hasMainPage, useModules, type ShellModule } from '../modules/ModulesContext';
+import { useNavigation } from './NavigationContext';
 
 const STATUS_BADGES: Record<string, string> = {
   failed: 'En erreur',
@@ -54,16 +50,11 @@ function ModuleCard({ module }: { module: ShellModule }) {
 
 export function HomePage() {
   const { modules, loading, error } = useModules();
-  // Service-only modules (no page, no widget) are not tools: they appear on the
-  // home page only when something is wrong with them (see Réglages > Modules).
-  const sections = groupBySection(
-    modules.filter(
-      (m) => m.status !== 'loaded' || m.frontend?.pages?.length || m.frontend?.HomeWidget,
-    ),
-  );
+  // Same categories as the sidebar (all expanded here); empty ones are skipped.
+  const sections = useNavigation().home.filter((category) => category.tools.length > 0);
 
   return (
-    <Page title="Accueil" subtitle="Tous tes outils, regroupés par section.">
+    <Page title="Accueil" subtitle="Tous tes outils, rangés comme dans la barre latérale.">
       {error && <ErrorMessage>Impossible de charger les modules : {error}</ErrorMessage>}
       {!loading && !error && modules.length === 0 && (
         <EmptyState title="Aucun outil installé pour l’instant.">
@@ -71,11 +62,11 @@ export function HomePage() {
         </EmptyState>
       )}
       {sections.map((section) => (
-        <section key={section.name} className="home-section">
+        <section key={section.id} className="home-section">
           <h2>{section.name}</h2>
           <div className="module-grid">
-            {section.modules.map((module) => (
-              <ModuleCard key={module.id} module={module} />
+            {section.tools.map((tool) => (
+              <ModuleCard key={tool.id} module={tool.module} />
             ))}
           </div>
         </section>

@@ -201,6 +201,30 @@ describe('instagram-video', () => {
     expect(own.body.caption).toBe('Légende du Reel 1');
   });
 
+  it('marks an edited caption, saves it as the default template, then resets', async () => {
+    type P = Pack & { captionCustom: boolean };
+    const before = (await hub.request<{ pack: P }>('GET', `${API}/tracks/${trackId}`)).body.pack;
+    expect(before.captionCustom).toBe(true); // 'Ma légende'
+    const saved = await hub.request<P>('POST', `${API}/packs/${pack.id}/caption/template`, {
+      caption: 'Drop par Thomas ✨\n\n#lofi',
+    });
+    expect(saved.body.caption).toBe('Drop par Thomas ✨\n\n#lofi');
+    expect(saved.body.captionCustom).toBe(false);
+    const settings = await hub.request<
+      { scope: string; fields: { field: { key: string }; value: unknown }[] }[]
+    >('GET', '/api/core/settings');
+    expect(
+      settings.body
+        .find((s) => s.scope === 'instagram-video')!
+        .fields.find((f) => f.field.key === 'captionTemplate')!.value,
+    ).toBe('{titre} par {artiste} ✨\n\n{hashtags}');
+    await hub.request('PUT', '/api/core/settings/instagram-video', { captionTemplate: null });
+    const reset = await hub.request<P>('POST', `${API}/packs/${pack.id}/caption/reset`);
+    expect(reset.body.caption).toBe('Drop — Thomas\n\nNouveau son 🎧 lien en bio\n\n#lofi');
+    // The Reel with its own caption keeps it.
+    expect(reset.body.items[1]!.caption).toBe('Légende du Reel 1');
+  });
+
   it(
     'renders the pack (post + Reels) as jobs, then a single Reel again',
     { timeout: 300_000 },

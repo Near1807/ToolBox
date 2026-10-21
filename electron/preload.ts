@@ -3,7 +3,7 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron';
 // The UI receives from the desktop shell only: the API session token, the real
 // path of files dropped onto the window (browsers hide it), dragging a file
 // out of the window (identified by its signed media URL, checked by the main
-// process), the window buttons (full screen, minimise, close) and the page to
+// process), the window buttons (full screen, minimise, close), the light/dark scheme of the title bar and the page to
 // open when a notification is clicked. Everything else goes through the REST API (see docs/ARCHITECTURE.md).
 const config = ipcRenderer.sendSync('toolbox:get-config') as { token: string };
 
@@ -22,6 +22,8 @@ contextBridge.exposeInMainWorld('toolbox', {
     toggleFullscreen: (): void => ipcRenderer.send('toolbox:window', 'toggle-fullscreen'),
     minimize: (): void => ipcRenderer.send('toolbox:window', 'minimize'),
     close: (): void => ipcRenderer.send('toolbox:window', 'close'),
+    setColorScheme: (scheme: 'dark' | 'light'): void =>
+      ipcRenderer.send('toolbox:color-scheme', scheme),
   },
   // A notification was clicked: the shell opens this route (e.g. "/m/release-planner").
   onNavigate: (listener: (target: string) => void): (() => void) => {

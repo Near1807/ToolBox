@@ -50,9 +50,21 @@ describe('ctx.outputs (generated files)', () => {
     const { hub, contexts, write } = await start();
     const alpha = contexts.alpha!;
     const file = write(alpha, 'a.mp4');
-    alpha.outputs.register({ path: file, ref: 'video:1', label: 'Vidéo', parent: 'track:1' });
+    alpha.outputs.register({
+      subject: 'test:project',
+      path: file,
+      ref: 'video:1',
+      label: 'Vidéo',
+      parent: 'track:1',
+    });
     // Re-registering the same path (regeneration) updates the record.
-    alpha.outputs.register({ path: file, ref: 'video:1', label: 'Vidéo (bis)', parent: 'track:1' });
+    alpha.outputs.register({
+      subject: 'test:project',
+      path: file,
+      ref: 'video:1',
+      label: 'Vidéo (bis)',
+      parent: 'track:1',
+    });
     const [record] = alpha.outputs.list();
     expect(alpha.outputs.list()).toHaveLength(1);
     expect(record).toMatchObject({ ref: 'video:1', label: 'Vidéo (bis)', exists: true });
@@ -71,7 +83,13 @@ describe('ctx.outputs (generated files)', () => {
     const alpha = contexts.alpha!;
     const files = ['1.mp4', '2.mp4', '3.jpg'].map((name) => write(alpha, name));
     files.forEach((file, i) =>
-      alpha.outputs.register({ path: file, ref: `item:${i}`, label: 'x', parent: 'pack:1' }),
+      alpha.outputs.register({
+        path: file,
+        ref: `item:${i}`,
+        label: 'x',
+        parent: 'pack:1',
+        subject: 'test:project',
+      }),
     );
     expect(await alpha.outputs.delete({ ref: 'item:0' })).toBe(1);
     expect(trashed).toEqual([files[0]]);
@@ -118,8 +136,8 @@ describe('ctx.outputs (generated files)', () => {
     const alpha = contexts.alpha!;
     const kept = write(alpha, 'kept.mp4');
     const gone = write(alpha, 'gone.mp4');
-    alpha.outputs.register({ path: kept, ref: 'video:1', label: 'x' });
-    alpha.outputs.register({ path: gone, ref: 'video:2', label: 'x' });
+    alpha.outputs.register({ subject: 'test:project', path: kept, ref: 'video:1', label: 'x' });
+    alpha.outputs.register({ subject: 'test:project', path: gone, ref: 'video:2', label: 'x' });
     rmSync(gone);
     const { body } = await hub.request<{ forgotten: number }>(
       'POST',
@@ -136,6 +154,7 @@ describe('ctx.outputs (generated files)', () => {
   it('opens, reveals and deletes through the core routes', async () => {
     const { hub, contexts, write } = await start();
     const record = contexts.alpha!.outputs.register({
+      subject: 'test:project',
       path: write(contexts.alpha!, 'a.mp4'),
       ref: 'video:1',
       label: 'x',
@@ -148,5 +167,35 @@ describe('ctx.outputs (generated files)', () => {
     });
     expect(body.deleted).toBe(1);
     expect((await hub.request('POST', `/api/core/outputs/${record.id}/open`)).status).toBe(404);
+  });
+
+  it('requires a project, lists the elements without one and attaches them (kept afterwards)', async () => {
+    const { hub, contexts, write } = await start();
+    const alpha = contexts.alpha!;
+    const file = write(alpha, 'p.mp4');
+    expect(() =>
+      alpha.outputs.register({ path: file, ref: 'video:9', label: 'x' } as never),
+    ).toThrow(/sans projet/);
+    const record = alpha.outputs.register({
+      path: file,
+      ref: 'video:9',
+      label: 'x',
+      subject: 'lib:track:1',
+    });
+    // Track 1 deleted: the element has no project any more.
+    const known = (subject: string) => subject !== 'lib:track:1';
+    expect(alpha.outputs.orphans(known).map((r) => r.id)).toEqual([record.id]);
+    // Old element without subject (made before v0.12).
+    hub.hub.handle.db
+      .prepare('UPDATE core__outputs SET subject = NULL WHERE id = ?')
+      .run(record.id);
+    expect(alpha.outputs.orphans(() => true).map((r) => r.id)).toEqual([record.id]);
+
+    expect(contexts.beta!.outputs.attach([record.id], 'lib:track:2')).toBe(1);
+    expect(alpha.outputs.orphans(known)).toEqual([]);
+    // The module registers it again at startup: the project chosen by the user stays.
+    alpha.outputs.register({ path: file, ref: 'video:9', label: 'x', subject: 'lib:track:1' });
+    expect(alpha.outputs.bySubject('lib:track:2').map((r) => r.id)).toEqual([record.id]);
+    await hub.close();
   });
 });

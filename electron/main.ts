@@ -9,7 +9,12 @@ import { startServer, type RunningServer } from '../backend/server';
 import { attachDesktop, showWindow, startedHidden } from './desktop';
 import { createElectronHost } from './host';
 import { runSmokeTest } from './smoke-test';
-import { attachWindowControls, startsFullscreen, applyDarkWindowChrome } from './window-controls';
+import {
+  applyWindowChrome,
+  attachWindowControls,
+  startsFullscreen,
+  windowBackground,
+} from './window-controls';
 
 const devServerUrl = process.env.VITE_DEV_SERVER_URL;
 const isDev = !app.isPackaged && Boolean(devServerUrl);
@@ -64,7 +69,7 @@ function createWindow(appUrl: string): BrowserWindow {
     minWidth: 900,
     minHeight: 600,
     title: 'ToolBox',
-    backgroundColor: '#0f1115',
+    backgroundColor: windowBackground(),
     show: false,
     autoHideMenuBar: true,
     fullscreen: !smokeTestFile && startsFullscreen(),
@@ -77,7 +82,11 @@ function createWindow(appUrl: string): BrowserWindow {
   });
 
   attachWindowControls(window);
-  attachDesktop(window);
+  attachDesktop(window, () =>
+    (server?.hub.jobs.list({ limit: 50 }) ?? [])
+      .filter((job) => job.status === 'queued' || job.status === 'running')
+      .map((job) => job.title),
+  );
   window.once('ready-to-show', () => {
     if (!smokeTestFile && !startedHidden) window.show();
   });
@@ -96,7 +105,7 @@ function createWindow(appUrl: string): BrowserWindow {
 }
 
 async function bootstrap(): Promise<void> {
-  applyDarkWindowChrome();
+  applyWindowChrome();
   server = await startServer({
     dataDir: app.getPath('userData'),
     token,

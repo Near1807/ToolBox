@@ -4,16 +4,20 @@ import {
   Button,
   Card,
   confirmDelete,
-  copyText,
   EmptyState,
   ErrorMessage,
   errorMessage,
+  FileActions,
   formatDuration,
-  MissingFile,
+  formatTags,
+  MediaThumb,
+  OutputCard,
   outputs,
   Page,
   ProgressBar,
   SelectionBar,
+  StateBadge,
+  TextFields,
   useApi,
   useJobs,
   useModule,
@@ -41,30 +45,9 @@ interface VideoItem {
 interface TrackDetail extends TrackSummary {
   videoTitle: string;
   description: string;
+  tags: string[];
+  custom: boolean;
   videos: VideoItem[];
-}
-
-function CopyField(props: { label: string; value: string; multiline?: boolean }) {
-  const [copied, setCopied] = useState(false);
-  const copy = async () => {
-    setCopied(await copyText(props.value));
-    setTimeout(() => setCopied(false), 1500);
-  };
-  return (
-    <div className="yv-copy">
-      <div className="yv-copy__header">
-        <strong>{props.label}</strong>
-        <Button variant="secondary" small onClick={() => void copy()}>
-          {copied ? 'Copié ✓' : 'Copier'}
-        </Button>
-      </div>
-      {props.multiline ? (
-        <textarea className="input" readOnly rows={8} value={props.value} />
-      ) : (
-        <input className="input" readOnly value={props.value} />
-      )}
-    </div>
-  );
 }
 
 function TrackPanel(props: { trackId: number }) {
@@ -245,81 +228,111 @@ function TrackPanel(props: { trackId: number }) {
                 </Button>
               )}
             </SelectionBar>
-            <ul className="list">
+            <div className="ui-cards ui-cards--wide">
               {track.videos.map((video) => (
-                <li key={video.id} className="list__item yv-video">
-                  <input
-                    type="checkbox"
-                    aria-label={`Sélectionner ${video.fileName}`}
-                    checked={selection.has(video.id)}
-                    onChange={() => selection.toggle(video.id)}
-                  />
-                  <div className="yv-video__text">
-                    <strong>{video.fileName}</strong>
-                    <div className="muted small">
-                      {new Date(video.createdAt).toLocaleString('fr-FR')}
-                    </div>
-                  </div>
-                  {video.exists ? (
-                    <span className="inline-form">
-                      <Button
-                        variant="secondary"
-                        small
-                        onClick={() => void videoAction(video, 'open')}
-                      >
-                        Lire
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        small
-                        onClick={() => void videoAction(video, 'reveal')}
-                      >
-                        Ouvrir le dossier
-                      </Button>
-                      {video.youtubeUrl && (
-                        <a
-                          className="button button--secondary button--small"
-                          href={video.youtubeUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          title="Envoyée par le Planning de sortie"
-                        >
-                          Sur YouTube ↗
-                        </a>
-                      )}
-                      <Button
-                        variant="danger"
-                        small
-                        onClick={() => deleteVideos([video], `la vidéo « ${video.fileName} »`)}
-                      >
-                        Supprimer
-                      </Button>
-                    </span>
-                  ) : (
-                    <MissingFile
-                      onForget={() => void changeOutputs(() => outputs.forget([video.outputId]))}
-                      onRegenerate={() =>
-                        void changeOutputs(async () => {
-                          await outputs.forget([video.outputId]);
-                          await module.api.post(`/tracks/${track.id}/render`);
-                        })
-                      }
+                <OutputCard
+                  key={video.id}
+                  title={video.fileName}
+                  badge={
+                    video.youtubeUrl ? (
+                      <StateBadge tone="success">Sur YouTube</StateBadge>
+                    ) : video.exists ? (
+                      <StateBadge tone="success">Générée</StateBadge>
+                    ) : (
+                      <StateBadge tone="warning">Introuvable</StateBadge>
+                    )
+                  }
+                  selected={selection.has(video.id)}
+                  thumb={
+                    <MediaThumb
+                      src={track.coverUrl}
+                      dragUrl={video.exists ? video.url : null}
+                      placeholder="Vidéo 16:9"
+                      selected={selection.has(video.id)}
+                      onSelect={() => selection.toggle(video.id)}
+                      selectLabel={`Sélectionner ${video.fileName}`}
                     />
-                  )}
-                </li>
+                  }
+                  meta={new Date(video.createdAt).toLocaleString('fr-FR')}
+                  missing={
+                    video.exists
+                      ? null
+                      : {
+                          onForget: () =>
+                            void changeOutputs(() => outputs.forget([video.outputId])),
+                          onRegenerate: () =>
+                            void changeOutputs(async () => {
+                              await outputs.forget([video.outputId]);
+                              await module.api.post(`/tracks/${track.id}/render`);
+                            }),
+                        }
+                  }
+                  actions={
+                    video.exists && (
+                      <FileActions
+                        onOpen={() => void videoAction(video, 'open')}
+                        onReveal={() => void videoAction(video, 'reveal')}
+                        onDelete={() => deleteVideos([video], `la vidéo « ${video.fileName} »`)}
+                      >
+                        {video.youtubeUrl && (
+                          <a
+                            className="button button--secondary button--small"
+                            href={video.youtubeUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            title="Envoyée par le Planning de sortie"
+                          >
+                            Sur YouTube ↗
+                          </a>
+                        )}
+                      </FileActions>
+                    )
+                  }
+                />
               ))}
-            </ul>
+            </div>
           </>
         )}
       </Card>
 
-      <Card title="Texte pour YouTube">
+      <Card title="Textes pour YouTube">
         <p className="muted small">
-          Liens et hashtags par défaut : Réglages › Vidéo YouTube. Les tags du morceau deviennent
-          des hashtags.
+          Pré-remplis avec les modèles de Réglages › Vidéo YouTube (liens, hashtags), modifiables
+          ici. Le Planning de sortie envoie ces textes avec la vidéo.
         </p>
-        <CopyField label="Titre" value={track.videoTitle} />
-        <CopyField label="Description" value={track.description} multiline />
+        <TextFields
+          fields={[
+            { key: 'videoTitle', label: 'Titre', max: 100, copy: true },
+            {
+              key: 'description',
+              label: 'Description',
+              multiline: true,
+              rows: 8,
+              max: 5000,
+              maxUnit: 'bytes',
+              copy: true,
+            },
+            { key: 'tags', label: 'Tags', placeholder: 'lofi, chill, beat', copy: true },
+          ]}
+          values={{
+            videoTitle: track.videoTitle,
+            description: track.description,
+            tags: formatTags(track.tags),
+          }}
+          custom={track.custom}
+          onSave={async (values) => {
+            await module.api.patch(`/tracks/${track.id}/texts`, values);
+            reload();
+          }}
+          onReset={async () => {
+            await module.api.delete(`/tracks/${track.id}/texts`);
+            reload();
+          }}
+          onSaveAsTemplate={async (values) => {
+            await module.api.post(`/tracks/${track.id}/texts/template`, values);
+            reload();
+          }}
+        />
       </Card>
     </>
   );

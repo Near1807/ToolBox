@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildPlan,
+  CUSTOM_OFFSET,
+  DEFAULT_ALLOWED_DAYS,
   DEFAULT_TEMPLATE,
   fillTemplate,
+  itemLabel,
+  parseAllowedDays,
   parseTemplate,
+  releaseDay,
   sanitizeMetadata,
   spreadPlan,
 } from '../backend/plan';
@@ -24,20 +29,20 @@ const BRUSSELS = 'Europe/Brussels';
 const ALL = { video: true, post: true, reels: [1, 2, 3, 4] };
 
 describe('plan template', () => {
-  it('reads the default template (J … J+14)', () => {
+  it('reads the default template (J … J+4)', () => {
     const { entries, errors } = parseTemplate(DEFAULT_TEMPLATE);
     expect(errors).toEqual([]);
     expect(entries.map((e) => `${e.offset}:${e.kind}${e.position || ''}`)).toEqual([
       '0:youtube',
       '0:insta-post',
-      '2:insta-reel1',
-      '3:short1',
-      '5:insta-reel2',
-      '6:short2',
-      '9:insta-reel3',
-      '10:short3',
-      '13:insta-reel4',
-      '14:short4',
+      '1:insta-reel1',
+      '1:short1',
+      '2:insta-reel2',
+      '2:short2',
+      '3:insta-reel3',
+      '3:short3',
+      '4:insta-reel4',
+      '4:short4',
     ]);
   });
 
@@ -60,14 +65,14 @@ describe('plan template', () => {
     expect(plan.map((p) => `${p.date} ${p.kind}${p.position || ''}`)).toEqual([
       '2026-11-06 youtube',
       '2026-11-06 insta-post',
-      '2026-11-08 insta-reel1',
-      '2026-11-09 short1',
-      '2026-11-11 insta-reel2',
-      '2026-11-12 short2',
-      '2026-11-15 insta-reel3',
-      '2026-11-16 short3',
-      '2026-11-19 insta-reel4',
-      '2026-11-20 short4',
+      '2026-11-07 insta-reel1',
+      '2026-11-07 short1',
+      '2026-11-08 insta-reel2',
+      '2026-11-08 short2',
+      '2026-11-09 insta-reel3',
+      '2026-11-09 short3',
+      '2026-11-10 insta-reel4',
+      '2026-11-10 short4',
     ]);
   });
 
@@ -122,7 +127,14 @@ describe('anti-congestion', () => {
     expect(Math.max(...perDay.values())).toBe(1);
     expect(second.shifts.length).toBeGreaterThan(0);
     const post = second.shifts.find((s) => s.kind === 'insta-post');
-    expect(post).toEqual({ kind: 'insta-post', position: 0, from: '2026-11-08', to: '2026-11-09' });
+    // Its post day (08) and the next ones hold the first track's Reels: first free day, the 11th.
+    expect(post).toEqual({
+      kind: 'insta-post',
+      position: 0,
+      from: '2026-11-08',
+      to: '2026-11-11',
+      reason: 'full',
+    });
     // Order kept per platform: Reel n never before Reel n-1.
     const reels = second.items.filter((i) => i.kind === 'insta-reel').map((i) => i.date);
     expect([...reels].sort()).toEqual(reels);
@@ -138,6 +150,65 @@ describe('anti-congestion', () => {
       from: '2026-11-06',
       to: '2026-11-07',
     });
+  });
+});
+
+describe('allowed days and « J tombe toujours un lundi »', () => {
+  const entries = parseTemplate(DEFAULT_TEMPLATE).entries;
+
+  it('reads the allowed days (Monday to Friday by default)', () => {
+    expect(parseAllowedDays('1,2,3,4,5')).toEqual(DEFAULT_ALLOWED_DAYS);
+    expect(parseAllowedDays('7,1,1')).toEqual([0, 6]);
+    expect(parseAllowedDays('')).toEqual([0, 1, 2, 3, 4, 5, 6]);
+  });
+
+  it('moves J to the next Monday when asked', () => {
+    expect(releaseDay('2026-11-06', true)).toBe('2026-11-09'); // Friday → Monday
+    expect(releaseDay('2026-11-09', true)).toBe('2026-11-09'); // already Monday
+    expect(releaseDay('2026-11-08', true)).toBe('2026-11-09'); // Sunday → Monday
+    expect(releaseDay('2026-11-06', false)).toBe('2026-11-06');
+  });
+
+  it('with J on Monday, the default plan fits in the week (Monday to Friday)', () => {
+    const plan = buildPlan(entries, releaseDay('2026-11-06', true), ALL);
+    const { items, shifts } = spreadPlan(plan, [], 1, DEFAULT_ALLOWED_DAYS);
+    expect(shifts).toEqual([]);
+    expect([...new Set(items.map((i) => weekday(i.date)))]).toEqual([0, 1, 2, 3, 4]);
+  });
+
+  it('never moves an element onto a day that is not allowed, and reports it', () => {
+    // J on a Thursday (rule off): J+2 and J+3 fall on the weekend.
+    const plan = buildPlan(entries, '2026-11-05', ALL);
+    const { items, shifts } = spreadPlan(plan, [], 1, DEFAULT_ALLOWED_DAYS);
+    expect(items.every((i) => weekday(i.date) <= 4)).toBe(true);
+    expect(
+      shifts.filter((s) => s.reason === 'day').map((s) => [s.kind, s.position, s.from, s.to]),
+    ).toEqual(
+      [
+        ['insta-reel', 2, '2026-11-07', '2026-11-09'],
+        ['short', 2, '2026-11-07', '2026-11-09'],
+        ['insta-reel', 3, '2026-11-08', '2026-11-10'],
+        ['short', 3, '2026-11-08', '2026-11-10'],
+        ['insta-reel', 4, '2026-11-09', '2026-11-11'],
+        ['short', 4, '2026-11-09', '2026-11-11'],
+      ].slice(0, 4),
+    );
+    // Anti-congestion too: a full Friday goes to Monday, never to the weekend.
+    const occupied = [{ platform: 'instagram' as const, date: '2026-11-06' }];
+    const friday = spreadPlan(
+      buildPlan(entries, '2026-11-06', ALL),
+      occupied,
+      1,
+      DEFAULT_ALLOWED_DAYS,
+    );
+    const post = friday.items.find((i) => i.kind === 'insta-post')!;
+    expect(post.date).toBe('2026-11-09');
+    expect(friday.items.every((i) => weekday(i.date) <= 4)).toBe(true);
+  });
+
+  it('labels the Reels perso', () => {
+    expect(itemLabel('insta-reel', CUSTOM_OFFSET + 2)).toBe('Reel perso 2');
+    expect(itemLabel('short', CUSTOM_OFFSET + 1)).toBe('Short perso 1');
   });
 });
 

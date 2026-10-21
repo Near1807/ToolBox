@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { app, Menu, Notification, nativeImage, Tray, type BrowserWindow } from 'electron';
+import { app, dialog, Menu, Notification, nativeImage, Tray, type BrowserWindow } from 'electron';
 
 // Desktop integration: notification-area icon, start with Windows (minimised),
 // notifications that open a page of the UI. With « Lancer ToolBox au démarrage
@@ -56,13 +56,33 @@ export function quitApp(): void {
   app.quit();
 }
 
-/** Wires the main window: closing it hides it in the tray while the option is on. */
-export function attachDesktop(main: BrowserWindow): void {
+/**
+ * Wires the main window: closing it hides it in the tray while the option is
+ * on. Without the tray, closing while tasks run (a YouTube upload…) asks first:
+ * they stop with the app and resume at the next start.
+ */
+export function attachDesktop(main: BrowserWindow, busyJobs: () => string[] = () => []): void {
   window = main;
   app.on('before-quit', () => {
     quitting = true;
   });
   main.on('close', (event) => {
+    if (!keepInTray && !quitting) {
+      const busy = busyJobs();
+      if (busy.length === 0) return;
+      const choice = dialog.showMessageBoxSync(main, {
+        type: 'warning',
+        title: 'ToolBox',
+        message: 'Une tâche est en cours : fermer quand même ?',
+        detail: `${busy.slice(0, 5).join('\n')}${busy.length > 5 ? `\n… et ${busy.length - 5} autre(s)` : ''}\n\nUn envoi YouTube interrompu reprendra au prochain lancement, là où il s’était arrêté. Pour qu’il continue fenêtre fermée : Réglages › « Lancer ToolBox au démarrage de Windows » (ToolBox reste alors dans la zone de notification).`,
+        buttons: ['Fermer quand même', 'Annuler'],
+        defaultId: 1,
+        cancelId: 1,
+        noLink: true,
+      });
+      if (choice === 1) event.preventDefault();
+      return;
+    }
     if (!keepInTray || quitting) return;
     event.preventDefault();
     main.hide();

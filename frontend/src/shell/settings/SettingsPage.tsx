@@ -3,6 +3,7 @@ import { api, Button, Card, ErrorMessage, errorMessage, Page, useApi } from '@hu
 import type { SystemInfo } from '../../../../backend/routes/core';
 import { useModules } from '../../modules/ModulesContext';
 import { formatDateTime, formatSize } from '../format';
+import { AppearanceCard } from './AppearanceCard';
 import { SettingsForm, type SettingsSectionData } from './SettingsForm';
 
 const STATUS_LABELS = {
@@ -309,6 +310,7 @@ export function SettingsPage() {
           <SettingsForm section={general} onSaved={settings.reload} />
         </Card>
       )}
+      <AppearanceCard />
       <ModulesCard />
       <AccountsCard section={accountSection} onSaved={settings.reload} />
       {moduleSections.map((section) => (

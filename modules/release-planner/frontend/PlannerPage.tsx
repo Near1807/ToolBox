@@ -87,6 +87,13 @@ function ReleaseRow(props: { release: Release; onChanged: (message?: string) => 
             </span>
           ))}
         </div>
+        {toSend.length > 0 && (
+          <p className="rp-send-help small muted">
+            Envoie maintenant les {toSend.length} vidéos en privé ; YouTube les publiera seul à leur
+            date, même PC éteint. Rien ne part sans ce clic (sauf envoi automatique activé). Garde
+            ToolBox ouvert pendant l’envoi.
+          </p>
+        )}
         {error && <ErrorMessage>{error}</ErrorMessage>}
         {removing && (
           <div className="rp-note rp-note--warning">
@@ -194,6 +201,7 @@ export function PlannerPage() {
   const { jobs } = useJobs(module.id);
   const [planning, setPlanning] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const selectedId = Number(params.get('item')) || null;
 
@@ -240,6 +248,23 @@ export function PlannerPage() {
     setParams(next, { replace: true });
   };
 
+  const checkNow = async () => {
+    setChecking(true);
+    setError(null);
+    try {
+      const result = await module.api.post<{ checked: number }>('/check-now');
+      changed(
+        result.checked > 0
+          ? `${result.checked} vidéo(s) vérifiée(s) sur YouTube : états à jour.`
+          : 'Rien à vérifier sur YouTube pour l’instant.',
+      );
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setChecking(false);
+    }
+  };
+
   const changed = (text?: string) => {
     setMessage(text ?? null);
     setError(null);
@@ -276,6 +301,16 @@ export function PlannerPage() {
           >
             {tab === 'compte' ? 'Retour au calendrier' : 'Compte Google'}
           </Button>
+          {tab === 'calendrier' && account?.connected && (
+            <Button
+              variant="secondary"
+              disabled={checking}
+              title="Relit tout de suite l’état de chaque vidéo sur YouTube (sinon toutes les 30 min)"
+              onClick={() => void checkNow()}
+            >
+              {checking ? 'Vérification…' : 'Vérifier sur YouTube maintenant'}
+            </Button>
+          )}
           {tab === 'calendrier' && (
             <Button onClick={() => setPlanning(true)}>Planifier un morceau</Button>
           )}
@@ -301,6 +336,15 @@ export function PlannerPage() {
               </button>
             </p>
           )}
+          {summary.data?.alerts.map((alert) => (
+            <p key={alert.releaseId} className="rp-note rp-note--warning" role="alert">
+              <strong>{alert.level}</strong> : « {alert.trackTitle} » — {alert.count} élément(s)
+              YouTube pas encore envoyé(s), le premier le {longDate(alert.firstDate)}.{' '}
+              {summary.data?.autoUpload.enabled
+                ? 'L’envoi automatique est activé : il partira tout seul si ToolBox est ouvert.'
+                : 'Clique « Envoyer sur YouTube » dans la liste des sorties ci-dessous.'}
+            </p>
+          ))}
           {summary.data?.quotaMessage && <p className="rp-note">{summary.data.quotaMessage}</p>}
           {summary.data?.templateErrors.map((text) => (
             <p key={text} className="rp-note rp-note--warning">

@@ -55,6 +55,21 @@ Pour chaque attaque de basse, on mesure l'écart entre l'attaque et l'image où 
 
 Aucun écart ne dépasse une image. Les écarts négatifs viennent de la règle de la tranche : un coup qui tombe dans les dernières millisecondes d'une image fait grossir la cover dès cette image. Un test automatique (`tests/audio-analysis.test.ts`) vérifie la même chose sur des coups de synthèse irréguliers, un passage calme et un extrait sans basses.
 
+## Reels depuis les vidéos de l'utilisateur
+
+`renderVideoReel()` (et `previewVideoReel()`, 4 s en basse résolution) fait un Reel 1080×1920 avec les vidéos de l'utilisateur, pour le module `custom-reels` (`backend/video-reel.ts`) :
+
+1. **Timeline** (`planTimeline`) : les passages choisis, enchaînés en coupe franche ; si la vidéo est plus courte que l'extrait, elle repart au début (le module le signale avant le rendu).
+2. **Décodage et cadrage par FFmpeg** (`buildVideoDecodeArgs`), en RGB brut à 30 i/s : « vidéo entière » (la vidéo inscrite dans le 9:16, jamais coupée, sur un fond fait d'elle-même : réduite au quart, floutée, assombrie, ré-agrandie) ou « remplir » (agrandie juste assez puis recadrée autour du point choisi par l'utilisateur, jamais étirée). L'étalonnage fixe de l'effet est appliqué ici. Le son des vidéos n'est jamais lu.
+3. **Mouvement image par image** en JS (`applyMotion`) : zoom bilinéaire autour du centre et flash en mode « écran », seulement quand l'effet en demande (sinon l'image passe telle quelle). L'enveloppe des basses est celle des Reels de cover (`bassEnergyPerFrame` + `breathEnvelope`, attaque instantanée).
+4. **Encodage** (`buildFramesEncodeArgs` avec `overlay`) : la couche fixe (bandes et vignette de l'effet, titre et artiste discrets) est posée par FFmpeg, puis grain de l'effet, fondus de 0,5 s, `setsar=1` ; la bande-son est l'extrait du morceau, limitée et vérifiée à -1 dBTP (même code que les autres rendus).
+
+**Banque d'effets** : un fichier par effet dans `backend/effects/` (Brut, Calme, Rythme, Ciné), décrits dans `docs/DIRECTION-ARTISTIQUE.md`. Chaque effet déclare son étalonnage FFmpeg, son grain, son mouvement par image (zoom, flash) en fonction de l'avancement et de l'enveloppe des basses, et sa couche fixe éventuelle.
+
+Temps de rendu mesuré (8 s, 1080×1920, 4 cœurs Xeon 2,1 GHz) : Brut 13 s, Ciné 20 s, Rythme 27 s, Calme 33 s (le zoom image par image coûte ~70 ms par image).
+
+Outils pour l'éditeur du module : `probeVideo()` (durée, taille affichée — rotation des vidéos de téléphone appliquée), `filmstrip()` (images réparties sur la vidéo, pour la timeline), `waveform()` (forme d'onde d'un morceau).
+
 ## Miniature YouTube (16:9)
 
 `renderThumbnail()` compose une image **1280×720** (JPEG haute qualité, bien sous la limite de 2 Mo de YouTube) : même fond flouté, cover entière arrondie avec ombre (boîte de 400 px), titre plus grand (vu en petit) et artiste. Pas de spectre. Utilisée par le Planning de sortie pour la vidéo longue.
@@ -85,12 +100,12 @@ Les rendus complets passent **un par un** (file d'attente interne : « En attent
 
 ## Données
 
-| Élément        | Détail                                                                                                                                                                                                                                                                   |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Tables         | aucune                                                                                                                                                                                                                                                                   |
-| Fichiers       | `<userData>/modules/video-engine/work/` (temporaire, vidé au démarrage) · `previews/` (6 derniers aperçus)                                                                                                                                                               |
-| Assets         | `assets/fonts/Montserrat-SemiBold.ttf` (libass et canvas)                                                                                                                                                                                                                |
-| Service fourni | `videoEngine` (types dans [`contract.ts`](contract.ts)) : `formats`, `render(request, { signal, onProgress })`, `preview(request)`, `renderPost(request)`, `renderThumbnail(request)` (miniature YouTube 1280×720, même style, sans spectre), `probeDuration(audioPath)` |
+| Élément        | Détail                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tables         | aucune                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Fichiers       | `<userData>/modules/video-engine/work/` (temporaire, vidé au démarrage) · `previews/` (6 derniers aperçus)                                                                                                                                                                                                                                                                                                                          |
+| Assets         | `assets/fonts/Montserrat-SemiBold.ttf` (libass et canvas)                                                                                                                                                                                                                                                                                                                                                                           |
+| Service fourni | `videoEngine` (types dans [`contract.ts`](contract.ts)) : `formats`, `render(request, { signal, onProgress })`, `preview(request)`, `renderPost(request)`, `renderThumbnail(request)` (miniature YouTube 1280×720, même style, sans spectre), `probeDuration(audioPath)`, `videoEffects`, `renderVideoReel(request)`, `previewVideoReel(request)`, `probeVideo(path)`, `filmstrip(path, n, dossier)`, `waveform(audioPath, barres)` |
 
 ## Dépendances
 

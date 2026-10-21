@@ -46,19 +46,19 @@ modules/<id>/
 }
 ```
 
-| Champ                  | Obligatoire | Rôle                                                                                                               |
-| ---------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------ |
-| `id`                   | oui         | Identifiant, préfixe d'API (`/api/modules/<id>/`), de tables (`<id_avec_underscores>__`) et d'événements (`<id>:`) |
-| `name`, `description`  | oui         | Affichés sur l'accueil, la navigation, les réglages (en français)                                                  |
-| `version`              | oui         | Version sémantique du module                                                                                       |
-| `section`              | oui         | Section de l'accueil et de la navigation (ex. « Musique »)                                                         |
-| `icon`                 | oui         | Un emoji                                                                                                           |
-| `order`                | non         | Ordre dans la section (défaut 100) ; l'ordre des sections suit leur premier module                                 |
-| `dependsOn.modules`    | non         | Modules qui doivent être présents **et chargés**                                                                   |
-| `dependsOn.services`   | non         | Services consommés via `ctx.services.get()` (fournis par n'importe quel module)                                    |
-| `provides.services`    | non         | Services que le module **doit** fournir via `ctx.services.provide()`                                               |
-| `permissions.accounts` | non         | Comptes externes utilisés via `ctx.accounts` : `"google"` (seul fournisseur aujourd'hui)                           |
-| `settings`             | non         | Réglages du module, affichés automatiquement dans la page Réglages (§5.3)                                          |
+| Champ                  | Obligatoire | Rôle                                                                                                                         |
+| ---------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `id`                   | oui         | Identifiant, préfixe d'API (`/api/modules/<id>/`), de tables (`<id_avec_underscores>__`) et d'événements (`<id>:`)           |
+| `name`, `description`  | oui         | Affichés sur l'accueil, la navigation, les réglages (en français)                                                            |
+| `version`              | oui         | Version sémantique du module                                                                                                 |
+| `section`              | oui         | Catégorie **par défaut** dans la navigation et sur l'accueil (ex. « Musique ») ; l'utilisateur peut ensuite déplacer l'outil |
+| `icon`                 | oui         | Un emoji                                                                                                                     |
+| `order`                | non         | Ordre dans la section (défaut 100) ; l'ordre des sections suit leur premier module                                           |
+| `dependsOn.modules`    | non         | Modules qui doivent être présents **et chargés**                                                                             |
+| `dependsOn.services`   | non         | Services consommés via `ctx.services.get()` (fournis par n'importe quel module)                                              |
+| `provides.services`    | non         | Services que le module **doit** fournir via `ctx.services.provide()`                                                         |
+| `permissions.accounts` | non         | Comptes externes utilisés via `ctx.accounts` : `"google"` (seul fournisseur aujourd'hui)                                     |
+| `settings`             | non         | Réglages du module, affichés automatiquement dans la page Réglages (§5.3)                                                    |
 
 Le manifest est validé au démarrage (`backend/core/modules/manifest.ts`) : un champ inconnu ou invalide rend le module « en erreur » avec un message précis, sans empêcher les autres de démarrer.
 
@@ -119,14 +119,15 @@ Les fichiers importés par l'utilisateur sont **copiés** dans `dataDir` (jamais
 
 Les réglages sont déclarés dans `module.json > settings` ; la page Réglages génère le formulaire et valide les valeurs côté serveur.
 
-| Type              | Valeur                                                        | Options                         |
-| ----------------- | ------------------------------------------------------------- | ------------------------------- |
-| `string` / `text` | texte (une ligne / plusieurs)                                 | `placeholder`, `default`        |
-| `number`          | nombre                                                        | `min`, `max`, `step`, `default` |
-| `boolean`         | oui/non                                                       | `default`                       |
-| `select`          | une des `options` (`{ value, label }`)                        | `default`                       |
-| `folder`          | chemin absolu choisi avec le sélecteur de dossier             | `default`                       |
-| `secret`          | texte **chiffré** (safeStorage), jamais renvoyé à l'interface | —                               |
+| Type              | Valeur                                                                | Options                         |
+| ----------------- | --------------------------------------------------------------------- | ------------------------------- |
+| `string` / `text` | texte (une ligne / plusieurs)                                         | `placeholder`, `default`        |
+| `number`          | nombre                                                                | `min`, `max`, `step`, `default` |
+| `boolean`         | oui/non                                                               | `default`                       |
+| `select`          | une des `options` (`{ value, label }`)                                | `default`                       |
+| `folder`          | chemin absolu choisi avec le sélecteur de dossier                     | `default`                       |
+| `weekdays`        | jours de la semaine, cases Lun…Dim ; valeur `"1,2,3,4,5"` (1 = lundi) | `default`                       |
+| `secret`          | texte **chiffré** (safeStorage), jamais renvoyé à l'interface         | —                               |
 
 Tous acceptent `label` (obligatoire) et `description`. API : `get(key)` (valeur ou défaut, secrets déchiffrés), `set(key, value)`, `onChange(handler)`.
 
@@ -224,7 +225,7 @@ Appelé à la fermeture de l'app : arrêter un process FFmpeg, fermer un watcher
 
 ### 5.13 `ctx.outputs` — fichiers générés (obligatoire)
 
-> **Règle : tout ce qu'un module génère doit passer par `ctx.outputs` et être supprimable depuis l'interface.**
+> **Règle : tout ce qu'un module génère doit passer par `ctx.outputs`, être rattaché à un projet (`subject`, obligatoire) et être supprimable depuis l'interface.**
 
 Le socle tient un registre unique (`core__outputs`) des fichiers produits par les modules (vidéos, images, exports…). Grâce à lui, chaque fichier est listé, vérifié sur le disque à chaque affichage, supprimable (vers la Corbeille) et retirable de la liste s'il a disparu. La page **« Fichiers générés »** du shell liste ceux de tous les modules.
 
@@ -234,7 +235,7 @@ ctx.outputs.register({
   path: file, // dans ctx.files.outputDir()
   ref: `video:${row.id}`, // l'élément, dans les termes du module
   parent: `pack:${pack.id}`, // facultatif : groupe (supprimer le groupe = tous ses fichiers)
-  subject: `music-library:track:${trackId}`, // facultatif : sujet partagé entre modules
+  subject: `music-library:track:${trackId}`, // OBLIGATOIRE : le projet (Musique : le morceau source)
   label: 'Vidéo YouTube', // affiché dans les listes
 });
 
@@ -245,14 +246,16 @@ ctx.outputs.onRemoved((records, reason) => {
 });
 ```
 
-| Méthode                                                                | Rôle                                                                                                |
-| ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `register({ path, ref, label, parent?, subject?, kind?, createdAt? })` | Enregistre ou met à jour (même chemin) un fichier généré                                            |
-| `list({ ref?, refs?, parent?, ids?, missing? })`                       | Fichiers du module, avec `exists` vérifié **sur le disque** et une `url` signée                     |
-| `delete(filtre)`                                                       | Envoie les fichiers à la **Corbeille** (`shell.trashItem`), oublie les entrées, appelle `onRemoved` |
-| `forget(filtre)`                                                       | « Retirer de la liste » : oublie les entrées sans toucher aux fichiers, appelle `onRemoved`         |
-| `bySubject(sujet)` · `deleteBySubject(sujet)`                          | Fichiers de **tous** les modules sur un sujet (ex. tous ceux faits à partir d'un morceau)           |
+| Méthode                                                               | Rôle                                                                                                    |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `register({ path, ref, label, subject, parent?, kind?, createdAt? })` | Enregistre ou met à jour (même chemin) un fichier généré ; sans `subject`, refusé                       |
+| `list({ ref?, refs?, parent?, ids?, missing? })`                      | Fichiers du module, avec `exists` vérifié **sur le disque** et une `url` signée                         |
+| `delete(filtre)`                                                      | Envoie les fichiers à la **Corbeille** (`shell.trashItem`), oublie les entrées, appelle `onRemoved`     |
+| `forget(filtre)`                                                      | « Retirer de la liste » : oublie les entrées sans toucher aux fichiers, appelle `onRemoved`             |
+| `bySubject(sujet)` · `deleteBySubject(sujet)`                         | Fichiers de **tous** les modules sur un sujet (ex. tous ceux faits à partir d'un morceau)               |
+| `orphans(estConnu)` · `attach(ids, sujet)`                            | Éléments sans projet (pas de sujet, ou sujet inconnu) · rattachement choisi par l'utilisateur, conservé |
 
+- **Tout est lié à un projet** : `subject` désigne le projet de l'élément. Dans la section Musique, c'est **le morceau d'origine** (`music-library:track:<id>`) ; la page du morceau dans la Bibliothèque est la vue projet (tout ce qui a été généré, groupé par type, avec son état et la case « Inclure dans la sortie »). Un module hors musique utilise son propre objet (le modèle : `_template:note:<id>`). Un module qui sait où en est un élément (planifié, programmé, publié) le déclare avec `musicLibrary.registerProjectStatus`. Voir ADR 0022.
 - Un filtre vide est refusé (jamais de « tout supprimer » par accident).
 - Fichiers déjà produits avant l'arrivée du registre : le module les enregistre au démarrage (`register` est idempotent), sans rien supprimer.
 - Interface : chaque élément généré a un bouton **« Supprimer »** avec confirmation (`confirmDelete`), les listes ont la **sélection multiple** (`useSelection` + `SelectionBar`), un fichier introuvable s'affiche **« Fichier introuvable »** avec « Retirer de la liste » et, si possible, « Régénérer » (`MissingFile`), et un bouton **« Nettoyer les éléments introuvables »**. `OutputList` fait tout cela d'un coup pour une liste simple. Routes du socle : `/api/core/outputs` (voir `ARCHITECTURE.md`).
@@ -334,7 +337,36 @@ export default defineFrontendModule({
 - Navigation interne : `useModule().path('tracks/3')` donne l'adresse d'une page du module (pour `<Link to>` / `navigate()`).
 - CSS propre à un module : un fichier importé depuis `frontend/`, classes préfixées par les initiales du module (ex. `ml-` pour music-library).
 - Fichiers générés : `outputs` (client des routes `/api/core/outputs`), `confirmDelete`, `useSelection`, et les composants `SelectionBar`, `MissingFile`, `OutputList` (voir §5.13).
-- Outils du SDK : `useModule`, `useApi`, `useJobs`, `api`, `apiFetch`, `openEventStream`, `getFilePath`, `startFileDrag`, `pickFiles`, `pickFolder`, `copyText`, `formatDuration`, et les composants `Page`, `Card`, `Button`, `EmptyState`, `ErrorMessage`, `ProgressBar`, `ErrorBoundary`. Styles : classes et variables CSS de `frontend/src/styles.css` (thème sombre).
+- Outils du SDK : `useModule`, `useApi`, `useJobs`, `api`, `apiFetch`, `openEventStream`, `getFilePath`, `startFileDrag`, `pickFiles`, `pickFolder`, `copyText`, `formatDuration`, et les composants `Page`, `Card`, `Button`, `EmptyState`, `ErrorMessage`, `ProgressBar`, `ErrorBoundary`.
+
+### 7.1 Composants partagés (obligatoires)
+
+**Cohérence : un même type d'élément s'affiche et se manipule de la même façon dans tous les modules.** Les éléments générés et leurs textes passent par les composants partagés de `@hub/sdk/frontend` (fichier `packages/sdk/components.tsx`), jamais par une version maison :
+
+| Composant                        | Rôle                                                                                                                                                                                            |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OutputCard`                     | carte d'un élément généré (vidéo, Reel, post) : miniature, titre + état, détails, progression, erreur, « Fichier introuvable », case « Publié », actions. Grille : `<div className="ui-cards">` |
+| `MediaThumb`                     | miniature (16:9, 9:16, 4:5, carrée) qu'on peut glisser hors de l'app, case de sélection                                                                                                         |
+| `StateBadge`                     | pastille d'état (Généré, Planifié, Programmé, Publié, Erreur…)                                                                                                                                  |
+| `PublishedCheck`                 | case « Publié » + date de publication modifiable                                                                                                                                                |
+| `FileActions`                    | boutons, toujours dans cet ordre : Lire/Voir, Dossier, Régénérer, (spécifiques), Supprimer                                                                                                      |
+| `CopyButton`                     | « Copier » avec confirmation                                                                                                                                                                    |
+| `ExcerptWaveform`, `ExcerptChip` | choix d'extraits (1 à 4, couleurs `--series-1..4`) sur la forme d'onde d'un morceau                                                                                                             |
+| `TextFields`                     | titre, description, légende, tags d'un élément, **modifiables sous l'élément** (§7.3)                                                                                                           |
+
+Un besoin non couvert : enrichir le composant du SDK (pour tous), pas en écrire un autre dans le module.
+
+### 7.2 Couleurs et thèmes
+
+L'interface a plusieurs thèmes (Réglages › Apparence, `docs/THEMES.md`). **Aucune couleur écrite en dur dans le frontend d'un module** (ni `#hex`, ni `rgb()`, ni `hsl()`, en CSS comme en TSX) : uniquement les variables du thème (`var(--accent)`, `var(--series-3)`…) et les classes du shell (`card`, `button`, `badge`, `input`, `list`, `ui-*`). `npm run lint` échoue sinon (`scripts/check-ui-colors.mjs`). Les visuels **générés** ne sont pas concernés : ils suivent `docs/DIRECTION-ARTISTIQUE.md`.
+
+### 7.3 Textes des éléments (titre, description, légende, tags)
+
+- Les textes d'un élément généré se modifient **sur place, sous l'élément**, avec `TextFields` (enregistrement en quittant le champ, « Enregistrer » ou Ctrl+Entrée ; compteur ; « Copier »).
+- Les **modèles des réglages ne font que pré-remplir**. Un texte modifié est « Personnalisé » et ne bouge plus ; « Rétablir le modèle » y revient ; « **Enregistrer comme modèle par défaut** » transforme le texte en modèle avec `toTemplate` (les valeurs du morceau redeviennent des repères `{titre}`, `{artiste}`…).
+- Repères et remplissage : `fillTemplate`, `toTemplate`, `parseTags`, `formatTags` de `@hub/sdk/texts` (backend et frontend), une seule implémentation pour tous les modules.
+- Un texte a **un seul propriétaire** (le module qui publie l'élément ou le génère) ; un autre module le modifie via son service, jamais par une copie.
+
 - Textes de l'interface en français.
 
 ## 8. Tests
@@ -376,6 +408,7 @@ L'état de chaque module est visible dans **Réglages > Modules** (avec bouton D
 - [ ] Chaque fichier généré enregistré dans `ctx.outputs` (avec `onRemoved` pour nettoyer ses données) ; dans l'interface : « Supprimer » avec confirmation, sélection multiple, « Fichier introuvable », « Nettoyer les éléments introuvables »
 - [ ] Dépendances et services déclarés dans le manifest ; types publics dans `contract.ts`
 - [ ] Comptes externes déclarés dans `permissions.accounts`, autorisations minimales
+- [ ] Éléments générés affichés avec les composants partagés du SDK (§7.1), aucune couleur en dur (§7.2)
 - [ ] Textes en français, code en anglais
 - [ ] `README.md` du module à jour (rôle, données, réglages, événements, services, API)
 - [ ] Tests dans `tests/`, `npm test` passe

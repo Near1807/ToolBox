@@ -1,0 +1,54 @@
+/* @theme id=nebula; label=Nebula (GameLife); scheme=dark; swatch=#06070c,#8b5cf6,#22d3ee */
+/*
+ * Default theme, after GameLife: near-black depth, translucent glass panels,
+ * thin glowing borders, violet + cyan accents. See docs/THEMES.md.
+ */
+:root,
+:root[data-theme='nebula'] {
+  color-scheme: dark;
+  --bg: #06070c;
+  --bg-glow-1: rgb(124 92 255 / 18%);
+  --bg-glow-2: rgb(34 211 238 / 12%);
+  --surface: rgb(22 24 38 / 62%);
+  --surface-2: rgb(32 35 56 / 72%);
+  --surface-hover: rgb(44 48 76 / 80%);
+  --surface-solid: #10121d;
+  --field: rgb(8 9 16 / 60%);
+  --border: rgb(160 170 255 / 10%);
+  --border-strong: rgb(160 170 255 / 22%);
+  --text: #eef0fb;
+  --text-2: #a7acc9;
+  --text-3: #6c7194;
+  --text-on-accent: #ffffff;
+  --accent: #8b5cf6;
+  --accent-2: #22d3ee;
+  --accent-soft: rgb(139 92 246 / 16%);
+  --accent-grad: linear-gradient(135deg, #8b5cf6 0%, #22d3ee 100%);
+  --success: #34d399;
+  --warning: #fbbf24;
+  --danger: #f87171;
+  --info: #22d3ee;
+  --series-1: #a78bfa;
+  --series-2: #22d3ee;
+  --series-3: #34d399;
+  --series-4: #fb923c;
+  --series-5: #f472b6;
+  --series-6: #60a5fa;
+  --series-7: #fbbf24;
+  --series-8: #a3e635;
+  --brand-youtube: #ff4e45;
+  --brand-instagram: #e1306c;
+  --overlay: rgb(4 5 10 / 70%);
+  --on-overlay: #ffffff;
+  --media-bg: #000000;
+  --shadow: 0 10px 40px rgb(0 0 0 / 45%);
+  --glow: 0 0 24px rgb(139 92 246 / 35%);
+  --glow-2: 0 0 24px rgb(34 211 238 / 30%);
+  --radius-lg: 18px;
+  --radius: 14px;
+  --radius-sm: 10px;
+  --blur: 18px;
+  --font-sans: 'Inter Variable', system-ui, 'Segoe UI', sans-serif;
+  --font-display: 'Space Grotesk Variable', 'Inter Variable', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, 'Cascadia Code', monospace;
+}

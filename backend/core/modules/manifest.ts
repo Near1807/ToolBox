@@ -42,6 +42,14 @@ const settingField = z.discriminatedUnion('type', [
   }),
   z.object({ ...base, type: z.literal('secret') }),
   z.object({ ...base, type: z.literal('folder'), default: z.string().optional() }),
+  z.object({
+    ...base,
+    type: z.literal('weekdays'),
+    default: z
+      .string()
+      .regex(/^([1-7](,[1-7])*)?$/)
+      .optional(),
+  }),
 ]);
 
 const manifestSchema = z.strictObject({

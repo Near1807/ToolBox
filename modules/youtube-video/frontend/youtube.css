@@ -110,23 +110,7 @@
   max-width: 720px;
   margin-top: 16px;
   border-radius: 8px;
-  background: #000;
-}
-
-.yv-copy {
-  margin-top: 12px;
-}
-
-.yv-copy__header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 6px;
-}
-
-.yv-copy textarea {
-  font-family: inherit;
-  resize: vertical;
+  background: var(--media-bg);
 }
 
 .yv-video {

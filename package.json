@@ -1,7 +1,7 @@
 {
   "name": "toolbox",
   "productName": "ToolBox",
-  "version": "0.11.1",
+  "version": "0.12.0",
   "description": "Hub d'outils personnel : application de bureau Windows modulaire.",
   "author": "Thomas",
   "license": "UNLICENSED",
@@ -15,12 +15,13 @@
     "build:main": "node scripts/build-main.mjs",
     "start": "electron .",
     "dist:win": "npm run build && electron-builder --win --x64 --publish never",
-    "lint": "eslint . && prettier --check .",
+    "lint": "eslint . && prettier --check . && npm run check:ui-colors",
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check:native": "node scripts/check-native.mjs"
+    "check:native": "node scripts/check-native.mjs",
+    "check:ui-colors": "node scripts/check-ui-colors.mjs"
   },
   "engines": {
     "node": ">=22"
@@ -35,6 +36,9 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@fontsource-variable/inter": "^5.2.8",
+    "@fontsource-variable/jetbrains-mono": "^5.2.8",
+    "@fontsource-variable/space-grotesk": "^5.2.10",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.20.5",
     "@types/react": "^19.3.0",
@@ -49,6 +53,7 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.13.0",
+    "lucide-react": "^1.45.0",
     "prettier": "^3.9.10",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",

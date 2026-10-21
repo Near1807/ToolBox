@@ -8,7 +8,7 @@ import type {
   ModuleDatabase,
   ModuleLogger,
 } from '../../packages/sdk/backend';
-import type { ModuleInfo, ModuleManifest } from '../../packages/sdk/manifest';
+import type { ModuleInfo, ModuleManifest, SettingField } from '../../packages/sdk/manifest';
 import {
   AccountManager,
   accountSettingsFields,
@@ -85,6 +85,14 @@ interface ModuleRecord {
 }
 
 export const CORE_SCOPE = 'core';
+
+/** Interface preferences (theme, sidebar layout): a hidden settings section, see /api/core/ui. */
+export const UI_SCOPE = 'ui';
+export const UI_SETTINGS: SettingField[] = [
+  { key: 'theme', type: 'string', label: 'Thème', default: '' },
+  // JSON of the sidebar layout (categories, placement and order of the tools).
+  { key: 'navigation', type: 'text', label: 'Barre latérale', default: '' },
+];
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -184,6 +192,7 @@ export class Hub {
       },
     ]);
     this.settings.register(ACCOUNTS_SCOPE, 'Comptes connectés', accountSettingsFields());
+    this.settings.register(UI_SCOPE, 'Interface', UI_SETTINGS, { hidden: true });
     this.applyLaunchAtStartup();
     this.bus.on(SETTINGS_CHANGED_EVENT, (payload) => {
       const { scope, key } = payload as { scope: string; key: string };

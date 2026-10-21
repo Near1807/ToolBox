@@ -11,17 +11,22 @@ import {
   type ModuleContext,
   type OutputRecord,
 } from '@hub/sdk/backend';
+import { parseTags, toTemplate } from '@hub/sdk/texts';
+import type { CustomReelsService } from '../../custom-reels/contract';
 import type { InstagramPackService, PackItem } from '../../instagram-video/contract';
-import type { MusicLibraryService, Track } from '../../music-library/contract';
+import type { MusicLibraryService, ProjectStatus, Track } from '../../music-library/contract';
 import type { VideoEngineService } from '../../video-engine/contract';
 import type { YouTubeVideo, YouTubeVideoService } from '../../youtube-video/contract';
 import {
   buildPlan,
+  CUSTOM_OFFSET,
   DEFAULT_TEMPLATE,
   fillTemplate,
   itemLabel,
+  parseAllowedDays,
   parseTemplate,
   PLATFORM,
+  releaseDay,
   sanitizeMetadata,
   spreadPlan,
   type ItemKind,
@@ -31,6 +36,8 @@ import { canUpload, planUploads, quotaMessage, UNIT_COST, type QuotaLimits } fro
 import { displayStatus, isOnline, stateFromYouTube, type ItemState } from './status';
 import {
   migrationV1,
+  migrationV2,
+  migrationV3,
   PlannerStore,
   VISIBILITIES,
   type ItemRow,
@@ -45,6 +52,7 @@ import {
   nextQuotaReset,
   quotaDay,
   utcToZoned,
+  weekday,
   zonedToUtc,
 } from './time';
 import {
@@ -89,6 +97,12 @@ function message(error: unknown): string {
 export default defineBackendModule({
   migrations: [
     { version: 1, description: 'releases, planned elements, YouTube quota', up: migrationV1 },
+    { version: 2, description: 'texts that follow the templates until edited', up: migrationV2 },
+    {
+      version: 3,
+      description: 'Reels perso, J-3 / J-1 alerts, automatic upload',
+      up: migrationV3,
+    },
   ],
 
   register(ctx: ModuleContext) {
@@ -96,6 +110,7 @@ export default defineBackendModule({
     const engine = ctx.services.get<VideoEngineService>('videoEngine');
     const youtubeVideos = ctx.services.get<YouTubeVideoService>('youtubeVideo');
     const packs = ctx.services.get<InstagramPackService>('instagramPack');
+    const customReels = ctx.services.get<CustomReelsService>('customReels');
     const store = new PlannerStore(ctx);
     const youtube = (url: string, init?: RequestInit) => ctx.accounts.fetch(GOOGLE, url, init);
     let stopping = false;
@@ -114,6 +129,12 @@ export default defineBackendModule({
       return isTime(value) ? value : '18:00';
     };
     const maxPerDay = () => ctx.settings.get<number>('maxPerDay') ?? 1;
+    const allowedDays = () =>
+      parseAllowedDays(ctx.settings.get<string>('allowedDays') ?? '1,2,3,4,5');
+    const mondayRelease = () => ctx.settings.get<boolean>('mondayRelease') !== false;
+    const autoUploadOn = () => ctx.settings.get<boolean>('autoUpload') === true;
+    const autoUploadDays = () => ctx.settings.get<number>('autoUploadDays') ?? 3;
+    const shortDate = (date: string) => date.split('-').reverse().join('/');
     const limits = (): QuotaLimits => ({
       uploadsPerDay: ctx.settings.get<number>('uploadsPerDay') ?? 6,
       unitsPerDay: ctx.settings.get<number>('unitsPerDay') ?? 10_000,
@@ -162,6 +183,32 @@ export default defineBackendModule({
           record,
           packItem: null,
           video,
+        };
+      }
+      if (item.custom_reel_id !== null) {
+        // A Reel perso (custom-reels), seen like a Reel of the pack.
+        const reel = customReels.getReel(item.custom_reel_id);
+        const record = reel ? (records.get(`custom-reels/reel:${reel.id}`) ?? null) : null;
+        return {
+          gone: !reel,
+          filePath: reel?.filePath ?? null,
+          exists: Boolean(reel?.filePath && (record ? record.exists : reel.exists)),
+          record,
+          packItem: reel
+            ? {
+                id: reel.id,
+                kind: 'reel',
+                position: reel.position,
+                label: reel.label,
+                filePath: reel.filePath,
+                thumbnailPath: reel.thumbnailPath,
+                caption: reel.caption,
+                state: reel.state,
+                durationSec: reel.durationSec,
+                publishedAt: reel.publishedAt,
+              }
+            : null,
+          video: null,
         };
       }
       const packItem = item.pack_item_id ? packs.getItem(item.pack_item_id) : null;
@@ -218,6 +265,7 @@ export default defineBackendModule({
       const template = (key: string, fallback: string) => ctx.settings.get<string>(key) ?? fallback;
       return kind === 'youtube'
         ? {
+            values,
             title: fillTemplate(template('videoTitle', '{titre_youtube}'), values),
             description: fillTemplate(
               template('videoDescription', '{description_youtube}'),
@@ -226,6 +274,7 @@ export default defineBackendModule({
             tags,
           }
         : {
+            values,
             title: fillTemplate(
               template('shortTitle', '{titre} — {artiste} ({n}/{total})'),
               values,
@@ -238,12 +287,37 @@ export default defineBackendModule({
           };
     };
 
+    /** Template texts of a planned element (YouTube only), from its release. */
+    const templateTextsOf = (release: ReleaseRow, item: ItemRow, track: Track) => {
+      // Shorts numbered in their order in the release (Reels perso after the pack's).
+      const shorts = store
+        .itemsOf(release.id)
+        .filter((i) => i.kind === 'short')
+        .sort((x, y) => x.position - y.position);
+      const n =
+        item.kind === 'short' ? shorts.findIndex((i) => i.id === item.id) + 1 : item.position;
+      return defaultTexts(track, item.kind, n, shorts.length, release.release_date);
+    };
+
+    /** Texts of an element: edited ones, otherwise the templates' (kept up to date). */
+    const textsOf = (release: ReleaseRow, item: ItemRow, track: Track | null) => {
+      const stored = {
+        title: item.title,
+        description: item.description,
+        tags: item.tags ? (JSON.parse(item.tags) as string[]) : [],
+      };
+      if (item.texts_custom || PLATFORM[item.kind] !== 'youtube' || !track) return stored;
+      const { title, description, tags } = templateTextsOf(release, item, track);
+      return { title, description, tags };
+    };
+
     /** What is sent to YouTube: {lien_video} filled in now, the line dropped if unknown. */
     const uploadMetadata = (release: ReleaseRow, item: ItemRow): VideoMetadata => {
+      const texts = textsOf(release, item, library.getTrack(release.track_id));
       const video = store
         .itemsOf(release.id)
         .find((other) => other.kind === 'youtube' && other.yt_video_id);
-      const description = (item.description ?? '')
+      const description = (texts.description ?? '')
         .split('\n')
         .map((line) =>
           line.includes('{lien_video}')
@@ -254,11 +328,7 @@ export default defineBackendModule({
         )
         .filter((line): line is string => line !== null)
         .join('\n');
-      const clean = sanitizeMetadata({
-        title: item.title ?? '',
-        description,
-        tags: item.tags ? (JSON.parse(item.tags) as string[]) : [],
-      });
+      const clean = sanitizeMetadata({ title: texts.title ?? '', description, tags: texts.tags });
       const visibility = item.visibility;
       return {
         ...clean,
@@ -268,6 +338,43 @@ export default defineBackendModule({
         publishAt: visibility === 'scheduled' ? item.scheduled_at : undefined,
       };
     };
+
+    // Project page of the library: where each generated element stands in the release.
+    const PROJECT_STATUS: Record<ItemState, ProjectStatus> = {
+      planned: 'planned',
+      queued: 'planned',
+      uploading: 'planned',
+      failed: 'planned',
+      scheduled: 'scheduled',
+      'to-schedule': 'scheduled',
+      published: 'published',
+    };
+    library.registerProjectStatus({
+      moduleId: ctx.id,
+      get: (trackId) => {
+        const release = store.releaseByTrack(trackId);
+        if (!release) return [];
+        return store.itemsOf(release.id).flatMap((item) => {
+          const when = local(item.scheduled_at);
+          const detail = `${itemLabel(item.kind, item.position)} · ${when.date.split('-').reverse().join('/')}`;
+          const status = PROJECT_STATUS[item.state];
+          if (item.kind === 'youtube') {
+            return release.video_id === null
+              ? []
+              : [{ moduleId: 'youtube-video', ref: `video:${release.video_id}`, status, detail }];
+          }
+          if (item.custom_reel_id !== null) {
+            return [
+              { moduleId: 'custom-reels', ref: `reel:${item.custom_reel_id}`, status, detail },
+            ];
+          }
+          if (item.pack_item_id === null) return [];
+          return [
+            { moduleId: 'instagram-video', ref: `item:${item.pack_item_id}`, status, detail },
+          ];
+        });
+      },
+    });
 
     // DTOs ------------------------------------------------------------------
 
@@ -306,9 +413,8 @@ export default defineBackendModule({
         status,
         late,
         visibility: item.visibility,
-        title: item.title,
-        description: item.description,
-        tags: item.tags ? (JSON.parse(item.tags) as string[]) : [],
+        ...textsOf(release, item, track),
+        textsCustom: Boolean(item.texts_custom),
         caption: source.packItem?.caption ?? null,
         publishedAt: source.packItem?.publishedAt ?? item.published_at,
         source: {
@@ -392,6 +498,34 @@ export default defineBackendModule({
         .filter((item) => item.release_id !== exceptRelease)
         .map((item) => ({ platform: PLATFORM[item.kind], date: local(item.scheduled_at).date }));
 
+    const nextAllowed = (date: string, days: number[]) => {
+      let next = addDays(date, 1);
+      while (!days.includes(weekday(next))) next = addDays(next, 1);
+      return next;
+    };
+    const customOptions = (
+      track: Track,
+      items: ProposedItem[],
+      releaseDate: string,
+      days: number[],
+      included: (moduleId: string, ref: string) => boolean,
+    ) => {
+      let date = items.reduce((last, item) => (item.date > last ? item.date : last), releaseDate);
+      return customReels
+        .listReels(track.id)
+        .filter((reel) => included('custom-reels', `reel:${reel.id}`))
+        .map((reel) => {
+          date = nextAllowed(date, days);
+          return {
+            customReelId: reel.id,
+            label: reel.label,
+            position: CUSTOM_OFFSET + reel.position,
+            date,
+            rendered: reel.exists,
+          };
+        });
+    };
+
     const proposePlan = (input: {
       trackId: number;
       date: string;
@@ -403,22 +537,46 @@ export default defineBackendModule({
       if (template.entries.length === 0) {
         throw new HttpError(400, `Modèle de plan invalide : ${template.errors.join(' ; ')}`);
       }
-      const videos = youtubeVideos.listVideos(track.id);
+      // Only what is ticked « Inclure dans la sortie » on the project page (library).
+      const included = (moduleId: string, ref: string) => library.isIncluded(moduleId, ref);
+      const excluded: string[] = [];
+      const allVideos = youtubeVideos.listVideos(track.id);
+      const videos = allVideos.filter((v) => included('youtube-video', `video:${v.id}`));
+      if (allVideos.length > 0 && videos.length === 0) excluded.push('vidéo YouTube');
       const video =
         input.videoId !== undefined
-          ? videos.find((v) => v.id === input.videoId)
+          ? allVideos.find((v) => v.id === input.videoId)
           : (videos.find((v) => v.exists) ?? videos[0]);
       if (input.videoId !== undefined && !video) throw new HttpError(400, 'Vidéo introuvable');
       const pack = packs.getPack(track.id);
-      const reels = pack?.items.filter((item) => item.kind === 'reel') ?? [];
-      const post = pack?.items.find((item) => item.kind === 'post') ?? null;
-      const proposed = buildPlan(template.entries, input.date, {
+      const packIncluded = (item: PackItem) => {
+        const ok = included('instagram-video', `item:${item.id}`);
+        if (!ok)
+          excluded.push(
+            item.kind === 'post'
+              ? 'post Insta'
+              : `Reel ${item.position} (et Short ${item.position})`,
+          );
+        return ok;
+      };
+      const reels = pack?.items.filter((item) => item.kind === 'reel' && packIncluded(item)) ?? [];
+      const postItem = pack?.items.find((item) => item.kind === 'post') ?? null;
+      const post = postItem && packIncluded(postItem) ? postItem : null;
+      // J: on a Monday when asked (settings), said in the warnings.
+      const releaseDate = releaseDay(input.date, mondayRelease());
+      const proposed = buildPlan(template.entries, releaseDate, {
         video: Boolean(video),
         post: Boolean(post),
         reels: reels.map((reel) => reel.position),
       });
       const existing = store.releaseByTrack(track.id);
-      const { items, shifts } = spreadPlan(proposed, occupiedSlots(existing?.id), maxPerDay());
+      const days = allowedDays();
+      const { items, shifts } = spreadPlan(
+        proposed,
+        occupiedSlots(existing?.id),
+        maxPerDay(),
+        days,
+      );
       const totalShorts = items.filter((item) => item.kind === 'short').length;
       const packItemFor = (item: ProposedItem) =>
         item.kind === 'insta-post'
@@ -427,6 +585,27 @@ export default defineBackendModule({
             ? null
             : (reels.find((reel) => reel.position === item.position) ?? null);
       const warnings = [...template.errors];
+      if (releaseDate !== input.date) {
+        warnings.push(
+          `J tombe toujours un lundi (Réglages) : sortie reportée du ${shortDate(input.date)} au lundi ${shortDate(releaseDate)}.`,
+        );
+      }
+      const dayShifts = shifts.filter((shift) => shift.reason === 'day');
+      if (dayShifts.length > 0) {
+        warnings.push(
+          `Jours non autorisés (Réglages) : ${dayShifts
+            .map(
+              (shift) =>
+                `${itemLabel(shift.kind, shift.position)} ${shortDate(shift.from)} → ${shortDate(shift.to)}`,
+            )
+            .join(', ')}.`,
+        );
+      }
+      if (excluded.length > 0) {
+        warnings.push(
+          `Exclus de la sortie (page du morceau) : ${[...new Set(excluded)].join(', ')}.`,
+        );
+      }
       if (!video)
         warnings.push('Aucune vidéo YouTube générée pour ce morceau : elle est absente du plan.');
       if (!pack)
@@ -441,7 +620,7 @@ export default defineBackendModule({
             .join(', ')}.`,
         );
       }
-      if (zonedToUtc(input.date, input.time, timeZone()).getTime() < Date.now()) {
+      if (zonedToUtc(releaseDate, input.time, timeZone()).getTime() < Date.now()) {
         warnings.push(
           'La date de sortie est passée : les éléments YouTube seront publiés dès l’envoi.',
         );
@@ -466,13 +645,18 @@ export default defineBackendModule({
           templateDate: item.templateDate,
           shifted: item.date !== item.templateDate,
           packItemId: packItemFor(item)?.id ?? null,
-          ...defaultTexts(track, item.kind, item.position, totalShorts, input.date),
+          ...defaultTexts(track, item.kind, item.position, totalShorts, releaseDate),
         })),
         shifts: shifts.map((shift) => ({
           label: itemLabel(shift.kind, shift.position),
           from: shift.from,
           to: shift.to,
+          reason: shift.reason,
         })),
+        requestedDate: input.date,
+        releaseDate,
+        // Reels perso: offered unticked, after the template (one allowed day each).
+        customReels: customOptions(track, items, releaseDate, days, included),
         warnings,
       };
     };
@@ -728,6 +912,14 @@ export default defineBackendModule({
           if (scheduled && state === 'scheduled' && Date.parse(item.scheduled_at) <= Date.now()) {
             state = 'published';
           }
+          if (state === 'to-schedule') {
+            // Right away, with the direct link (not at the publication date).
+            ctx.notifications.notify({
+              title: 'À programmer dans YouTube Studio',
+              body: `${itemLabel(item.kind, item.position)} — ${track.title} : envoyée, à programmer. ${studioUrl(resource.id)}`,
+              path: `?item=${item.id}`,
+            });
+          }
           store.updateItem(item.id, {
             state,
             yt_video_id: resource.id,
@@ -944,9 +1136,113 @@ export default defineBackendModule({
       for (const item of fresh) store.updateItem(item.id, { reminded_at: now.toISOString() });
     };
 
+    // A. YouTube elements not sent yet, close to their date --------------
+
+    const NOT_SENT: ItemState[] = ['planned', 'failed'];
+    const DAY = 86_400_000;
+    /** Releases whose YouTube elements are not sent yet and whose first one is within 3 days. */
+    const preAlerts = (now = new Date()) =>
+      store.allReleases().flatMap((release) => {
+        const waiting = store
+          .itemsOf(release.id)
+          .filter((item) => PLATFORM[item.kind] === 'youtube' && NOT_SENT.includes(item.state))
+          .filter((item) => Date.parse(item.scheduled_at) > now.getTime());
+        if (waiting.length === 0) return [];
+        const first = waiting.reduce((a, b) => (a.scheduled_at < b.scheduled_at ? a : b));
+        const left = Date.parse(first.scheduled_at) - now.getTime();
+        if (left > 3 * DAY) return [];
+        const track = library.getTrack(release.track_id);
+        return [
+          {
+            releaseId: release.id,
+            trackTitle: track?.title ?? '(morceau supprimé)',
+            count: waiting.length,
+            firstDate: local(first.scheduled_at).date,
+            level: left <= DAY ? ('J-1' as const) : ('J-3' as const),
+            items: waiting,
+          },
+        ];
+      });
+
+    const notifyPreAlerts = (now = new Date()) => {
+      for (const alert of preAlerts(now)) {
+        const flag = alert.level === 'J-1' ? 'alerted_j1' : 'alerted_j3';
+        const fresh = alert.items.filter((item) => !item[flag]);
+        if (fresh.length === 0) continue;
+        ctx.notifications.notify({
+          title: `${alert.level} : vidéos YouTube pas encore envoyées`,
+          body: `${alert.trackTitle} : ${alert.count} élément(s) YouTube à envoyer avant le ${shortDate(alert.firstDate)}. Ouvre le Planning › « Envoyer sur YouTube ».`,
+          path: '',
+        });
+        for (const item of alert.items) {
+          store.updateItem(
+            item.id,
+            alert.level === 'J-1' ? { alerted_j1: 1, alerted_j3: 1 } : { alerted_j3: 1 },
+          );
+        }
+      }
+    };
+
+    // G. Automatic upload (off by default) -----------------------------------
+
+    const autoUploads = (now = new Date()) => {
+      if (!autoUploadOn()) return;
+      const status = ctx.accounts.status(GOOGLE);
+      if (!status.connected) return;
+      const ahead = autoUploadDays() * DAY;
+      for (const release of store.allReleases()) {
+        const items = store.itemsOf(release.id).filter((item) => PLATFORM[item.kind] === 'youtube');
+        if (release.auto_upload_at === null) {
+          // Only what is still ahead: a past date would go public at once, that stays a manual choice.
+          const todo = items.filter(
+            (item) =>
+              item.state === 'planned' && Date.parse(item.scheduled_at) > now.getTime() + 3_600_000,
+          );
+          if (todo.length === 0) continue;
+          const first = todo.reduce((a, b) => (a.scheduled_at < b.scheduled_at ? a : b));
+          // Due X days before its first date — or at once when the app was closed then.
+          if (Date.parse(first.scheduled_at) - now.getTime() > ahead) continue;
+          const track = library.getTrack(release.track_id);
+          const queued: string[] = [];
+          const skipped: string[] = [];
+          for (const item of todo) {
+            try {
+              queueUpload(item);
+              queued.push(itemLabel(item.kind, item.position));
+            } catch (error) {
+              skipped.push(`${itemLabel(item.kind, item.position)} (${message(error)})`);
+            }
+          }
+          store.updateRelease(release.id, { auto_upload_at: now.toISOString() });
+          ctx.notifications.notify({
+            title: 'Envoi automatique sur YouTube',
+            body: `${track?.title ?? 'Morceau'} : ${queued.length} élément(s) en cours d’envoi (privé, programmé).${skipped.length ? ` Pas envoyé : ${skipped.join(', ')}.` : ''} Garde ToolBox ouvert pendant l’envoi.`,
+            path: '',
+          });
+          continue;
+        }
+        if (release.auto_upload_done_at !== null) continue;
+        // Started: tell when every element sent automatically is done (or failed).
+        const started = items.filter((item) => item.updated_at >= release.auto_upload_at!);
+        if (started.some((item) => item.state === 'queued' || item.state === 'uploading')) continue;
+        const failed = started.filter((item) => item.state === 'failed');
+        const track = library.getTrack(release.track_id);
+        store.updateRelease(release.id, { auto_upload_done_at: now.toISOString() });
+        ctx.notifications.notify({
+          title: failed.length ? 'Envoi automatique : échec' : 'Envoi automatique terminé',
+          body: failed.length
+            ? `${track?.title ?? 'Morceau'} : ${failed.map((i) => itemLabel(i.kind, i.position)).join(', ')} en erreur. Ouvre le Planning pour réessayer.`
+            : `${track?.title ?? 'Morceau'} : tout est sur YouTube, programmé.`,
+          path: '',
+        });
+      }
+    };
+
     ctx.scheduler.schedule('dispatch', { everyMinutes: 1 }, async () => {
       watchAccount();
+      autoUploads();
       dispatchUploads();
+      if (ctx.settings.get<boolean>('remindInstagram') !== false) notifyPreAlerts();
       remind();
     });
     ctx.scheduler.schedule('youtube-status', { everyMinutes: 30 }, async () => {
@@ -996,6 +1292,8 @@ export default defineBackendModule({
         quota: { ...usage, ...limits(), nextReset: nextQuotaReset(now).toISOString() },
         queue: slots.length,
         quotaMessage: quotaMessage(slots, now, formatInstant),
+        alerts: preAlerts(now).map(({ items: _items, ...alert }) => alert),
+        autoUpload: { enabled: autoUploadOn(), days: autoUploadDays() },
         templateErrors: parseTemplate(ctx.settings.get<string>('planTemplate') ?? DEFAULT_TEMPLATE)
           .errors,
       };
@@ -1047,6 +1345,57 @@ export default defineBackendModule({
 
     ctx.routes.post('/plan', (request) => proposePlan(planInput(body(request))));
 
+    /**
+     * Reels perso ticked in the dialog: { custom: [{ customReelId, kinds: ['insta-reel', 'short'],
+     * date, time? }] }. Each kind becomes an element (Reel Instagram and/or Short YouTube).
+     */
+    const customItems = (plan: ReturnType<typeof proposePlan>, raw: unknown, tz: string) => {
+      if (!Array.isArray(raw)) return [];
+      return (raw as Record<string, unknown>[]).flatMap((entry) => {
+        const option = plan.customReels.find((o) => o.customReelId === Number(entry.customReelId));
+        if (!option) throw new HttpError(400, 'Reel perso inconnu ou exclu de la sortie');
+        const date = isDate(entry.date) ? entry.date : option.date;
+        const time = isTime(entry.time) ? entry.time : (plan.items[0]?.time ?? defaultTime());
+        const kinds = Array.isArray(entry.kinds) ? entry.kinds : ['insta-reel'];
+        return (['insta-reel', 'short'] as const)
+          .filter((kind) => kinds.includes(kind))
+          .map((kind) => ({
+            kind,
+            position: option.position,
+            scheduledAt: zonedToUtc(date, time, tz).toISOString(),
+            shiftedFrom: null,
+            packItemId: null,
+            customReelId: option.customReelId,
+            title: null,
+            description: null,
+            tags: null,
+          }));
+      });
+    };
+
+    // A Reel perso added to a release already planned: { customReelId, kind, date, time? }.
+    ctx.routes.post('/releases/:id/items', (request) => {
+      const release = store.requireRelease(idParam(request.params));
+      const input = body(request);
+      const reel = customReels.getReel(Number(input.customReelId));
+      if (!reel || reel.trackId !== release.track_id)
+        throw new HttpError(400, 'Reel perso inconnu');
+      const kind = input.kind === 'short' ? 'short' : 'insta-reel';
+      if (!isDate(input.date)) throw new HttpError(400, 'Date invalide');
+      const time = isTime(input.time) ? input.time : release.release_time;
+      const position = CUSTOM_OFFSET + reel.position;
+      if (store.itemsOf(release.id).some((i) => i.kind === kind && i.position === position)) {
+        throw new HttpError(409, 'Déjà dans le planning');
+      }
+      store.addItem(release.id, {
+        kind,
+        position,
+        scheduledAt: zonedToUtc(input.date, time, timeZone()).toISOString(),
+        customReelId: reel.id,
+      });
+      return releaseDto(store.requireRelease(release.id));
+    });
+
     ctx.routes.post('/releases', (request) => {
       const input = body(request);
       const plan = proposePlan(planInput(input));
@@ -1062,26 +1411,29 @@ export default defineBackendModule({
       const tz = timeZone();
       const created = store.createRelease({
         trackId: plan.track.id,
-        date: String(input.date),
+        date: plan.releaseDate,
         time: plan.items[0]?.time ?? defaultTime(),
         videoId: plan.videoId,
-        items: plan.items.map((item) => {
-          const change = edited.find(
-            (e) => e.kind === item.kind && Number(e.position) === item.position,
-          );
-          const date = change && isDate(change.date) ? change.date : item.date;
-          const time = change && isTime(change.time) ? change.time : item.time;
-          return {
-            kind: item.kind,
-            position: item.position,
-            scheduledAt: zonedToUtc(date, time, tz).toISOString(),
-            shiftedFrom: item.shifted ? item.templateDate : null,
-            packItemId: item.packItemId,
-            title: PLATFORM[item.kind] === 'youtube' ? item.title : null,
-            description: PLATFORM[item.kind] === 'youtube' ? item.description : null,
-            tags: PLATFORM[item.kind] === 'youtube' ? item.tags : null,
-          };
-        }),
+        items: [
+          ...plan.items.map((item) => {
+            const change = edited.find(
+              (e) => e.kind === item.kind && Number(e.position) === item.position,
+            );
+            const date = change && isDate(change.date) ? change.date : item.date;
+            const time = change && isTime(change.time) ? change.time : item.time;
+            return {
+              kind: item.kind,
+              position: item.position,
+              scheduledAt: zonedToUtc(date, time, tz).toISOString(),
+              shiftedFrom: item.shifted ? item.templateDate : null,
+              packItemId: item.packItemId,
+              title: PLATFORM[item.kind] === 'youtube' ? item.title : null,
+              description: PLATFORM[item.kind] === 'youtube' ? item.description : null,
+              tags: PLATFORM[item.kind] === 'youtube' ? item.tags : null,
+            };
+          }),
+          ...customItems(plan, input.custom, tz),
+        ],
       });
       return { release: releaseDto(created), shifts: plan.shifts, warnings: plan.warnings };
     });
@@ -1174,6 +1526,51 @@ export default defineBackendModule({
       return { ok: true };
     });
 
+    // Caption of an Instagram element: edited in the pack (one place for the texts).
+    ctx.routes.patch('/items/:id/caption', (request) => {
+      const item = store.requireItem(idParam(request.params));
+      const release = store.requireRelease(item.release_id);
+      const source = sourceOf(release, item);
+      if (PLATFORM[item.kind] !== 'instagram' || !source.packItem) {
+        throw new HttpError(400, 'Pas de légende pour cet élément');
+      }
+      const caption = body(request).caption;
+      if (caption !== null && typeof caption !== 'string') {
+        throw new HttpError(400, 'Légende invalide');
+      }
+      if (item.custom_reel_id !== null) customReels.setCaption(item.custom_reel_id, caption);
+      else packs.setCaption(source.packItem.id, caption);
+      return { ok: true };
+    });
+
+    // « Enregistrer comme modèle par défaut » from the panel: the element's values become placeholders.
+    ctx.routes.post('/items/:id/texts/template', (request) => {
+      const item = store.requireItem(idParam(request.params));
+      if (PLATFORM[item.kind] !== 'youtube') {
+        throw new HttpError(400, 'Les modèles de texte ne concernent que YouTube');
+      }
+      const release = store.requireRelease(item.release_id);
+      const track = library.getTrack(release.track_id);
+      if (!track) throw new HttpError(404, 'Morceau introuvable');
+      const input = body(request);
+      const { values } = templateTextsOf(release, item, track);
+      const asTemplate = (text: string) =>
+        toTemplate(text.replaceAll(`(${values.n}/${values.total})`, '({n}/{total})'), values);
+      const keys =
+        item.kind === 'youtube'
+          ? ['videoTitle', 'videoDescription']
+          : ['shortTitle', 'shortDescription'];
+      if (typeof input.title === 'string' && input.title.trim()) {
+        ctx.settings.set(keys[0]!, asTemplate(input.title));
+      }
+      if (typeof input.description === 'string' && input.description.trim()) {
+        ctx.settings.set(keys[1]!, asTemplate(input.description));
+      }
+      // This element follows the new templates.
+      store.updateItem(item.id, { texts_custom: 0 });
+      return { ok: true };
+    });
+
     ctx.routes.patch('/items/:id', async (request) => {
       const item = store.requireItem(idParam(request.params));
       const input = body(request);
@@ -1182,7 +1579,7 @@ export default defineBackendModule({
       const fields: Parameters<PlannerStore['updateItem']>[1] = {};
 
       const editable = !isOnline(item.state) && item.state !== 'uploading';
-      for (const key of ['title', 'description', 'tags', 'visibility'] as const) {
+      for (const key of ['title', 'description', 'tags', 'visibility', 'resetTexts'] as const) {
         if (input[key] === undefined) continue;
         if (!youtubeItem) throw new HttpError(400, 'Les métadonnées ne concernent que YouTube');
         if (!editable) {
@@ -1192,9 +1589,35 @@ export default defineBackendModule({
           );
         }
       }
+      if (input.resetTexts === true) {
+        // Back to the templates: the texts follow them again.
+        const release = store.requireRelease(item.release_id);
+        const track = library.getTrack(release.track_id);
+        if (track) {
+          const texts = templateTextsOf(release, item, track);
+          fields.title = texts.title;
+          fields.description = texts.description;
+          fields.tags = JSON.stringify(texts.tags);
+        }
+        fields.texts_custom = 0;
+      } else if (
+        input.title !== undefined ||
+        input.description !== undefined ||
+        input.tags !== undefined
+      ) {
+        // Edited: the current texts are frozen, then the change applied.
+        const release = store.requireRelease(item.release_id);
+        const current = textsOf(release, item, library.getTrack(release.track_id));
+        fields.title = current.title;
+        fields.description = current.description;
+        fields.tags = JSON.stringify(current.tags);
+        fields.texts_custom = 1;
+      }
       if (typeof input.title === 'string') fields.title = input.title;
       if (typeof input.description === 'string') fields.description = input.description;
-      if (Array.isArray(input.tags)) fields.tags = JSON.stringify(input.tags.map(String));
+      if (Array.isArray(input.tags))
+        fields.tags = JSON.stringify(parseTags(input.tags.map(String).join(',')));
+      if (typeof input.tags === 'string') fields.tags = JSON.stringify(parseTags(input.tags));
       if (input.visibility !== undefined) {
         if (!VISIBILITIES.includes(input.visibility as Visibility))
           throw new HttpError(400, 'Visibilité invalide');
@@ -1216,9 +1639,11 @@ export default defineBackendModule({
           if (
             youtubeItem &&
             item.yt_video_id &&
+            item.visibility === 'scheduled' &&
             (item.state === 'scheduled' || item.state === 'to-schedule')
           ) {
-            // Already on YouTube: the new date goes to YouTube first.
+            // Already on YouTube and programmed by the app: the new date goes to YouTube first.
+            // Sent as « Privée » (or public, unlisted): the date only moves in the calendar.
             spendUnits(UNIT_COST.update);
             const updated = await updateSchedule(youtube, item.yt_video_id, 'private', scheduledAt);
             fields.yt_publish_at = updated.status?.publishAt ?? scheduledAt;
@@ -1272,11 +1697,12 @@ export default defineBackendModule({
     // Instagram: the « Publié » box of the pack, from the calendar.
     ctx.routes.post('/items/:id/published', (request) => {
       const item = store.requireItem(idParam(request.params));
-      if (PLATFORM[item.kind] !== 'instagram' || !item.pack_item_id) {
+      if (PLATFORM[item.kind] !== 'instagram' || (!item.pack_item_id && !item.custom_reel_id)) {
         throw new HttpError(400, 'Seuls les éléments Instagram se cochent à la main');
       }
       const published = body(request).published === true;
-      packs.setPublished(item.pack_item_id, published);
+      if (item.custom_reel_id !== null) customReels.setPublished(item.custom_reel_id, published);
+      else packs.setPublished(item.pack_item_id!, published);
       const release = store.requireRelease(item.release_id);
       return itemDto(store.requireItem(item.id), release, library.getTrack(release.track_id));
     });
@@ -1286,6 +1712,7 @@ export default defineBackendModule({
       const release = store.requireRelease(item.release_id);
       try {
         if (item.kind === 'youtube') return youtubeVideos.render(release.track_id);
+        if (item.custom_reel_id !== null) return customReels.renderReel(item.custom_reel_id);
         if (!item.pack_item_id) throw new Error('Élément du pack introuvable');
         return packs.renderItem(item.pack_item_id);
       } catch (error) {

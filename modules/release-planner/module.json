@@ -2,15 +2,23 @@
   "id": "release-planner",
   "name": "Planning de sortie",
   "description": "Calendrier de sortie de chaque morceau : vidéo YouTube et Shorts envoyés et programmés sur YouTube, rappels pour le post et les Reels Instagram.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "section": "Musique",
   "icon": "🗓️",
   "order": 40,
   "dependsOn": {
-    "modules": ["music-library", "video-engine", "youtube-video", "instagram-video"],
-    "services": ["musicLibrary", "videoEngine", "youtubeVideo", "instagramPack"]
+    "modules": [
+      "music-library",
+      "video-engine",
+      "youtube-video",
+      "instagram-video",
+      "custom-reels"
+    ],
+    "services": ["musicLibrary", "videoEngine", "youtubeVideo", "instagramPack", "customReels"]
   },
-  "permissions": { "accounts": ["google"] },
+  "permissions": {
+    "accounts": ["google"]
+  },
   "settings": [
     {
       "key": "defaultTime",
@@ -30,8 +38,8 @@
       "key": "planTemplate",
       "type": "text",
       "label": "Modèle de plan de sortie",
-      "description": "Une ligne par jour : « J+2 : Reel 1, Short 1 ». Éléments : vidéo YouTube, post Insta, Reel 1…4, Short 1…4 (le Short n est le Reel n publié sur YouTube).",
-      "default": "J : vidéo YouTube, post Insta\nJ+2 : Reel 1\nJ+3 : Short 1\nJ+5 : Reel 2\nJ+6 : Short 2\nJ+9 : Reel 3\nJ+10 : Short 3\nJ+13 : Reel 4\nJ+14 : Short 4"
+      "description": "Une ligne par jour : « J+1 : Reel 1, Short 1 ». Éléments : vidéo YouTube, post Insta, Reel 1…4, Short 1…4 (le Short n est le Reel n publié sur YouTube). Les Reels perso s'ajoutent à la main dans la planification.",
+      "default": "J : vidéo YouTube, post Insta\nJ+1 : Reel 1, Short 1\nJ+2 : Reel 2, Short 2\nJ+3 : Reel 3, Short 3\nJ+4 : Reel 4, Short 4"
     },
     {
       "key": "maxPerDay",
@@ -42,6 +50,20 @@
       "max": 10,
       "step": 1,
       "default": 1
+    },
+    {
+      "key": "allowedDays",
+      "type": "weekdays",
+      "label": "Jours de publication autorisés",
+      "description": "Rien n'est planifié un autre jour : un élément qui tomberait un jour non coché passe au jour autorisé suivant, et c'est signalé.",
+      "default": "1,2,3,4,5"
+    },
+    {
+      "key": "mondayRelease",
+      "type": "boolean",
+      "label": "J tombe toujours un lundi",
+      "description": "La date de sortie choisie est reportée au lundi suivant (si ce n'est pas déjà un lundi), et c'est signalé.",
+      "default": true
     },
     {
       "key": "videoTitle",
@@ -83,14 +105,38 @@
       "type": "select",
       "label": "Langue des titres et descriptions",
       "options": [
-        { "value": "fr", "label": "Français" },
-        { "value": "en", "label": "Anglais" },
-        { "value": "nl", "label": "Néerlandais" },
-        { "value": "es", "label": "Espagnol" },
-        { "value": "de", "label": "Allemand" },
-        { "value": "it", "label": "Italien" },
-        { "value": "pt", "label": "Portugais" },
-        { "value": "zxx", "label": "Aucune (instrumental)" }
+        {
+          "value": "fr",
+          "label": "Français"
+        },
+        {
+          "value": "en",
+          "label": "Anglais"
+        },
+        {
+          "value": "nl",
+          "label": "Néerlandais"
+        },
+        {
+          "value": "es",
+          "label": "Espagnol"
+        },
+        {
+          "value": "de",
+          "label": "Allemand"
+        },
+        {
+          "value": "it",
+          "label": "Italien"
+        },
+        {
+          "value": "pt",
+          "label": "Portugais"
+        },
+        {
+          "value": "zxx",
+          "label": "Aucune (instrumental)"
+        }
       ],
       "default": "fr"
     },
@@ -127,6 +173,22 @@
       "label": "Notifications de rappel",
       "description": "Notification Windows à l’heure prévue (si l’app tourne) et au démarrage pour ce qui est dû ou en retard.",
       "default": true
+    },
+    {
+      "key": "autoUpload",
+      "type": "boolean",
+      "label": "Envoi automatique sur YouTube",
+      "description": "Désactivé par défaut. Activé : les éléments YouTube d'une sortie partent seuls (en privé, programmés) X jours avant leur première date, ou au prochain lancement si l'app était fermée ; une notification au début et à la fin (ou en cas d'échec). Les alertes J-3 et J-1 restent actives.",
+      "default": false
+    },
+    {
+      "key": "autoUploadDays",
+      "type": "number",
+      "label": "Envoi automatique : combien de jours avant",
+      "min": 1,
+      "max": 14,
+      "step": 1,
+      "default": 3
     }
   ]
 }

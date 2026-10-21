@@ -71,14 +71,14 @@ export async function probeDuration(ffprobe: string, audioPath: string): Promise
   }
 }
 
-type Run = (args: string[], onTime?: (seconds: number) => void) => Promise<string>;
+export type Run = (args: string[], onTime?: (seconds: number) => void) => Promise<string>;
 
 /**
  * Soundtrack (soundtrack.m4a in the work folder): encode, measure the true peak
  * of the AAC result, and lower the limiter ceiling until it is at most -1 dBTP
  * (`verify` false: one pass, for previews).
  */
-async function renderSoundtrack(
+export async function renderSoundtrack(
   run: Run,
   params: {
     source: string;
@@ -293,7 +293,7 @@ function ffmpegStdout(ffmpeg: string, args: string[], signal?: AbortSignal): Pro
 }
 
 /** Mono float samples of an excerpt, decoded by FFmpeg. */
-async function decodeExcerpt(
+export async function decodeExcerpt(
   ffmpeg: string,
   file: string,
   start: number,

@@ -10,7 +10,7 @@ Application de bureau Windows personnelle de Thomas : un **hub** (page d'accueil
 
 **Pour ajouter ou modifier un module : lire `docs/MODULES.md` (le contrat) puis `docs/AJOUTER-UN-MODULE.md`.** Point de départ : copier `modules/_template/`.
 
-Modules actuels (section Musique) : `music-library` (bibliothèque, service `musicLibrary`), `video-engine` (moteur FFmpeg partagé, Reels dessinés image par image, service `videoEngine`, sans page), `youtube-video` (générateur 16:9), `instagram-video` (pack Insta : 4 Reels 9:16 au même style sobre, post 4:5, légende, suivi de publication, service `instagramPack`), `release-planner` (planning de sortie : calendrier, upload et programmation YouTube via `ctx.accounts`, rappels Instagram). `youtube-video` fournit le service `youtubeVideo`. Chaque module a son `README.md`.
+Modules actuels (section Musique) : `music-library` (bibliothèque, service `musicLibrary`), `video-engine` (moteur FFmpeg partagé, Reels dessinés image par image, service `videoEngine`, sans page), `youtube-video` (générateur 16:9), `instagram-video` (pack Insta : 4 Reels 9:16 au même style sobre, post 4:5, légende, suivi de publication, service `instagramPack`), `custom-reels` (Reels 9:16 faits avec les vidéos de l'utilisateur, banque d'effets Brut/Calme/Rythme/Ciné, service `customReels`), `release-planner` (planning de sortie : calendrier, upload et programmation YouTube via `ctx.accounts`, rappels Instagram). `youtube-video` fournit le service `youtubeVideo`. Chaque module a son `README.md`.
 
 ## Stack
 
@@ -30,7 +30,7 @@ Modules actuels (section Musique) : `music-library` (bibliothèque, service `mus
 | `TOOLBOX_LOAD_EXAMPLES=1 npm run dev`      | Idem, en chargeant aussi les modules d'exemple (`modules/_*`)                                                                                 |
 | `npm run build` / `npm start`              | Build (`build/renderer`, `build/main`) / lance Electron sur le build                                                                          |
 | `npm test` / `npm run test:watch`          | Tests Vitest (socle dans `tests/`, modules dans `modules/*/tests/`)                                                                           |
-| `npm run lint` / `npm run format`          | ESLint (dont la règle des frontières de modules) + Prettier                                                                                   |
+| `npm run lint` / `npm run format`          | ESLint (dont la règle des frontières de modules) + Prettier + aucune couleur en dur dans l'interface (`check:ui-colors`)                      |
 | `npm run typecheck`                        | `tsc --noEmit`                                                                                                                                |
 | `npm run check:native`                     | Vérifie que better-sqlite3 et @napi-rs/canvas se chargent dans le Node d'Electron                                                             |
 | `npm run dist:win`                         | Installateur NSIS + portable dans `dist/` (sous Windows, ou via la CI)                                                                        |
@@ -44,12 +44,12 @@ Sous Linux en root (conteneur) : ajouter `--no-sandbox` à Electron, et `xvfb-ru
 electron/        process principal : fenêtre (plein écran, barre sombre), zone de notification et démarrage avec Windows, preload, HostAdapter Electron, smoke test
 backend/         server.ts (Fastify) · core/ (hub.ts = chargeur de modules et ctx, migrations, sauvegardes,
                  réglages, tâches, planificateur, événements, services, fichiers générés, comptes, notifications, journaux) · routes/core.ts (/api/core/*)
-frontend/src/    shell React : modules/ (découverte, hôte des pages), shell/ (accueil, fichiers générés, tâches, journaux, réglages), styles.css
-packages/sdk/    @hub/sdk : backend.ts, frontend.tsx, manifest.ts, testing.ts — seul import autorisé aux modules
+frontend/src/    shell React : modules/ (découverte, hôte des pages), shell/ (barre latérale à catégories, accueil, fichiers générés, tâches, journaux, réglages), themes/ (un fichier par thème), styles.css
+packages/sdk/    @hub/sdk : backend.ts, frontend.tsx, components.tsx (composants partagés), manifest.ts, testing.ts — seul import autorisé aux modules
 modules/         un dossier par module ; _template/ = module modèle (exemple, chargé à la demande)
 scripts/         dev, build (esbuild + découverte des modules), smoke test, vérification native
 tests/           tests Vitest du socle
-docs/            ARCHITECTURE, MODULES (contrat), AJOUTER-UN-MODULE, DIRECTION-ARTISTIQUE, ROADMAP, WINDOWS, decisions/ (ADR)
+docs/            ARCHITECTURE, MODULES (contrat), AJOUTER-UN-MODULE, DIRECTION-ARTISTIQUE (visuels générés), THEMES (interface), ROADMAP, WINDOWS, decisions/ (ADR), rapports/ (rapport de fin de session)
 site/            site public statique (accueil + confidentialité, exigés par Google OAuth), publié par GitHub Pages depuis hub-v1
 ```
 
@@ -59,6 +59,7 @@ site/            site public statique (accueil + confidentialité, exigés par G
 - `docs/AJOUTER-UN-MODULE.md` — guide pas à pas, dont « Intégrer une app existante ».
 - `docs/ARCHITECTURE.md` — vue d'ensemble, démarrage, API du socle, sécurité, données.
 - `docs/DIRECTION-ARTISTIQUE.md` — **règles obligatoires pour tout visuel généré** (sobriété, cover toujours entière, vérification sur trois covers).
+- `docs/THEMES.md` — thèmes de l'interface : tokens, ajouter un thème (sans rapport avec les visuels générés).
 - `docs/ROADMAP.md` — fait / en cours / prévu. `CHANGELOG.md` — versions.
 - `docs/decisions/` — ADR : pourquoi chaque choix structurant.
 
@@ -71,10 +72,32 @@ site/            site public statique (accueil + confidentialité, exigés par G
 - Le backend n'importe jamais `electron` : il passe par `HostAdapter`.
 - Données utilisateur uniquement sous `userData`, jamais dans le dossier d'installation.
 - **Tout fichier généré passe par `ctx.outputs` et est supprimable depuis l'interface** (Corbeille, sélection multiple, « Fichier introuvable »). `docs/MODULES.md` §5.13.
-- Visuels : respecter `docs/DIRECTION-ARTISTIQUE.md` (sobre ; cover toujours entière, jamais recadrée ni étirée ; seuls mouvements lents de l'image entière ; couleurs de la cover). Pixels carrés (`setsar=1`) en fin de chaîne, son ≤ -1 dBTP. **Tout mouvement est piloté directement par le son, jamais par des événements détectés** (synchro mesurée, ≤ 1 image).
+- **Tout est lié à un projet** : `subject` est obligatoire dans `ctx.outputs.register` ; en Musique, c'est le morceau source (`music-library:track:<id>`). La page du morceau est la vue projet (état généré / planifié / programmé / publié, case « Inclure dans la sortie » lue par le Planning). Éléments sans projet : section « Sans projet » de la Bibliothèque (rattacher ou supprimer). ADR 0022.
+- **Cohérence de l'interface** : les éléments générés (carte, miniature, case « Publié », boutons Supprimer/Régénérer/Dossier, forme d'onde des extraits, champs de texte) passent par les **composants partagés du SDK** (`packages/sdk/components.tsx`, `docs/MODULES.md` §7.1), jamais par une copie dans un module.
+- **Thèmes** : couleurs, arrondis, ombres et polices de l'interface = variables CSS des thèmes (`frontend/src/themes/`, `docs/THEMES.md`). Aucune couleur en dur dans le shell ni dans les modules (`npm run lint` le vérifie). Les thèmes concernent l'interface ; les visuels générés suivent la direction artistique.
+- Visuels : respecter `docs/DIRECTION-ARTISTIQUE.md` (sobre ; cover toujours entière, jamais recadrée ni étirée ; seuls mouvements lents de l'image entière ; couleurs de la cover). Vidéos de l'utilisateur (`custom-reels`) : banque d'effets permise (un fichier par effet), sans jamais masquer le contenu. Pixels carrés (`setsar=1`) en fin de chaîne, son ≤ -1 dBTP. **Tout mouvement est piloté directement par le son, jamais par des événements détectés** (synchro mesurée, ≤ 1 image).
 - **Données : une migration publiée ne se modifie jamais ; aucune suppression de données hors migration explicite** (ou demande explicite de l'utilisateur dans l'interface, avec confirmation). Le socle sauvegarde `hub.db` avant chaque migration et restaure en cas d'échec (`docs/MODULES.md` §6).
 - Toute modification du contrat de module ou de l'architecture met à jour la doc **dans le même commit**. Nouvelle décision structurante → nouvel ADR.
 - Fin de phase : mettre à jour `docs/ROADMAP.md` et `CHANGELOG.md`, versionnage sémantique (`package.json`).
+
+## Fin de session (obligatoire)
+
+À la fin de **chaque** session de travail : rapport complet, enregistré dans `docs/rapports/AAAA-MM-JJ-vX.Y.Z.md` (commité avec le reste) **et affiché en entier** dans le résumé final. En français, clair et factuel : pas de formule creuse, pas de « tout est parfait » sans vérification ; tout ce qui n'a pas été testé en réel est marqué **« non testé en réel »**. Structure obligatoire, dans cet ordre :
+
+1. **Résumé** : 3 à 5 lignes, ce qui a été fait et l'état général (tout fonctionne / points bloquants).
+2. **Ce qui a été fait** : par chantier, ce qui est livré, avec les fichiers / modules principaux touchés.
+3. **Ce qui n'a pas été fait ou seulement en partie**, et pourquoi.
+4. **Décisions prises sans Thomas** : chaque choix fait en autonomie, avec la raison et comment le changer.
+5. **Écarts par rapport à la demande** : tout ce qui diffère de ce qui a été demandé.
+6. **Bugs trouvés** : corrigés ou non, avec leur impact.
+7. **Vérifications** : tests (nombre, résultats), lint, typecheck, CI Windows (lien du run), mesures (ffprobe, ebur128, synchro, temps de rendu), captures et planches contact.
+8. **À tester sur le PC de Thomas** : liste numérotée, pas à pas, avec le résultat attendu.
+9. **Risques et points à surveiller** : limites connues, dette technique, choses fragiles.
+10. **Données et migrations** : migrations exécutées, impact sur les données existantes, sauvegardes créées.
+11. **Commits** : commits poussés (hash + message) et version de l'app.
+12. **Prochaines étapes suggérées** : 3 au maximum, par ordre de priorité.
+
+Modèle : le dernier rapport de `docs/rapports/`.
 
 ## Git
 

@@ -28,7 +28,7 @@ L'id (`mon-outil`) est en kebab-case, unique, et **identique au nom du dossier**
 
 1. **Migrations** : remplacer celle du modèle. Tables nommées `mon_outil__xxx` (ou `${db.table('xxx')}` dans une migration fonction). Version 1 pour commencer.
 2. **`register(ctx)`** : déclarer les routes (`ctx.routes`), tâches longues (`ctx.jobs.define`), tâches planifiées (`ctx.scheduler.schedule`), services (`ctx.services.provide`), écouteurs (`ctx.events.on`).
-3. **Fichiers générés** (vidéo, image, export…) : écrits dans `ctx.files.outputDir()` et **toujours** enregistrés avec `ctx.outputs.register(...)`, plus un `ctx.outputs.onRemoved(...)` qui efface les données liées du module. C'est obligatoire (MODULES.md §5.13) : sans cela, l'utilisateur ne peut ni les supprimer ni voir qu'ils ont disparu. Exemple : la route `/notes/:id/export` du modèle.
+3. **Fichiers générés** (vidéo, image, export…) : écrits dans `ctx.files.outputDir()` et **toujours** enregistrés avec `ctx.outputs.register(...)` — avec leur **projet** (`subject`, obligatoire : en Musique `music-library:track:<id>`, le morceau source) — plus un `ctx.outputs.onRemoved(...)` qui efface les données liées du module. C'est obligatoire (MODULES.md §5.13) : sans cela, l'utilisateur ne peut ni les supprimer ni voir qu'ils ont disparu. Exemple : la route `/notes/:id/export` du modèle.
 4. Erreurs utilisateur → `throw new HttpError(400, 'message en français')`.
 5. Si le module fournit un service : décrire son interface dans `contract.ts` (types uniquement).
 
@@ -38,7 +38,8 @@ Supprimer tout ce qui ne sert pas (route de démo, tâche planifiée…).
 
 - Une page principale `{ path: '', component: MaPage }` ; d'autres pages si besoin (`'details/:id'`).
 - `useModule()` pour appeler son backend (`module.api.post('/x', data)`), `useApi(module.url('/x'))` pour charger des données, `useJobs(module.id)` pour suivre ses tâches.
-- Composants du SDK (`Page`, `Card`, `Button`…) pour rester homogène avec le reste de l'app.
+- Composants du SDK (`Page`, `Card`, `Button`…) pour rester homogène avec le reste de l'app. Éléments générés : **composants partagés** `OutputCard`, `MediaThumb`, `FileActions`, `PublishedCheck`, `StateBadge`, `CopyButton`, `ExcerptWaveform` (`docs/MODULES.md` §7.1), obligatoires.
+- CSS du module : mise en page et variables du thème uniquement (`var(--accent)`, `var(--surface-2)`…), **aucune couleur en dur** — `npm run lint` le vérifie. Liste des variables : `docs/THEMES.md`.
 - Fichiers générés : `<OutputList module={module.id} />` donne une liste complète (ouvrir, supprimer avec confirmation, sélection multiple, fichiers introuvables). Pour une présentation sur mesure (vignettes…), utiliser `outputs.delete/forget`, `confirmDelete`, `useSelection` + `SelectionBar` et `MissingFile`.
 - Pas de frontend ? Supprimer le dossier `frontend/` (module de service).
 
@@ -106,7 +107,7 @@ Copier `modules/_template` vers `modules/<id>/`, choisir la section (ex. `Produc
 1. **Logique métier** (fonctions pures) : copier dans `modules/<id>/backend/`, sans dépendance à Electron ni au DOM. C'est la partie la plus réutilisable.
 2. **Accès aux données** : réécrire en requêtes `ctx.db.prepare(...)` sur les tables préfixées. Schéma dans `migrations`.
 3. **API** : chaque action de l'ancienne UI devient une route.
-4. **Interface** : porter les composants React (ou réécrire les vues si l'app n'était pas en React) dans `frontend/`. Remplacer les appels directs (IPC, fs, fetch vers l'ancien serveur) par `module.api`. Retirer le layout global : le shell fournit la navigation.
+4. **Interface** : porter les composants React (ou réécrire les vues si l'app n'était pas en React) dans `frontend/`. Remplacer les appels directs (IPC, fs, fetch vers l'ancien serveur) par `module.api`. Retirer le layout global : le shell fournit la navigation. Remplacer les couleurs de l'ancienne app par les variables du thème (`docs/THEMES.md`) et ses cartes / boutons de fichiers par les composants partagés du SDK.
 5. Vérifier `npm run lint` : il signale toute importation interdite restante (electron, autre module, socle).
 
 ### Étape 4 — Reprendre les données existantes

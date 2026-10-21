@@ -15,6 +15,7 @@ import {
 import type { TrackDto } from '../contract';
 import { AUDIO_EXTENSIONS, IMAGE_EXTENSIONS, pairDroppedFiles, type TrackImport } from './pairing';
 import { CoverImage } from './CoverImage';
+import { Orphans } from './Orphans';
 
 interface Notice {
   ok: boolean;
@@ -179,6 +180,8 @@ export function LibraryPage() {
             </article>
           ))}
         </div>
+
+        {tracks.data && <Orphans tracks={tracks.data} />}
       </Page>
 
       {playing && (

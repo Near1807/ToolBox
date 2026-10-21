@@ -29,6 +29,8 @@ export interface PlannerItem {
   description: string | null;
   tags: string[];
   caption: string | null;
+  /** Title / description / tags edited (otherwise they follow the templates). */
+  textsCustom: boolean;
   publishedAt: string | null;
   source: {
     gone: boolean;
@@ -97,6 +99,15 @@ export interface Summary {
   queue: number;
   quotaMessage: string | null;
   templateErrors: string[];
+  /** J-3 / J-1: YouTube elements not sent yet, close to their date. */
+  alerts: {
+    releaseId: number;
+    trackTitle: string;
+    count: number;
+    firstDate: string;
+    level: 'J-3' | 'J-1';
+  }[];
+  autoUpload: { enabled: boolean; days: number };
 }
 
 export interface TrackChoice {
@@ -127,8 +138,19 @@ export interface PlanProposal {
     title: string;
     description: string;
   }[];
-  shifts: { label: string; from: string; to: string }[];
+  shifts: { label: string; from: string; to: string; reason: 'full' | 'day' }[];
   warnings: string[];
+  /** Day asked in the dialog, and J actually used (next Monday when asked). */
+  requestedDate: string;
+  releaseDate: string;
+  /** Reels perso of the track, offered unticked. */
+  customReels: {
+    customReelId: number;
+    label: string;
+    position: number;
+    date: string;
+    rendered: boolean;
+  }[];
 }
 
 export const STATUS_LABELS: Record<ItemStatus, string> = {
@@ -141,14 +163,5 @@ export const STATUS_LABELS: Record<ItemStatus, string> = {
   failed: 'Erreur',
 };
 
-/** Muted colours, one per track (colorIndex 0..7), readable on the dark theme. */
-export const TRACK_COLORS = [
-  '#7c8cff',
-  '#4cd4a0',
-  '#f5b84a',
-  '#e07a9f',
-  '#5ec8e5',
-  '#b48cf2',
-  '#e8916a',
-  '#a6c96a',
-];
+/** One colour per track (colorIndex 0..7): the theme's series tokens (docs/THEMES.md). */
+export const TRACK_COLORS = Array.from({ length: 8 }, (_, i) => `var(--series-${i + 1})`);

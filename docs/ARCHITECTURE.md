@@ -83,24 +83,25 @@ Les migrations de **tous** les modules passent avant le premier `register()` : r
 
 ### API du socle
 
-| Route                                                                                            | Rôle                                                                                  |
-| ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
-| `GET /api/health`                                                                                | Vivacité (sans jeton)                                                                 |
-| `GET /api/core/system`                                                                           | Versions (app, SQLite, FFmpeg), dossier de données                                    |
-| `GET /api/core/modules` · `PUT /api/core/modules/:id/enabled`                                    | État des modules ; activer/désactiver (au redémarrage)                                |
-| `POST /api/core/restart`                                                                         | Redémarre l'app                                                                       |
-| `GET /api/core/settings` · `PUT /api/core/settings/:scope`                                       | Réglages (schéma + valeurs, secrets masqués) ; enregistrement validé                  |
-| `POST /api/core/dialogs/select-folder` · `POST /api/core/dialogs/select-files`                   | Sélecteurs natifs de dossier et de fichiers                                           |
-| `GET /api/media/:jeton/:nom`                                                                     | Fichier multimédia par URL signée (sans jeton de session)                             |
-| `GET /api/core/jobs` · `POST /api/core/jobs/:id/cancel` · `GET /api/core/jobs/stream` (SSE)      | Tâches longues                                                                        |
-| `GET /api/core/logs`                                                                             | Journaux filtrés                                                                      |
-| `GET /api/core/outputs` (`?module=`, `?subject=`, `?missing=1`)                                  | Fichiers générés de tous les modules, vérifiés sur le disque                          |
-| `POST /api/core/outputs/delete` · `/forget` (`{ ids }`) · `/clean-missing`                       | Corbeille / retirer de la liste / oublier les introuvables                            |
-| `POST /api/core/outputs/:id/open` · `/:id/reveal`                                                | Ouvrir un fichier généré / le montrer dans l'Explorateur                              |
-| `GET /api/core/backups` · `POST /api/core/backups/export` · `POST /api/core/backups/open-folder` | Sauvegardes                                                                           |
-| `POST /api/core/stream-tickets`                                                                  | Ticket à usage unique pour un flux SSE                                                |
-| `POST /api/core/open-data-dir`                                                                   | Ouvre le dossier de données                                                           |
-| `GET /api/core/accounts` · `POST /api/core/accounts/:provider/reconnect` · `DELETE …/:provider`  | Comptes connectés : état, reconnexion (mêmes autorisations), déconnexion (révocation) |
+| Route                                                                                            | Rôle                                                                                                             |
+| ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| `GET /api/health`                                                                                | Vivacité (sans jeton)                                                                                            |
+| `GET /api/core/system`                                                                           | Versions (app, SQLite, FFmpeg), dossier de données                                                               |
+| `GET /api/core/modules` · `PUT /api/core/modules/:id/enabled`                                    | État des modules ; activer/désactiver (au redémarrage)                                                           |
+| `POST /api/core/restart`                                                                         | Redémarre l'app                                                                                                  |
+| `GET /api/core/settings` · `PUT /api/core/settings/:scope`                                       | Réglages (schéma + valeurs, secrets masqués) ; enregistrement validé                                             |
+| `GET /api/core/ui` · `PUT /api/core/ui`                                                          | Préférences d'interface (thème, disposition de la barre latérale), réglage caché `ui`                            |
+| `POST /api/core/dialogs/select-folder` · `POST /api/core/dialogs/select-files`                   | Sélecteurs natifs de dossier et de fichiers                                                                      |
+| `GET /api/media/:jeton/:nom`                                                                     | Fichier multimédia par URL signée (sans jeton de session)                                                        |
+| `GET /api/core/jobs` · `POST /api/core/jobs/:id/cancel` · `GET /api/core/jobs/stream` (SSE)      | Tâches longues                                                                                                   |
+| `GET /api/core/logs`                                                                             | Journaux filtrés                                                                                                 |
+| `GET /api/core/outputs` (`?module=`, `?subject=`, `?missing=1`)                                  | Fichiers générés de tous les modules (chacun rattaché à un projet : `subject`, ADR 0022), vérifiés sur le disque |
+| `POST /api/core/outputs/delete` · `/forget` (`{ ids }`) · `/clean-missing`                       | Corbeille / retirer de la liste / oublier les introuvables                                                       |
+| `POST /api/core/outputs/:id/open` · `/:id/reveal`                                                | Ouvrir un fichier généré / le montrer dans l'Explorateur                                                         |
+| `GET /api/core/backups` · `POST /api/core/backups/export` · `POST /api/core/backups/open-folder` | Sauvegardes                                                                                                      |
+| `POST /api/core/stream-tickets`                                                                  | Ticket à usage unique pour un flux SSE                                                                           |
+| `POST /api/core/open-data-dir`                                                                   | Ouvre le dossier de données                                                                                      |
+| `GET /api/core/accounts` · `POST /api/core/accounts/:provider/reconnect` · `DELETE …/:provider`  | Comptes connectés : état, reconnexion (mêmes autorisations), déconnexion (révocation)                            |
 
 ## Pourquoi le backend tourne dans le process principal
 
@@ -166,11 +167,17 @@ Le glisser hors de la fenêtre Ce dernier ne reçoit qu'une URL de média signé
 
 ### Fenêtre et plein écran
 
-La barre de titre native suit le thème sombre de l'app (`nativeTheme.themeSource = 'dark'`) : elle n'est plus blanche sous Windows.
+La barre de titre native suit le mode clair ou sombre du thème choisi (`nativeTheme.themeSource`, message `toolbox:color-scheme` du preload, retenu dans `window-state.json` pour le démarrage suivant). Thèmes de l'interface : `docs/THEMES.md` (tokens CSS, préférences dans le réglage caché `ui`, routes `GET/PUT /api/core/ui`).
 
 On passe en plein écran avec **F11** (géré par le process principal) ou avec le bouton « Plein écran » en bas de la barre latérale. En plein écran, il n'y a plus de barre de titre : l'interface dessine en haut à droite ses propres boutons (réduire, quitter le plein écran, fermer).
 
 Le choix est retenu d'un lancement à l'autre (`<userData>/window-state.json`). Le code est dans `electron/window-controls.ts` (process principal) et `frontend/src/shell/WindowControls.tsx` (interface). Dans un navigateur (dev), ces boutons n'apparaissent pas.
+
+### Navigation : catégories de la barre latérale
+
+La barre latérale range les outils dans des **catégories** repliables. Par défaut, un outil est dans la catégorie de sa `section` (manifest) ; ensuite, le choix de l'utilisateur prime : créer, renommer, supprimer et réordonner les catégories, déplacer et réordonner les outils, par glisser-déposer ou clic droit (double-clic sur une catégorie : renommer). Un module ajouté plus tard arrive dans sa section par défaut ; un module désactivé garde sa place pour son retour ; supprimer une catégorie renvoie ses outils dans leur section d'origine. Recherche rapide (Ctrl+K, accents ignorés), « Tout replier / Tout déplier ». L'accueil suit les mêmes catégories (toujours dépliées). Accueil, Fichiers générés, Tâches, Journaux et Réglages restent fixes.
+
+La disposition est un JSON dans le réglage caché `ui.navigation` (`{ categories: [{ id, name, collapsed, tools: [ids] }] }`), lu et écrit par `GET/PUT /api/core/ui`. Toute la logique est dans des fonctions pures (`frontend/src/shell/navigation.ts`, testées dans `tests/navigation.test.ts`) ; l'interface est `Sidebar.tsx`. Le socle ne connaît aucun module en particulier : il stocke le JSON tel quel.
 
 ### Zone de notification, démarrage avec Windows, notifications
 
@@ -184,6 +191,8 @@ Le choix est retenu d'un lancement à l'autre (`<userData>/window-state.json`). 
 - **`ctx.notifications.notify({ title, body, path })`** passe par `HostAdapter.notify`, une notification Windows (`Notification` d'Electron).
   - Un clic remet la fenêtre au premier plan et ouvre `/m/<module>/<path>` (IPC `toolbox:navigate`).
   - Chaque notification est aussi consignée dans les journaux du module.
+
+Fermer la fenêtre alors que des tâches tournent (envoi YouTube, rendu) — zone de notification désactivée — ouvre une confirmation qui les liste (`electron/desktop.ts`) : elles s'arrêtent avec l'app et reprennent au lancement suivant.
 
 ### Comptes connectés (`ctx.accounts`)
 

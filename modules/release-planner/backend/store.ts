@@ -5,6 +5,23 @@ import type { ItemKind } from './plan';
 import type { QuotaUsage } from './quota';
 import { assertTransition, type ItemState } from './status';
 
+/**
+ * v3: the user's own Reels (custom-reels) in a release, the J-3 / J-1 alerts
+ * already sent, and the start of the automatic upload of a release.
+ */
+export const migrationV3 = `
+  ALTER TABLE release_planner__items ADD COLUMN custom_reel_id INTEGER;
+  ALTER TABLE release_planner__items ADD COLUMN alerted_j3 INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE release_planner__items ADD COLUMN alerted_j1 INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE release_planner__releases ADD COLUMN auto_upload_at TEXT;
+  ALTER TABLE release_planner__releases ADD COLUMN auto_upload_done_at TEXT;
+`;
+
+/** v2: texts that follow the templates until edited (existing elements keep theirs). */
+export const migrationV2 = `
+  ALTER TABLE release_planner__items ADD COLUMN texts_custom INTEGER NOT NULL DEFAULT 1;
+`;
+
 export const migrationV1 = `
   CREATE TABLE release_planner__releases (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -61,6 +78,10 @@ export interface ReleaseRow {
   /** youtube-video's video (null: no long video in this release). */
   video_id: number | null;
   thumbnail_path: string | null;
+  /** When the automatic upload started for this release (null: not yet / not used). */
+  auto_upload_at: string | null;
+  /** When the end of the automatic upload was notified. */
+  auto_upload_done_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -83,10 +104,17 @@ export interface ItemRow {
   shifted_from: string | null;
   /** Instagram pack item (post, or Reel n; also the source of Short n). */
   pack_item_id: number | null;
+  /** The user's own Reel (custom-reels), for « Reel perso n » / « Short perso n ». */
+  custom_reel_id: number | null;
+  /** J-3 / J-1 alerts already sent for a YouTube element not uploaded yet. */
+  alerted_j3: number;
+  alerted_j1: number;
   title: string | null;
   description: string | null;
   /** JSON array. */
   tags: string | null;
+  /** 1: texts edited by the user; 0: they follow the templates (refreshed on display and upload). */
+  texts_custom: number;
   visibility: Visibility;
   state: ItemState;
   /** Resumable session of an interrupted upload. */
@@ -190,6 +218,7 @@ export class PlannerStore {
       scheduledAt: string;
       shiftedFrom: string | null;
       packItemId: number | null;
+      customReelId?: number | null;
       title: string | null;
       description: string | null;
       tags: string[] | null;
@@ -207,8 +236,8 @@ export class PlannerStore {
       );
       const insert = this.ctx.db.prepare(
         `INSERT INTO ${this.items} (release_id, kind, position, scheduled_at, shifted_from,
-           pack_item_id, title, description, tags, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           pack_item_id, custom_reel_id, title, description, tags, texts_custom, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
       );
       for (const item of input.items) {
         insert.run(
@@ -218,6 +247,7 @@ export class PlannerStore {
           item.scheduledAt,
           item.shiftedFrom,
           item.packItemId,
+          item.customReelId ?? null,
           item.title,
           item.description,
           item.tags ? JSON.stringify(item.tags) : null,
@@ -229,9 +259,29 @@ export class PlannerStore {
     });
   }
 
+  /** Adds one element to an existing release (a Reel perso added later). */
+  addItem(
+    releaseId: number,
+    item: { kind: ItemKind; position: number; scheduledAt: string; customReelId: number | null },
+  ): ItemRow {
+    const now = new Date().toISOString();
+    const id = Number(
+      this.ctx.db
+        .prepare(
+          `INSERT INTO ${this.items} (release_id, kind, position, scheduled_at, custom_reel_id,
+             texts_custom, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 0, ?, ?)`,
+        )
+        .run(releaseId, item.kind, item.position, item.scheduledAt, item.customReelId, now, now)
+        .lastInsertRowid,
+    );
+    return this.item(id)!;
+  }
+
   updateRelease(
     id: number,
-    fields: Partial<Pick<ReleaseRow, 'video_id' | 'thumbnail_path'>>,
+    fields: Partial<
+      Pick<ReleaseRow, 'video_id' | 'thumbnail_path' | 'auto_upload_at' | 'auto_upload_done_at'>
+    >,
   ): void {
     const entries = Object.entries(fields).filter(([, value]) => value !== undefined);
     if (entries.length === 0) return;

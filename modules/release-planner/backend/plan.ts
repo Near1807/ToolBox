@@ -1,7 +1,7 @@
 // The release plan of a track: which element goes out which day, from a
 // template the user edits in the settings, then spread so that no day gets
 // more than N publications per platform. Pure functions, unit-tested.
-import { addDays } from './time';
+import { addDays, weekday } from './time';
 
 export type ItemKind = 'youtube' | 'short' | 'insta-post' | 'insta-reel';
 export type Platform = 'youtube' | 'instagram';
@@ -15,6 +15,15 @@ export const PLATFORM: Record<ItemKind, Platform> = {
 
 export const DEFAULT_TEMPLATE = [
   'J : vidéo YouTube, post Insta',
+  'J+1 : Reel 1, Short 1',
+  'J+2 : Reel 2, Short 2',
+  'J+3 : Reel 3, Short 3',
+  'J+4 : Reel 4, Short 4',
+].join('\n');
+
+/** Previous default template (v0.11): kept to recognise it in the settings. */
+export const TEMPLATE_V011 = [
+  'J : vidéo YouTube, post Insta',
   'J+2 : Reel 1',
   'J+3 : Short 1',
   'J+5 : Reel 2',
@@ -25,6 +34,9 @@ export const DEFAULT_TEMPLATE = [
   'J+14 : Short 4',
 ].join('\n');
 
+/** Positions above this are the user's own Reels (custom-reels): 100 + their position. */
+export const CUSTOM_OFFSET = 100;
+
 export interface PlanEntry {
   kind: ItemKind;
   /** 0 for the video and the post, 1..4 for Reels and Shorts. */
@@ -34,6 +46,9 @@ export interface PlanEntry {
 }
 
 export function itemLabel(kind: ItemKind, position: number): string {
+  if (position > CUSTOM_OFFSET) {
+    return `${kind === 'short' ? 'Short' : 'Reel'} perso ${position - CUSTOM_OFFSET}`;
+  }
   switch (kind) {
     case 'youtube':
       return 'Vidéo YouTube';
@@ -138,6 +153,29 @@ export function buildPlan(
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 }
 
+/** Allowed publication days: 0 = Monday … 6 = Sunday (default Monday to Friday). */
+export const DEFAULT_ALLOWED_DAYS = [0, 1, 2, 3, 4];
+
+/** "1,2,3,4,5" (ISO, 1 = Monday) → [0, 1, 2, 3, 4]; empty or invalid → every day. */
+export function parseAllowedDays(value: string | null | undefined): number[] {
+  const days = [
+    ...new Set(
+      String(value ?? '')
+        .split(',')
+        .map((d) => Number(d.trim()) - 1)
+        .filter((d) => Number.isInteger(d) && d >= 0 && d <= 6),
+    ),
+  ].sort();
+  return days.length > 0 ? days : [0, 1, 2, 3, 4, 5, 6];
+}
+
+/** The release day J: moved to the next Monday when « J tombe toujours un lundi » is on. */
+export function releaseDay(date: string, onMonday: boolean): string {
+  if (!onMonday) return date;
+  const day = weekday(date);
+  return day === 0 ? date : addDays(date, 7 - day);
+}
+
 export interface Occupied {
   platform: Platform;
   date: string;
@@ -148,19 +186,24 @@ export interface Shift {
   position: number;
   from: string;
   to: string;
+  /** « full »: the day had its N publications; « day »: not an allowed publication day. */
+  reason: 'full' | 'day';
 }
 
 /**
  * Anti-congestion: at most `maxPerDay` publications per day and per platform,
- * counting what is already planned for other tracks. An element on a full day
- * moves to the next free day; the next elements of the same platform never
- * come before it (the order of the plan is kept).
+ * counting what is already planned for other tracks, and only on allowed
+ * days. An element on a full or forbidden day moves to the next free allowed
+ * day (never to a forbidden one); the next elements of the same platform
+ * never come before it (the order of the plan is kept).
  */
 export function spreadPlan(
   items: ProposedItem[],
   occupied: Occupied[],
   maxPerDay: number,
+  allowedDays: number[] = [0, 1, 2, 3, 4, 5, 6],
 ): { items: ProposedItem[]; shifts: Shift[] } {
+  const allowed = new Set(allowedDays.length > 0 ? allowedDays : [0, 1, 2, 3, 4, 5, 6]);
   const max = Math.max(1, Math.floor(maxPerDay));
   const counts = new Map<string, number>();
   const count = (platform: Platform, date: string) => counts.get(`${platform}|${date}`) ?? 0;
@@ -175,10 +218,13 @@ export function spreadPlan(
     )
     .map((item) => {
       const platform = PLATFORM[item.kind];
+      // Reported as « day » when the template's own day is not allowed.
+      const reason: Shift['reason'] = allowed.has(weekday(item.date)) ? 'full' : 'day';
       let date = item.date;
       const floor = lastDate[platform];
       if (floor && date < floor) date = floor;
-      while (count(platform, date) >= max) date = addDays(date, 1);
+      // Never onto a day that is not allowed, nor onto a full one.
+      while (!allowed.has(weekday(date)) || count(platform, date) >= max) date = addDays(date, 1);
       counts.set(`${platform}|${date}`, count(platform, date) + 1);
       lastDate[platform] = date;
       if (date !== item.templateDate) {
@@ -187,6 +233,7 @@ export function spreadPlan(
           position: item.position,
           from: item.templateDate,
           to: date,
+          reason,
         });
       }
       return { ...item, date };
@@ -194,13 +241,8 @@ export function spreadPlan(
   return { items: placed, shifts };
 }
 
-/** Fills a text template: {titre}, {artiste}, {n}… Unknown keys are left as they are. */
-export function fillTemplate(template: string, values: Record<string, string>): string {
-  return template
-    .replace(/\{([a-z_]+)\}/g, (whole, key: string) => values[key] ?? whole)
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
-}
+/** Fills a text template: {titre}, {artiste}, {n}… (shared with every module, docs/MODULES.md §7.3). */
+export { fillTemplate } from '@hub/sdk/texts';
 
 /**
  * YouTube refuses "<" and ">" in titles and descriptions; titles are limited

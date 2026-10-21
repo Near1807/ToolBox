@@ -15,7 +15,8 @@ import {
   type AudioAnalysis,
 } from './analysis';
 import { INSTAGRAM_PACK_SERVICE, type InstagramPackService, type PackItem } from '../contract';
-import { buildCaption, itemFileName, packFolderName } from './caption';
+import { toTemplate } from '@hub/sdk/texts';
+import { buildCaption, buildHashtags, itemFileName, packFolderName } from './caption';
 import {
   itemLabel,
   MAX_REELS,
@@ -127,6 +128,10 @@ export default defineBackendModule({
         tags: track.tags,
         hashtags: ctx.settings.get<string>('hashtags') ?? '',
       });
+    const templateCaption = (trackId: number) => {
+      const track = library.getTrack(trackId);
+      return track ? captionFor(track) : null;
+    };
 
     /** Analysis cached per track, invalidated when the audio file changes. */
     const analyze = async (track: Track): Promise<AudioAnalysis> => {
@@ -197,6 +202,8 @@ export default defineBackendModule({
         trackId: pack.track_id,
         clipDuration: pack.clip_duration,
         caption: pack.caption,
+        /** The caption differs from the template text of the settings. */
+        captionCustom: pack.caption !== templateCaption(pack.track_id),
         perReelCaptions: Boolean(pack.per_reel_captions),
         folder: pack.folder,
         items,
@@ -278,6 +285,24 @@ export default defineBackendModule({
         const items = store.listItems(pack.id);
         const published = items.filter((item) => item.published_at).length;
         return `${published}/${items.length} publiés`;
+      },
+    });
+
+    // Project page of the library: ticked « Publié » = published.
+    library.registerProjectStatus({
+      moduleId: ctx.id,
+      get: (trackId) => {
+        const pack = store.byTrack(trackId);
+        if (!pack) return [];
+        return store
+          .listItems(pack.id)
+          .filter((item) => item.published_at)
+          .map((item) => ({
+            moduleId: ctx.id,
+            ref: `item:${item.id}`,
+            status: 'published' as const,
+            detail: `Publié le ${new Date(item.published_at!).toLocaleDateString('fr-FR')}`,
+          }));
       },
     });
 
@@ -510,6 +535,27 @@ export default defineBackendModule({
       return packDto(store.pack(pack.id)!);
     });
 
+    // « Enregistrer comme modèle par défaut »: title, artist and hashtags become placeholders.
+    ctx.routes.post('/packs/:id/caption/template', (request) => {
+      const pack = store.requirePack(idParam(request.params));
+      const track = requireTrack(pack.track_id);
+      const caption = (request.body as { caption?: unknown } | null)?.caption;
+      if (typeof caption !== 'string' || !caption.trim()) {
+        throw new HttpError(400, 'Légende vide');
+      }
+      const hashtags = buildHashtags(track.tags, ctx.settings.get<string>('hashtags') ?? '');
+      ctx.settings.set(
+        'captionTemplate',
+        toTemplate(caption, {
+          titre: track.title,
+          artiste: track.artist,
+          hashtags: hashtags.join(' '),
+        }),
+      );
+      store.updatePack(pack.id, { caption: captionFor(track) });
+      return packDto(store.pack(pack.id)!);
+    });
+
     // New automatic excerpts for the Reels not yet published.
     ctx.routes.post('/packs/:id/suggest', async (request) => {
       const pack = store.requirePack(idParam(request.params));
@@ -693,6 +739,30 @@ export default defineBackendModule({
         store.updateItem(item.id, {
           published_at: published ? (at ?? item.published_at ?? new Date().toISOString()) : null,
         });
+        const updated = store.item(item.id)!;
+        return toPackItem(store.pack(updated.pack_id)!, updated);
+      },
+      setCaption: (itemId, caption) => {
+        const item = store.item(itemId);
+        if (!item) throw new Error('Élément du pack introuvable');
+        const { pack, track } = packOfItem(item);
+        if (item.kind === 'post') {
+          // The post carries the pack caption; null = back to the template.
+          store.updatePack(pack.id, { caption: caption ?? captionFor(track) });
+        } else if (caption === null) {
+          store.updateItem(item.id, { caption: null });
+        } else {
+          if (!pack.per_reel_captions) {
+            // Per-Reel captions start from the main caption.
+            store.updatePack(pack.id, { per_reel_captions: 1 });
+            for (const other of store.listItems(pack.id)) {
+              if (other.kind === 'reel' && other.caption === null) {
+                store.updateItem(other.id, { caption: pack.caption });
+              }
+            }
+          }
+          store.updateItem(item.id, { caption });
+        }
         const updated = store.item(item.id)!;
         return toPackItem(store.pack(updated.pack_id)!, updated);
       },

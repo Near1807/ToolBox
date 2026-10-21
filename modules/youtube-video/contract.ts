@@ -16,12 +16,17 @@ export interface YouTubeVideo {
   uploadedAt: string | null;
 }
 
-/** Title, description and tags prepared from the module's settings (links, hashtags). */
+/**
+ * Title, description and tags of the track's video: edited under the video,
+ * otherwise pre-filled from the templates of the settings (links, hashtags).
+ */
 export interface YouTubeTexts {
   videoTitle: string;
   description: string;
   /** Without the "#". */
   tags: string[];
+  /** True when edited by the user (not the template text any more). */
+  custom: boolean;
 }
 
 export interface YouTubeVideoService {
@@ -29,6 +34,11 @@ export interface YouTubeVideoService {
   listVideos(trackId: number): YouTubeVideo[];
   getVideo(id: number): YouTubeVideo | null;
   texts(trackId: number): YouTubeTexts | null;
+  /** Edits the texts (a field equal to the template text follows the template again); null resets all. */
+  setTexts(
+    trackId: number,
+    change: { videoTitle?: string; description?: string; tags?: string[] } | null,
+  ): YouTubeTexts;
   /** Queues a new render of the track (job of youtube-video, visible in Tâches). */
   render(trackId: number): { jobId: string };
   /** Records that a video is online (shown on the module's page), or no longer (null). */

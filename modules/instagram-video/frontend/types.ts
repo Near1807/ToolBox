@@ -29,6 +29,7 @@ export interface Pack {
   trackId: number;
   clipDuration: number;
   caption: string;
+  captionCustom: boolean;
   perReelCaptions: boolean;
   folder: string;
   items: PackItem[];

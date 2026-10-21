@@ -1,0 +1,50 @@
+/* @theme id=minuit; label=Minuit (bleu nuit); scheme=dark; swatch=#050a14,#4f8cff,#2ee6c5 */
+/* Deep night blue, electric blue and aqua accents. */
+:root[data-theme='minuit'] {
+  color-scheme: dark;
+  --bg: #050a14;
+  --bg-glow-1: rgb(79 140 255 / 16%);
+  --bg-glow-2: rgb(46 230 197 / 10%);
+  --surface: rgb(14 24 44 / 66%);
+  --surface-2: rgb(20 34 62 / 75%);
+  --surface-hover: rgb(28 46 84 / 82%);
+  --surface-solid: #0b1426;
+  --field: rgb(3 7 15 / 65%);
+  --border: rgb(140 180 255 / 11%);
+  --border-strong: rgb(140 180 255 / 24%);
+  --text: #e8f0ff;
+  --text-2: #9fb2d6;
+  --text-3: #63769c;
+  --text-on-accent: #ffffff;
+  --accent: #4f8cff;
+  --accent-2: #2ee6c5;
+  --accent-soft: rgb(79 140 255 / 16%);
+  --accent-grad: linear-gradient(135deg, #4f8cff 0%, #2ee6c5 100%);
+  --success: #2ee6a0;
+  --warning: #ffc857;
+  --danger: #ff6b81;
+  --info: #2ee6c5;
+  --series-1: #4f8cff;
+  --series-2: #2ee6c5;
+  --series-3: #ffc857;
+  --series-4: #ff8a65;
+  --series-5: #c792ea;
+  --series-6: #7ee787;
+  --series-7: #ff6b81;
+  --series-8: #9ecbff;
+  --brand-youtube: #ff4e45;
+  --brand-instagram: #e1306c;
+  --overlay: rgb(2 5 12 / 72%);
+  --on-overlay: #ffffff;
+  --media-bg: #000000;
+  --shadow: 0 10px 40px rgb(0 0 0 / 48%);
+  --glow: 0 0 24px rgb(79 140 255 / 32%);
+  --glow-2: 0 0 24px rgb(46 230 197 / 26%);
+  --radius-lg: 18px;
+  --radius: 14px;
+  --radius-sm: 10px;
+  --blur: 18px;
+  --font-sans: 'Inter Variable', system-ui, 'Segoe UI', sans-serif;
+  --font-display: 'Space Grotesk Variable', 'Inter Variable', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, 'Cascadia Code', monospace;
+}

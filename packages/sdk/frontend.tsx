@@ -60,6 +60,7 @@ declare global {
         toggleFullscreen: () => void;
         minimize: () => void;
         close: () => void;
+        setColorScheme?: (scheme: 'dark' | 'light') => void;
       };
       /** Called with a UI route when a desktop notification is clicked. */
       onNavigate?: (listener: (target: string) => void) => () => void;
@@ -690,3 +691,6 @@ export function OutputList(props: {
     </div>
   );
 }
+
+export * from './components';
+export { fillTemplate, toTemplate, parseTags, formatTags } from './texts';

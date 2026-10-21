@@ -16,7 +16,7 @@ export function PlatformIcon(props: { kind: ItemKind; size?: number }) {
   const size = props.size ?? 16;
   const youtube = props.kind === 'youtube' || props.kind === 'short';
   const vertical = props.kind === 'short' || props.kind === 'insta-reel';
-  const color = youtube ? '#ff4e45' : '#e1306c';
+  const color = youtube ? 'var(--brand-youtube)' : 'var(--brand-instagram)';
   return (
     <svg
       className="rp-icon"
@@ -55,7 +55,7 @@ export function PlatformIcon(props: { kind: ItemKind; size?: number }) {
       ) : (
         <path
           d={vertical ? 'M6.6 5.6v4.8L10.4 8z' : 'M6.4 5.5v5L10.6 8z'}
-          fill={youtube ? '#fff' : color}
+          fill={youtube ? 'var(--on-overlay)' : color}
         />
       )}
     </svg>
