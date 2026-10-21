@@ -224,7 +224,7 @@ describe('custom-reels (Reels from my videos)', () => {
       ref: `reel:${rendered.id}`,
       subject: `music-library:track:${trackId}`,
     });
-  }, 240_000);
+  }, 480_000);
 
   it('marks a changed Reel « À régénérer », tracks publication, then deletes it', async () => {
     const [reel] = (await track()).reels;

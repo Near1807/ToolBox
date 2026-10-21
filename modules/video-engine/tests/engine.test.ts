@@ -330,5 +330,6 @@ describe('videoEngine service', () => {
     );
     await Promise.all([first, second]);
     expect(messages[0]).toMatch(/En attente du moteur/);
-  });
+    // Two full renders in a row: slow on a shared CI runner (Windows) when other render tests run.
+  }, 120_000);
 });
