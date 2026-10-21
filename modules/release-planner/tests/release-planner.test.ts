@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import ffmpegPath from 'ffmpeg-static';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { ModuleContext } from '@hub/sdk/backend';
+import type { ModuleContext, OutputRecord } from '@hub/sdk/backend';
 import {
   createTestHost,
   createTestHub,
@@ -908,6 +908,48 @@ describe('release-planner (mock YouTube)', () => {
       allowedDays: null,
       uploadsPerDay: null,
     });
+  });
+
+  it('« Sans projet » > Rattacher: the thumbnail leaves its old release for the chosen track’s', async () => {
+    const thumbnails = async () =>
+      (await hub.request<OutputRecord[]>('GET', '/api/core/outputs?module=release-planner')).body;
+    const old = await hub.request<Release & { trackId: number; thumbnailUrl: string | null }>(
+      'GET',
+      `${API}/releases/${third.id}`,
+    );
+    const record = (await thumbnails()).find((r) => r.ref === `thumbnail:${third.id}`)!;
+    expect(record.exists).toBe(true);
+    const { body: track } = await hub.request<{ id: number }>(
+      'POST',
+      '/api/modules/music-library/tracks',
+      { audioPath: path.join(dir, 'song.wav') },
+    );
+    const planned = await hub.request<{ release: Release }>('POST', `${API}/releases`, {
+      trackId: track.id,
+      date: '2031-06-02',
+    });
+    await hub.request('DELETE', `/api/modules/music-library/tracks/${old.body.trackId}`);
+    const attached = await hub.request('POST', '/api/modules/music-library/orphans/attach', {
+      ids: [record.id],
+      trackId: track.id,
+    });
+    expect(attached.status).toBe(200);
+    const moved = (await thumbnails()).find((r) => r.id === record.id)!;
+    expect(moved).toMatchObject({
+      ref: `thumbnail:${planned.body.release.id}`,
+      parent: `release:${planned.body.release.id}`,
+      subject: `music-library:track:${track.id}`,
+    });
+    const adopted = await hub.request<{ thumbnailUrl: string | null }>(
+      'GET',
+      `${API}/releases/${planned.body.release.id}`,
+    );
+    expect(adopted.body.thumbnailUrl).not.toBeNull();
+    const left = await hub.request<{ thumbnailUrl: string | null }>(
+      'GET',
+      `${API}/releases/${third.id}`,
+    );
+    expect(left.body.thumbnailUrl).toBeNull();
   });
 });
 

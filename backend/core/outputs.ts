@@ -6,6 +6,7 @@ import path from 'node:path';
 import type {
   ModuleOutputs,
   OutputFilter,
+  OutputReattachHandler,
   OutputRecord,
   OutputRemovedHandler,
 } from '../../packages/sdk/backend';
@@ -49,6 +50,7 @@ function assertNarrowed(filter: CoreOutputFilter): void {
 
 export class OutputStore {
   private readonly handlers = new Map<string, OutputRemovedHandler[]>();
+  private readonly reattachHandlers = new Map<string, OutputReattachHandler>();
 
   constructor(
     private readonly handle: DatabaseHandle,
@@ -170,8 +172,16 @@ export class OutputStore {
     this.handlers.set(moduleId, [...(this.handlers.get(moduleId) ?? []), handler]);
   }
 
+  onReattach(moduleId: string, handler: OutputReattachHandler): void {
+    if (this.reattachHandlers.has(moduleId)) {
+      throw new Error('ctx.outputs.onReattach : un seul gestionnaire par module');
+    }
+    this.reattachHandlers.set(moduleId, handler);
+  }
+
   forgetModule(moduleId: string): void {
     this.handlers.delete(moduleId);
+    this.reattachHandlers.delete(moduleId);
   }
 
   /**
@@ -226,6 +236,7 @@ export class OutputStore {
       deleteBySubject: async (subject) => (await this.delete({ subject })).length,
       orphans: (isKnown) => this.orphans(isKnown),
       attach: (ids, subject) => this.attach(ids, subject),
+      onReattach: (handler) => this.onReattach(moduleId, handler),
     };
   }
 
@@ -237,14 +248,32 @@ export class OutputStore {
     return this.list({}).filter((record) => record.subject === null || !isKnown(record.subject));
   }
 
-  /** Attaches records to a project chosen by the user; kept when their module registers them again. */
+  /**
+   * Attaches records to a project chosen by the user; kept when their module
+   * registers them again. Each owner module moves its own rows (onReattach) in
+   * the same transaction: all or nothing.
+   */
   attach(ids: number[], subject: string): number {
     if (!subject.trim()) throw new Error('Projet manquant');
     const update = this.handle.db.prepare(
       'UPDATE core__outputs SET subject = ?, subject_manual = 1 WHERE id = ?',
     );
-    return this.handle.db.transaction(() =>
-      ids.reduce((count, id) => count + update.run(subject, id).changes, 0),
-    )();
+    return this.handle.db.transaction(() => {
+      const count = ids.reduce((sum, id) => sum + update.run(subject, id).changes, 0);
+      const byModule = new Map<string, OutputRecord[]>();
+      for (const record of this.list({ ids })) {
+        byModule.set(record.moduleId, [...(byModule.get(record.moduleId) ?? []), record]);
+      }
+      for (const [moduleId, records] of byModule) {
+        const handler = this.reattachHandlers.get(moduleId);
+        if (!handler) {
+          throw new Error(
+            `Rattachement impossible : le module « ${moduleId} » est absent ou ne sait pas suivre (onReattach)`,
+          );
+        }
+        handler(records, subject);
+      }
+      return count;
+    })();
   }
 }

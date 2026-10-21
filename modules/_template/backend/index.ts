@@ -88,6 +88,16 @@ export default defineBackendModule({
       );
     });
 
+    // « Sans projet » > Rattacher (MODULES.md §5.13): the user attaches files of
+    // this module to another project. The core record already has the new
+    // subject; the module moves its OWN rows the same way (e.g. a track_id
+    // column), then calls ctx.outputs.register() again if `parent` changes.
+    // Synchronous, in the core's transaction: throw HttpError(409, …) to refuse.
+    // The template stores no project for its notes: nothing to move.
+    ctx.outputs.onReattach((records, subject) => {
+      ctx.logger.info(`${records.length} export(s) rattaché(s) à ${subject}`);
+    });
+
     ctx.routes.get('/summary', () => {
       const { count } = ctx.db.prepare(`SELECT COUNT(*) AS count FROM ${notes}`).get() as {
         count: number;

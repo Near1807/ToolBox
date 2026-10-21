@@ -295,6 +295,32 @@ export default defineBackendModule({
       }
     });
 
+    // « Sans projet » > Rattacher: the Reel moves to the chosen track (first free
+    // place, at most 4), with the imported videos it uses (its old track is gone).
+    ctx.outputs.onReattach((records, newSubject) => {
+      const trackId = library.trackIdOf(newSubject);
+      if (trackId === null) throw new HttpError(409, 'Un Reel perso se rattache à un morceau');
+      for (const record of records) {
+        const [kind, rawId] = record.ref.split(':');
+        if (kind !== 'reel') continue;
+        const row = reel(Number(rawId));
+        if (!row || row.track_id === trackId) continue;
+        const taken = reelsOf(trackId).map((r) => r.position);
+        const position = [1, 2, 3, 4].find((p) => !taken.includes(p));
+        if (position === undefined) {
+          throw new HttpError(
+            409,
+            `Ce morceau a déjà ${MAX_REELS} Reels perso : supprimes-en un d’abord`,
+          );
+        }
+        updateReel(row.id, { track_id: trackId, position });
+        for (const id of new Set(segmentsOf(row).map((segment) => segment.sourceId))) {
+          ctx.db.prepare(`UPDATE ${sources} SET track_id = ? WHERE id = ?`).run(trackId, id);
+        }
+        registerReel(reel(row.id)!);
+      }
+    });
+
     const outputsByRef = (trackId: number) =>
       new Map(
         ctx.outputs

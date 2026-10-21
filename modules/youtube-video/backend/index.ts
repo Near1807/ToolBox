@@ -204,6 +204,21 @@ export default defineBackendModule({
       }
     });
 
+    // « Sans projet » > Rattacher: the video row follows its file to the chosen track.
+    ctx.outputs.onReattach((records, newSubject) => {
+      const trackId = library.trackIdOf(newSubject);
+      if (trackId === null) throw new HttpError(409, 'Une vidéo YouTube se rattache à un morceau');
+      const move = ctx.db.prepare(`UPDATE ${videos} SET track_id = ? WHERE id = ?`);
+      for (const record of records) {
+        const id = Number(record.ref.replace(/^video:/, ''));
+        const row = ctx.db.prepare(`SELECT * FROM ${videos} WHERE id = ?`).get(id) as
+          VideoRow | undefined;
+        if (!row) continue;
+        move.run(trackId, row.id);
+        registerVideo({ ...row, track_id: trackId });
+      }
+    });
+
     const listVideos = (trackId: number) => {
       const records = new Map(
         ctx.outputs.list({ parent: `track:${trackId}` }).map((r) => [r.ref, r]),

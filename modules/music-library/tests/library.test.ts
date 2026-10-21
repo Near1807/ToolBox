@@ -22,6 +22,7 @@ let musicLibrary: DiscoveredModule;
 /** A module consuming the service, as the video generators do. */
 let library: MusicLibraryService;
 let consumerCtx: ModuleContext;
+const reattached: { refs: string[]; trackId: number | null }[] = [];
 const consumer: DiscoveredModule = {
   folder: 'consumer',
   manifest: {
@@ -37,6 +38,10 @@ const consumer: DiscoveredModule = {
     register: (ctx) => {
       library = ctx.services.get<MusicLibraryService>('musicLibrary');
       consumerCtx = ctx;
+      ctx.outputs.onReattach((records, subject) => {
+        if (subject.endsWith(':refuse')) throw new Error('refusé par le module');
+        reattached.push({ refs: records.map((r) => r.ref), trackId: library.trackIdOf(subject) });
+      });
     },
   },
 };
@@ -284,6 +289,10 @@ describe('project page and elements without project', () => {
         trackId: target.id,
       });
       expect(attached.body.attached).toBe(1);
+      // The owner module moved its own row too (onReattach), with the track id.
+      expect(reattached.at(-1)).toEqual({ refs: ['video:7'], trackId: target.id });
+      expect(library.trackIdOf(`music-library:track:${gone.id}`)).toBeNull();
+      expect(library.trackIdOf('notes:1')).toBeNull();
       expect((await hub.request<OutputRecord[]>('GET', `${API}/orphans`)).body).toEqual([]);
       const project = await hub.request<OutputRecord[]>(
         'GET',

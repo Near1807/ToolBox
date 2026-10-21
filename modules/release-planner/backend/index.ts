@@ -848,6 +848,34 @@ export default defineBackendModule({
       }
     });
 
+    // « Sans projet » > Rattacher a thumbnail: it leaves its old release (whose
+    // track is gone); the chosen track's release adopts it if it has none.
+    ctx.outputs.onReattach((records, newSubject) => {
+      const trackId = library.trackIdOf(newSubject);
+      if (trackId === null) throw new HttpError(409, 'Une miniature se rattache à un morceau');
+      for (const record of records) {
+        const [kind, rawId] = record.ref.split(':');
+        if (kind !== 'thumbnail') continue;
+        const old = store.release(Number(rawId));
+        if (old && old.track_id === trackId) continue;
+        if (old?.thumbnail_path === record.path) {
+          store.updateRelease(old.id, { thumbnail_path: null });
+        }
+        const target = store.releaseByTrack(trackId);
+        if (target && !(target.thumbnail_path && existsSync(target.thumbnail_path))) {
+          store.updateRelease(target.id, { thumbnail_path: record.path });
+          ctx.outputs.register({
+            path: record.path,
+            ref: `thumbnail:${target.id}`,
+            parent: `release:${target.id}`,
+            subject: subject(trackId),
+            label: 'Miniature YouTube',
+            kind: 'thumbnail',
+          });
+        }
+      }
+    });
+
     /** After the upload: thumbnail (long video) and playlist; problems are warnings. */
     const afterUpload = async (
       release: ReleaseRow,

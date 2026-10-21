@@ -247,6 +247,17 @@ ctx.outputs.register({
 ctx.outputs.onRemoved((records, reason) => {
   for (const r of records) deleteMyRow(r.ref); // reason : 'deleted' (Corbeille) | 'forgotten' (liste seulement)
 });
+
+// « Sans projet » > Rattacher : le module déplace SES lignes vers le nouveau projet
+// (même transaction que le registre ; synchrone ; lever HttpError(409) pour refuser).
+ctx.outputs.onReattach((records, subject) => {
+  const trackId = library.trackIdOf(subject); // Musique : null si ce n'est pas un morceau
+  if (trackId === null) throw new HttpError(409, 'Se rattache à un morceau');
+  for (const r of records) {
+    moveMyRow(r.ref, trackId);
+    ctx.outputs.register({ ...sameFile, parent: `track:${trackId}`, subject }); // si parent change
+  }
+});
 ```
 
 | Méthode                                                               | Rôle                                                                                                    |
@@ -257,8 +268,10 @@ ctx.outputs.onRemoved((records, reason) => {
 | `forget(filtre)`                                                      | « Retirer de la liste » : oublie les entrées sans toucher aux fichiers, appelle `onRemoved`             |
 | `bySubject(sujet)` · `deleteBySubject(sujet)`                         | Fichiers de **tous** les modules sur un sujet (ex. tous ceux faits à partir d'un morceau)               |
 | `orphans(estConnu)` · `attach(ids, sujet)`                            | Éléments sans projet (pas de sujet, ou sujet inconnu) · rattachement choisi par l'utilisateur, conservé |
+| `onReattach((records, sujet) => …)`                                   | **Obligatoire** pour tout module qui enregistre des fichiers : suit un rattachement (voir ci-dessous)   |
 
 - **Tout est lié à un projet** : `subject` désigne le projet de l'élément. Dans la section Musique, c'est **le morceau d'origine** (`music-library:track:<id>`) ; la page du morceau dans la Bibliothèque est la vue projet (tout ce qui a été généré, groupé par type, avec son état et la case « Inclure dans la sortie »). Un module hors musique utilise son propre objet (le modèle : `_template:note:<id>`). Un module qui sait où en est un élément (planifié, programmé, publié) le déclare avec `musicLibrary.registerProjectStatus`. Voir ADR 0022.
+- **Rattachement complet** (ADR 0025) : `attach` met à jour le registre **et** appelle le `onReattach` de chaque module propriétaire, dans une seule transaction. Le module y déplace ses propres lignes (ex. `track_id` d'une vidéo, pack d'un post, place d'un Reel) et ré-enregistre le fichier si son `parent` change. S'il refuse (place déjà prise…), ou si un module propriétaire n'a pas de `onReattach` (absent, désactivé, trop ancien), **rien ne change**, et le message est affiché tel quel. Un module qui ne garde aucun lien vers le projet déclare quand même un `onReattach` vide (comme le modèle).
 - Un filtre vide est refusé (jamais de « tout supprimer » par accident).
 - Fichiers déjà produits avant l'arrivée du registre : le module les enregistre au démarrage (`register` est idempotent), sans rien supprimer.
 - Interface : chaque élément généré a un bouton **« Supprimer »** avec confirmation (`confirmDelete`), les listes ont la **sélection multiple** (`useSelection` + `SelectionBar`), un fichier introuvable s'affiche **« Fichier introuvable »** avec « Retirer de la liste » et, si possible, « Régénérer » (`MissingFile`), et un bouton **« Nettoyer les éléments introuvables »**. `OutputList` fait tout cela d'un coup pour une liste simple. Routes du socle : `/api/core/outputs` (voir `ARCHITECTURE.md`).
@@ -408,7 +421,7 @@ L'état de chaque module est visible dans **Réglages > Modules** (avec bouton D
 - [ ] N'importe que `@hub/sdk/*` (et npm/Node) — `npm run lint` passe
 - [ ] Tables préfixées, schéma uniquement par migrations, aucune suppression de données hors migration explicite
 - [ ] Fichiers uniquement dans `ctx.files.dataDir` / `outputDir()`
-- [ ] Chaque fichier généré enregistré dans `ctx.outputs` (avec `onRemoved` pour nettoyer ses données) ; dans l'interface : « Supprimer » avec confirmation, sélection multiple, « Fichier introuvable », « Nettoyer les éléments introuvables »
+- [ ] Chaque fichier généré enregistré dans `ctx.outputs` (avec `onRemoved` pour nettoyer ses données et `onReattach` pour suivre un rattachement) ; dans l'interface : « Supprimer » avec confirmation, sélection multiple, « Fichier introuvable », « Nettoyer les éléments introuvables »
 - [ ] Dépendances et services déclarés dans le manifest ; types publics dans `contract.ts`
 - [ ] Comptes externes déclarés dans `permissions.accounts`, autorisations minimales
 - [ ] Éléments générés affichés avec les composants partagés du SDK (§7.1), aucune couleur en dur (§7.2)
