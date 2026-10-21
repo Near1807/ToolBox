@@ -49,7 +49,7 @@ packages/sdk/    @hub/sdk : backend.ts, frontend.tsx, components.tsx (composants
 modules/         un dossier par module ; _template/ = module modèle (exemple, chargé à la demande)
 scripts/         dev, build (esbuild + découverte des modules), smoke test, vérification native
 tests/           tests Vitest du socle
-docs/            ARCHITECTURE, MODULES (contrat), AJOUTER-UN-MODULE, DIRECTION-ARTISTIQUE (visuels générés), THEMES (interface), ROADMAP, WINDOWS, decisions/ (ADR)
+docs/            ARCHITECTURE, MODULES (contrat), AJOUTER-UN-MODULE, DIRECTION-ARTISTIQUE (visuels générés), THEMES (interface), ROADMAP, WINDOWS, decisions/ (ADR), rapports/ (rapport de fin de session)
 site/            site public statique (accueil + confidentialité, exigés par Google OAuth), publié par GitHub Pages depuis hub-v1
 ```
 
@@ -79,6 +79,25 @@ site/            site public statique (accueil + confidentialité, exigés par G
 - **Données : une migration publiée ne se modifie jamais ; aucune suppression de données hors migration explicite** (ou demande explicite de l'utilisateur dans l'interface, avec confirmation). Le socle sauvegarde `hub.db` avant chaque migration et restaure en cas d'échec (`docs/MODULES.md` §6).
 - Toute modification du contrat de module ou de l'architecture met à jour la doc **dans le même commit**. Nouvelle décision structurante → nouvel ADR.
 - Fin de phase : mettre à jour `docs/ROADMAP.md` et `CHANGELOG.md`, versionnage sémantique (`package.json`).
+
+## Fin de session (obligatoire)
+
+À la fin de **chaque** session de travail : rapport complet, enregistré dans `docs/rapports/AAAA-MM-JJ-vX.Y.Z.md` (commité avec le reste) **et affiché en entier** dans le résumé final. En français, clair et factuel : pas de formule creuse, pas de « tout est parfait » sans vérification ; tout ce qui n'a pas été testé en réel est marqué **« non testé en réel »**. Structure obligatoire, dans cet ordre :
+
+1. **Résumé** : 3 à 5 lignes, ce qui a été fait et l'état général (tout fonctionne / points bloquants).
+2. **Ce qui a été fait** : par chantier, ce qui est livré, avec les fichiers / modules principaux touchés.
+3. **Ce qui n'a pas été fait ou seulement en partie**, et pourquoi.
+4. **Décisions prises sans Thomas** : chaque choix fait en autonomie, avec la raison et comment le changer.
+5. **Écarts par rapport à la demande** : tout ce qui diffère de ce qui a été demandé.
+6. **Bugs trouvés** : corrigés ou non, avec leur impact.
+7. **Vérifications** : tests (nombre, résultats), lint, typecheck, CI Windows (lien du run), mesures (ffprobe, ebur128, synchro, temps de rendu), captures et planches contact.
+8. **À tester sur le PC de Thomas** : liste numérotée, pas à pas, avec le résultat attendu.
+9. **Risques et points à surveiller** : limites connues, dette technique, choses fragiles.
+10. **Données et migrations** : migrations exécutées, impact sur les données existantes, sauvegardes créées.
+11. **Commits** : commits poussés (hash + message) et version de l'app.
+12. **Prochaines étapes suggérées** : 3 au maximum, par ordre de priorité.
+
+Modèle : le dernier rapport de `docs/rapports/`.
 
 ## Git
 
