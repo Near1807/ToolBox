@@ -119,14 +119,15 @@ Les fichiers importés par l'utilisateur sont **copiés** dans `dataDir` (jamais
 
 Les réglages sont déclarés dans `module.json > settings` ; la page Réglages génère le formulaire et valide les valeurs côté serveur.
 
-| Type              | Valeur                                                        | Options                         |
-| ----------------- | ------------------------------------------------------------- | ------------------------------- |
-| `string` / `text` | texte (une ligne / plusieurs)                                 | `placeholder`, `default`        |
-| `number`          | nombre                                                        | `min`, `max`, `step`, `default` |
-| `boolean`         | oui/non                                                       | `default`                       |
-| `select`          | une des `options` (`{ value, label }`)                        | `default`                       |
-| `folder`          | chemin absolu choisi avec le sélecteur de dossier             | `default`                       |
-| `secret`          | texte **chiffré** (safeStorage), jamais renvoyé à l'interface | —                               |
+| Type              | Valeur                                                                | Options                         |
+| ----------------- | --------------------------------------------------------------------- | ------------------------------- |
+| `string` / `text` | texte (une ligne / plusieurs)                                         | `placeholder`, `default`        |
+| `number`          | nombre                                                                | `min`, `max`, `step`, `default` |
+| `boolean`         | oui/non                                                               | `default`                       |
+| `select`          | une des `options` (`{ value, label }`)                                | `default`                       |
+| `folder`          | chemin absolu choisi avec le sélecteur de dossier                     | `default`                       |
+| `weekdays`        | jours de la semaine, cases Lun…Dim ; valeur `"1,2,3,4,5"` (1 = lundi) | `default`                       |
+| `secret`          | texte **chiffré** (safeStorage), jamais renvoyé à l'interface         | —                               |
 
 Tous acceptent `label` (obligatoire) et `description`. API : `get(key)` (valeur ou défaut, secrets déchiffrés), `set(key, value)`, `onChange(handler)`.
 

@@ -82,7 +82,11 @@ function createWindow(appUrl: string): BrowserWindow {
   });
 
   attachWindowControls(window);
-  attachDesktop(window);
+  attachDesktop(window, () =>
+    (server?.hub.jobs.list({ limit: 50 }) ?? [])
+      .filter((job) => job.status === 'queued' || job.status === 'running')
+      .map((job) => job.title),
+  );
   window.once('ready-to-show', () => {
     if (!smokeTestFile && !startedHidden) window.show();
   });

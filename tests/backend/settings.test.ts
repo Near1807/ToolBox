@@ -18,6 +18,7 @@ describe('settings', () => {
               { key: 'artist', type: 'string', label: 'Artiste', default: 'Thomas' },
               { key: 'duration', type: 'number', label: 'Durée', min: 15, max: 90, default: 30 },
               { key: 'apiKey', type: 'secret', label: 'Clé' },
+              { key: 'days', type: 'weekdays', label: 'Jours', default: '1,2,3,4,5' },
             ],
           },
           backend: {
@@ -90,5 +91,13 @@ describe('settings', () => {
     const { body } = await hub.request<SettingsSection[]>('GET', '/api/core/settings');
     expect(body.some((s) => s.scope === 'ui')).toBe(false);
     expect((await hub.request('PUT', '/api/core/ui', { unknown: 1 })).status).toBe(400);
+  });
+
+  it('stores days of the week, sorted, at least one', async () => {
+    expect(settings.get('days')).toBe('1,2,3,4,5');
+    await hub.request('PUT', '/api/core/settings/conf', { days: '6,1,1' });
+    expect(settings.get('days')).toBe('1,6');
+    expect((await hub.request('PUT', '/api/core/settings/conf', { days: '' })).status).toBe(400);
+    expect((await hub.request('PUT', '/api/core/settings/conf', { days: '8' })).status).toBe(400);
   });
 });

@@ -22,6 +22,10 @@ export function PlanDialog(props: {
   const [videoId, setVideoId] = useState<number | null>(null);
   const [plan, setPlan] = useState<PlanProposal | null>(null);
   const [dates, setDates] = useState<Record<string, { date: string; time: string }>>({});
+  /** Reels perso ticked: Reel Instagram and/or Short YouTube, with their date. */
+  const [custom, setCustom] = useState<
+    Record<number, { reel: boolean; short: boolean; date: string }>
+  >({});
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -38,6 +42,14 @@ export function PlanDialog(props: {
         if (cancelled) return;
         setError(null);
         setPlan(proposal);
+        setCustom(
+          Object.fromEntries(
+            proposal.customReels.map((option) => [
+              option.customReelId,
+              { reel: false, short: false, date: option.date },
+            ]),
+          ),
+        );
         setDates(
           Object.fromEntries(
             proposal.items.map((item) => [
@@ -70,6 +82,16 @@ export function PlanDialog(props: {
             position: item.position,
             ...dates[`${item.kind}:${item.position}`],
           })),
+          custom: Object.entries(custom)
+            .filter(([, choice]) => choice.reel || choice.short)
+            .map(([id, choice]) => ({
+              customReelId: Number(id),
+              kinds: [choice.reel ? 'insta-reel' : null, choice.short ? 'short' : null].filter(
+                Boolean,
+              ),
+              date: choice.date,
+              time,
+            })),
         },
       );
       props.onCreated(
@@ -164,10 +186,11 @@ export function PlanDialog(props: {
         {error && <ErrorMessage>{error}</ErrorMessage>}
         {plan && (
           <>
-            {plan.shifts.length > 0 && (
+            {plan.shifts.some((s) => s.reason === 'full') && (
               <p className="rp-note rp-note--warning">
                 Embouteillage évité :{' '}
                 {plan.shifts
+                  .filter((s) => s.reason === 'full')
                   .map(
                     (s) =>
                       `${s.label} décalé du ${s.from.split('-').reverse().join('/')} au ${s.to.split('-').reverse().join('/')}`,
@@ -226,6 +249,66 @@ export function PlanDialog(props: {
                 })}
               </tbody>
             </table>
+            {plan.customReels.length > 0 && (
+              <div className="rp-custom">
+                <h3>Reels perso (facultatif)</h3>
+                <p className="muted small">
+                  Faits avec tes vidéos (« Reels depuis mes vidéos »). Coche ceux à ajouter, comme
+                  Reel Instagram et/ou Short YouTube.
+                </p>
+                <table className="rp-plan">
+                  <tbody>
+                    {plan.customReels.map((option) => {
+                      const choice = custom[option.customReelId] ?? {
+                        reel: false,
+                        short: false,
+                        date: option.date,
+                      };
+                      const set = (change: Partial<typeof choice>) =>
+                        setCustom({ ...custom, [option.customReelId]: { ...choice, ...change } });
+                      return (
+                        <tr key={option.customReelId}>
+                          <td>
+                            {option.label}
+                            {!option.rendered && (
+                              <span className="badge badge--warning">pas encore généré</span>
+                            )}
+                          </td>
+                          <td>
+                            <label className="rp-check">
+                              <input
+                                type="checkbox"
+                                checked={choice.reel}
+                                onChange={(e) => set({ reel: e.target.checked })}
+                              />
+                              <PlatformIcon kind="insta-reel" /> Reel Insta
+                            </label>
+                          </td>
+                          <td>
+                            <label className="rp-check">
+                              <input
+                                type="checkbox"
+                                checked={choice.short}
+                                onChange={(e) => set({ short: e.target.checked })}
+                              />
+                              <PlatformIcon kind="short" /> Short
+                            </label>
+                          </td>
+                          <td>
+                            <input
+                              className="input input--short"
+                              type="date"
+                              value={choice.date}
+                              onChange={(e) => set({ date: e.target.value })}
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
             <p className="muted small">
               Modèle et anti-embouteillage : Réglages › Planning de sortie. Les titres et
               descriptions YouTube se modifient ensuite élément par élément, avant l’envoi.

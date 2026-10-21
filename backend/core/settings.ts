@@ -167,5 +167,13 @@ export function validateSettingValue(field: SettingField, value: SettingValue): 
     case 'folder':
       if (typeof value !== 'string' || !path.isAbsolute(value)) throw invalid('dossier invalide');
       return value;
+    case 'weekdays': {
+      if (typeof value !== 'string' || !/^([1-7](,[1-7])*)?$/.test(value)) {
+        throw invalid('jours invalides');
+      }
+      const days = [...new Set(value.split(',').filter(Boolean).map(Number))].sort();
+      if (days.length === 0) throw invalid('au moins un jour');
+      return days.join(',');
+    }
   }
 }

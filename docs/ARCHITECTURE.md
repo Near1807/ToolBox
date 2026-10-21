@@ -192,6 +192,8 @@ La disposition est un JSON dans le réglage caché `ui.navigation` (`{ categorie
   - Un clic remet la fenêtre au premier plan et ouvre `/m/<module>/<path>` (IPC `toolbox:navigate`).
   - Chaque notification est aussi consignée dans les journaux du module.
 
+Fermer la fenêtre alors que des tâches tournent (envoi YouTube, rendu) — zone de notification désactivée — ouvre une confirmation qui les liste (`electron/desktop.ts`) : elles s'arrêtent avec l'app et reprennent au lancement suivant.
+
 ### Comptes connectés (`ctx.accounts`)
 
 `backend/core/accounts.ts` (ADR 0018). Le socle gère des **fournisseurs OAuth** (aujourd'hui `google`), jamais ce qu'un module en fait.

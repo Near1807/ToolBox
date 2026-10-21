@@ -8,6 +8,9 @@ export interface SettingsSectionData {
 }
 
 /** Form generated from a settings schema (core or module manifest). */
+
+const WEEKDAYS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+
 export function SettingsForm(props: { section: SettingsSectionData; onSaved: () => void }) {
   const { section } = props;
   const initial = Object.fromEntries(section.fields.map((f) => [f.field.key, f.value]));
@@ -155,6 +158,31 @@ export function SettingsForm(props: { section: SettingsSectionData; onSaved: () 
               </span>
             );
             break;
+          case 'weekdays': {
+            const days = new Set(
+              (typeof value === 'string' ? value : '').split(',').filter(Boolean).map(Number),
+            );
+            input = (
+              <span id={id} className="settings-form__days" role="group" aria-label={field.label}>
+                {WEEKDAYS.map((name, index) => (
+                  <label key={name}>
+                    <input
+                      type="checkbox"
+                      checked={days.has(index + 1)}
+                      onChange={(e) => {
+                        const next = new Set(days);
+                        if (e.target.checked) next.add(index + 1);
+                        else next.delete(index + 1);
+                        update(field.key, [...next].sort().join(','));
+                      }}
+                    />
+                    {name}
+                  </label>
+                ))}
+              </span>
+            );
+            break;
+          }
           case 'folder':
             input = (
               <span className="inline-form">

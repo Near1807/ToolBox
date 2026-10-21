@@ -1,7 +1,7 @@
 // Card of the home page: what to publish today (and what is late).
 import { useApi, useModule } from '@hub/sdk/frontend';
 import { CopyCaption, DragPreview, PlatformIcon } from './ItemParts';
-import type { PlannerItem } from './types';
+import type { PlannerItem, Summary } from './types';
 
 export function HomeWidget() {
   const module = useModule();
@@ -10,11 +10,22 @@ export function HomeWidget() {
     late: PlannerItem[];
     account: { connected: boolean; needsReconnect: boolean };
   }>(module.url('/today'));
+  const { data: summary } = useApi<Summary>(module.url('/summary'));
   if (!data) return null;
-  const reconnect = data.account.connected && data.account.needsReconnect && (
-    <p className="small rp-text-danger">
-      ⚠ Compte Google à reconnecter : envois YouTube en attente.
-    </p>
+  const reconnect = (
+    <>
+      {data.account.connected && data.account.needsReconnect && (
+        <p className="small rp-text-danger">
+          ⚠ Compte Google à reconnecter : envois YouTube en attente.
+        </p>
+      )}
+      {summary?.alerts.map((alert) => (
+        <p key={alert.releaseId} className="small rp-text-danger">
+          ⚠ {alert.level} : {alert.count} vidéo(s) YouTube de « {alert.trackTitle} » pas encore
+          envoyée(s).
+        </p>
+      ))}
+    </>
   );
   const todo = [...data.late, ...data.today].filter(
     (item) => item.status !== 'published' && item.status !== 'scheduled',

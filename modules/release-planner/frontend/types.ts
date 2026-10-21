@@ -99,6 +99,15 @@ export interface Summary {
   queue: number;
   quotaMessage: string | null;
   templateErrors: string[];
+  /** J-3 / J-1: YouTube elements not sent yet, close to their date. */
+  alerts: {
+    releaseId: number;
+    trackTitle: string;
+    count: number;
+    firstDate: string;
+    level: 'J-3' | 'J-1';
+  }[];
+  autoUpload: { enabled: boolean; days: number };
 }
 
 export interface TrackChoice {
@@ -129,8 +138,19 @@ export interface PlanProposal {
     title: string;
     description: string;
   }[];
-  shifts: { label: string; from: string; to: string }[];
+  shifts: { label: string; from: string; to: string; reason: 'full' | 'day' }[];
   warnings: string[];
+  /** Day asked in the dialog, and J actually used (next Monday when asked). */
+  requestedDate: string;
+  releaseDate: string;
+  /** Reels perso of the track, offered unticked. */
+  customReels: {
+    customReelId: number;
+    label: string;
+    position: number;
+    date: string;
+    rendered: boolean;
+  }[];
 }
 
 export const STATUS_LABELS: Record<ItemStatus, string> = {

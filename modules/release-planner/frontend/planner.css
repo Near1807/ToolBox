@@ -609,3 +609,16 @@
   margin: 4px 0 0;
   color: var(--text-muted);
 }
+
+.rp-send-help {
+  max-width: 560px;
+  margin: 6px 0 0;
+}
+
+.rp-custom {
+  margin-top: 14px;
+}
+
+.rp-custom h3 {
+  margin: 0 0 4px;
+}

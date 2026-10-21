@@ -34,7 +34,9 @@ export type SettingField =
   /** Stored encrypted (safeStorage); its value is never sent back to the UI. */
   | { key: string; type: 'secret'; label: string; description?: string }
   /** A folder chosen with the native folder picker. */
-  | { key: string; type: 'folder'; label: string; description?: string; default?: string };
+  | { key: string; type: 'folder'; label: string; description?: string; default?: string }
+  /** Days of the week, stored as ISO numbers "1,2,3,4,5" (1 = Monday … 7 = Sunday). */
+  | { key: string; type: 'weekdays'; label: string; description?: string; default?: string };
 
 export type SettingType = SettingField['type'];
 export type SettingValue = string | number | boolean | null;
