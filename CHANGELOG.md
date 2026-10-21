@@ -4,6 +4,36 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.12.0] — 2026-10-21
+
+Nouveau look et thèmes, barre latérale à catégories, textes modifiables sur place, projets par morceau, Reels depuis mes vidéos, Planning amélioré.
+
+### Ajouté
+
+- **Thèmes de l'interface** (Réglages › Apparence, changement immédiat, retenu) : Nebula (repris de GameLife, par défaut), Console, Studio, Minuit, Clair. Tout passe par des variables CSS (un fichier par thème, `docs/THEMES.md`) ; polices et icônes embarquées ; barre de titre Windows claire ou sombre selon le thème.
+- **Composants partagés** du SDK (carte d'élément généré, miniature à glisser, état, case « Publié », actions, forme d'onde des extraits, champs de texte) utilisés par tous les modules.
+- **Barre latérale à catégories** : repliables, créées, renommées, supprimées, réordonnées ; outils déplacés par glisser-déposer ou clic droit ; recherche (Ctrl+K) ; « Tout replier » ; l'accueil suit les mêmes catégories.
+- **Textes modifiables sous l'élément** (titre, description, légende, tags) : vidéo YouTube, pack Insta (légende du pack + légende de chaque Reel), Reels perso, panneau du Planning. Les modèles ne font que pré-remplir ; « Enregistrer comme modèle par défaut ».
+- **Projets** : chaque élément généré appartient à un morceau ; la page du morceau montre tout ce qui a été généré, groupé par type, avec son état (généré / planifié / programmé / publié) et la case « Inclure dans la sortie ». Section « Sans projet » (rattacher ou supprimer).
+- **Module « Reels depuis mes vidéos »** (`custom-reels`) : tes vidéos (glisser-déposer), 1 à 4 Reels, extrait 15–60 s, passages sur une timeline ou enchaînés, cadrage 9:16 sans recadrage automatique (vidéo entière + fond flou, ou « remplir » autour d'un point), effets Brut / Calme / Rythme / Ciné avec aperçu, seul le son du morceau.
+- **Planning de sortie** : alertes J-3 / J-1 pour les vidéos YouTube pas encore envoyées ; notification immédiate « À programmer dans Studio » avec le lien ; « Vérifier sur YouTube maintenant » ; envoi automatique (désactivé par défaut) ; jours de publication autorisés et « J tombe toujours un lundi » ; Reels perso ajoutables ; seuls les éléments inclus sont proposés.
+- Fermer la fenêtre pendant un envoi (ou un rendu) demande confirmation.
+- Socle : réglage de type `weekdays` ; préférences d'interface (`GET/PUT /api/core/ui`) ; `ctx.outputs.orphans` / `attach`.
+
+### Modifié
+
+- Nouveau modèle de plan par défaut : J vidéo YouTube + post ; J+1 à J+4 Reel n + Short n.
+- `subject` est désormais **obligatoire** dans `ctx.outputs.register` (le projet de l'élément).
+- Aucune couleur écrite en dur dans l'interface (contrôle ajouté à `npm run lint`).
+
+### Corrigé
+
+- Planning : déplacer la date d'une vidéo envoyée en « Privée » ne change plus rien sur YouTube (seulement le calendrier).
+
+### Données
+
+- Migrations (sauvegarde automatique avant chacune, aucune donnée supprimée) : socle 4 (projet choisi à la main), Bibliothèque 2 (inclusion dans la sortie), Vidéo YouTube 2 (textes par morceau), Planning 2 et 3 (textes qui suivent les modèles, Reels perso, alertes, envoi automatique), Reels perso 1.
+
 ## [0.11.1] — 2026-10-20
 
 ### Ajouté

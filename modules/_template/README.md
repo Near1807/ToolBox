@@ -10,13 +10,13 @@ Une liste de notes, l'export d'une note en fichier .txt (enregistré dans `ctx.o
 
 ## Données
 
-| Élément          | Détail                                                                                              |
-| ---------------- | --------------------------------------------------------------------------------------------------- |
-| Table            | `template__notes` (id, text, created_at) — migration 1                                              |
-| Fichiers         | exports `Note <id>.txt` dans le dossier de sortie, enregistrés dans `ctx.outputs` (ref `note:<id>`) |
-| Réglages         | `greeting` (texte), `demoSeconds` (nombre)                                                          |
-| Événements émis  | `template:note.created` `{ id }`                                                                    |
-| Services fournis | aucun                                                                                               |
+| Élément          | Détail                                                                                                                            |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Table            | `template__notes` (id, text, created_at) — migration 1                                                                            |
+| Fichiers         | exports `Note <id>.txt` dans le dossier de sortie, enregistrés dans `ctx.outputs` (ref `note:<id>`, projet `_template:note:<id>`) |
+| Réglages         | `greeting` (texte), `demoSeconds` (nombre)                                                                                        |
+| Événements émis  | `template:note.created` `{ id }`                                                                                                  |
+| Services fournis | aucun                                                                                                                             |
 
 ## Dépendances
 
