@@ -11,6 +11,24 @@ export interface Source {
   height: number;
   exists: boolean;
   url: string | null;
+  /** Size of the copy in ToolBox (kept after it is deleted). */
+  sizeBytes: number | null;
+  /** The copy was deleted to free disk space (« Réimporter » to change its Reels). */
+  removedAt: string | null;
+  usedBy: string[];
+  /** Every Reel using it is generated. */
+  allReady: boolean;
+  /** « Supprimer la copie ? » offered after the render (setting), until « Garder ». */
+  cleanupOffered: boolean;
+}
+
+/** Disk space of the imported copies. */
+export interface Storage {
+  bytes: number;
+  count: number;
+  freedBytes: number;
+  freedCount: number;
+  folder: string;
 }
 
 export interface Segment {
@@ -63,6 +81,7 @@ export interface TrackDetail {
   audioUrl: string | null;
   defaultClip: number;
   sources: Source[];
+  storage: { track: Storage; all: Storage };
   reels: Reel[];
 }
 

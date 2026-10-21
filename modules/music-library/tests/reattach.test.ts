@@ -159,14 +159,16 @@ describe('reattaching « Sans projet » elements, module by module', () => {
   it('moves the video, the whole pack and the Reel perso (with its video) to the chosen track', async () => {
     const list = await orphans();
     const ofGone = list.filter((r) => r.subject === `music-library:track:${ids.gone}`);
-    expect(ofGone.map((r) => r.moduleId).sort()).toEqual([
-      'custom-reels',
-      'instagram-video',
-      'instagram-video',
-      'youtube-video',
+    expect(ofGone.map((r) => `${r.moduleId}/${r.kind}`).sort()).toEqual([
+      'custom-reels/reel',
+      'custom-reels/source', // the imported copy
+      'instagram-video/post',
+      'instagram-video/reel',
+      'youtube-video/video',
     ]);
     const res = await attach(
-      ofGone.filter((r) => r.ref !== 'item:2').map((r) => r.id), // the Reel 1 follows its pack
+      // Reel 1 of the pack follows its pack, the imported video follows its Reel perso.
+      ofGone.filter((r) => r.ref !== 'item:2' && r.kind !== 'source').map((r) => r.id),
       ids.target,
     );
     expect(res.body).toEqual({ attached: 3 });
@@ -181,6 +183,7 @@ describe('reattaching « Sans projet » elements, module by module', () => {
     // Everything is in the project of the track now, nothing left « Sans projet » from it.
     const project = await get<OutputRecord[]>(`${LIB}/tracks/${ids.target}/project`);
     expect(project.map((r) => r.fileName).sort()).toEqual([
+      'clip.mp4',
       'gone-perso.mp4',
       'gone-post.jpg',
       'gone-reel1.mp4',

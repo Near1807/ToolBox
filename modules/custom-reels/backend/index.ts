@@ -36,6 +36,12 @@ interface SourceRow {
   width: number;
   height: number;
   created_at: string;
+  /** Size of the copy, kept after it is deleted (to say what was freed). */
+  size_bytes: number | null;
+  /** The copy was deleted to free disk space (the Reels made with it stay). */
+  removed_at: string | null;
+  /** « Garder » answered: the cleanup is not offered again. */
+  keep_copy: number;
 }
 
 export interface Segment {
@@ -135,6 +141,15 @@ export default defineBackendModule({
           updated_at TEXT NOT NULL,
           UNIQUE (track_id, position)
         );
+      `,
+    },
+    {
+      version: 2,
+      description: 'size of the imported copies, copies deleted to free disk space',
+      up: `
+        ALTER TABLE custom_reels__sources ADD COLUMN size_bytes INTEGER;
+        ALTER TABLE custom_reels__sources ADD COLUMN removed_at TEXT;
+        ALTER TABLE custom_reels__sources ADD COLUMN keep_copy INTEGER NOT NULL DEFAULT 0;
       `,
     },
   ],
@@ -278,9 +293,49 @@ export default defineBackendModule({
         : null;
     for (const row of ctx.db.prepare(`SELECT * FROM ${reels}`).all() as ReelRow[])
       registerReel(row);
+    // The imported copies too (kind « source »: material, not a deliverable), so
+    // that deleting one goes to the Recycle Bin like any file of the app.
+    const fileSize = (file: string) => {
+      try {
+        return statSync(file).size;
+      } catch {
+        return null;
+      }
+    };
+    const registerSource = (row: SourceRow) =>
+      row.removed_at || !row.file_path
+        ? null
+        : ctx.outputs.register({
+            path: row.file_path,
+            ref: `source:${row.id}`,
+            parent: `sources:${row.track_id}`,
+            subject: subject(row.track_id),
+            label: `Vidéo importée — ${row.name}`,
+            kind: 'source',
+            createdAt: row.created_at,
+          });
+    for (const row of ctx.db.prepare(`SELECT * FROM ${sources}`).all() as SourceRow[]) {
+      if (row.size_bytes === null && !row.removed_at) {
+        ctx.db
+          .prepare(`UPDATE ${sources} SET size_bytes = ? WHERE id = ?`)
+          .run(fileSize(row.file_path), row.id);
+      }
+      registerSource(row);
+    }
     // Deleted or removed from the lists: the Reel stays, without its file (to render again).
+    // An imported copy gone (Recycle Bin, or missing): the video stays listed as
+    // « Copie supprimée », the Reels made with it are kept.
     ctx.outputs.onRemoved((records) => {
       for (const record of records) {
+        if (record.ref.startsWith('source:')) {
+          const row = source(Number(record.ref.slice('source:'.length)));
+          if (row && !existsSync(row.file_path)) {
+            ctx.db
+              .prepare(`UPDATE ${sources} SET removed_at = ? WHERE id = ?`)
+              .run(new Date().toISOString(), row.id);
+          }
+          continue;
+        }
         const id = Number(record.ref.replace(/^reel:/, ''));
         const row = Number.isInteger(id) ? reel(id) : undefined;
         if (!row) continue;
@@ -302,6 +357,13 @@ export default defineBackendModule({
       if (trackId === null) throw new HttpError(409, 'Un Reel perso se rattache à un morceau');
       for (const record of records) {
         const [kind, rawId] = record.ref.split(':');
+        if (kind === 'source') {
+          const src = source(Number(rawId));
+          if (!src || src.track_id === trackId) continue;
+          ctx.db.prepare(`UPDATE ${sources} SET track_id = ? WHERE id = ?`).run(trackId, src.id);
+          registerSource({ ...src, track_id: trackId });
+          continue;
+        }
         if (kind !== 'reel') continue;
         const row = reel(Number(rawId));
         if (!row || row.track_id === trackId) continue;
@@ -316,6 +378,8 @@ export default defineBackendModule({
         updateReel(row.id, { track_id: trackId, position });
         for (const id of new Set(segmentsOf(row).map((segment) => segment.sourceId))) {
           ctx.db.prepare(`UPDATE ${sources} SET track_id = ? WHERE id = ?`).run(trackId, id);
+          const src = source(id);
+          if (src) registerSource(src);
         }
         registerReel(reel(row.id)!);
       }
@@ -330,15 +394,53 @@ export default defineBackendModule({
       );
 
     // DTOs ------------------------------------------------------------------------
-    const sourceDto = (row: SourceRow) => ({
-      id: row.id,
-      name: row.name,
-      durationSec: row.duration_sec,
-      width: row.width,
-      height: row.height,
-      exists: existsSync(row.file_path),
-      url: mediaUrl(row.file_path),
-    });
+    /** Reels using an imported video, with their state. */
+    const usersOf = (row: SourceRow) => {
+      const track = library.getTrack(row.track_id);
+      return reelsOf(row.track_id)
+        .filter((r) => segmentsOf(r).some((s) => s.sourceId === row.id))
+        .map((r) => ({ label: label(r), state: stateOf(r, track) }));
+    };
+    const offerCleanup = () => ctx.settings.get<boolean>('offerCleanup') !== false;
+    const sourceDto = (row: SourceRow) => {
+      const users = usersOf(row);
+      const removed = Boolean(row.removed_at);
+      const allReady = users.length > 0 && users.every((u) => u.state === 'ready');
+      return {
+        id: row.id,
+        name: row.name,
+        durationSec: row.duration_sec,
+        width: row.width,
+        height: row.height,
+        exists: !removed && existsSync(row.file_path),
+        url: removed ? null : mediaUrl(row.file_path),
+        sizeBytes: row.size_bytes,
+        removedAt: row.removed_at,
+        usedBy: users.map((u) => u.label),
+        /** Every Reel using it is generated: the copy can go (it is needed again only to change them). */
+        allReady,
+        /** Offered after the render (setting), until « Garder ». */
+        cleanupOffered: offerCleanup() && !removed && !row.keep_copy && allReady,
+      };
+    };
+    /** Disk space of the imported copies (still on disk), for a track or all. */
+    const storage = (trackId?: number) => {
+      const rows = (
+        trackId === undefined
+          ? ctx.db.prepare(`SELECT * FROM ${sources}`).all()
+          : ctx.db.prepare(`SELECT * FROM ${sources} WHERE track_id = ?`).all(trackId)
+      ) as SourceRow[];
+      const kept = rows.filter((r) => !r.removed_at);
+      const freed = rows.filter((r) => r.removed_at);
+      const sum = (list: SourceRow[]) => list.reduce((total, r) => total + (r.size_bytes ?? 0), 0);
+      return {
+        bytes: sum(kept),
+        count: kept.length,
+        freedBytes: sum(freed),
+        freedCount: freed.length,
+        folder: ctx.files.dataPath('videos'),
+      };
+    };
     const reelDto = (row: ReelRow, track: Track, records = outputsByRef(track.id)) => {
       const record = records.get(`reel:${row.id}`);
       const segments = segmentsOf(row);
@@ -376,6 +478,11 @@ export default defineBackendModule({
       const segments = segmentsOf(row).map((segment) => {
         const src = source(segment.sourceId);
         if (!src) throw new Error('Une vidéo de ce Reel a été retirée : choisis un autre passage');
+        if (src.removed_at || !existsSync(src.file_path)) {
+          throw new Error(
+            `La copie de « ${src.name} » a été supprimée pour libérer de la place : réimporte-la (Tes vidéos › Réimporter) pour régénérer ce Reel`,
+          );
+        }
         return { source: src.file_path, start: segment.start, end: segment.end };
       });
       if (segments.length === 0) throw new Error('Choisis au moins un passage vidéo');
@@ -493,6 +600,7 @@ export default defineBackendModule({
         audioUrl: mediaUrl(track.audioPath),
         defaultClip: defaultClip(),
         sources: sourcesOf(track.id).map(sourceDto),
+        storage: { track: storage(track.id), all: storage() },
         reels: reelsOf(track.id).map((row) => reelDto(row, track, records)),
       };
     };
@@ -551,7 +659,10 @@ export default defineBackendModule({
             ctx.db.prepare(`DELETE FROM ${sources} WHERE id = ?`).run(id);
             throw error;
           }
-          ctx.db.prepare(`UPDATE ${sources} SET file_path = ? WHERE id = ?`).run(target, id);
+          ctx.db
+            .prepare(`UPDATE ${sources} SET file_path = ?, size_bytes = ? WHERE id = ?`)
+            .run(target, fileSize(target), id);
+          registerSource(source(id)!);
           added.push(id);
         } catch (error) {
           errors.push(error instanceof Error ? error.message : String(error));
@@ -566,23 +677,80 @@ export default defineBackendModule({
       return row;
     };
 
-    // Removes an imported video (its copy in ToolBox), unless a Reel uses it.
-    ctx.routes.delete('/sources/:id', (request) => {
+    // Removes an imported video (its copy goes to the Recycle Bin), unless a Reel uses it.
+    ctx.routes.delete('/sources/:id', async (request) => {
       const row = requireSource(idParam(request.params));
-      const users = reelsOf(row.track_id).filter((r) =>
-        segmentsOf(r).some((s) => s.sourceId === row.id),
-      );
+      const users = usersOf(row);
       if (users.length > 0) {
         throw new HttpError(
           409,
-          `Cette vidéo est utilisée par ${users.map(label).join(', ')} : retire d’abord ses passages`,
+          `Cette vidéo est utilisée par ${users.map((u) => u.label).join(', ')} : retire d’abord ses passages`,
         );
       }
+      await ctx.outputs.delete({ ref: `source:${row.id}` });
       ctx.db.prepare(`DELETE FROM ${sources} WHERE id = ?`).run(row.id);
-      if (row.file_path) rmSync(row.file_path, { force: true });
       rmSync(ctx.files.dataPath('filmstrips', String(row.id)), { recursive: true, force: true });
       return trackDto(requireTrack(row.track_id));
     });
+
+    // « Supprimer la copie » to free disk space once its Reels are generated: the
+    // copy goes to the Recycle Bin (ctx.outputs), the video and its Reels stay.
+    ctx.routes.post('/sources/:id/delete-copy', async (request) => {
+      const row = requireSource(idParam(request.params));
+      if (row.removed_at) return trackDto(requireTrack(row.track_id));
+      const pending = usersOf(row).filter((u) => u.state !== 'ready');
+      if (pending.length > 0) {
+        throw new HttpError(
+          409,
+          `Encore nécessaire : ${pending.map((u) => u.label).join(', ')} pas encore généré(s) ou à régénérer`,
+        );
+      }
+      await ctx.outputs.delete({ ref: `source:${row.id}` });
+      if (!source(row.id)?.removed_at) {
+        // Not registered (e.g. already missing): marked here.
+        if (existsSync(row.file_path)) throw new HttpError(500, 'Copie non supprimée');
+        ctx.db
+          .prepare(`UPDATE ${sources} SET removed_at = ? WHERE id = ?`)
+          .run(new Date().toISOString(), row.id);
+      }
+      ctx.logger.info(`Copie de « ${row.name} » envoyée à la Corbeille (place libérée)`);
+      return trackDto(requireTrack(row.track_id));
+    });
+
+    // « Garder » : the cleanup is not offered again for this video.
+    ctx.routes.post('/sources/:id/keep', (request) => {
+      const row = requireSource(idParam(request.params));
+      ctx.db.prepare(`UPDATE ${sources} SET keep_copy = 1 WHERE id = ?`).run(row.id);
+      return trackDto(requireTrack(row.track_id));
+    });
+
+    // « Réimporter » a video whose copy was deleted: same video, its Reels can change again.
+    ctx.routes.post('/sources/:id/reimport', async (request) => {
+      const row = requireSource(idParam(request.params));
+      const file = body(request).path;
+      if (typeof file !== 'string' || !VIDEO_EXTENSIONS.includes(path.extname(file).toLowerCase()))
+        throw new HttpError(400, 'Choisis une vidéo');
+      const info = await engine.probeVideo(file);
+      const target = ctx.files.dataPath('videos', `${row.id}${path.extname(file).toLowerCase()}`);
+      mkdirSync(path.dirname(target), { recursive: true });
+      await copyFile(file, target);
+      ctx.db
+        .prepare(
+          `UPDATE ${sources} SET file_path = ?, size_bytes = ?, duration_sec = ?, width = ?, height = ?,
+             removed_at = NULL, keep_copy = 0 WHERE id = ?`,
+        )
+        .run(target, fileSize(target), info.durationSec, info.width, info.height, row.id);
+      registerSource(source(row.id)!);
+      const warnings =
+        Math.abs(info.durationSec - row.duration_sec) > 1
+          ? [
+              `Durée différente de l’originale (${Math.round(info.durationSec)} s au lieu de ${Math.round(row.duration_sec)} s) : vérifie les passages.`,
+            ]
+          : [];
+      return { warnings, track: trackDto(requireTrack(row.track_id)) };
+    });
+
+    ctx.routes.get('/storage', () => storage());
 
     // Frames of a video for its timeline (cached).
     ctx.routes.get('/sources/:id/filmstrip', async (request) => {

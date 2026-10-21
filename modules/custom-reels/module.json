@@ -2,7 +2,7 @@
   "id": "custom-reels",
   "name": "Reels depuis mes vidéos",
   "description": "Des Reels 9:16 faits avec tes propres vidéos, sur un extrait du morceau, avec un effet au choix.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "section": "Musique",
   "icon": "🎬",
   "order": 35,
@@ -47,6 +47,13 @@
       "label": "Hashtags par défaut",
       "description": "Ajoutés après les tags du morceau.",
       "placeholder": "#music #reels"
+    },
+    {
+      "key": "offerCleanup",
+      "type": "boolean",
+      "label": "Proposer de supprimer la copie des vidéos importées",
+      "description": "Quand tous les Reels faits avec une vidéo sont générés, propose d'envoyer sa copie dans ToolBox à la Corbeille pour libérer de la place (l'original n'est jamais touché).",
+      "default": true
     }
   ]
 }
