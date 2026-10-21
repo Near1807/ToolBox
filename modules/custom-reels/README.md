@@ -20,6 +20,20 @@ Rendu : 1080×1920, pixels carrés, 30 i/s, titre et artiste discrets, fondus de
 
 Chaque copie importée est aussi enregistrée dans `ctx.outputs` (ref `source:<id>`, `kind: 'source'` : matière importée, listée et supprimable, jamais proposée à la sortie). Chaque Reel est enregistré dans `ctx.outputs` (ref `reel:<id>`, **projet** = le morceau, `music-library:track:<id>`) : il apparaît dans la vue projet de la Bibliothèque (« Reels perso », avec son état et « Inclure dans la sortie ») et dans « Fichiers générés ». Le Planning de sortie peut l'ajouter comme Reel Instagram et/ou Short YouTube (service `customReels`).
 
+## Expérimental (prototype v0.13, à valider)
+
+Marqué « Expérimental » dans l'interface. Fonctionne, mais rien n'est encore solidifié (pas de tests dédiés, seuils à mesurer sur de vraies vidéos).
+
+- **Son du Reel**, au choix par Reel :
+  - « Son du morceau » : l'extrait choisi sur la forme d'onde (comportement d'origine) ;
+  - « Son de la vidéo » : le son d'origine des passages choisis, volume normalisé (`loudnorm`, -14 LUFS), limité à -1,1 dBTP ;
+  - « Morceau synchronisé » : « Retrouver le morceau dans la vidéo » cherche où le morceau joue dans le son de la vidéo (corrélation croisée de l'enveloppe des attaques, grossière puis à la milliseconde), puis le son de la vidéo est remplacé par le master calé exactement dessus. Si la détection n'est pas fiable, c'est dit, avec « Utiliser « Son de la vidéo » ».
+  - Hors « Son du morceau », le Reel dure le temps des passages choisis (60 s au plus), sans boucle. Les effets suivent toujours le son final.
+- **Effet « Caméra embarquée »** : l'écran filmé au téléphone en s'enjaillant. Coups de zoom sur les basses, balancement qui change de sens à chaque coup de basse, secousses pilotées par les aigus, léger flou de mouvement, perspective « écran filmé de biais », éclats sur les impacts forts ; le cadre reste toujours rempli (zoom ajusté).
+- **Intensité** (Léger / Moyen / À fond, défaut Moyen) pour « Rythme » et « Caméra embarquée ».
+- **Texte à l'écran** par Reel (60 caractères), discret, en haut dans la zone de sécurité.
+- Données : migration 3 (ajouts de colonnes : `audio_mode`, `intensity`, `overlay_text` sur les Reels ; `sync_offset`, `sync_score`, `sync_ratio`, `sync_reliable` sur les vidéos). Route `POST /sources/:id/sync`.
+
 ## Données
 
 | Élément        | Détail                                                                                                                                                                                                                                                                                                                                                                    |

@@ -47,7 +47,7 @@
 
 Les règles ci-dessus (cover entière, aucun effet, couleurs de la cover) valent pour **tous les visuels faits à partir de la cover** : vidéo YouTube, Reels du pack Insta, post, miniature. Elles restent la charte stricte.
 
-Pour les Reels faits avec **les vidéos de l'utilisateur** (module `custom-reels`), le contenu est le sien : une **banque d'effets** est autorisée, un effet par Reel, choisi par l'utilisateur. Ce qui ne change pas :
+Pour les Reels faits avec **les vidéos de l'utilisateur** (module `custom-reels`), le contenu est le sien : une **banque d'effets** est autorisée, un effet par Reel, choisi par l'utilisateur. **Les effets énergiques y sont autorisés** (ex. « Caméra embarquée », expérimental) ; **règle absolue : tout mouvement est piloté par le son final du Reel** (celui qu'on entend : extrait du morceau, son de la vidéo ou morceau synchronisé). Ce qui ne change pas :
 
 - **Tout mouvement est piloté directement par le son**, avec la même enveloppe que la respiration des covers (attaque instantanée sur l'image même du coup de basse, retour doux), jamais par des événements détectés. Synchronisation mesurée : ≤ 1 image.
 - **Un effet ne masque jamais le contenu** : pas de recadrage automatique (vidéo entière sur un fond flou fait à partir d'elle-même, ou « remplir » autour d'un point **choisi par l'utilisateur**), jamais d'étirement, bandes ou vignette fines, flash léger.

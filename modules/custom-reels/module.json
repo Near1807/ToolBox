@@ -30,7 +30,8 @@
         { "value": "raw", "label": "Brut" },
         { "value": "calm", "label": "Calme" },
         { "value": "rhythm", "label": "Rythme" },
-        { "value": "cine", "label": "Ciné" }
+        { "value": "cine", "label": "Ciné" },
+        { "value": "camera", "label": "Caméra embarquée (expérimental)" }
       ],
       "default": "raw"
     },

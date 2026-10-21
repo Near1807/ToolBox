@@ -15,7 +15,7 @@ export interface CustomReel {
   label: string;
   startSec: number;
   durationSec: number;
-  effect: 'raw' | 'calm' | 'rhythm' | 'cine';
+  effect: 'raw' | 'calm' | 'rhythm' | 'cine' | 'camera';
   state: CustomReelState;
   /** Rendered file, null until rendered. */
   filePath: string | null;

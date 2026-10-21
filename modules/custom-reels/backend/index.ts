@@ -23,7 +23,10 @@ const execFileAsync = promisify(execFile);
 const MAX_REELS = 4;
 const MIN_CLIP = 15;
 const MAX_CLIP = 60;
-const EFFECTS: VideoEffectId[] = ['raw', 'calm', 'rhythm', 'cine'];
+const EFFECTS: VideoEffectId[] = ['raw', 'calm', 'rhythm', 'cine', 'camera'];
+/** EXPERIMENTAL options of a Reel. */
+const AUDIO_MODES = ['track', 'video', 'synced'] as const;
+const INTENSITIES = ['light', 'medium', 'max'] as const;
 const VIDEO_EXTENSIONS = ['.mp4', '.mov', '.m4v', '.webm', '.mkv', '.avi'];
 const DEFAULT_CAPTION = '{titre} — {artiste}\n\nNouveau son 🎧 lien en bio\n\n{hashtags}';
 
@@ -42,6 +45,11 @@ interface SourceRow {
   removed_at: string | null;
   /** « Garder » answered: the cleanup is not offered again. */
   keep_copy: number;
+  /** EXPERIMENTAL: where the track plays in the video's sound (track time = video time + offset). */
+  sync_offset: number | null;
+  sync_score: number | null;
+  sync_ratio: number | null;
+  sync_reliable: number | null;
 }
 
 export interface Segment {
@@ -72,6 +80,10 @@ interface ReelRow {
   error: string | null;
   job_id: string | null;
   published_at: string | null;
+  /** EXPERIMENTAL: « track » | « video » | « synced ». */
+  audio_mode: (typeof AUDIO_MODES)[number];
+  intensity: (typeof INTENSITIES)[number];
+  overlay_text: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -150,6 +162,19 @@ export default defineBackendModule({
         ALTER TABLE custom_reels__sources ADD COLUMN size_bytes INTEGER;
         ALTER TABLE custom_reels__sources ADD COLUMN removed_at TEXT;
         ALTER TABLE custom_reels__sources ADD COLUMN keep_copy INTEGER NOT NULL DEFAULT 0;
+      `,
+    },
+    {
+      version: 3,
+      description: 'EXPERIMENTAL: sound of a Reel, intensity, text on screen, track sync',
+      up: `
+        ALTER TABLE custom_reels__reels ADD COLUMN audio_mode TEXT NOT NULL DEFAULT 'track';
+        ALTER TABLE custom_reels__reels ADD COLUMN intensity TEXT NOT NULL DEFAULT 'medium';
+        ALTER TABLE custom_reels__reels ADD COLUMN overlay_text TEXT;
+        ALTER TABLE custom_reels__sources ADD COLUMN sync_offset REAL;
+        ALTER TABLE custom_reels__sources ADD COLUMN sync_score REAL;
+        ALTER TABLE custom_reels__sources ADD COLUMN sync_ratio REAL;
+        ALTER TABLE custom_reels__sources ADD COLUMN sync_reliable INTEGER;
       `,
     },
   ],
@@ -244,6 +269,10 @@ export default defineBackendModule({
         effect: row.effect,
         title: track.title,
         artist: track.artist,
+        // EXPERIMENTAL options (absent = as before v0.13 prototype: no « À régénérer »).
+        ...(row.audio_mode !== 'track' ? { audio: row.audio_mode } : {}),
+        ...(row.intensity !== 'medium' ? { intensity: row.intensity } : {}),
+        ...(row.overlay_text ? { text: row.overlay_text } : {}),
       });
     const stateOf = (row: ReelRow, track: Track | null): CustomReelState => {
       if (row.job_id) {
@@ -421,6 +450,15 @@ export default defineBackendModule({
         allReady,
         /** Offered after the render (setting), until « Garder ». */
         cleanupOffered: offerCleanup() && !removed && !row.keep_copy && allReady,
+        sync:
+          row.sync_offset === null
+            ? null
+            : {
+                offset: row.sync_offset,
+                score: row.sync_score,
+                ratio: row.sync_ratio,
+                reliable: Boolean(row.sync_reliable),
+              },
       };
     };
     /** Disk space of the imported copies (still on disk), for a track or all. */
@@ -454,8 +492,12 @@ export default defineBackendModule({
         durationSec: row.duration_sec,
         segments,
         videoSeconds,
-        /** The chosen passages are shorter than the excerpt: they will be looped. */
-        loops: videoSeconds > 0 && videoSeconds < row.duration_sec - 0.05,
+        /** The chosen passages are shorter than the excerpt: they will be looped (track sound only). */
+        loops:
+          row.audio_mode === 'track' && videoSeconds > 0 && videoSeconds < row.duration_sec - 0.05,
+        audioMode: row.audio_mode,
+        intensity: row.intensity,
+        overlayText: row.overlay_text ?? '',
         framing: row.framing,
         focus: { x: row.focus_x, y: row.focus_y },
         effect: row.effect,
@@ -486,7 +528,29 @@ export default defineBackendModule({
         return { source: src.file_path, start: segment.start, end: segment.end };
       });
       if (segments.length === 0) throw new Error('Choisis au moins un passage vidéo');
+      // EXPERIMENTAL « Morceau synchronisé »: each video must have a reliable match.
+      const syncOffsets: Record<string, number> = {};
+      if (row.audio_mode === 'synced') {
+        for (const segment of segmentsOf(row)) {
+          const src = source(segment.sourceId)!;
+          if (src.sync_offset === null) {
+            throw new Error(
+              `Morceau pas encore cherché dans « ${src.name} » : clique « Retrouver le morceau dans la vidéo »`,
+            );
+          }
+          if (!src.sync_reliable) {
+            throw new Error(
+              `Morceau pas retrouvé de façon fiable dans « ${src.name} » : choisis « Son de la vidéo »`,
+            );
+          }
+          syncOffsets[src.file_path] = src.sync_offset;
+        }
+      }
       return {
+        audioMode: row.audio_mode,
+        syncOffsets,
+        intensity: row.intensity,
+        overlayText: row.overlay_text ?? undefined,
         audioPath: track.audioPath,
         start: row.start_sec,
         duration: row.duration_sec,
@@ -750,6 +814,30 @@ export default defineBackendModule({
       return { warnings, track: trackDto(requireTrack(row.track_id)) };
     });
 
+    // EXPERIMENTAL « Morceau synchronisé »: where the track plays in the video's sound.
+    ctx.routes.post('/sources/:id/sync', async (request) => {
+      const row = requireSource(idParam(request.params));
+      if (row.removed_at || !existsSync(row.file_path)) {
+        throw new HttpError(409, 'Copie supprimée : réimporte la vidéo d’abord');
+      }
+      const track = requireTrack(row.track_id);
+      let result;
+      try {
+        result = await engine.findTrackInVideo(track.audioPath, row.file_path);
+      } catch (error) {
+        throw new HttpError(409, (error as Error).message);
+      }
+      ctx.db
+        .prepare(
+          `UPDATE ${sources} SET sync_offset = ?, sync_score = ?, sync_ratio = ?, sync_reliable = ? WHERE id = ?`,
+        )
+        .run(result.offset, result.score, result.ratio, result.reliable ? 1 : 0, row.id);
+      ctx.logger.info(
+        `Synchro « ${row.name} » : décalage ${result.offset} s, score ${result.score}, rapport ${result.ratio}`,
+      );
+      return { sync: result, track: trackDto(track) };
+    });
+
     ctx.routes.get('/storage', () => storage());
 
     // Frames of a video for its timeline (cached).
@@ -876,6 +964,25 @@ export default defineBackendModule({
         if (!EFFECTS.includes(input.effect as VideoEffectId))
           throw new HttpError(400, 'Effet inconnu');
         fields.effect = input.effect as VideoEffectId;
+      }
+      if (input.audioMode !== undefined) {
+        if (!AUDIO_MODES.includes(input.audioMode as never))
+          throw new HttpError(400, 'Son invalide');
+        fields.audio_mode = input.audioMode as ReelRow['audio_mode'];
+      }
+      if (input.intensity !== undefined) {
+        if (!INTENSITIES.includes(input.intensity as never))
+          throw new HttpError(400, 'Intensité invalide');
+        fields.intensity = input.intensity as ReelRow['intensity'];
+      }
+      if (input.overlayText !== undefined) {
+        if (input.overlayText !== null && typeof input.overlayText !== 'string')
+          throw new HttpError(400, 'Texte invalide');
+        const text = (input.overlayText ?? '')
+          .replace(/[\r\n]+/g, ' ')
+          .trim()
+          .slice(0, 60);
+        fields.overlay_text = text || null;
       }
       if (input.caption !== undefined) {
         if (input.caption !== null && typeof input.caption !== 'string') {

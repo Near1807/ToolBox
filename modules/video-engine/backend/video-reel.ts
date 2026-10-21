@@ -12,8 +12,16 @@ import path from 'node:path';
 import { createCanvas, GlobalFonts, type SKRSContext2D } from '@napi-rs/canvas';
 import type { RenderHandlers, RenderResult, VideoReelRequest } from '../contract';
 import { bassEnergyPerFrame, breathEnvelope } from './audio-analysis';
-import { buildFramesEncodeArgs, FORMATS, FPS } from './commands';
-import { effectOf, type VideoEffect } from './effects';
+import {
+  buildFramesEncodeArgs,
+  buildTruePeakArgs,
+  dbToLinear,
+  FORMATS,
+  FPS,
+  parseTruePeak,
+  TRUE_PEAK_RATE,
+} from './commands';
+import { effectOf, INTENSITY_FACTOR, type EffectFrame, type VideoEffect } from './effects';
 import {
   decodeExcerpt,
   FONT_FILE,
@@ -193,6 +201,92 @@ export function applyMotion(
   return out;
 }
 
+/**
+ * EXPERIMENTAL — « Caméra embarquée »: the picture through a projective warp
+ * (zoom, rotation, shake, slight keystone of a screen filmed at an angle),
+ * bilinear, then a light motion blur (blend with the previous output) and the
+ * flash. The zoom is raised until the warped picture covers the whole frame:
+ * never any black edge.
+ */
+export function applyCamera(
+  src: Uint8Array,
+  out: Uint8Array,
+  previous: Uint8Array | null,
+  width: number,
+  height: number,
+  motion: EffectFrame,
+): Uint8Array {
+  const cam = motion.camera!;
+  const cx = (width - 1) / 2;
+  const cy = (height - 1) / 2;
+  const cos = Math.cos(cam.rotation);
+  const sin = Math.sin(cam.rotation);
+  // Inverse mapping (output → source) in coordinates centred and scaled by the height.
+  const h = height / 2;
+  const inverse = (zoom: number, x: number, y: number): [number, number] => {
+    let u = (x - cx) / h - cam.shiftX * (width / h);
+    let v = (y - cy) / h - cam.shiftY * (width / h);
+    // Keystone: the left side nearer than the right (a screen filmed from the side).
+    const w = 1 + cam.keystone * u * 0.5;
+    u /= w;
+    v /= w;
+    const ru = (cos * u + sin * v) / zoom;
+    const rv = (-sin * u + cos * v) / zoom;
+    return [ru * h + cx, rv * h + cy];
+  };
+  let zoom = Math.max(1, motion.zoom);
+  const corners: [number, number][] = [
+    [0, 0],
+    [width - 1, 0],
+    [0, height - 1],
+    [width - 1, height - 1],
+  ];
+  for (let i = 0; i < 40; i++) {
+    const inside = corners.every(([x, y]) => {
+      const [sx, sy] = inverse(zoom, x, y);
+      return sx >= 0 && sx <= width - 1 && sy >= 0 && sy <= height - 1;
+    });
+    if (inside) break;
+    zoom *= 1.015;
+  }
+  const f = Math.min(1, Math.max(0, motion.flash));
+  const blur = Math.min(0.6, Math.max(0, cam.blur));
+  const row = width * 3;
+  for (let y = 0; y < height; y++) {
+    let o = y * row;
+    for (let x = 0; x < width; x++) {
+      const [sx, sy] = inverse(zoom, x, y);
+      const x0 = Math.max(0, Math.min(width - 2, Math.floor(sx)));
+      const y0 = Math.max(0, Math.min(height - 2, Math.floor(sy)));
+      const fx = Math.min(1, Math.max(0, sx - x0));
+      const fy = Math.min(1, Math.max(0, sy - y0));
+      const a = y0 * row + x0 * 3;
+      const b = a + row;
+      for (let c = 0; c < 3; c++) {
+        const top = src[a + c]! + (src[a + 3 + c]! - src[a + c]!) * fx;
+        const bottom = src[b + c]! + (src[b + 3 + c]! - src[b + c]!) * fx;
+        let value = top + (bottom - top) * fy;
+        if (previous && blur > 0) value = value * (1 - blur) + previous[o + c]! * blur;
+        out[o + c] = f > 0 ? value + (255 - value) * f : value;
+      }
+      o += 3;
+    }
+  }
+  return out;
+}
+
+/** EXPERIMENTAL — energy of the highs (percussion) per frame: first difference, mean square. */
+export function highEnergyPerFrame(samples: Float32Array, rate: number, frames: number): number[] {
+  const per = rate / FPS;
+  return Array.from({ length: frames }, (_, i) => {
+    const from = Math.max(1, Math.floor(i * per));
+    const to = Math.min(samples.length, Math.floor((i + 1) * per));
+    let sum = 0;
+    for (let j = from; j < to; j++) sum += (samples[j]! - samples[j - 1]!) ** 2;
+    return to > from ? sum / (to - from) : 0;
+  });
+}
+
 /** Font size so that the text fits the width (letter spacing included). */
 function fitText(
   ctx: SKRSContext2D,
@@ -219,6 +313,7 @@ function drawStillLayer(
   k: number,
   title: string,
   artist: string,
+  overlayText = '',
 ): void {
   effect.overlay?.(ctx, width, height);
   const L = VIDEO_REEL_LAYOUT;
@@ -248,6 +343,15 @@ function drawStillLayer(
     ctx.font = `${size}px "Montserrat SemiBold"`;
     ctx.letterSpacing = `${spacing}px`;
     ctx.fillText(cleanArtist, width / 2, L.artist.top * k);
+  }
+  // EXPERIMENTAL « Texte à l'écran »: discreet, readable, inside the top safe zone.
+  const text = overlayText.replace(/[\r\n]+/g, ' ').trim();
+  if (text) {
+    ctx.letterSpacing = '0px';
+    const size = fitText(ctx, text, px(40), px(24), maxWidth);
+    ctx.font = `${size}px "Montserrat SemiBold"`;
+    ctx.globalAlpha = 0.88;
+    ctx.fillText(text, width / 2, (REEL_LAYOUT.safe.top + 40) * k);
   }
   ctx.restore();
 }
@@ -293,6 +397,79 @@ async function* rawFrames(
   }
 }
 
+/**
+ * EXPERIMENTAL — soundtrack made of the passages: the videos' own sound
+ * (« video », loudness-normalised) or the track's master at the matching
+ * place (« synced »), concatenated, faded, limited; true peak ≤ -1.1 dBTP.
+ */
+async function renderPiecesSoundtrack(
+  run: (args: string[]) => Promise<string>,
+  params: {
+    mode: 'video' | 'synced';
+    pieces: TimelinePiece[];
+    audioPath: string;
+    offsets: Record<string, number>;
+    trackDuration: number;
+    duration: number;
+    fade: number;
+    bitrate: string;
+    verify: boolean;
+  },
+): Promise<void> {
+  const inputs = params.pieces.flatMap((piece) => {
+    if (params.mode === 'video') {
+      return [
+        '-ss',
+        String(round(piece.start)),
+        '-t',
+        String(round(piece.duration)),
+        '-i',
+        piece.source,
+      ];
+    }
+    const offset = params.offsets[piece.source];
+    if (offset === undefined) throw new Error('Morceau pas encore retrouvé dans cette vidéo');
+    const at = piece.start + offset;
+    if (at < 0 || at + piece.duration > params.trackDuration + 0.05) {
+      throw new Error('Ce passage de la vidéo est hors du morceau : choisis un passage où il joue');
+    }
+    return ['-ss', String(round(at)), '-t', String(round(piece.duration)), '-i', params.audioPath];
+  });
+  const target = -1.1;
+  let ceiling = -1.6;
+  for (let attempt = 1; ; attempt++) {
+    const chains = params.pieces.map(
+      (_, i) => `[${i}:a]aresample=48000,aformat=channel_layouts=stereo[a${i}]`,
+    );
+    const d = params.duration;
+    const tail = [
+      `${params.pieces.map((_, i) => `[a${i}]`).join('')}concat=n=${params.pieces.length}:v=0:a=1`,
+      params.mode === 'video' ? 'loudnorm=I=-14:TP=-2:LRA=11' : null,
+      params.fade > 0 ? `afade=t=in:st=0:d=${round(params.fade)}` : null,
+      params.fade > 0
+        ? `afade=t=out:st=${round(Math.max(0, d - params.fade))}:d=${round(params.fade)}`
+        : null,
+      `aresample=${TRUE_PEAK_RATE}`,
+      `alimiter=limit=${dbToLinear(ceiling)}:attack=1:release=50:level=0`,
+      'aresample=48000[aout]',
+    ]
+      .filter(Boolean)
+      .join(',');
+    await run([
+      ...['-v', 'error', '-y', ...inputs],
+      ...['-filter_complex', [...chains, tail].join(';'), '-map', '[aout]'],
+      ...['-t', String(round(d)), '-c:a', 'aac', '-aac_coder', 'fast', '-b:a', params.bitrate],
+      ...['-ar', '48000', '-ac', '2', '-f', 'mp4', 'soundtrack.m4a'],
+    ]);
+    if (!params.verify) return;
+    const peak = parseTruePeak(await run(buildTruePeakArgs('soundtrack.m4a')));
+    if (peak === null) throw new Error('Mesure du niveau crête impossible');
+    if (peak <= target - 0.1) return;
+    if (attempt === 4) throw new Error(`Niveau crête trop élevé (${peak} dBTP)`);
+    ceiling -= peak - target + 0.4;
+  }
+}
+
 export interface VideoReelOptions extends VideoReelRequest {
   outputPath: string;
   scale?: number;
@@ -325,11 +502,18 @@ export async function renderVideoReel(
   const height = Math.max(2, Math.round((L.height * k) / 2) * 2);
 
   const audioDuration = await probeDuration(env.ffprobe, options.audioPath);
+  const mode = options.audioMode ?? 'track';
   const start = Math.min(Math.max(0, options.start), Math.max(0, audioDuration - 1));
-  const duration = Math.min(options.duration, audioDuration - start);
+  // Outside « track », the sound follows the chosen passages: the Reel lasts as long as them.
+  const passages = options.segments.reduce((sum, s) => sum + Math.max(0, s.end - s.start), 0);
+  const duration =
+    mode === 'track'
+      ? Math.min(options.duration, audioDuration - start)
+      : Math.min(60, passages, preview ? options.duration : Infinity);
   if (duration < 1) throw new Error('Extrait trop court (1 seconde minimum)');
   const frames = Math.round(duration * FPS);
   const timeline = planTimeline(options.segments, duration);
+  const intensity = INTENSITY_FACTOR[options.intensity ?? 'medium'] ?? 1;
 
   const work = path.join(env.workRoot, randomUUID());
   mkdirSync(work, { recursive: true });
@@ -338,30 +522,67 @@ export async function renderVideoReel(
     runFfmpeg({ ffmpeg: env.ffmpeg, args, cwd: work, signal: handlers.signal, onTime });
 
   try {
-    handlers.onProgress?.(0, 'Analyse du son…');
     const rate = 22050;
-    const samples = await decodeExcerpt(
-      env.ffmpeg,
-      options.audioPath,
-      start,
-      duration,
-      rate,
-      handlers.signal,
-    );
+    const fade = preview ? 0 : Math.min(options.fadeSeconds ?? L.fadeSeconds, duration / 4);
+    const bitrate = preview ? '128k' : FORMATS.instagram.encoding.audioBitrate;
+    let samples: Float32Array;
+    if (mode === 'track') {
+      handlers.onProgress?.(0, 'Analyse du son…');
+      samples = await decodeExcerpt(
+        env.ffmpeg,
+        options.audioPath,
+        start,
+        duration,
+        rate,
+        handlers.signal,
+      );
+      handlers.onProgress?.(0, 'Préparation du son…');
+      await renderSoundtrack(run, {
+        source: options.audioPath,
+        start,
+        duration,
+        fadeIn: fade,
+        fadeOut: fade,
+        bitrate,
+        verify: !preview,
+      });
+    } else {
+      // EXPERIMENTAL: the final sound is made first, the effects follow IT.
+      handlers.onProgress?.(0, 'Préparation du son…');
+      await renderPiecesSoundtrack(run, {
+        mode,
+        pieces: timeline.pieces,
+        audioPath: options.audioPath,
+        offsets: options.syncOffsets ?? {},
+        trackDuration: audioDuration,
+        duration,
+        fade,
+        bitrate,
+        verify: !preview,
+      });
+      handlers.onProgress?.(0, 'Analyse du son…');
+      samples = await decodeExcerpt(
+        env.ffmpeg,
+        path.join(work, 'soundtrack.m4a'),
+        0,
+        duration,
+        rate,
+        handlers.signal,
+      );
+    }
     const envelope = breathEnvelope(bassEnergyPerFrame(samples, rate, FPS, frames), FPS, {
       releaseSec: effect.releaseSec,
     });
-
-    handlers.onProgress?.(0, 'Préparation du son…');
-    const fade = preview ? 0 : Math.min(options.fadeSeconds ?? L.fadeSeconds, duration / 4);
-    await renderSoundtrack(run, {
-      source: options.audioPath,
-      start,
-      duration,
-      fadeIn: fade,
-      fadeOut: fade,
-      bitrate: preview ? '128k' : FORMATS.instagram.encoding.audioBitrate,
-      verify: !preview,
+    const highs = breathEnvelope(highEnergyPerFrame(samples, rate, frames), FPS, {
+      releaseSec: 0.08,
+      reference: 1e-9,
+    });
+    // The sway changes side on each bass attack (a jump of the envelope).
+    const sides: number[] = [];
+    let side = 1;
+    envelope.forEach((value, i) => {
+      if (i > 0 && value - envelope[i - 1]! > 0.25) side = -side;
+      sides.push(side);
     });
 
     if (!GlobalFonts.has('Montserrat SemiBold')) {
@@ -369,11 +590,21 @@ export async function renderVideoReel(
     }
     // Still layer (effect bars or vignette, title, artist): laid over by the encoder.
     const layer = createCanvas(width, height);
-    drawStillLayer(layer.getContext('2d'), effect, width, height, k, options.title, options.artist);
+    drawStillLayer(
+      layer.getContext('2d'),
+      effect,
+      width,
+      height,
+      k,
+      options.title,
+      options.artist,
+      options.overlayText,
+    );
     writeFileSync(path.join(work, 'layer.png'), await layer.encode('png'));
 
     const frameBytes = width * height * 3;
     const out = new Uint8Array(frameBytes);
+    let previousOut: Uint8Array | null = null;
     const decodeArgs = buildVideoDecodeArgs({
       pieces: timeline.pieces,
       width,
@@ -406,8 +637,18 @@ export async function renderVideoReel(
         let last: Buffer | null = null;
         let f = 0;
         const emit = async (pixels: Buffer) => {
-          const motion = effect.frame({ frame: f, frames, envelope: envelope[f] ?? 0 });
-          const frame = applyMotion(pixels, out, width, height, motion.zoom, motion.flash);
+          const motion = effect.frame({
+            frame: f,
+            frames,
+            envelope: envelope[f] ?? 0,
+            high: highs[f] ?? 0,
+            side: sides[f] ?? 1,
+            intensity,
+          });
+          const frame = motion.camera
+            ? applyCamera(pixels, out, previousOut, width, height, motion)
+            : applyMotion(pixels, out, width, height, motion.zoom, motion.flash);
+          if (motion.camera) previousOut = Buffer.from(out);
           // `out` is reused by the next frame: FFmpeg gets a copy.
           const chunk = frame === out ? Buffer.from(out) : (frame as Buffer);
           if (!stdin.write(chunk)) await once(stdin, 'drain');

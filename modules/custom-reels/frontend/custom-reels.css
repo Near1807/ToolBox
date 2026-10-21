@@ -359,3 +359,18 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* EXPERIMENTAL options (son, intensité, texte à l'écran). */
+.cr-inline-field {
+  display: grid;
+  gap: 4px;
+  margin: 10px 0 0;
+}
+
+.cr-sync {
+  margin-top: 8px;
+}
+
+.cr-inline-field .badge {
+  justify-self: start;
+}
