@@ -46,19 +46,20 @@ modules/<id>/
 }
 ```
 
-| Champ                  | Obligatoire | Rôle                                                                                                                         |
-| ---------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `id`                   | oui         | Identifiant, préfixe d'API (`/api/modules/<id>/`), de tables (`<id_avec_underscores>__`) et d'événements (`<id>:`)           |
-| `name`, `description`  | oui         | Affichés sur l'accueil, la navigation, les réglages (en français)                                                            |
-| `version`              | oui         | Version sémantique du module                                                                                                 |
-| `section`              | oui         | Catégorie **par défaut** dans la navigation et sur l'accueil (ex. « Musique ») ; l'utilisateur peut ensuite déplacer l'outil |
-| `icon`                 | oui         | Un emoji                                                                                                                     |
-| `order`                | non         | Ordre dans la section (défaut 100) ; l'ordre des sections suit leur premier module                                           |
-| `dependsOn.modules`    | non         | Modules qui doivent être présents **et chargés**                                                                             |
-| `dependsOn.services`   | non         | Services consommés via `ctx.services.get()` (fournis par n'importe quel module)                                              |
-| `provides.services`    | non         | Services que le module **doit** fournir via `ctx.services.provide()`                                                         |
-| `permissions.accounts` | non         | Comptes externes utilisés via `ctx.accounts` : `"google"` (seul fournisseur aujourd'hui)                                     |
-| `settings`             | non         | Réglages du module, affichés automatiquement dans la page Réglages (§5.3)                                                    |
+| Champ                        | Obligatoire | Rôle                                                                                                                         |
+| ---------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `id`                         | oui         | Identifiant, préfixe d'API (`/api/modules/<id>/`), de tables (`<id_avec_underscores>__`) et d'événements (`<id>:`)           |
+| `name`, `description`        | oui         | Affichés sur l'accueil, la navigation, les réglages (en français)                                                            |
+| `version`                    | oui         | Version sémantique du module                                                                                                 |
+| `section`                    | oui         | Catégorie **par défaut** dans la navigation et sur l'accueil (ex. « Musique ») ; l'utilisateur peut ensuite déplacer l'outil |
+| `icon`                       | oui         | Un emoji                                                                                                                     |
+| `order`                      | non         | Ordre dans la section (défaut 100) ; l'ordre des sections suit leur premier module                                           |
+| `dependsOn.modules`          | non         | Modules qui doivent être présents **et chargés**                                                                             |
+| `dependsOn.services`         | non         | Services consommés via `ctx.services.get()` (fournis par n'importe quel module)                                              |
+| `dependsOn.optionalServices` | non         | Services utilisés **s'ils sont là**, via `ctx.services.optional()` ; le module fonctionne sans (§5.8)                        |
+| `provides.services`          | non         | Services que le module **doit** fournir via `ctx.services.provide()`                                                         |
+| `permissions.accounts`       | non         | Comptes externes utilisés via `ctx.accounts` : `"google"` (seul fournisseur aujourd'hui)                                     |
+| `settings`                   | non         | Réglages du module, affichés automatiquement dans la page Réglages (§5.3)                                                    |
 
 Le manifest est validé au démarrage (`backend/core/modules/manifest.ts`) : un champ inconnu ou invalide rend le module « en erreur » avec un message précis, sans empêcher les autres de démarrer.
 
@@ -186,6 +187,8 @@ ctx.scheduler.schedule('refresh', { everyMinutes: 60 }, async () => {
 
 - Fournisseur : déclarer le nom dans `provides.services`, puis `ctx.services.provide('musicLibrary', implementation)` dans `register()`. Un service déclaré mais non fourni rend le module « en erreur ».
 - Consommateur : déclarer le nom dans `dependsOn.services`, puis `ctx.services.get<MusicLibrary>('musicLibrary')`. Appeler un service non déclaré lève une erreur.
+- Service facultatif : le déclarer dans `dependsOn.optionalServices`, puis `ctx.services.optional<T>('nom')`, qui renvoie `undefined` si aucun module chargé ne le fournit (absent, désactivé ou en erreur). Le module se charge quand même ; ses fournisseurs présents sont chargés avant lui. Il cache alors ce qui en dépend (bouton, option, élément du plan) et le dit clairement.
+- **Règle des dépendances** : un module ne déclare en dépendance obligatoire que ce sans quoi il n'a aucun sens ; tout le reste est facultatif. Exemple : le Planning de sortie n'exige que la Bibliothèque (une sortie est celle d'un morceau) ; Vidéo YouTube, Pack Instagram, Reels perso et moteur vidéo sont facultatifs, et le plan ne propose que ce que les modules présents fournissent. Un générateur (Vidéo YouTube, Pack Instagram, Reels perso) exige en revanche la Bibliothèque (le morceau) et le moteur vidéo (le rendu) : sans eux, il n'a rien à faire. ADR 0024.
 - **Types** : le fournisseur décrit l'interface de ses services dans `modules/<id>/contract.ts` (types uniquement, aucun code exécutable). Le consommateur peut faire `import type { MusicLibrary } from '../../music-library/contract'` : c'est la **seule** importation entre modules autorisée. Elle est effacée à la compilation, donc le build fonctionne même si le fournisseur est retiré (seul `npm run typecheck` signalera alors les consommateurs à retirer ou adapter).
 - Un service doit rester compatible : on ajoute des méthodes, on n'en change pas la signature sans adapter les consommateurs dans le même commit.
 

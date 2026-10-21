@@ -167,11 +167,13 @@ Les modèles **ne font que pré-remplir** : dans le panneau d'un élément, titr
 
 ## Dépendances
 
-| Type                                                  | Détail                                                                                                                                                                                                |
-| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Modules                                               | `music-library`, `video-engine`, `youtube-video`, `instagram-video`                                                                                                                                   |
-| Services (via `ctx.services`, jamais d'import direct) | `musicLibrary` (morceaux) · `youtubeVideo` (vidéos, textes, rendu, « en ligne ») · `instagramPack` (pack, légendes, case « Publié », rendu) · `customReels` (Reels perso) · `videoEngine` (miniature) |
-| Compte                                                | `google` (`permissions.accounts`)                                                                                                                                                                     |
+| Type                             | Détail                                                                                                                                                                    |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Obligatoire                      | `music-library`, service `musicLibrary` (morceaux, vue projet) : une sortie est celle d'un morceau                                                                        |
+| Facultatifs (`optionalServices`) | `youtubeVideo` (vidéos, textes, rendu, « en ligne ») · `instagramPack` (pack, légendes, case « Publié », rendu) · `customReels` (Reels perso) · `videoEngine` (miniature) |
+| Compte                           | `google` (`permissions.accounts`)                                                                                                                                         |
+
+Sans un module facultatif, le Planning se charge quand même : ses éléments ne sont jamais proposés (le plan le dit), et `GET /summary` renvoie `features` (`youtubeVideo`, `instagramPack`, `customReels`) pour que l'interface cache ce qui en dépend. Sans `videoEngine`, la vidéo longue part avec la miniature automatique de YouTube.
 
 ## API
 

@@ -316,6 +316,11 @@ export interface ModuleServices {
   provide<T extends object>(name: string, implementation: T): void;
   /** Returns a service declared in manifest.dependsOn.services. */
   get<T extends object>(name: string): T;
+  /**
+   * Returns a service declared in manifest.dependsOn.optionalServices, or
+   * undefined when no loaded module provides it (the module must work without).
+   */
+  optional<T extends object>(name: string): T | undefined;
 }
 
 /** State of a connected account (OAuth), as seen by modules and the Settings page. */

@@ -62,7 +62,11 @@ const manifestSchema = z.strictObject({
   icon: z.string().min(1),
   order: z.number().optional(),
   dependsOn: z
-    .strictObject({ modules: z.array(id).optional(), services: z.array(z.string()).optional() })
+    .strictObject({
+      modules: z.array(id).optional(),
+      services: z.array(z.string()).optional(),
+      optionalServices: z.array(z.string()).optional(),
+    })
     .optional(),
   provides: z.strictObject({ services: z.array(z.string()).optional() }).optional(),
   permissions: z

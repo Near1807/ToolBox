@@ -2,19 +2,14 @@
   "id": "release-planner",
   "name": "Planning de sortie",
   "description": "Calendrier de sortie de chaque morceau : vidéo YouTube et Shorts envoyés et programmés sur YouTube, rappels pour le post et les Reels Instagram.",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "section": "Musique",
   "icon": "🗓️",
   "order": 40,
   "dependsOn": {
-    "modules": [
-      "music-library",
-      "video-engine",
-      "youtube-video",
-      "instagram-video",
-      "custom-reels"
-    ],
-    "services": ["musicLibrary", "videoEngine", "youtubeVideo", "instagramPack", "customReels"]
+    "modules": ["music-library"],
+    "services": ["musicLibrary"],
+    "optionalServices": ["youtubeVideo", "instagramPack", "customReels", "videoEngine"]
   },
   "permissions": {
     "accounts": ["google"]

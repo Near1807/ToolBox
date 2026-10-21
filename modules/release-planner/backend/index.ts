@@ -106,11 +106,47 @@ export default defineBackendModule({
   ],
 
   register(ctx: ModuleContext) {
+    // Only the library is required (a release is a track's). The generators are
+    // optional: without one, its elements are simply never proposed.
     const library = ctx.services.get<MusicLibraryService>('musicLibrary');
-    const engine = ctx.services.get<VideoEngineService>('videoEngine');
-    const youtubeVideos = ctx.services.get<YouTubeVideoService>('youtubeVideo');
-    const packs = ctx.services.get<InstagramPackService>('instagramPack');
-    const customReels = ctx.services.get<CustomReelsService>('customReels');
+    const optional = {
+      engine: ctx.services.optional<VideoEngineService>('videoEngine'),
+      youtubeVideos: ctx.services.optional<YouTubeVideoService>('youtubeVideo'),
+      packs: ctx.services.optional<InstagramPackService>('instagramPack'),
+      customReels: ctx.services.optional<CustomReelsService>('customReels'),
+    };
+    const features = {
+      youtubeVideo: Boolean(optional.youtubeVideos),
+      instagramPack: Boolean(optional.packs),
+      customReels: Boolean(optional.customReels),
+    };
+    const absent = (name: string) => () => {
+      throw new HttpError(409, `Module « ${name} » absent ou désactivé`);
+    };
+    const youtubeVideos: YouTubeVideoService = optional.youtubeVideos ?? {
+      listVideos: () => [],
+      getVideo: () => null,
+      texts: () => null,
+      setTexts: absent('Vidéo YouTube'),
+      render: absent('Vidéo YouTube'),
+      setUploaded: () => {},
+    };
+    const packs: InstagramPackService = optional.packs ?? {
+      getPack: () => null,
+      getItem: () => null,
+      setPublished: absent('Pack Instagram'),
+      setCaption: absent('Pack Instagram'),
+      renderItem: absent('Pack Instagram'),
+    };
+    const customReels: CustomReelsService = optional.customReels ?? {
+      listReels: () => [],
+      getReel: () => null,
+      setPublished: absent('Reels depuis mes vidéos'),
+      setCaption: absent('Reels depuis mes vidéos'),
+      renderReel: absent('Reels depuis mes vidéos'),
+    };
+    if (!features.customReels)
+      ctx.logger.info('Sans « Reels depuis mes vidéos » : pas de Reels perso');
     const store = new PlannerStore(ctx);
     const youtube = (url: string, init?: RequestInit) => ctx.accounts.fetch(GOOGLE, url, init);
     let stopping = false;
@@ -606,9 +642,13 @@ export default defineBackendModule({
           `Exclus de la sortie (page du morceau) : ${[...new Set(excluded)].join(', ')}.`,
         );
       }
-      if (!video)
+      if (!features.youtubeVideo)
+        warnings.push('Module « Vidéo YouTube » absent : pas de vidéo YouTube dans le plan.');
+      else if (!video)
         warnings.push('Aucune vidéo YouTube générée pour ce morceau : elle est absente du plan.');
-      if (!pack)
+      if (!features.instagramPack)
+        warnings.push('Module « Pack Instagram » absent : ni post, ni Reels, ni Shorts du pack.');
+      else if (!pack)
         warnings.push('Pas de pack Instagram pour ce morceau : ni post, ni Reels, ni Shorts.');
       const notRendered = items.filter((item) =>
         item.kind === 'youtube' ? !video?.exists : !packItemFor(item)?.filePath,
@@ -778,7 +818,8 @@ export default defineBackendModule({
     const ensureThumbnail = async (release: ReleaseRow, track: Track): Promise<string | null> => {
       if (release.thumbnail_path && existsSync(release.thumbnail_path))
         return release.thumbnail_path;
-      if (!track.coverPath) return null;
+      if (!track.coverPath || !optional.engine) return null;
+      const engine = optional.engine;
       const file = path.join(
         ctx.files.outputDir(),
         `${track.artist} - ${track.title} - Miniature YouTube.jpg`.replace(/[<>:"/\\|?*]/g, '_'),
@@ -1294,6 +1335,7 @@ export default defineBackendModule({
         quotaMessage: quotaMessage(slots, now, formatInstant),
         alerts: preAlerts(now).map(({ items: _items, ...alert }) => alert),
         autoUpload: { enabled: autoUploadOn(), days: autoUploadDays() },
+        features,
         templateErrors: parseTemplate(ctx.settings.get<string>('planTemplate') ?? DEFAULT_TEMPLATE)
           .errors,
       };

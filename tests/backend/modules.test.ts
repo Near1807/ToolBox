@@ -123,6 +123,50 @@ describe('module loader', () => {
     expect(state.consumer?.status).toBe('missing-dependencies');
   });
 
+  it('loads a module without its optional services, and with them when present', async () => {
+    const consumer = fakeModule('consumer', {
+      manifest: { dependsOn: { optionalServices: ['svc'] } },
+      backend: {
+        register: (ctx) => {
+          const svc = ctx.services.optional<{ hello(): string }>('svc');
+          ctx.routes.get('/hello', () => ({ value: svc?.hello() ?? null }));
+          expect(() => ctx.services.optional('undeclared')).toThrow(/non déclaré/);
+        },
+      },
+    });
+    const alone = await start({ modules: [consumer] });
+    expect((await modules(alone)).consumer?.status).toBe('loaded');
+    expect((await alone.request('GET', '/api/modules/consumer/hello')).body).toEqual({
+      value: null,
+    });
+    const failing = await start({
+      modules: [
+        consumer,
+        fakeModule('provider', {
+          manifest: { provides: { services: ['svc'] } },
+          backend: {
+            register: () => {
+              throw new Error('provider down');
+            },
+          },
+        }),
+      ],
+    });
+    expect((await modules(failing)).consumer?.status).toBe('loaded');
+    const both = await start({
+      modules: [
+        consumer,
+        fakeModule('provider', {
+          manifest: { provides: { services: ['svc'] } },
+          backend: { register: (ctx) => ctx.services.provide('svc', { hello: () => 'salut' }) },
+        }),
+      ],
+    });
+    expect((await both.request('GET', '/api/modules/consumer/hello')).body).toEqual({
+      value: 'salut',
+    });
+  });
+
   it('turns route errors into JSON errors without crashing', async () => {
     const hub = await start({
       modules: [

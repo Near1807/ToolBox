@@ -108,6 +108,8 @@ export interface Summary {
     level: 'J-3' | 'J-1';
   }[];
   autoUpload: { enabled: boolean; days: number };
+  /** Optional modules present (the planner works without them). */
+  features: { youtubeVideo: boolean; instagramPack: boolean; customReels: boolean };
 }
 
 export interface TrackChoice {

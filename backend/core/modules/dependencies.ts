@@ -63,23 +63,37 @@ export function planModuleLoading(
   }
 
   // Topological order (Kahn) among the remaining modules; leftovers are cycles.
+  // Providers of optional services come first when they can load; an optional
+  // link never blocks a module (it is dropped to break a cycle).
   const remaining = candidates.filter((m) => !blocked.has(m.id));
+  const remainingIds = new Set(remaining.map((m) => m.id));
+  const optionalProviders = (m: ModuleManifest): string[] =>
+    (m.dependsOn?.optionalServices ?? [])
+      .map((service) => providerOf(service)?.id)
+      .filter((p): p is string => p !== undefined && p !== m.id && remainingIds.has(p));
   const order: string[] = [];
   const placed = new Set<string>();
-  let progress = true;
-  while (progress) {
-    progress = false;
+  const place = (withOptional: boolean): boolean => {
+    let progress = false;
     for (const m of remaining) {
       if (placed.has(m.id)) continue;
-      const deps = requirements(m)
-        .map((d) => d.id)
-        .filter((d) => d !== m.id);
+      const deps = [
+        ...requirements(m).map((d) => d.id),
+        ...(withOptional ? optionalProviders(m) : []),
+      ].filter((d) => d !== m.id);
       if (deps.every((d) => placed.has(d))) {
         order.push(m.id);
         placed.add(m.id);
         progress = true;
+        if (!withOptional) return true;
       }
     }
+    return progress;
+  };
+  for (;;) {
+    while (place(true));
+    // Only optional links left in the way: relax them for one module.
+    if (!place(false)) break;
   }
   for (const m of remaining) {
     if (!placed.has(m.id)) blocked.set(m.id, 'Dépendance circulaire entre modules');
