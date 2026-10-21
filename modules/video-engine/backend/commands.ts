@@ -509,13 +509,20 @@ export function buildFramesEncodeArgs(params: {
   duration: number;
   /** Fade in and out (s); 0 = none (previews). */
   fade: number;
+  /** Strength of the light grain (FFmpeg noise); default 4 (cover Reels), 0 = none. */
+  grain?: number;
+  /** Pixel format of the frames on the standard input (default rgba). */
+  pixelFormat?: 'rgba' | 'rgb24';
+  /** Still transparent PNG laid over every frame (title, bars…), before grain and fades. */
+  overlay?: string;
   encoding: FormatSpec['encoding'] | null;
   audio: string;
   output: string;
 }): string[] {
   const { duration: d, fade } = params;
+  const grain = params.grain ?? 4;
   const filters = [
-    'noise=alls=4:allf=t',
+    grain > 0 ? `noise=alls=${grain}:allf=t` : null,
     fade > 0 ? `fade=t=in:st=0:d=${round(fade)}` : null,
     fade > 0 ? `fade=t=out:st=${round(Math.max(0, d - fade))}:d=${round(fade)}` : null,
     'format=yuv420p',
@@ -528,12 +535,20 @@ export function buildFramesEncodeArgs(params: {
         ...['-bufsize', params.encoding.bufsize, '-g', String(params.encoding.gop), '-bf', '2'],
       ]
     : ['-preset', 'ultrafast', '-crf', '28'];
+  const pixelFormat = params.pixelFormat ?? 'rgba';
+  const video = params.overlay
+    ? [
+        ...['-loop', '1', '-i', params.overlay],
+        ...['-filter_complex', `[0:v][2:v]overlay=shortest=1:format=auto,${filters.join(',')}[v]`],
+        ...['-map', '[v]', '-map', '1:a'],
+      ]
+    : ['-map', '0:v', '-map', '1:a', '-vf', filters.join(',')];
   return [
     ...['-v', 'error', '-y'],
-    ...['-f', 'rawvideo', '-pix_fmt', 'rgba', '-s', `${params.width}x${params.height}`],
+    ...['-f', 'rawvideo', '-pix_fmt', pixelFormat, '-s', `${params.width}x${params.height}`],
     ...['-r', String(FPS), '-i', 'pipe:0'],
     ...['-i', params.audio],
-    ...['-map', '0:v', '-map', '1:a', '-vf', filters.join(',')],
+    ...video,
     ...['-c:v', 'libx264', '-pix_fmt', 'yuv420p', ...quality],
     ...['-c:a', 'copy', '-shortest'],
     ...['-movflags', '+faststart', '-progress', 'pipe:1', '-nostats', '-f', 'mp4'],

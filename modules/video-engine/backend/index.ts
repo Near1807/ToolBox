@@ -11,6 +11,9 @@ import {
   type VideoFormatInfo,
 } from '../contract';
 import { FORMATS, THUMBNAIL_SPEC } from './commands';
+import { EFFECTS } from './effects';
+import { filmstrip, probeVideo, waveform } from './media-tools';
+import { renderVideoReel } from './video-reel';
 import {
   FONT_FILE,
   probeDuration,
@@ -110,6 +113,46 @@ export default defineBackendModule({
       renderPost: (request) => renderPostImage(env(), request),
       renderThumbnail: (request) => renderPostImage(env(), request, THUMBNAIL_SPEC),
       probeDuration: (audioPath) => probeDuration(ctx.binaries.ffprobe, audioPath),
+      videoEffects: Object.values(EFFECTS).map(({ id, label, description }) => ({
+        id,
+        label,
+        description,
+      })),
+      renderVideoReel: (request, handlers = {}) =>
+        queue.run(async () => {
+          ctx.logger.info(
+            `Rendu Reel vidéo (${request.effect}) : ${path.basename(request.outputPath)}`,
+          );
+          const result = await renderVideoReel(env(), request, handlers);
+          ctx.logger.info(`Rendu terminé : ${result.file}`);
+          return result;
+        }, handlers),
+      previewVideoReel: async (request, handlers = {}) => {
+        const outputPath = path.join(previewsDir, `${Date.now()}-video-reel.mp4`);
+        const result = await renderVideoReel(
+          env(),
+          {
+            ...request,
+            duration: Math.min(request.duration, request.previewSeconds ?? 4),
+            outputPath,
+            scale: PREVIEW_SCALE,
+            quality: 'preview',
+          },
+          handlers,
+        );
+        prunePreviews();
+        return result;
+      },
+      probeVideo: (videoPath) => probeVideo(ctx.binaries.ffprobe, videoPath),
+      filmstrip: (videoPath, count, outputDir) =>
+        filmstrip(ctx.binaries.ffmpeg, ctx.binaries.ffprobe, videoPath, count, outputDir),
+      waveform: async (audioPath, bars) => {
+        const durationSec = await probeDuration(ctx.binaries.ffprobe, audioPath);
+        return {
+          durationSec,
+          peaks: await waveform(ctx.binaries.ffmpeg, durationSec, audioPath, bars),
+        };
+      },
     };
 
     ctx.services.provide(VIDEO_ENGINE_SERVICE, service);

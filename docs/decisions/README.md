@@ -41,3 +41,4 @@ Modèle :
 | 0020 | [Planning de sortie : programmation sur YouTube, rappels pour Instagram](0020-planning-de-sortie.md)                                 |
 | 0021 | [Interface : thèmes par variables CSS, composants partagés, navigation à catégories](0021-interface-themes-composants-navigation.md) |
 | 0022 | [Tout élément généré appartient à un projet (le morceau)](0022-projets.md)                                                           |
+| 0023 | [Reels depuis les vidéos de l'utilisateur : module séparé, banque d'effets](0023-reels-depuis-mes-videos.md)                         |

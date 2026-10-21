@@ -2,7 +2,7 @@
 
 > Règles **obligatoires** pour tout visuel généré par ToolBox (vidéos YouTube, Reels, images de post), présent et futur. Toute nouvelle fonction visuelle s'y conforme ; en cas de conflit, ce document l'emporte sur l'envie d'en faire plus.
 >
-> Ce document ne concerne que les **visuels générés**. L'apparence de l'**interface** de l'app (couleurs, polices, thèmes au choix dans Réglages › Apparence) est décrite dans `docs/THEMES.md` : changer de thème ne change jamais une vidéo.
+> Ce document ne concerne que les **visuels générés**. La charte stricte vaut pour tout ce qui est fait à partir de la cover ; les Reels faits avec les vidéos de l'utilisateur ont leur section (« Reels depuis mes vidéos »). L'apparence de l'**interface** de l'app (couleurs, polices, thèmes au choix dans Réglages › Apparence) est décrite dans `docs/THEMES.md` : changer de thème ne change jamais une vidéo.
 
 ## Principe
 
@@ -42,6 +42,26 @@
    Pas de réglage par cover.
 
 8. **En cas de doute : faire moins.**
+
+## Reels depuis mes vidéos (images de l'utilisateur)
+
+Les règles ci-dessus (cover entière, aucun effet, couleurs de la cover) valent pour **tous les visuels faits à partir de la cover** : vidéo YouTube, Reels du pack Insta, post, miniature. Elles restent la charte stricte.
+
+Pour les Reels faits avec **les vidéos de l'utilisateur** (module `custom-reels`), le contenu est le sien : une **banque d'effets** est autorisée, un effet par Reel, choisi par l'utilisateur. Ce qui ne change pas :
+
+- **Tout mouvement est piloté directement par le son**, avec la même enveloppe que la respiration des covers (attaque instantanée sur l'image même du coup de basse, retour doux), jamais par des événements détectés. Synchronisation mesurée : ≤ 1 image.
+- **Un effet ne masque jamais le contenu** : pas de recadrage automatique (vidéo entière sur un fond flou fait à partir d'elle-même, ou « remplir » autour d'un point **choisi par l'utilisateur**), jamais d'étirement, bandes ou vignette fines, flash léger.
+- Seul le son de l'extrait du morceau est gardé (le son des vidéos n'est jamais utilisé), limité à -1 dBTP ; fondus de 0,5 s ; zones de sécurité Instagram ; pixels carrés.
+- Titre et artiste discrets (même police, plus petits), au-dessus de la zone basse d'Instagram.
+
+| Effet  | Ce qu'il fait                                                                                                                                  |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Brut   | La vidéo telle quelle : ni mouvement, ni retouche, ni grain                                                                                    |
+| Calme  | Zoom très lent (+4 % sur tout le Reel), couleurs adoucies (contraste et saturation un peu baissés), grain léger                                |
+| Rythme | Zoom (jusqu'à +6 %) et léger flash blanc (12 % au plus) **sur les basses**, à l'image près ; plus marqué que la respiration des covers (1,8 %) |
+| Ciné   | Fines bandes noires (90 px sur 1920), étalonnage « film » léger, grain, vignette douce                                                         |
+
+Un fichier par effet : `modules/video-engine/backend/effects/` (`raw.ts`, `calm.ts`, `rhythm.ts`, `cine.ts`). Ajouter un effet = ajouter un fichier qui respecte ce qui précède, et le documenter ici.
 
 ## Mise en page
 

@@ -1,0 +1,52 @@
+{
+  "id": "custom-reels",
+  "name": "Reels depuis mes vidéos",
+  "description": "Des Reels 9:16 faits avec tes propres vidéos, sur un extrait du morceau, avec un effet au choix.",
+  "version": "1.0.0",
+  "section": "Musique",
+  "icon": "🎬",
+  "order": 35,
+  "dependsOn": {
+    "modules": ["music-library", "video-engine"],
+    "services": ["musicLibrary", "videoEngine"]
+  },
+  "provides": { "services": ["customReels"] },
+  "settings": [
+    {
+      "key": "clipDuration",
+      "type": "number",
+      "label": "Durée par défaut d'un Reel (secondes)",
+      "description": "Modifiable ensuite Reel par Reel (15 à 60 s).",
+      "min": 15,
+      "max": 60,
+      "step": 1,
+      "default": 28
+    },
+    {
+      "key": "defaultEffect",
+      "type": "select",
+      "label": "Effet par défaut",
+      "options": [
+        { "value": "raw", "label": "Brut" },
+        { "value": "calm", "label": "Calme" },
+        { "value": "rhythm", "label": "Rythme" },
+        { "value": "cine", "label": "Ciné" }
+      ],
+      "default": "raw"
+    },
+    {
+      "key": "captionTemplate",
+      "type": "text",
+      "label": "Modèle de légende",
+      "description": "Pré-remplit la légende de chaque Reel, modifiable ensuite. Repères : {titre}, {artiste}, {hashtags}.",
+      "default": "{titre} — {artiste}\n\nNouveau son 🎧 lien en bio\n\n{hashtags}"
+    },
+    {
+      "key": "hashtags",
+      "type": "string",
+      "label": "Hashtags par défaut",
+      "description": "Ajoutés après les tags du morceau.",
+      "placeholder": "#music #reels"
+    }
+  ]
+}

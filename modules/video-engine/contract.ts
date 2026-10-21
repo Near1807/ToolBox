@@ -50,6 +50,42 @@ export interface RenderResult {
   height: number;
 }
 
+/** Effects of the Reels made from the user's videos (docs/DIRECTION-ARTISTIQUE.md). */
+export type VideoEffectId = 'raw' | 'calm' | 'rhythm' | 'cine';
+
+export interface VideoEffectInfo {
+  id: VideoEffectId;
+  label: string;
+  description: string;
+}
+
+/** A Reel (1080×1920) made from the user's own videos, with a track excerpt as its only sound. */
+export interface VideoReelRequest {
+  audioPath: string;
+  /** Excerpt of the track, seconds. */
+  start: number;
+  duration: number;
+  /** Passages of the videos, chained with hard cuts (repeated if shorter than the excerpt). */
+  segments: { source: string; start: number; end: number }[];
+  /** « fit »: whole video over a blurred background made from itself; « fill »: cropped around `focus`. */
+  framing: 'fit' | 'fill';
+  /** 0..1 in the picture (fill only). */
+  focus?: { x: number; y: number };
+  effect: VideoEffectId;
+  title: string;
+  artist: string;
+  /** Default 0.5 s. */
+  fadeSeconds?: number;
+}
+
+export interface VideoInfo {
+  durationSec: number;
+  /** Displayed size (rotation of phone videos applied). */
+  width: number;
+  height: number;
+  hasAudio: boolean;
+}
+
 export interface VideoEngineService {
   readonly formats: Record<VideoFormat, VideoFormatInfo>;
   /**
@@ -77,4 +113,22 @@ export interface VideoEngineService {
   renderThumbnail(request: PostRequest): Promise<{ file: string; width: number; height: number }>;
   /** Duration of an audio file, in seconds. */
   probeDuration(audioPath: string): Promise<number>;
+  /** The effects bank of the video Reels. */
+  readonly videoEffects: VideoEffectInfo[];
+  /** Full-quality video Reel to `outputPath` (one render at a time, like `render`). */
+  renderVideoReel(
+    request: VideoReelRequest & { outputPath: string },
+    handlers?: RenderHandlers,
+  ): Promise<RenderResult & { looped: boolean }>;
+  /** Quick low-resolution preview of a few seconds (default 4) of a video Reel. */
+  previewVideoReel(
+    request: VideoReelRequest & { previewSeconds?: number },
+    handlers?: RenderHandlers,
+  ): Promise<RenderResult & { looped: boolean }>;
+  /** Duration and displayed size of a video file. */
+  probeVideo(videoPath: string): Promise<VideoInfo>;
+  /** `count` small JPEG frames evenly spread over the video (timeline), written to `outputDir`. */
+  filmstrip(videoPath: string, count: number, outputDir: string): Promise<string[]>;
+  /** Peaks (0..1, `bars` values) of a whole audio file, for the excerpt waveform. */
+  waveform(audioPath: string, bars: number): Promise<{ durationSec: number; peaks: number[] }>;
 }

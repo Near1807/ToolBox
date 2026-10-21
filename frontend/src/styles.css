@@ -1419,3 +1419,12 @@ input[type='range'] {
 .sidebar__drop-end {
   height: 18px;
 }
+
+/* Long labels wrap inside narrow cards. */
+.ui-card .ui-texts__actions .button {
+  white-space: normal;
+  text-align: left;
+  min-height: 28px;
+  height: auto;
+  padding-block: 4px;
+}
