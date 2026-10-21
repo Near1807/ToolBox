@@ -44,7 +44,7 @@ Sous Linux en root (conteneur) : ajouter `--no-sandbox` à Electron, et `xvfb-ru
 electron/        process principal : fenêtre (plein écran, barre sombre), zone de notification et démarrage avec Windows, preload, HostAdapter Electron, smoke test
 backend/         server.ts (Fastify) · core/ (hub.ts = chargeur de modules et ctx, migrations, sauvegardes,
                  réglages, tâches, planificateur, événements, services, fichiers générés, comptes, notifications, journaux) · routes/core.ts (/api/core/*)
-frontend/src/    shell React : modules/ (découverte, hôte des pages), shell/ (accueil, fichiers générés, tâches, journaux, réglages), themes/ (un fichier par thème), styles.css
+frontend/src/    shell React : modules/ (découverte, hôte des pages), shell/ (barre latérale à catégories, accueil, fichiers générés, tâches, journaux, réglages), themes/ (un fichier par thème), styles.css
 packages/sdk/    @hub/sdk : backend.ts, frontend.tsx, components.tsx (composants partagés), manifest.ts, testing.ts — seul import autorisé aux modules
 modules/         un dossier par module ; _template/ = module modèle (exemple, chargé à la demande)
 scripts/         dev, build (esbuild + découverte des modules), smoke test, vérification native

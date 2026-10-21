@@ -90,6 +90,7 @@ Les migrations de **tous** les modules passent avant le premier `register()` : r
 | `GET /api/core/modules` · `PUT /api/core/modules/:id/enabled`                                    | État des modules ; activer/désactiver (au redémarrage)                                |
 | `POST /api/core/restart`                                                                         | Redémarre l'app                                                                       |
 | `GET /api/core/settings` · `PUT /api/core/settings/:scope`                                       | Réglages (schéma + valeurs, secrets masqués) ; enregistrement validé                  |
+| `GET /api/core/ui` · `PUT /api/core/ui`                                                          | Préférences d'interface (thème, disposition de la barre latérale), réglage caché `ui` |
 | `POST /api/core/dialogs/select-folder` · `POST /api/core/dialogs/select-files`                   | Sélecteurs natifs de dossier et de fichiers                                           |
 | `GET /api/media/:jeton/:nom`                                                                     | Fichier multimédia par URL signée (sans jeton de session)                             |
 | `GET /api/core/jobs` · `POST /api/core/jobs/:id/cancel` · `GET /api/core/jobs/stream` (SSE)      | Tâches longues                                                                        |
@@ -171,6 +172,12 @@ La barre de titre native suit le mode clair ou sombre du thème choisi (`nativeT
 On passe en plein écran avec **F11** (géré par le process principal) ou avec le bouton « Plein écran » en bas de la barre latérale. En plein écran, il n'y a plus de barre de titre : l'interface dessine en haut à droite ses propres boutons (réduire, quitter le plein écran, fermer).
 
 Le choix est retenu d'un lancement à l'autre (`<userData>/window-state.json`). Le code est dans `electron/window-controls.ts` (process principal) et `frontend/src/shell/WindowControls.tsx` (interface). Dans un navigateur (dev), ces boutons n'apparaissent pas.
+
+### Navigation : catégories de la barre latérale
+
+La barre latérale range les outils dans des **catégories** repliables. Par défaut, un outil est dans la catégorie de sa `section` (manifest) ; ensuite, le choix de l'utilisateur prime : créer, renommer, supprimer et réordonner les catégories, déplacer et réordonner les outils, par glisser-déposer ou clic droit (double-clic sur une catégorie : renommer). Un module ajouté plus tard arrive dans sa section par défaut ; un module désactivé garde sa place pour son retour ; supprimer une catégorie renvoie ses outils dans leur section d'origine. Recherche rapide (Ctrl+K, accents ignorés), « Tout replier / Tout déplier ». L'accueil suit les mêmes catégories (toujours dépliées). Accueil, Fichiers générés, Tâches, Journaux et Réglages restent fixes.
+
+La disposition est un JSON dans le réglage caché `ui.navigation` (`{ categories: [{ id, name, collapsed, tools: [ids] }] }`), lu et écrit par `GET/PUT /api/core/ui`. Toute la logique est dans des fonctions pures (`frontend/src/shell/navigation.ts`, testées dans `tests/navigation.test.ts`) ; l'interface est `Sidebar.tsx`. Le socle ne connaît aucun module en particulier : il stocke le JSON tel quel.
 
 ### Zone de notification, démarrage avec Windows, notifications
 
