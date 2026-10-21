@@ -105,20 +105,29 @@ export class OutputStore {
   }
 
   register(moduleId: string, output: Parameters<ModuleOutputs['register']>[0]): OutputRecord {
+    // Every generated element belongs to a project (docs/MODULES.md §5.13).
+    if (typeof output.subject !== 'string' || output.subject.trim() === '') {
+      throw new Error(
+        `Fichier généré sans projet (subject manquant) : ${output.ref} — chaque élément doit être rattaché à un projet`,
+      );
+    }
     const file = path.resolve(output.path);
     this.handle.db
       .prepare(
         `INSERT INTO core__outputs (module_id, ref, parent, subject, label, kind, file_path, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT (module_id, file_path) DO UPDATE SET ref = excluded.ref,
-           parent = excluded.parent, subject = excluded.subject, label = excluded.label,
+           parent = excluded.parent,
+           subject = CASE WHEN core__outputs.subject_manual = 1 THEN core__outputs.subject
+                          ELSE excluded.subject END,
+           label = excluded.label,
            kind = excluded.kind, created_at = excluded.created_at, missing_since = NULL`,
       )
       .run(
         moduleId,
         output.ref,
         output.parent ?? null,
-        output.subject ?? null,
+        output.subject,
         output.label,
         output.kind ?? null,
         file,
@@ -215,6 +224,27 @@ export class OutputStore {
       onRemoved: (handler) => this.onRemoved(moduleId, handler),
       bySubject: (subject) => this.list({ subject }),
       deleteBySubject: async (subject) => (await this.delete({ subject })).length,
+      orphans: (isKnown) => this.orphans(isKnown),
+      attach: (ids, subject) => this.attach(ids, subject),
     };
+  }
+
+  /**
+   * Records of every module without a project: no subject (made by an old
+   * version), or a subject the caller does not know any more (deleted track).
+   */
+  orphans(isKnown: (subject: string) => boolean): OutputRecord[] {
+    return this.list({}).filter((record) => record.subject === null || !isKnown(record.subject));
+  }
+
+  /** Attaches records to a project chosen by the user; kept when their module registers them again. */
+  attach(ids: number[], subject: string): number {
+    if (!subject.trim()) throw new Error('Projet manquant');
+    const update = this.handle.db.prepare(
+      'UPDATE core__outputs SET subject = ?, subject_manual = 1 WHERE id = ?',
+    );
+    return this.handle.db.transaction(() =>
+      ids.reduce((count, id) => count + update.run(subject, id).changes, 0),
+    )();
   }
 }

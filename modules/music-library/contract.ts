@@ -50,6 +50,24 @@ export interface TrackInfoProvider {
   get(trackId: number): string | null;
 }
 
+/** Where a generated element stands in the release (beyond « généré »). */
+export type ProjectStatus = 'planned' | 'scheduled' | 'published';
+
+/** Status of one generated element (identified like in ctx.outputs: module + ref). */
+export interface ProjectStatusEntry {
+  moduleId: string;
+  ref: string;
+  status: ProjectStatus;
+  /** Short French detail shown on the project page (e.g. « Short 2 le 12/11 »). */
+  detail?: string;
+}
+
+/** A module telling the project page where the elements of a track stand (planner, Instagram…). */
+export interface ProjectStatusProvider {
+  moduleId: string;
+  get(trackId: number): ProjectStatusEntry[];
+}
+
 export interface MusicLibraryService {
   listTracks(): Track[];
   getTrack(id: number): Track | null;
@@ -64,6 +82,13 @@ export interface MusicLibraryService {
   listOutputs(trackId: number): TrackOutput[];
   /** Adds a line to the track page; returns a function that removes it. */
   registerTrackInfo(provider: TrackInfoProvider): () => void;
+  /** Statuses shown on the project page (the most advanced one wins); returns a remover. */
+  registerProjectStatus(provider: ProjectStatusProvider): () => void;
+  /**
+   * « Inclure dans la sortie », ticked on the project page (true by default).
+   * The release planner only proposes the included elements.
+   */
+  isIncluded(moduleId: string, ref: string): boolean;
 }
 
 /** Track as sent to the UI (with media URLs). */

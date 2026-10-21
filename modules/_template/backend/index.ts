@@ -69,7 +69,14 @@ export default defineBackendModule({
       if (!note) throw new HttpError(404, 'Note introuvable');
       const file = path.join(ctx.files.outputDir(), `Note ${note.id}.txt`);
       writeFileSync(file, `${note.text}\n`);
-      return ctx.outputs.register({ path: file, ref: `note:${note.id}`, label: 'Note exportée' });
+      // `subject`: the project the file belongs to (mandatory). Here the note itself;
+      // in the Music section it is the track: `music-library:track:<id>`.
+      return ctx.outputs.register({
+        path: file,
+        ref: `note:${note.id}`,
+        subject: `_template:note:${note.id}`,
+        label: 'Note exportée',
+      });
     });
 
     // When files are deleted or removed from the lists (here, from the module page,

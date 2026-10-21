@@ -288,6 +288,24 @@ export default defineBackendModule({
       },
     });
 
+    // Project page of the library: ticked « Publié » = published.
+    library.registerProjectStatus({
+      moduleId: ctx.id,
+      get: (trackId) => {
+        const pack = store.byTrack(trackId);
+        if (!pack) return [];
+        return store
+          .listItems(pack.id)
+          .filter((item) => item.published_at)
+          .map((item) => ({
+            moduleId: ctx.id,
+            ref: `item:${item.id}`,
+            status: 'published' as const,
+            detail: `Publié le ${new Date(item.published_at!).toLocaleDateString('fr-FR')}`,
+          }));
+      },
+    });
+
     /** Small JPEG of a Reel for the lists ("À publier"). */
     const makeThumbnail = async (item: ItemRow, video: string): Promise<string | null> => {
       const file = ctx.files.dataPath('thumbnails', `${item.id}.jpg`);

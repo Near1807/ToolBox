@@ -83,25 +83,25 @@ Les migrations de **tous** les modules passent avant le premier `register()` : r
 
 ### API du socle
 
-| Route                                                                                            | Rôle                                                                                  |
-| ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
-| `GET /api/health`                                                                                | Vivacité (sans jeton)                                                                 |
-| `GET /api/core/system`                                                                           | Versions (app, SQLite, FFmpeg), dossier de données                                    |
-| `GET /api/core/modules` · `PUT /api/core/modules/:id/enabled`                                    | État des modules ; activer/désactiver (au redémarrage)                                |
-| `POST /api/core/restart`                                                                         | Redémarre l'app                                                                       |
-| `GET /api/core/settings` · `PUT /api/core/settings/:scope`                                       | Réglages (schéma + valeurs, secrets masqués) ; enregistrement validé                  |
-| `GET /api/core/ui` · `PUT /api/core/ui`                                                          | Préférences d'interface (thème, disposition de la barre latérale), réglage caché `ui` |
-| `POST /api/core/dialogs/select-folder` · `POST /api/core/dialogs/select-files`                   | Sélecteurs natifs de dossier et de fichiers                                           |
-| `GET /api/media/:jeton/:nom`                                                                     | Fichier multimédia par URL signée (sans jeton de session)                             |
-| `GET /api/core/jobs` · `POST /api/core/jobs/:id/cancel` · `GET /api/core/jobs/stream` (SSE)      | Tâches longues                                                                        |
-| `GET /api/core/logs`                                                                             | Journaux filtrés                                                                      |
-| `GET /api/core/outputs` (`?module=`, `?subject=`, `?missing=1`)                                  | Fichiers générés de tous les modules, vérifiés sur le disque                          |
-| `POST /api/core/outputs/delete` · `/forget` (`{ ids }`) · `/clean-missing`                       | Corbeille / retirer de la liste / oublier les introuvables                            |
-| `POST /api/core/outputs/:id/open` · `/:id/reveal`                                                | Ouvrir un fichier généré / le montrer dans l'Explorateur                              |
-| `GET /api/core/backups` · `POST /api/core/backups/export` · `POST /api/core/backups/open-folder` | Sauvegardes                                                                           |
-| `POST /api/core/stream-tickets`                                                                  | Ticket à usage unique pour un flux SSE                                                |
-| `POST /api/core/open-data-dir`                                                                   | Ouvre le dossier de données                                                           |
-| `GET /api/core/accounts` · `POST /api/core/accounts/:provider/reconnect` · `DELETE …/:provider`  | Comptes connectés : état, reconnexion (mêmes autorisations), déconnexion (révocation) |
+| Route                                                                                            | Rôle                                                                                                             |
+| ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| `GET /api/health`                                                                                | Vivacité (sans jeton)                                                                                            |
+| `GET /api/core/system`                                                                           | Versions (app, SQLite, FFmpeg), dossier de données                                                               |
+| `GET /api/core/modules` · `PUT /api/core/modules/:id/enabled`                                    | État des modules ; activer/désactiver (au redémarrage)                                                           |
+| `POST /api/core/restart`                                                                         | Redémarre l'app                                                                                                  |
+| `GET /api/core/settings` · `PUT /api/core/settings/:scope`                                       | Réglages (schéma + valeurs, secrets masqués) ; enregistrement validé                                             |
+| `GET /api/core/ui` · `PUT /api/core/ui`                                                          | Préférences d'interface (thème, disposition de la barre latérale), réglage caché `ui`                            |
+| `POST /api/core/dialogs/select-folder` · `POST /api/core/dialogs/select-files`                   | Sélecteurs natifs de dossier et de fichiers                                                                      |
+| `GET /api/media/:jeton/:nom`                                                                     | Fichier multimédia par URL signée (sans jeton de session)                                                        |
+| `GET /api/core/jobs` · `POST /api/core/jobs/:id/cancel` · `GET /api/core/jobs/stream` (SSE)      | Tâches longues                                                                                                   |
+| `GET /api/core/logs`                                                                             | Journaux filtrés                                                                                                 |
+| `GET /api/core/outputs` (`?module=`, `?subject=`, `?missing=1`)                                  | Fichiers générés de tous les modules (chacun rattaché à un projet : `subject`, ADR 0022), vérifiés sur le disque |
+| `POST /api/core/outputs/delete` · `/forget` (`{ ids }`) · `/clean-missing`                       | Corbeille / retirer de la liste / oublier les introuvables                                                       |
+| `POST /api/core/outputs/:id/open` · `/:id/reveal`                                                | Ouvrir un fichier généré / le montrer dans l'Explorateur                                                         |
+| `GET /api/core/backups` · `POST /api/core/backups/export` · `POST /api/core/backups/open-folder` | Sauvegardes                                                                                                      |
+| `POST /api/core/stream-tickets`                                                                  | Ticket à usage unique pour un flux SSE                                                                           |
+| `POST /api/core/open-data-dir`                                                                   | Ouvre le dossier de données                                                                                      |
+| `GET /api/core/accounts` · `POST /api/core/accounts/:provider/reconnect` · `DELETE …/:provider`  | Comptes connectés : état, reconnexion (mêmes autorisations), déconnexion (révocation)                            |
 
 ## Pourquoi le backend tourne dans le process principal
 

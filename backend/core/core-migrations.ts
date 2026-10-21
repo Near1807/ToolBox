@@ -85,4 +85,12 @@ export const coreMigrations: Migration[] = [
       );
     `,
   },
+  {
+    version: 4,
+    description:
+      'project of a generated file chosen by the user (kept when the module registers it again)',
+    up: `
+      ALTER TABLE core__outputs ADD COLUMN subject_manual INTEGER NOT NULL DEFAULT 0;
+    `,
+  },
 ];

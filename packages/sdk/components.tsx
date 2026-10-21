@@ -41,6 +41,8 @@ export type MediaAspect = 'landscape' | 'vertical' | 'portrait' | 'square';
  */
 export function MediaThumb(props: {
   src?: string | null;
+  /** A video file: its frame at 1 s is shown (no thumbnail image needed). */
+  media?: 'image' | 'video';
   aspect?: MediaAspect;
   dragUrl?: string | null;
   /** Shown when there is no image yet (e.g. « Reel 9:16 »). */
@@ -63,7 +65,9 @@ export function MediaThumb(props: {
       onDragStart={dragStart}
       title={draggable ? 'Glisse ce fichier vers Instagram, l’Explorateur…' : undefined}
     >
-      {props.src ? (
+      {props.src && props.media === 'video' ? (
+        <video src={`${props.src}#t=1`} preload="metadata" muted playsInline />
+      ) : props.src ? (
         <img src={props.src} alt="" draggable={false} />
       ) : (
         <span className="small">{props.placeholder}</span>

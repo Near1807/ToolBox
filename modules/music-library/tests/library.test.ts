@@ -210,6 +210,98 @@ describe('music-library', () => {
   });
 });
 
+describe('project page and elements without project', () => {
+  it('groups every element of a track with its status and « Inclure dans la sortie »', async () => {
+    const hub = await createTestHub({ modules: [musicLibrary, consumer] });
+    try {
+      const { body: track } = await hub.request<TrackDto>('POST', `${API}/tracks`, {
+        audioPath: media.wav,
+      });
+      const subject = `music-library:track:${track.id}`;
+      for (const n of [1, 2]) {
+        const file = path.join(consumerCtx.files.outputDir(), `reel${n}.mp4`);
+        writeFileSync(file, 'x');
+        consumerCtx.outputs.register({ path: file, ref: `reel:${n}`, label: `Reel ${n}`, subject });
+      }
+      library.registerProjectStatus({
+        moduleId: 'consumer',
+        get: () => [
+          { moduleId: 'consumer', ref: 'reel:1', status: 'planned', detail: 'Short 1' },
+          { moduleId: 'consumer', ref: 'reel:1', status: 'published' },
+        ],
+      });
+      type Element = { ref: string; status: string; included: boolean };
+      let project = await hub.request<Element[]>('GET', `${API}/tracks/${track.id}/project`);
+      const byRef = (ref: string) => project.body.find((e) => e.ref === ref)!;
+      // The most advanced status wins.
+      expect(byRef('reel:1')).toMatchObject({ status: 'published', included: true });
+      expect(byRef('reel:2')).toMatchObject({ status: 'generated', included: true });
+
+      project = await hub.request<Element[]>('PUT', `${API}/tracks/${track.id}/project/included`, {
+        moduleId: 'consumer',
+        ref: 'reel:2',
+        included: false,
+      });
+      expect(byRef('reel:2').included).toBe(false);
+      expect(library.isIncluded('consumer', 'reel:2')).toBe(false);
+      expect(library.isIncluded('consumer', 'reel:1')).toBe(true);
+    } finally {
+      await hub.close();
+    }
+  });
+
+  it('lists elements of a deleted track as « Sans projet », to attach or delete', async () => {
+    const hub = await createTestHub({ modules: [musicLibrary, consumer] });
+    try {
+      const add = async () =>
+        (await hub.request<TrackDto>('POST', `${API}/tracks`, { audioPath: media.wav })).body;
+      const gone = await add();
+      const target = await add();
+      const file = path.join(consumerCtx.files.outputDir(), 'orphan.mp4');
+      writeFileSync(file, 'x');
+      const record = consumerCtx.outputs.register({
+        path: file,
+        ref: 'video:7',
+        label: 'Vidéo',
+        subject: `music-library:track:${gone.id}`,
+      });
+      // Other projects (not tracks) are not ours: never listed.
+      const other = path.join(consumerCtx.files.outputDir(), 'note.txt');
+      writeFileSync(other, 'x');
+      consumerCtx.outputs.register({
+        path: other,
+        ref: 'note:1',
+        label: 'Note',
+        subject: 'notes:1',
+      });
+
+      await hub.request('DELETE', `${API}/tracks/${gone.id}`);
+      const orphans = await hub.request<OutputRecord[]>('GET', `${API}/orphans`);
+      expect(orphans.body.map((o) => o.id)).toEqual([record.id]);
+
+      const attached = await hub.request<{ attached: number }>('POST', `${API}/orphans/attach`, {
+        ids: [record.id],
+        trackId: target.id,
+      });
+      expect(attached.body.attached).toBe(1);
+      expect((await hub.request<OutputRecord[]>('GET', `${API}/orphans`)).body).toEqual([]);
+      const project = await hub.request<OutputRecord[]>(
+        'GET',
+        `${API}/tracks/${target.id}/project`,
+      );
+      expect(project.body.map((e) => e.id)).toEqual([record.id]);
+      // Only elements without project can be attached this way.
+      const refused = await hub.request('POST', `${API}/orphans/attach`, {
+        ids: [record.id],
+        trackId: gone.id,
+      });
+      expect(refused.status).toBe(404);
+    } finally {
+      await hub.close();
+    }
+  });
+});
+
 describe('track infos from other modules', () => {
   it('shows lines provided by other modules and ignores failing providers', async () => {
     const hub = await createTestHub({ modules: [musicLibrary, consumer] });

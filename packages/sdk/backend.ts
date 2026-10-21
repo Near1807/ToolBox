@@ -158,7 +158,11 @@ export interface ModuleOutputs {
     label: string;
     kind?: string;
     parent?: string;
-    subject?: string;
+    /**
+     * Project the element belongs to — mandatory (docs/MODULES.md §5.13). Music:
+     * `music-library:track:<id>`, the track it was made from.
+     */
+    subject: string;
     /** Default: now. */
     createdAt?: string;
   }): OutputRecord;
@@ -174,6 +178,13 @@ export interface ModuleOutputs {
   bySubject(subject: string): OutputRecord[];
   /** Deletes the files of every module about a subject; each owner cleans its data. */
   deleteBySubject(subject: string): Promise<number>;
+  /**
+   * Records of every module without a project: no subject, or one for which
+   * `isKnown` returns false (e.g. a deleted track). For the « Sans projet » list.
+   */
+  orphans(isKnown: (subject: string) => boolean): OutputRecord[];
+  /** Attaches records of any module to a project chosen by the user (kept from then on). */
+  attach(ids: number[], subject: string): number;
 }
 
 /** Executables embedded in the app, usable by any module (child_process.execFile/spawn). */

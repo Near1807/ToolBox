@@ -9,6 +9,9 @@ import {
   type TrackDto,
   type TrackOutput,
   type TrackInfoProvider,
+  type ProjectStatus,
+  type ProjectStatusEntry,
+  type ProjectStatusProvider,
 } from '../contract';
 import { Library } from './library';
 
@@ -78,11 +81,74 @@ export default defineBackendModule({
         CREATE INDEX music_library__outputs_track ON music_library__outputs (track_id);
       `,
     },
+    {
+      version: 2,
+      description: 'project page: elements excluded from the release (« Inclure dans la sortie »)',
+      up: `
+        CREATE TABLE music_library__project_items (
+          module_id TEXT NOT NULL,
+          ref TEXT NOT NULL,
+          track_id INTEGER NOT NULL,
+          included INTEGER NOT NULL,
+          updated_at TEXT NOT NULL,
+          PRIMARY KEY (module_id, ref)
+        );
+      `,
+    },
   ],
 
   register(ctx) {
     const library = new Library(ctx);
     const infoProviders = new Set<TrackInfoProvider>();
+    const statusProviders = new Set<ProjectStatusProvider>();
+    const projectItems = ctx.db.table('project_items');
+
+    const isIncluded = (moduleId: string, ref: string) => {
+      const row = ctx.db
+        .prepare(`SELECT included FROM ${projectItems} WHERE module_id = ? AND ref = ?`)
+        .get(moduleId, ref) as { included: number } | undefined;
+      return row ? row.included === 1 : true;
+    };
+
+    const RANK: Record<ProjectStatus, number> = { planned: 1, scheduled: 2, published: 3 };
+    /** Most advanced status of each element of a track, from every provider. */
+    const statusesOf = (trackId: number) => {
+      const statuses = new Map<string, ProjectStatusEntry>();
+      for (const provider of statusProviders) {
+        let entries: ProjectStatusEntry[] = [];
+        try {
+          entries = provider.get(trackId);
+        } catch (error) {
+          ctx.logger.warn(`Statuts indisponibles (${provider.moduleId})`, error);
+        }
+        for (const entry of entries) {
+          const key = `${entry.moduleId}/${entry.ref}`;
+          const current = statuses.get(key);
+          if (!current || RANK[entry.status] > RANK[current.status]) statuses.set(key, entry);
+        }
+      }
+      return statuses;
+    };
+
+    /** The project of a track: every generated element, with status and inclusion. */
+    const projectOf = (trackId: number) => {
+      const statuses = statusesOf(trackId);
+      return ctx.outputs.bySubject(trackSubject(trackId)).map((record) => {
+        const entry = statuses.get(`${record.moduleId}/${record.ref}`);
+        return {
+          ...record,
+          status: !record.exists ? 'missing' : (entry?.status ?? 'generated'),
+          statusDetail: entry?.detail ?? null,
+          included: isIncluded(record.moduleId, record.ref),
+        };
+      });
+    };
+
+    /** A subject this library knows: a track that still exists (other subjects are not ours). */
+    const knownSubject = (subject: string) => {
+      const match = /^music-library:track:(\d+)$/.exec(subject);
+      return !match || library.get(Number(match[1])) !== null;
+    };
 
     const trackInfos = (trackId: number) =>
       [...infoProviders].flatMap((provider) => {
@@ -106,6 +172,11 @@ export default defineBackendModule({
         infoProviders.add(provider);
         return () => infoProviders.delete(provider);
       },
+      registerProjectStatus: (provider) => {
+        statusProviders.add(provider);
+        return () => statusProviders.delete(provider);
+      },
+      isIncluded,
     };
     ctx.services.provide(MUSIC_LIBRARY_SERVICE, service);
 
@@ -119,6 +190,51 @@ export default defineBackendModule({
         outputs: ctx.outputs.bySubject(trackSubject(track.id)),
         infos: trackInfos(track.id),
       };
+    });
+
+    // Project page: everything generated from the track, grouped in the UI.
+    ctx.routes.get('/tracks/:id/project', (request) => {
+      const track = library.require(idParam(request.params));
+      return projectOf(track.id);
+    });
+
+    // « Inclure dans la sortie » (the planner only proposes included elements).
+    ctx.routes.put('/tracks/:id/project/included', (request) => {
+      const track = library.require(idParam(request.params));
+      const input = (request.body ?? {}) as {
+        moduleId?: unknown;
+        ref?: unknown;
+        included?: unknown;
+      };
+      if (
+        typeof input.moduleId !== 'string' ||
+        typeof input.ref !== 'string' ||
+        typeof input.included !== 'boolean'
+      ) {
+        throw new HttpError(400, 'Élément invalide');
+      }
+      ctx.db
+        .prepare(
+          `INSERT INTO ${projectItems} (module_id, ref, track_id, included, updated_at) VALUES (?, ?, ?, ?, ?)
+           ON CONFLICT (module_id, ref) DO UPDATE SET track_id = excluded.track_id,
+             included = excluded.included, updated_at = excluded.updated_at`,
+        )
+        .run(input.moduleId, input.ref, track.id, input.included ? 1 : 0, new Date().toISOString());
+      return projectOf(track.id);
+    });
+
+    // « Sans projet »: generated elements of any module whose track is unknown or deleted.
+    ctx.routes.get('/orphans', () => ctx.outputs.orphans(knownSubject));
+
+    ctx.routes.post('/orphans/attach', (request) => {
+      const input = (request.body ?? {}) as { ids?: unknown; trackId?: unknown };
+      const track = library.require(Number(input.trackId));
+      const orphanIds = new Set(ctx.outputs.orphans(knownSubject).map((r) => r.id));
+      const ids = Array.isArray(input.ids)
+        ? input.ids.map(Number).filter((id) => orphanIds.has(id))
+        : [];
+      if (ids.length === 0) throw new HttpError(400, 'Aucun élément sans projet sélectionné');
+      return { attached: ctx.outputs.attach(ids, trackSubject(track.id)) };
     });
 
     ctx.routes.post('/tracks', async (request) => {

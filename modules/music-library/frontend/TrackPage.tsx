@@ -7,7 +7,6 @@ import {
   errorMessage,
   formatDuration,
   getFilePath,
-  OutputList,
   Page,
   pickFiles,
   useApi,
@@ -16,6 +15,7 @@ import {
 } from '@hub/sdk/frontend';
 import type { TrackDto } from '../contract';
 import { CoverImage } from './CoverImage';
+import { ProjectView } from './ProjectView';
 import { IMAGE_EXTENSIONS } from './pairing';
 
 type TrackDetail = TrackDto & {
@@ -172,13 +172,8 @@ export function TrackPage() {
           {/* Keyed by updatedAt: the form restarts from saved values after each save. */}
           <InfoForm key={data.updatedAt} track={data} onSaved={track.reload} />
 
-          <Card title="Fichiers générés">
-            <OutputList
-              subject={`music-library:track:${data.id}`}
-              version={data.outputs.length}
-              onChange={track.reload}
-              emptyText="Aucun pour l’instant. Les vidéos, Reels et posts créés avec les outils de la section Musique apparaîtront ici."
-            />
+          <Card title="Projet : tout ce qui a été généré">
+            <ProjectView trackId={data.id} onChange={track.reload} />
           </Card>
 
           <Card title="Statistiques">

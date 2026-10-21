@@ -13,7 +13,7 @@ import {
 } from '@hub/sdk/backend';
 import { parseTags, toTemplate } from '@hub/sdk/texts';
 import type { InstagramPackService, PackItem } from '../../instagram-video/contract';
-import type { MusicLibraryService, Track } from '../../music-library/contract';
+import type { MusicLibraryService, ProjectStatus, Track } from '../../music-library/contract';
 import type { VideoEngineService } from '../../video-engine/contract';
 import type { YouTubeVideo, YouTubeVideoService } from '../../youtube-video/contract';
 import {
@@ -288,6 +288,38 @@ export default defineBackendModule({
         publishAt: visibility === 'scheduled' ? item.scheduled_at : undefined,
       };
     };
+
+    // Project page of the library: where each generated element stands in the release.
+    const PROJECT_STATUS: Record<ItemState, ProjectStatus> = {
+      planned: 'planned',
+      queued: 'planned',
+      uploading: 'planned',
+      failed: 'planned',
+      scheduled: 'scheduled',
+      'to-schedule': 'scheduled',
+      published: 'published',
+    };
+    library.registerProjectStatus({
+      moduleId: ctx.id,
+      get: (trackId) => {
+        const release = store.releaseByTrack(trackId);
+        if (!release) return [];
+        return store.itemsOf(release.id).flatMap((item) => {
+          const when = local(item.scheduled_at);
+          const detail = `${itemLabel(item.kind, item.position)} · ${when.date.split('-').reverse().join('/')}`;
+          const status = PROJECT_STATUS[item.state];
+          if (item.kind === 'youtube') {
+            return release.video_id === null
+              ? []
+              : [{ moduleId: 'youtube-video', ref: `video:${release.video_id}`, status, detail }];
+          }
+          if (item.pack_item_id === null) return [];
+          return [
+            { moduleId: 'instagram-video', ref: `item:${item.pack_item_id}`, status, detail },
+          ];
+        });
+      },
+    });
 
     // DTOs ------------------------------------------------------------------
 
