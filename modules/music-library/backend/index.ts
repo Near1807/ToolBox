@@ -233,11 +233,22 @@ export default defineBackendModule({
     ctx.routes.post('/orphans/attach', (request) => {
       const input = (request.body ?? {}) as { ids?: unknown; trackId?: unknown };
       const track = library.require(Number(input.trackId));
-      const orphanIds = new Set(ctx.outputs.orphans(knownSubject).map((r) => r.id));
+      const orphans = new Map(ctx.outputs.orphans(knownSubject).map((r) => [r.id, r]));
       const ids = Array.isArray(input.ids)
-        ? input.ids.map(Number).filter((id) => orphanIds.has(id))
+        ? input.ids.map(Number).filter((id) => orphans.has(id))
         : [];
       if (ids.length === 0) throw new HttpError(400, 'Aucun élément sans projet sélectionné');
+      // « Inclure dans la sortie » of each element, read before: its ref may change (new place in a pack).
+      const choiceOf = ctx.db.prepare(
+        `SELECT included FROM ${projectItems} WHERE module_id = ? AND ref = ?`,
+      );
+      const before = new Map(
+        ids.map((id) => {
+          const record = orphans.get(id)!;
+          const row = choiceOf.get(record.moduleId, record.ref) as { included: number } | undefined;
+          return [id, { ref: record.ref, included: row ? row.included : null }];
+        }),
+      );
       // Each owner module moves its own rows too (onReattach), all or nothing.
       let attached: number;
       try {
@@ -246,12 +257,22 @@ export default defineBackendModule({
         if (error instanceof HttpError) throw error;
         throw new HttpError(409, error instanceof Error ? error.message : String(error));
       }
-      // « Inclure dans la sortie » follows the element to its new project.
-      const move = ctx.db.prepare(
-        `UPDATE ${projectItems} SET track_id = ? WHERE module_id = ? AND ref = ?`,
+      // The choice follows the element to its new project (and its new ref), unchanged.
+      const keep = ctx.db.prepare(
+        `INSERT INTO ${projectItems} (module_id, ref, track_id, included, updated_at) VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT (module_id, ref) DO UPDATE SET track_id = excluded.track_id,
+           included = excluded.included, updated_at = excluded.updated_at`,
       );
+      const now = new Date().toISOString();
       for (const record of ctx.outputs.bySubject(trackSubject(track.id))) {
-        if (ids.includes(record.id)) move.run(track.id, record.moduleId, record.ref);
+        const old = before.get(record.id);
+        if (!old) continue;
+        if (old.included !== null)
+          keep.run(record.moduleId, record.ref, track.id, old.included, now);
+        else if (old.ref !== record.ref) {
+          // Never chosen: included (the default), whatever the new place held before.
+          keep.run(record.moduleId, record.ref, track.id, 1, now);
+        }
       }
       return { attached };
     });

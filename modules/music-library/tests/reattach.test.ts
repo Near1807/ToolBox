@@ -78,7 +78,8 @@ describe('reattaching « Sans projet » elements, module by module', () => {
     hub = await start();
     const track = async () =>
       (await hub.request<TrackDto>('POST', `${LIB}/tracks`, { audioPath: media.wav })).body.id;
-    const [gone, gone2, target, full] = [
+    const [gone, gone2, target, full, lone] = [
+      await track(),
       await track(),
       await track(),
       await track(),
@@ -146,10 +147,10 @@ describe('reattaching « Sans projet » elements, module by module', () => {
     await hub.close();
     hub = await start();
     for (const id of [gone, gone2]) await hub.request('DELETE', `${LIB}/tracks/${id}`);
-    Object.assign(ids, { gone, gone2, target, full });
+    Object.assign(ids, { gone, gone2, target, full, lone });
   }, 60_000);
 
-  const ids = { gone: 0, gone2: 0, target: 0, full: 0 };
+  const ids = { gone: 0, gone2: 0, target: 0, full: 0, lone: 0 };
 
   afterAll(async () => {
     await hub.close();
@@ -167,11 +168,11 @@ describe('reattaching « Sans projet » elements, module by module', () => {
       'youtube-video/video',
     ]);
     const res = await attach(
-      // Reel 1 of the pack follows its pack, the imported video follows its Reel perso.
-      ofGone.filter((r) => r.ref !== 'item:2' && r.kind !== 'source').map((r) => r.id),
+      // The whole pack (post + Reel 1) moves as is; the imported video follows its Reel perso.
+      ofGone.filter((r) => r.kind !== 'source').map((r) => r.id),
       ids.target,
     );
-    expect(res.body).toEqual({ attached: 3 });
+    expect(res.body).toEqual({ attached: 4 });
 
     const yt = await get<YouTubeTrack>(`/api/modules/youtube-video/tracks/${ids.target}`);
     expect(yt.videos.map((v) => v.fileName)).toEqual(['gone.mp4']);
@@ -201,6 +202,12 @@ describe('reattaching « Sans projet » elements, module by module', () => {
     expect(refused.status).toBe(409);
     expect(refused.body.error).toMatch(/déjà un fichier pour « Reel 1 »/);
     expect((await orphans()).map((r) => r.id)).toEqual(expect.arrayContaining([post.id, reel.id]));
+    // « Inclure dans la sortie » unticked before: kept after the move (its ref changes).
+    await hub.request('PUT', `${LIB}/tracks/${ids.target}/project/included`, {
+      moduleId: 'instagram-video',
+      ref: post.ref,
+      included: false,
+    });
     // The post alone: it takes the empty post of the pack.
     expect((await attach([post.id], ids.full)).body).toEqual({ attached: 1 });
     const insta = await get<InstaTrack>(`/api/modules/instagram-video/tracks/${ids.full}`);
@@ -209,5 +216,19 @@ describe('reattaching « Sans projet » elements, module by module', () => {
       (r) => r.id === post.id,
     );
     expect(record?.ref).toBe(`item:${insta.pack!.items[0]!.id}`);
+    expect((record as OutputRecord & { included: boolean }).included).toBe(false);
+  });
+
+  it('moves only the chosen item to a track without pack (an empty pack is made for it)', async () => {
+    const reel = (await orphans()).find((r) => r.fileName === 'gone2-reel1.mp4')!;
+    expect((await attach([reel.id], ids.lone)).body).toEqual({ attached: 1 });
+    const insta = await get<InstaTrack>(`/api/modules/instagram-video/tracks/${ids.lone}`);
+    expect(insta.pack?.items.map((i) => [i.kind, i.position, i.fileName])).toEqual([
+      ['post', 0, null],
+      ['reel', 1, 'gone2-reel1.mp4'],
+    ]);
+    // The rest of the old pack did not move with it.
+    const full = await get<InstaTrack>(`/api/modules/instagram-video/tracks/${ids.full}`);
+    expect(full.pack?.items.map((i) => i.fileName)).toEqual(['gone2-post.jpg', 'full-reel1.mp4']);
   });
 });
