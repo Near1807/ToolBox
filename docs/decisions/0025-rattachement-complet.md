@@ -14,7 +14,7 @@ En v0.12 (ADR 0022), « Sans projet » > Rattacher ne changeait que le projet de
 - **Le socle reste générique** : `subject` est une chaîne. Pour la Musique, le service `musicLibrary` gagne `trackIdOf(subject)` (null si ce n'est pas un morceau existant).
 - **Ce que fait chaque module** :
   - Vidéo YouTube : la vidéo change de morceau.
-  - Pack Instagram (un pack par morceau) : si le morceau choisi n'a pas de pack, le pack entier suit ; sinon le fichier prend la même place (post, Reel n) dans le pack existant, refusé si cette place a déjà un fichier ; l'ancienne place redevient « À générer ».
+  - Pack Instagram (un pack par morceau) : si le morceau choisi n'a pas de pack et que tout le pack est rattaché (chaque élément qui a un fichier), le pack entier suit ; sinon (v0.14) seul l'élément choisi part, dans un pack vide créé pour le morceau avec les mêmes réglages ; si le morceau a déjà un pack, le fichier prend la même place (post, Reel n) dans le pack existant, refusé si cette place a déjà un fichier ; l'ancienne place redevient « À générer ».
   - Reels perso : le Reel prend la première place libre (4 au plus, sinon refusé), avec les vidéos importées qu'il utilise.
   - Planning : une miniature quitte sa sortie d'origine ; la sortie du morceau choisi l'adopte si elle n'en a pas.
   - Modèle : rien à déplacer (crochet vide, commenté).
@@ -22,4 +22,4 @@ En v0.12 (ADR 0022), « Sans projet » > Rattacher ne changeait que le projet de
 ## Conséquences
 
 - Testé avec les vrais modules : déplacement, place prise (refus sans aucun changement), adoption de la miniature.
-- La case « Inclure dans la sortie » suit l'élément vers son nouveau morceau (sauf quand le fichier change de place dans un pack : il est alors inclus, la valeur par défaut).
+- La case « Inclure dans la sortie » suit l'élément vers son nouveau morceau, y compris quand le fichier change de place dans un pack (v0.14 : avant, il repartait « inclus »).

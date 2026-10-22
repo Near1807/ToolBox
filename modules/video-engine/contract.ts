@@ -52,9 +52,9 @@ export interface RenderResult {
 
 /** Effects of the Reels made from the user's videos (docs/DIRECTION-ARTISTIQUE.md). */
 export type VideoEffectId = 'raw' | 'calm' | 'rhythm' | 'cine' | 'camera';
-/** « Intensité » of Rythme and Caméra embarquée (EXPERIMENTAL). */
+/** « Intensité » of Rythme and Caméra embarquée. */
 export type EffectIntensity = 'light' | 'medium' | 'max';
-/** Sound of a video Reel (EXPERIMENTAL except « track »). */
+/** Sound of a video Reel. */
 export type ReelAudioMode = 'track' | 'video' | 'synced';
 
 export interface VideoEffectInfo {
@@ -69,8 +69,11 @@ export interface VideoReelRequest {
   /** Excerpt of the track, seconds. */
   start: number;
   duration: number;
-  /** Passages of the videos, chained with hard cuts (repeated if shorter than the excerpt). */
-  segments: { source: string; start: number; end: number }[];
+  /**
+   * Passages of the videos, chained with hard cuts (repeated if shorter than
+   * the Reel). `syncOffset` (« synced »): track time = video time + offset.
+   */
+  segments: { source: string; start: number; end: number; syncOffset?: number }[];
   /** « fit »: whole video over a blurred background made from itself; « fill »: cropped around `focus`. */
   framing: 'fit' | 'fill';
   /** 0..1 in the picture (fill only). */
@@ -81,21 +84,20 @@ export interface VideoReelRequest {
   /** Default 0.5 s. */
   fadeSeconds?: number;
   /**
-   * EXPERIMENTAL. « track » (default): the track excerpt. « video »: the videos'
-   * own sound for the chosen passages (normalised, limited). « synced »: the
-   * master of the track placed exactly where it plays in the video (`syncOffsets`).
-   * Outside « track », the Reel lasts as long as the passages (no loop).
+   * « track » (default): the track excerpt. « video »: the videos' own sound
+   * for the chosen passages (loudness-normalised). « synced »: the master of
+   * the track placed exactly where it plays in each passage (`syncOffset`).
+   * Every mode is limited to -1.1 dBTP. The Reel lasts `duration` in every
+   * mode (the passages add up to it).
    */
   audioMode?: ReelAudioMode;
-  /** « synced »: per video file, track time = video time + offset (s). */
-  syncOffsets?: Record<string, number>;
-  /** EXPERIMENTAL: Rythme and Caméra embarquée (default « medium »). */
+  /** Rythme and Caméra embarquée (default « medium »). */
   intensity?: EffectIntensity;
-  /** EXPERIMENTAL: free text shown discreetly at the top (safe zone). */
+  /** Free text shown discreetly at the top (safe zone). */
   overlayText?: string;
 }
 
-/** Where the track plays in a video's sound (EXPERIMENTAL, cross-correlation). */
+/** Where the track plays in a passage of a video's sound (cross-correlation of the spectral flux). */
 export interface TrackSync {
   /** Track time = video time + offset (s). */
   offset: number;
@@ -103,6 +105,8 @@ export interface TrackSync {
   score: number;
   /** Best match / best other match (far from it). */
   ratio: number;
+  /** How far the best match stands out from all the others (standard deviations). */
+  salience: number;
   reliable: boolean;
 }
 
@@ -155,9 +159,13 @@ export interface VideoEngineService {
   ): Promise<RenderResult & { looped: boolean }>;
   /** Duration and displayed size of a video file. */
   probeVideo(videoPath: string): Promise<VideoInfo>;
-  /** EXPERIMENTAL: finds where the track plays in the video's sound. */
-  findTrackInVideo(trackPath: string, videoPath: string): Promise<TrackSync>;
-  /** `count` small JPEG frames evenly spread over the video (timeline), written to `outputDir`. */
+  /** Finds where the track plays during a passage of the video (the whole video if omitted). */
+  findTrackInVideo(
+    trackPath: string,
+    videoPath: string,
+    passage?: { start: number; duration: number },
+  ): Promise<TrackSync>;
+  /** `count` (up to 120) small JPEG frames evenly spread over the video (timeline), written to `outputDir`. */
   filmstrip(videoPath: string, count: number, outputDir: string): Promise<string[]>;
   /** Peaks (0..1, `bars` values) of a whole audio file, for the excerpt waveform. */
   waveform(audioPath: string, bars: number): Promise<{ durationSec: number; peaks: number[] }>;

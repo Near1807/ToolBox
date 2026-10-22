@@ -518,6 +518,11 @@ export function buildFramesEncodeArgs(params: {
   encoding: FormatSpec['encoding'] | null;
   audio: string;
   output: string;
+  /**
+   * Cut at exactly `duration` (every frame kept) instead of at the shortest
+   * stream: an AAC soundtrack ends a few ms early and would cost the last frame.
+   */
+  exact?: boolean;
 }): string[] {
   const { duration: d, fade } = params;
   const grain = params.grain ?? 4;
@@ -550,7 +555,7 @@ export function buildFramesEncodeArgs(params: {
     ...['-i', params.audio],
     ...video,
     ...['-c:v', 'libx264', '-pix_fmt', 'yuv420p', ...quality],
-    ...['-c:a', 'copy', '-shortest'],
+    ...['-c:a', 'copy', ...(params.exact ? ['-t', String(round(d))] : ['-shortest'])],
     ...['-movflags', '+faststart', '-progress', 'pipe:1', '-nostats', '-f', 'mp4'],
     params.output,
   ];

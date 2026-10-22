@@ -68,14 +68,14 @@ export async function filmstrip(
   const { durationSec } = await probeVideo(ffprobe, file);
   rmSync(outputDir, { recursive: true, force: true });
   mkdirSync(outputDir, { recursive: true });
-  const n = Math.max(1, Math.min(40, Math.round(count)));
+  const n = Math.max(1, Math.min(120, Math.round(count)));
   const fps = (n / durationSec).toFixed(6);
   await runFfmpeg({
     ffmpeg,
     cwd: outputDir,
     args: [
       ...['-v', 'error', '-y', '-ss', String((durationSec / n / 2).toFixed(3)), '-i', file],
-      ...['-vf', `fps=${fps},scale=-2:160`, '-frames:v', String(n), '-q:v', '5', 'frame-%02d.jpg'],
+      ...['-vf', `fps=${fps},scale=-2:160`, '-frames:v', String(n), '-q:v', '5', 'frame-%03d.jpg'],
     ],
   });
   return readdirSync(outputDir)

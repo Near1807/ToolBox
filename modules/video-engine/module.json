@@ -2,7 +2,7 @@
   "id": "video-engine",
   "name": "Moteur vidéo",
   "description": "Moteur de rendu partagé par les générateurs de vidéos (FFmpeg, canvas pour les Reels).",
-  "version": "4.0.0",
+  "version": "4.1.0",
   "section": "Musique",
   "icon": "🎞️",
   "order": 90,

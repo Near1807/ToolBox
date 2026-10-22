@@ -1,4 +1,4 @@
-import { useRef, useState, type MouseEvent } from 'react';
+import { useState, type MouseEvent } from 'react';
 import {
   Button,
   confirmDelete,
@@ -12,12 +12,12 @@ import {
   PublishedCheck,
   StateBadge,
   TextFields,
-  useApi,
   useModule,
   type JobInfo,
   type StateTone,
 } from '@hub/sdk/frontend';
-import { STATE_LABELS, type EffectInfo, type Reel, type Segment, type Source } from './types';
+import { PassageEditor, useFilmstrip } from './PassageEditor';
+import { STATE_LABELS, type EffectInfo, type Reel, type Source } from './types';
 
 const STATE_TONES: Record<Reel['state'], StateTone> = {
   draft: 'neutral',
@@ -27,150 +27,6 @@ const STATE_TONES: Record<Reel['state'], StateTone> = {
   failed: 'danger',
   missing: 'warning',
 };
-
-/** Frames of a source video, for its timeline and the focus picker. */
-function useFilmstrip(sourceId: number | null) {
-  const module = useModule();
-  return useApi<{ frames: string[] }>(
-    sourceId === null ? null : module.url(`/sources/${sourceId}/filmstrip`),
-  );
-}
-
-/** One passage of a video: source, start and end on a filmstrip, with a preview of its start. */
-function SegmentEditor(props: {
-  segment: Segment;
-  index: number;
-  sources: Source[];
-  onChange: (segment: Segment) => void;
-  onRemove?: () => void;
-}) {
-  const { segment } = props;
-  const source = props.sources.find((s) => s.id === segment.sourceId) ?? props.sources[0];
-  const strip = useFilmstrip(source?.id ?? null);
-  const video = useRef<HTMLVideoElement>(null);
-  const [draft, setDraft] = useState(segment);
-  const [base, setBase] = useState(segment);
-  if (base !== segment) {
-    setBase(segment);
-    setDraft(segment);
-  }
-  const duration = source?.durationSec ?? 0;
-  const seek = (time: number) => {
-    if (video.current) video.current.currentTime = time;
-  };
-  const commit = (next: Segment) => {
-    if (next.end - next.start >= 0.5) props.onChange(next);
-  };
-  const percent = (t: number) =>
-    `${(Math.min(duration, Math.max(0, t)) / Math.max(0.1, duration)) * 100}%`;
-
-  return (
-    <div className="cr-segment">
-      <div className="cr-segment__head">
-        <span className="label">Passage {props.index + 1}</span>
-        <select
-          className="input"
-          aria-label="Vidéo du passage"
-          value={source?.id}
-          onChange={(e) => {
-            const next = props.sources.find((s) => s.id === Number(e.target.value));
-            if (next)
-              commit({
-                sourceId: next.id,
-                start: 0,
-                end: Math.min(next.durationSec, segment.end - segment.start),
-              });
-          }}
-        >
-          {props.sources.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
-        <span className="num small">
-          {formatDuration(draft.start)} → {formatDuration(draft.end)} ·{' '}
-          {(draft.end - draft.start).toFixed(1)} s
-        </span>
-        {props.onRemove && (
-          <Button variant="secondary" small onClick={props.onRemove}>
-            Retirer
-          </Button>
-        )}
-      </div>
-      <div className="cr-segment__body">
-        {source?.url && (
-          <video
-            ref={video}
-            className="cr-segment__video"
-            src={`${source.url}#t=${segment.start}`}
-            muted
-            playsInline
-            preload="metadata"
-            onClick={(e) =>
-              e.currentTarget.paused ? void e.currentTarget.play() : e.currentTarget.pause()
-            }
-            onTimeUpdate={(e) => {
-              if (e.currentTarget.currentTime >= draft.end) {
-                e.currentTarget.pause();
-                e.currentTarget.currentTime = draft.start;
-              }
-            }}
-            title="Clic : lire le passage (sans son)"
-          />
-        )}
-        <div className="cr-timeline">
-          <div className="cr-timeline__strip">
-            {(strip.data?.frames ?? []).map((frame) => (
-              <img key={frame} src={frame} alt="" draggable={false} />
-            ))}
-            <div
-              className="cr-timeline__range"
-              style={{
-                left: percent(draft.start),
-                width: `calc(${percent(draft.end)} - ${percent(draft.start)})`,
-              }}
-            />
-          </div>
-          <label className="cr-timeline__slider">
-            <span className="small muted">Début</span>
-            <input
-              type="range"
-              min={0}
-              max={duration}
-              step={0.1}
-              value={draft.start}
-              onChange={(e) => {
-                const start = Math.min(Number(e.target.value), draft.end - 0.5);
-                setDraft({ ...draft, start });
-                seek(start);
-              }}
-              onPointerUp={() => commit(draft)}
-              onKeyUp={() => commit(draft)}
-            />
-          </label>
-          <label className="cr-timeline__slider">
-            <span className="small muted">Fin</span>
-            <input
-              type="range"
-              min={0}
-              max={duration}
-              step={0.1}
-              value={draft.end}
-              onChange={(e) => {
-                const end = Math.max(Number(e.target.value), draft.start + 0.5);
-                setDraft({ ...draft, end });
-                seek(end);
-              }}
-              onPointerUp={() => commit(draft)}
-              onKeyUp={() => commit(draft)}
-            />
-          </label>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 /** Click on the picture to choose what stays in the frame (« Remplir »). */
 function FocusPicker(props: {
@@ -203,6 +59,8 @@ function FocusPicker(props: {
 export function ReelEditor(props: {
   reel: Reel;
   sources: Source[];
+  /** The track's audio, for « Lire le passage ». */
+  audioUrl: string | null;
   effects: EffectInfo[];
   job: JobInfo | null;
   onChanged: () => void;
@@ -241,21 +99,16 @@ export function ReelEditor(props: {
   };
   const patch = (fields: Record<string, unknown>) =>
     run(() => module.api.patch(`/reels/${reel.id}`, fields));
-  const setSegments = (segments: Segment[]) => patch({ segments });
   const [text, setText] = useState(reel.overlayText);
   const [syncing, setSyncing] = useState(false);
-  const used = [...new Set(reel.segments.map((s) => s.sourceId))]
-    .map((id) => props.sources.find((s) => s.id === id))
-    .filter((s): s is Source => Boolean(s));
   const findTrack = async () => {
     setSyncing(true);
-    await run(async () => {
-      for (const source of used) await module.api.post(`/sources/${source.id}/sync`);
-    });
+    await run(() => module.api.post(`/reels/${reel.id}/sync`));
     setSyncing(false);
   };
-  const unreliable = used.filter((s) => s.sync && !s.sync.reliable);
-  const notSearched = used.filter((s) => !s.sync);
+  const unreliable = reel.sync.some((m) => m && !m.reliable);
+  const notSearched = reel.sync.some((m) => !m);
+  const nameOf = (id: number) => props.sources.find((s) => s.id === id)?.name ?? 'Vidéo';
 
   const makePreview = async () => {
     setPreviewing(true);
@@ -364,9 +217,7 @@ export function ReelEditor(props: {
         )}
 
         <section>
-          <h3>
-            Son <span className="badge">Expérimental</span>
-          </h3>
+          <h3>Son</h3>
           <div className="cr-framing">
             {(
               [
@@ -397,22 +248,29 @@ export function ReelEditor(props: {
           </div>
           {reel.audioMode !== 'track' && (
             <p className="muted small">
-              Le Reel dure le temps des passages choisis ci-dessous (60 s au plus) ; l’extrait du
-              morceau n’est pas utilisé.
+              Le son suit le passage vidéo choisi ci-dessous ; l’extrait du morceau n’est pas
+              utilisé. Son limité à -1,1 dBTP.
             </p>
           )}
           {reel.audioMode === 'synced' && (
             <div className="cr-sync">
-              {used.map((source) => (
-                <p key={source.id} className="small">
-                  <strong>{source.name}</strong> :{' '}
-                  {!source.sync
-                    ? 'pas encore cherché'
-                    : source.sync.reliable
-                      ? `morceau retrouvé (décalage ${source.sync.offset.toFixed(3)} s, confiance ${source.sync.score?.toFixed(2)})`
-                      : `pas retrouvé de façon fiable (confiance ${source.sync.score?.toFixed(2)})`}
-                </p>
-              ))}
+              {reel.segments.map((passage, index) => {
+                const match = reel.sync[index] ?? null;
+                return (
+                  <p
+                    key={index}
+                    className={`small${match && !match.reliable ? ' cr-warning' : ''}`}
+                  >
+                    <strong>{nameOf(passage.sourceId)}</strong>, de {formatDuration(passage.start)}{' '}
+                    à {formatDuration(passage.end)} :{' '}
+                    {!match
+                      ? 'pas encore cherché'
+                      : match.reliable
+                        ? `morceau retrouvé (à ${formatDuration(passage.start + match.offset)} dans le morceau, décalage ${match.offset.toFixed(3).replace('.', ',')} s)`
+                        : 'morceau pas retrouvé de façon fiable dans ce passage (prise de son trop faible, ou le morceau n’y est pas). Choisis « Son de la vidéo », ou un autre passage.'}
+                  </p>
+                );
+              })}
               <div className="inline-form">
                 <Button
                   small
@@ -422,11 +280,11 @@ export function ReelEditor(props: {
                 >
                   {syncing
                     ? 'Recherche…'
-                    : notSearched.length > 0
-                      ? 'Retrouver le morceau dans la vidéo'
+                    : notSearched
+                      ? 'Retrouver le morceau'
                       : 'Chercher à nouveau'}
                 </Button>
-                {unreliable.length > 0 && (
+                {unreliable && (
                   <Button small onClick={() => void patch({ audioMode: 'video' })}>
                     Utiliser « Son de la vidéo »
                   </Button>
@@ -456,7 +314,7 @@ export function ReelEditor(props: {
           </div>
           {(reel.effect === 'rhythm' || reel.effect === 'camera') && (
             <label className="cr-inline-field small">
-              Intensité <span className="badge">Expérimental</span>
+              Intensité
               <select
                 className="input input--short"
                 value={reel.intensity}
@@ -470,7 +328,7 @@ export function ReelEditor(props: {
             </label>
           )}
           <label className="cr-inline-field small">
-            Texte à l’écran <span className="badge">Expérimental</span>
+            Texte à l’écran
             <input
               className="input"
               value={text}
@@ -532,53 +390,13 @@ export function ReelEditor(props: {
 
         <section>
           <h3>Vidéo</h3>
-          <p className="muted small">
-            Un passage, ou plusieurs enchaînés en coupe franche.{' '}
-            {reel.audioMode === 'track'
-              ? 'Le son des vidéos n’est pas utilisé : seul l’extrait du morceau.'
-              : 'Le son suit les passages choisis.'}
-          </p>
-          {reel.segments.map((segment, index) => (
-            <SegmentEditor
-              key={`${index}-${segment.sourceId}`}
-              segment={segment}
-              index={index}
-              sources={props.sources}
-              onChange={(next) =>
-                void setSegments(reel.segments.map((s, i) => (i === index ? next : s)))
-              }
-              onRemove={
-                reel.segments.length > 1
-                  ? () => void setSegments(reel.segments.filter((_, i) => i !== index))
-                  : undefined
-              }
-            />
-          ))}
-          <div className="inline-form">
-            <Button
-              variant="secondary"
-              small
-              disabled={locked || reel.segments.length >= 12 || props.sources.length === 0}
-              onClick={() => {
-                const last = reel.segments[reel.segments.length - 1];
-                const source =
-                  props.sources.find((s) => s.id === last?.sourceId) ?? props.sources[0]!;
-                const start = last && last.end + 1 < source.durationSec ? last.end : 0;
-                void setSegments([
-                  ...reel.segments,
-                  { sourceId: source.id, start, end: Math.min(source.durationSec, start + 5) },
-                ]);
-              }}
-            >
-              Ajouter un passage
-            </Button>
-            <span className={`small ${reel.loops ? 'cr-warning' : 'muted'}`}>
-              {reel.audioMode === 'track'
-                ? `Vidéo : ${reel.videoSeconds.toFixed(1)} s pour un extrait de ${reel.durationSec} s`
-                : `Durée du Reel : ${Math.min(60, reel.videoSeconds).toFixed(1)} s`}
-              {reel.loops && ' — plus courte que le son : elle sera bouclée (relancée au début).'}
-            </span>
-          </div>
+          <PassageEditor
+            reel={reel}
+            sources={props.sources}
+            audioUrl={props.audioUrl}
+            locked={locked}
+            onPatch={(fields) => void patch(fields)}
+          />
         </section>
       </div>
     </div>

@@ -2,7 +2,7 @@
   "id": "custom-reels",
   "name": "Reels depuis mes vidéos",
   "description": "Des Reels 9:16 faits avec tes propres vidéos, sur un extrait du morceau, avec un effet au choix.",
-  "version": "1.1.0",
+  "version": "2.0.0",
   "section": "Musique",
   "icon": "🎬",
   "order": 35,
@@ -31,7 +31,7 @@
         { "value": "calm", "label": "Calme" },
         { "value": "rhythm", "label": "Rythme" },
         { "value": "cine", "label": "Ciné" },
-        { "value": "camera", "label": "Caméra embarquée (expérimental)" }
+        { "value": "camera", "label": "Caméra embarquée" }
       ],
       "default": "raw"
     },

@@ -50,6 +50,8 @@ export const VIDEO_REEL_LAYOUT = {
 
 export interface TimelinePiece {
   source: string;
+  /** « Morceau synchronisé »: track time = video time + this offset (s). */
+  syncOffset?: number;
   /** In the source video, seconds. */
   start: number;
   duration: number;
@@ -60,11 +62,16 @@ export interface TimelinePiece {
  * shorter than the audio excerpt; the last piece is cut at the excerpt's end.
  */
 export function planTimeline(
-  segments: { source: string; start: number; end: number }[],
+  segments: { source: string; start: number; end: number; syncOffset?: number }[],
   duration: number,
 ): { pieces: TimelinePiece[]; videoSeconds: number; looped: boolean } {
   const usable = segments
-    .map((s) => ({ source: s.source, start: Math.max(0, s.start), duration: s.end - s.start }))
+    .map((s) => ({
+      source: s.source,
+      start: Math.max(0, s.start),
+      duration: s.end - s.start,
+      ...(s.syncOffset !== undefined ? { syncOffset: s.syncOffset } : {}),
+    }))
     .filter((s) => s.duration >= 0.2);
   const videoSeconds = usable.reduce((sum, s) => sum + s.duration, 0);
   if (usable.length === 0 || videoSeconds < 0.5) {
@@ -202,7 +209,7 @@ export function applyMotion(
 }
 
 /**
- * EXPERIMENTAL — « Caméra embarquée »: the picture through a projective warp
+ * « Caméra embarquée »: the picture through a projective warp
  * (zoom, rotation, shake, slight keystone of a screen filmed at an angle),
  * bilinear, then a light motion blur (blend with the previous output) and the
  * flash. The zoom is raised until the warped picture covers the whole frame:
@@ -275,7 +282,17 @@ export function applyCamera(
   return out;
 }
 
-/** EXPERIMENTAL — energy of the highs (percussion) per frame: first difference, mean square. */
+/**
+ * The motion blur (blend with the previous frame) trails the picture: it is
+ * kept for the release only. On an attack (zoom going up) the frame is sharp,
+ * so that the motion peaks on the frame of the attack, never a frame late.
+ */
+export function trailOnRelease(motion: EffectFrame, previousZoom: number): EffectFrame {
+  if (!motion.camera || motion.zoom < previousZoom - 1e-6) return motion;
+  return { ...motion, camera: { ...motion.camera, blur: 0 } };
+}
+
+/** Energy of the highs (percussion) per frame: first difference, mean square. */
 export function highEnergyPerFrame(samples: Float32Array, rate: number, frames: number): number[] {
   const per = rate / FPS;
   return Array.from({ length: frames }, (_, i) => {
@@ -344,7 +361,7 @@ function drawStillLayer(
     ctx.letterSpacing = `${spacing}px`;
     ctx.fillText(cleanArtist, width / 2, L.artist.top * k);
   }
-  // EXPERIMENTAL « Texte à l'écran »: discreet, readable, inside the top safe zone.
+  // « Texte à l'écran »: discreet, readable, inside the top safe zone.
   const text = overlayText.replace(/[\r\n]+/g, ' ').trim();
   if (text) {
     ctx.letterSpacing = '0px';
@@ -398,7 +415,7 @@ async function* rawFrames(
 }
 
 /**
- * EXPERIMENTAL — soundtrack made of the passages: the videos' own sound
+ * Soundtrack made of the passages: the videos' own sound
  * (« video », loudness-normalised) or the track's master at the matching
  * place (« synced »), concatenated, faded, limited; true peak ≤ -1.1 dBTP.
  */
@@ -408,7 +425,6 @@ async function renderPiecesSoundtrack(
     mode: 'video' | 'synced';
     pieces: TimelinePiece[];
     audioPath: string;
-    offsets: Record<string, number>;
     trackDuration: number;
     duration: number;
     fade: number;
@@ -427,8 +443,8 @@ async function renderPiecesSoundtrack(
         piece.source,
       ];
     }
-    const offset = params.offsets[piece.source];
-    if (offset === undefined) throw new Error('Morceau pas encore retrouvé dans cette vidéo');
+    const offset = piece.syncOffset;
+    if (offset === undefined) throw new Error('Morceau pas encore retrouvé dans ce passage');
     const at = piece.start + offset;
     if (at < 0 || at + piece.duration > params.trackDuration + 0.05) {
       throw new Error('Ce passage de la vidéo est hors du morceau : choisis un passage où il joue');
@@ -451,7 +467,9 @@ async function renderPiecesSoundtrack(
         : null,
       `aresample=${TRUE_PEAK_RATE}`,
       `alimiter=limit=${dbToLinear(ceiling)}:attack=1:release=50:level=0`,
-      'aresample=48000[aout]',
+      // Padded with silence to the exact duration: the encoder stops at the
+      // shortest stream, a sound a few ms short would cost the last frame.
+      `aresample=48000,apad=whole_dur=${round(d)}[aout]`,
     ]
       .filter(Boolean)
       .join(',');
@@ -504,12 +522,9 @@ export async function renderVideoReel(
   const audioDuration = await probeDuration(env.ffprobe, options.audioPath);
   const mode = options.audioMode ?? 'track';
   const start = Math.min(Math.max(0, options.start), Math.max(0, audioDuration - 1));
-  // Outside « track », the sound follows the chosen passages: the Reel lasts as long as them.
-  const passages = options.segments.reduce((sum, s) => sum + Math.max(0, s.end - s.start), 0);
+  // The Reel lasts `duration` in every mode; outside « track » the sound follows the passages.
   const duration =
-    mode === 'track'
-      ? Math.min(options.duration, audioDuration - start)
-      : Math.min(60, passages, preview ? options.duration : Infinity);
+    mode === 'track' ? Math.min(options.duration, audioDuration - start) : options.duration;
   if (duration < 1) throw new Error('Extrait trop court (1 seconde minimum)');
   const frames = Math.round(duration * FPS);
   const timeline = planTimeline(options.segments, duration);
@@ -547,13 +562,12 @@ export async function renderVideoReel(
         verify: !preview,
       });
     } else {
-      // EXPERIMENTAL: the final sound is made first, the effects follow IT.
+      // The final sound is made first: the effects follow IT.
       handlers.onProgress?.(0, 'Préparation du son…');
       await renderPiecesSoundtrack(run, {
         mode,
         pieces: timeline.pieces,
         audioPath: options.audioPath,
-        offsets: options.syncOffsets ?? {},
         trackDuration: audioDuration,
         duration,
         fade,
@@ -605,6 +619,7 @@ export async function renderVideoReel(
     const frameBytes = width * height * 3;
     const out = new Uint8Array(frameBytes);
     let previousOut: Uint8Array | null = null;
+    let lastZoom = 1;
     const decodeArgs = buildVideoDecodeArgs({
       pieces: timeline.pieces,
       width,
@@ -632,6 +647,7 @@ export async function renderVideoReel(
         encoding: preview ? null : FORMATS.instagram.encoding,
         audio: 'soundtrack.m4a',
         output: partial,
+        exact: true,
       }),
       feed: async (stdin) => {
         let last: Buffer | null = null;
@@ -646,8 +662,9 @@ export async function renderVideoReel(
             intensity,
           });
           const frame = motion.camera
-            ? applyCamera(pixels, out, previousOut, width, height, motion)
+            ? applyCamera(pixels, out, previousOut, width, height, trailOnRelease(motion, lastZoom))
             : applyMotion(pixels, out, width, height, motion.zoom, motion.flash);
+          lastZoom = motion.zoom;
           if (motion.camera) previousOut = Buffer.from(out);
           // `out` is reused by the next frame: FFmpeg gets a copy.
           const chunk = frame === out ? Buffer.from(out) : (frame as Buffer);

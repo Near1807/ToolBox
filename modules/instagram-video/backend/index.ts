@@ -296,16 +296,34 @@ export default defineBackendModule({
         const item = store.item(id);
         const from = item ? store.pack(item.pack_id) : null;
         if (!item || !from || from.track_id === trackId) continue;
-        const target = store.byTrack(trackId);
+        let target = store.byTrack(trackId);
         if (!target) {
-          ctx.db
-            .prepare(
-              `UPDATE ${ctx.db.table('packs')} SET track_id = ?, updated_at = ? WHERE id = ?`,
-            )
-            .run(trackId, new Date().toISOString(), from.id);
-          const moved = store.requirePack(from.id);
-          for (const sibling of store.listItems(from.id)) registerItem(moved, sibling);
-          continue;
+          // The whole pack is being attached (every item with a file): it moves as is.
+          const reattached = new Set(records.map((r) => r.ref));
+          const whole = store
+            .listItems(from.id)
+            .filter((i) => i.file_path)
+            .every((i) => reattached.has(`item:${i.id}`));
+          if (whole) {
+            ctx.db
+              .prepare(
+                `UPDATE ${ctx.db.table('packs')} SET track_id = ?, updated_at = ? WHERE id = ?`,
+              )
+              .run(trackId, new Date().toISOString(), from.id);
+            const moved = store.requirePack(from.id);
+            for (const sibling of store.listItems(from.id)) registerItem(moved, sibling);
+            continue;
+          }
+          // Only some items: an empty pack for the track (same settings), the item takes its place.
+          const track = library.getTrack(trackId)!;
+          target = store.create({
+            trackId,
+            clipDuration: from.clip_duration,
+            caption: from.caption,
+            folder: path.join(ctx.files.outputDir(), packFolderName(track)),
+            starts: [],
+          });
+          if (from.per_reel_captions) store.updatePack(target.id, { per_reel_captions: 1 });
         }
         const slot = store.listItems(target.id).find((i) => i.position === item.position);
         if (slot?.file_path) {

@@ -1,4 +1,4 @@
-// « Caméra embarquée » (EXPERIMENTAL): as if someone filmed the screen with a
+// « Caméra embarquée »: as if someone filmed the screen with a
 // phone while dancing to the track. Over the top on purpose, but every motion
 // comes from the FINAL sound of the Reel: zoom hits on the bass (instant
 // attack, soft release), a sway whose side flips on each bass attack, shakes
@@ -9,7 +9,7 @@ import type { VideoEffect } from './types';
 
 export const camera: VideoEffect = {
   id: 'camera',
-  label: 'Caméra embarquée (expérimental)',
+  label: 'Caméra embarquée',
   description: 'L’écran filmé au téléphone en dansant : coups de zoom, balancement, secousses.',
   grade: 'eq=contrast=1.06:saturation=1.1',
   grain: 5,

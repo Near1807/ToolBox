@@ -2,7 +2,7 @@
 
 export type ReelState = 'draft' | 'rendering' | 'ready' | 'outdated' | 'failed' | 'missing';
 export type EffectId = 'raw' | 'calm' | 'rhythm' | 'cine' | 'camera';
-/** EXPERIMENTAL options of a Reel. */
+/** Sound and intensity of a Reel. */
 export type AudioMode = 'track' | 'video' | 'synced';
 export type Intensity = 'light' | 'medium' | 'max';
 
@@ -23,8 +23,6 @@ export interface Source {
   allReady: boolean;
   /** « Supprimer la copie ? » offered after the render (setting), until « Garder ». */
   cleanupOffered: boolean;
-  /** EXPERIMENTAL: where the track plays in the video's sound. */
-  sync: { offset: number; score: number | null; ratio: number | null; reliable: boolean } | null;
 }
 
 /** Disk space of the imported copies. */
@@ -36,9 +34,11 @@ export interface Storage {
   folder: string;
 }
 
+/** A passage of the video: a start and a duration (the end follows). */
 export interface Segment {
   sourceId: number;
   start: number;
+  duration: number;
   end: number;
 }
 
@@ -52,6 +52,10 @@ export interface Reel {
   segments: Segment[];
   videoSeconds: number;
   loops: boolean;
+  /** Chained passages that cannot add up to the Reel's duration. */
+  passagesError: string | null;
+  /** « Morceau synchronisé »: the match of each passage (null: not searched yet). */
+  sync: ({ offset: number; salience: number; ratio: number; reliable: boolean } | null)[];
   framing: 'fit' | 'fill';
   focus: { x: number; y: number };
   effect: EffectId;

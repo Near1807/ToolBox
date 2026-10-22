@@ -47,21 +47,24 @@
 
 Les règles ci-dessus (cover entière, aucun effet, couleurs de la cover) valent pour **tous les visuels faits à partir de la cover** : vidéo YouTube, Reels du pack Insta, post, miniature. Elles restent la charte stricte.
 
-Pour les Reels faits avec **les vidéos de l'utilisateur** (module `custom-reels`), le contenu est le sien : une **banque d'effets** est autorisée, un effet par Reel, choisi par l'utilisateur. **Les effets énergiques y sont autorisés** (ex. « Caméra embarquée », expérimental) ; **règle absolue : tout mouvement est piloté par le son final du Reel** (celui qu'on entend : extrait du morceau, son de la vidéo ou morceau synchronisé). Ce qui ne change pas :
+Pour les Reels faits avec **les vidéos de l'utilisateur** (module `custom-reels`), le contenu est le sien : une **banque d'effets** est autorisée, un effet par Reel, choisi par l'utilisateur. **Les effets énergiques y sont autorisés** (« Rythme », « Caméra embarquée », avec trois intensités) ; **règle absolue : tout mouvement est piloté par le son final du Reel** (celui qu'on entend : extrait du morceau, son de la vidéo ou morceau synchronisé). Ce qui ne change pas :
 
 - **Tout mouvement est piloté directement par le son**, avec la même enveloppe que la respiration des covers (attaque instantanée sur l'image même du coup de basse, retour doux), jamais par des événements détectés. Synchronisation mesurée : ≤ 1 image.
-- **Un effet ne masque jamais le contenu** : pas de recadrage automatique (vidéo entière sur un fond flou fait à partir d'elle-même, ou « remplir » autour d'un point **choisi par l'utilisateur**), jamais d'étirement, bandes ou vignette fines, flash léger.
-- Seul le son de l'extrait du morceau est gardé (le son des vidéos n'est jamais utilisé), limité à -1 dBTP ; fondus de 0,5 s ; zones de sécurité Instagram ; pixels carrés.
-- Titre et artiste discrets (même police, plus petits), au-dessus de la zone basse d'Instagram.
+- **Un effet ne masque jamais le contenu** : pas de recadrage automatique (vidéo entière sur un fond flou fait à partir d'elle-même, ou « remplir » autour d'un point **choisi par l'utilisateur**), jamais d'étirement, bandes ou vignette fines, flash léger. **Le cadre est toujours rempli** : aucun mouvement ne laisse voir de bord noir (le zoom est augmenté juste ce qu'il faut).
+- **Son** : l'extrait du morceau, le son de la vidéo (normalisé, -14 LUFS) ou le master calé sur la vidéo, au choix par Reel ; **toujours limité à -1,1 dBTP** ; fondus de 0,5 s. Le Reel dure exactement la durée choisie. Zones de sécurité Instagram ; pixels carrés.
+- Titre et artiste discrets (même police, plus petits), au-dessus de la zone basse d'Instagram. **Texte à l'écran** facultatif : une ligne discrète (même police, blanc à 88 %, ombre légère), en haut dans la zone de sécurité (sous les 220 px d'Instagram).
 
-| Effet  | Ce qu'il fait                                                                                                                                  |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| Brut   | La vidéo telle quelle : ni mouvement, ni retouche, ni grain                                                                                    |
-| Calme  | Zoom très lent (+4 % sur tout le Reel), couleurs adoucies (contraste et saturation un peu baissés), grain léger                                |
-| Rythme | Zoom (jusqu'à +6 %) et léger flash blanc (12 % au plus) **sur les basses**, à l'image près ; plus marqué que la respiration des covers (1,8 %) |
-| Ciné   | Fines bandes noires (90 px sur 1920), étalonnage « film » léger, grain, vignette douce                                                         |
+| Effet            | Ce qu'il fait                                                                                                                                                                                                                                                                                                                                |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Brut             | La vidéo telle quelle : ni mouvement, ni retouche, ni grain                                                                                                                                                                                                                                                                                  |
+| Calme            | Zoom très lent (+4 % sur tout le Reel), couleurs adoucies (contraste et saturation un peu baissés), grain léger                                                                                                                                                                                                                              |
+| Rythme           | Zoom (+6 % à Moyen) et léger flash blanc **sur les basses**, à l'image près ; plus marqué que la respiration des covers (1,8 %)                                                                                                                                                                                                              |
+| Ciné             | Fines bandes noires (90 px sur 1920), étalonnage « film » léger, grain, vignette douce                                                                                                                                                                                                                                                       |
+| Caméra embarquée | L'écran filmé au téléphone en dansant : coups de zoom sur les basses (+10 % à Moyen), balancement qui change de sens à chaque coup de basse, secousses pilotées par les aigus (percussions), léger flou de mouvement, perspective « écran filmé de biais », éclats de lumière sur les impacts forts. Assumé « too much », jamais hors rythme |
 
-Un fichier par effet : `modules/video-engine/backend/effects/` (`raw.ts`, `calm.ts`, `rhythm.ts`, `cine.ts`). Ajouter un effet = ajouter un fichier qui respecte ce qui précède, et le documenter ici.
+**Intensité** (Rythme, Caméra embarquée) : Léger ×0,55, Moyen ×1, À fond ×1,6 sur l'amplitude des mouvements ; le moment des mouvements ne change jamais (pic sur l'image même de l'attaque, mesuré à chaque intensité).
+
+Un fichier par effet : `modules/video-engine/backend/effects/` (`raw.ts`, `calm.ts`, `rhythm.ts`, `cine.ts`, `camera.ts`). Ajouter un effet = ajouter un fichier qui respecte ce qui précède, et le documenter ici.
 
 ## Mise en page
 

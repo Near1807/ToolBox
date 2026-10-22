@@ -1137,6 +1137,76 @@ input[type='range'] {
   opacity: 0.6;
 }
 
+.ui-film-wrap {
+  display: grid;
+  gap: 6px;
+}
+
+.ui-film-scroll {
+  overflow-x: auto;
+  border-radius: var(--radius-sm);
+}
+
+.ui-film__zoom {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.ui-film__playhead {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 2px;
+  background: var(--text);
+  box-shadow: 0 0 6px var(--text);
+  pointer-events: none;
+}
+
+.ui-film {
+  position: relative;
+  height: 104px;
+  background: var(--media-bg);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+}
+
+.ui-film__frames {
+  position: absolute;
+  inset: 0;
+  display: flex;
+}
+
+.ui-film__frames img {
+  flex: 1;
+  min-width: 0;
+  border-right: 1px solid var(--media-bg);
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.5;
+}
+
+.ui-film__window {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border: 2px solid var(--accent-2);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent-2) 16%, transparent);
+  box-shadow: 0 0 0 9999px color-mix(in srgb, var(--media-bg) 35%, transparent);
+  cursor: grab;
+}
+
+.ui-film--locked,
+.ui-film--locked .ui-film__window {
+  cursor: default;
+}
+
 .ui-chip-number {
   width: 26px;
   height: 26px;
