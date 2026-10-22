@@ -63,7 +63,11 @@ export async function buildServer(options: ServerOptions): Promise<BuiltServer> 
 
   // forceCloseConnections: open SSE streams must not block shutdown.
   // maxParamLength: media tokens encode a full file path (backend/core/media.ts).
-  const app = Fastify({ logger: false, forceCloseConnections: true, maxParamLength: 4096 });
+  const app = Fastify({
+    logger: false,
+    forceCloseConnections: true,
+    routerOptions: { maxParamLength: 4096 },
+  });
 
   registerSecurity(app, {
     token: options.token,
