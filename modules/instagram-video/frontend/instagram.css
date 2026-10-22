@@ -109,10 +109,6 @@
   accent-color: var(--accent);
 }
 
-.iv-progress {
-  margin-top: 16px;
-}
-
 .iv-preview {
   display: block;
   height: 480px;
@@ -182,33 +178,12 @@
   gap: 6px;
 }
 
-/* Captions */
-.iv-caption {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.iv-caption textarea {
-  font-family: inherit;
-  resize: vertical;
-}
-
 .iv-check {
   display: flex;
   align-items: center;
   gap: 8px;
   margin: 14px 0 6px;
   cursor: pointer;
-}
-
-.iv-reel-caption {
-  margin-top: 12px;
-}
-
-.iv-reel-caption strong {
-  display: block;
-  margin-bottom: 4px;
 }
 
 .iv-panel {

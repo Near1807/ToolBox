@@ -53,11 +53,6 @@ interface SourceRow {
   removed_at: string | null;
   /** « Garder » answered: the cleanup is not offered again. */
   keep_copy: number;
-  /** v0.13 prototype (whole video): no longer used, the sync is per passage (reels.sync). */
-  sync_offset: number | null;
-  sync_score: number | null;
-  sync_ratio: number | null;
-  sync_reliable: number | null;
 }
 
 export interface Segment {
@@ -174,6 +169,9 @@ export default defineBackendModule({
         ALTER TABLE custom_reels__sources ADD COLUMN keep_copy INTEGER NOT NULL DEFAULT 0;
       `,
     },
+    // The sources' sync_* columns (whole-video sync of the v0.13 prototype) are no
+    // longer read or written: the sync is per passage (reels.sync, v4). Kept in the
+    // database, a published migration is never changed.
     {
       version: 3,
       description: 'EXPERIMENTAL: sound of a Reel, intensity, text on screen, track sync',
@@ -923,8 +921,6 @@ export default defineBackendModule({
       await detectSync(row, true);
       return reelDto(requireReel(row.id), requireTrack(row.track_id));
     });
-
-    ctx.routes.get('/storage', () => storage());
 
     // One frame of a video at `t` (s), 240 px high: first and last image of a passage (cached).
     ctx.routes.get('/sources/:id/frame', async (request) => {

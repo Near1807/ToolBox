@@ -32,17 +32,16 @@ Aucune.
 
 ## API
 
-| Méthode | Route                                       | Rôle                                                            |
-| ------- | ------------------------------------------- | --------------------------------------------------------------- |
-| GET     | `/tracks`                                   | Liste (avec URL de lecture et de cover)                         |
-| GET     | `/tracks/:id`                               | Détail + fichiers générés                                       |
-| POST    | `/tracks`                                   | Ajoute `{ audioPath, coverPath? }` (chemins locaux)             |
-| PATCH   | `/tracks/:id`                               | Modifie `{ title?, artist?, releaseDate?, notes?, tags? }`      |
-| PUT     | `/tracks/:id/cover`                         | Remplace la cover `{ path }`                                    |
-| DELETE  | `/tracks/:id` (`?outputs=1`)                | Supprime le morceau (et ses fichiers générés avec `?outputs=1`) |
-| POST    | `/outputs/:id/open` · `/outputs/:id/reveal` | Ouvre un fichier généré / le montre dans l'Explorateur          |
-| GET     | `/summary`                                  | Nombre de morceaux, durée totale, artiste par défaut            |
-| GET     | `/tracks/:id/project`                       | Vue projet : éléments, état, inclusion                          |
-| PUT     | `/tracks/:id/project/included`              | `{ moduleId, ref, included }`                                   |
-| GET     | `/orphans`                                  | Éléments sans projet (tous modules)                             |
-| POST    | `/orphans/attach`                           | `{ ids, trackId }` : rattache au morceau                        |
+| Méthode | Route                          | Rôle                                                            |
+| ------- | ------------------------------ | --------------------------------------------------------------- |
+| GET     | `/tracks`                      | Liste (avec URL de lecture et de cover)                         |
+| GET     | `/tracks/:id`                  | Détail + fichiers générés                                       |
+| POST    | `/tracks`                      | Ajoute `{ audioPath, coverPath? }` (chemins locaux)             |
+| PATCH   | `/tracks/:id`                  | Modifie `{ title?, artist?, releaseDate?, notes?, tags? }`      |
+| PUT     | `/tracks/:id/cover`            | Remplace la cover `{ path }`                                    |
+| DELETE  | `/tracks/:id` (`?outputs=1`)   | Supprime le morceau (et ses fichiers générés avec `?outputs=1`) |
+| GET     | `/summary`                     | Nombre de morceaux, durée totale, artiste par défaut            |
+| GET     | `/tracks/:id/project`          | Vue projet : éléments, état, inclusion                          |
+| PUT     | `/tracks/:id/project/included` | `{ moduleId, ref, included }`                                   |
+| GET     | `/orphans`                     | Éléments sans projet (tous modules)                             |
+| POST    | `/orphans/attach`              | `{ ids, trackId }` : rattache au morceau                        |

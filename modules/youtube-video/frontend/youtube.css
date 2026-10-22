@@ -112,17 +112,3 @@
   border-radius: 8px;
   background: var(--media-bg);
 }
-
-.yv-video {
-  justify-content: flex-start;
-}
-
-.yv-video__text {
-  flex: 1;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.yv-video .inline-form {
-  margin-bottom: 0;
-}

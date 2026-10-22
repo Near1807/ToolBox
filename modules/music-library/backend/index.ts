@@ -1,13 +1,11 @@
 // music-library: the shared track library of the Music section.
 // Provides the "musicLibrary" service used by the video generators.
-import { existsSync } from 'node:fs';
 import { defineBackendModule, HttpError, type ModuleContext } from '@hub/sdk/backend';
 import {
   MUSIC_LIBRARY_SERVICE,
   type MusicLibraryService,
   type Track,
   type TrackDto,
-  type TrackOutput,
   type TrackInfoProvider,
   type ProjectStatus,
   type ProjectStatusEntry,
@@ -302,25 +300,6 @@ export default defineBackendModule({
       }
       await library.remove(id);
       return { ok: true, deletedOutputs };
-    });
-
-    const requireOutput = (params: unknown): TrackOutput => {
-      const output = library.getOutput(idParam(params));
-      if (!output) throw new HttpError(404, 'Fichier introuvable');
-      if (!existsSync(output.filePath)) {
-        throw new HttpError(404, `Le fichier n’existe plus : ${output.filePath}`);
-      }
-      return output;
-    };
-
-    ctx.routes.post('/outputs/:id/open', async (request) => {
-      await ctx.files.open(requireOutput(request.params).filePath);
-      return { ok: true };
-    });
-
-    ctx.routes.post('/outputs/:id/reveal', (request) => {
-      ctx.files.reveal(requireOutput(request.params).filePath);
-      return { ok: true };
     });
 
     ctx.routes.get('/summary', () => {

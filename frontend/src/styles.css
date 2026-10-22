@@ -184,14 +184,6 @@ kbd {
   box-shadow: var(--glow);
 }
 
-.sidebar__brand-version {
-  margin-left: auto;
-  font-family: var(--font-mono);
-  font-size: 0.68rem;
-  font-weight: 500;
-  color: var(--text-3);
-}
-
 .sidebar__scroll {
   flex: 1;
   min-height: 0;
@@ -210,21 +202,8 @@ kbd {
   border-top: 1px solid var(--border);
 }
 
-.sidebar__spacer {
-  flex: 1;
-}
-
 .sidebar__section {
   margin-top: 12px;
-}
-
-.sidebar__section-title {
-  font-size: 0.7rem;
-  font-weight: 650;
-  text-transform: uppercase;
-  letter-spacing: 0.09em;
-  color: var(--text-3);
-  padding: 4px 10px;
 }
 
 .nav-link {
