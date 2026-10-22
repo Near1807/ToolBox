@@ -10,6 +10,7 @@ import {
   applyMotion,
   buildVideoDecodeArgs,
   highEnergyPerFrame,
+  trailOnRelease,
   planTimeline,
 } from '../backend/video-reel';
 
@@ -192,6 +193,13 @@ describe('effects bank', () => {
       expect(zoomAt(INTENSITY_FACTOR.light)).toBeLessThan(zoomAt(INTENSITY_FACTOR.medium));
       expect(zoomAt(INTENSITY_FACTOR.medium)).toBeLessThan(zoomAt(INTENSITY_FACTOR.max));
     }
+  });
+
+  it('Caméra embarquée: no motion blur on an attack (it would delay the peak), only on the release', () => {
+    const at = (envelope: number) =>
+      EFFECTS.camera.frame({ frame: 3, frames: 10, envelope, high: 0.5, intensity: 1 });
+    expect(trailOnRelease(at(1), at(0.2).zoom).camera!.blur).toBe(0); // rising: sharp
+    expect(trailOnRelease(at(0.6), at(1).zoom).camera!.blur).toBeGreaterThan(0); // release
   });
 
   it('Caméra embarquée: the frame is always filled, even at full intensity (no black edge)', () => {

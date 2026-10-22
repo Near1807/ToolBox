@@ -282,6 +282,16 @@ export function applyCamera(
   return out;
 }
 
+/**
+ * The motion blur (blend with the previous frame) trails the picture: it is
+ * kept for the release only. On an attack (zoom going up) the frame is sharp,
+ * so that the motion peaks on the frame of the attack, never a frame late.
+ */
+export function trailOnRelease(motion: EffectFrame, previousZoom: number): EffectFrame {
+  if (!motion.camera || motion.zoom < previousZoom - 1e-6) return motion;
+  return { ...motion, camera: { ...motion.camera, blur: 0 } };
+}
+
 /** Energy of the highs (percussion) per frame: first difference, mean square. */
 export function highEnergyPerFrame(samples: Float32Array, rate: number, frames: number): number[] {
   const per = rate / FPS;
@@ -609,6 +619,7 @@ export async function renderVideoReel(
     const frameBytes = width * height * 3;
     const out = new Uint8Array(frameBytes);
     let previousOut: Uint8Array | null = null;
+    let lastZoom = 1;
     const decodeArgs = buildVideoDecodeArgs({
       pieces: timeline.pieces,
       width,
@@ -651,8 +662,9 @@ export async function renderVideoReel(
             intensity,
           });
           const frame = motion.camera
-            ? applyCamera(pixels, out, previousOut, width, height, motion)
+            ? applyCamera(pixels, out, previousOut, width, height, trailOnRelease(motion, lastZoom))
             : applyMotion(pixels, out, width, height, motion.zoom, motion.flash);
+          lastZoom = motion.zoom;
           if (motion.camera) previousOut = Buffer.from(out);
           // `out` is reused by the next frame: FFmpeg gets a copy.
           const chunk = frame === out ? Buffer.from(out) : (frame as Buffer);
