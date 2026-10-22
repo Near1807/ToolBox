@@ -4,6 +4,28 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.14.0] — 2026-10-22
+
+Reels depuis mes vidéos en version finale : passage choisi par son départ, grand lecteur, son au choix, Caméra embarquée.
+
+### Ajouté
+
+- **Son au choix par Reel perso** : extrait du morceau, son de la vidéo (normalisé à -14 LUFS), ou « Morceau synchronisé » (le master calé là où le morceau joue dans la vidéo, cherché sur le passage choisi, au millième près ; repli « Son de la vidéo » si la confiance est faible). Toujours limité à -1,1 dBTP.
+- **Effet « Caméra embarquée »** (l'écran filmé au téléphone en dansant) et **Intensité** Léger / Moyen / À fond pour Rythme et Caméra embarquée ; tout mouvement piloté par le son final, cadre toujours rempli.
+- **Texte à l'écran** par Reel, discret, dans la zone de sécurité.
+- **Passage vidéo par son départ** : sa durée est toujours celle du Reel ; fenêtre de largeur fixe sur la pellicule (glisser ou cliquer), « de 1:12 à 1:40 », première et dernière image ; passages enchaînés en option avancée (somme = durée du Reel).
+- **Grand lecteur**, pellicule zoomable (×1 à ×8) avec tête de lecture, **« Lire le passage »** avec le son du mode, sans rendu.
+- SDK : composant partagé `FilmstripWindow`.
+
+### Corrigé
+
+- Reels perso : la vidéo dure exactement la durée du Reel (il pouvait manquer la dernière image).
+- Rattachement d'un élément du Pack Insta : « Inclure dans la sortie » est conservé, et un seul élément rattaché vers un morceau sans pack ne déplace plus tout le pack.
+
+### Données
+
+- Migrations de « Reels depuis mes vidéos » : 3 (son, intensité, texte à l'écran ; prototype) et 4 (synchro par passage) — ajouts de colonnes seulement, sauvegarde automatique avant chacune. Les passages enregistrés avant (début, fin) sont relus sans migration.
+
 ## [0.13.0] — 2026-10-22
 
 Modules indépendants, rattachement « Sans projet » complet, Reel perso ajouté à une sortie planifiée, place disque des vidéos importées.
