@@ -181,10 +181,9 @@ export function PassageEditor(props: {
     const mode = reel.audioMode;
     if (mode !== 'video' && !props.audioUrl) return setNotice('Son du morceau introuvable');
     if (mode === 'synced') {
-      const missing = passages.find((p) => !sourceOf(p.sourceId)?.sync?.reliable);
-      if (missing) {
+      if (passages.some((_, i) => !reel.sync[i]?.reliable)) {
         return setNotice(
-          'Morceau pas (encore) retrouvé de façon fiable dans cette vidéo : « Retrouver le morceau dans la vidéo », ou choisis « Son de la vidéo ».',
+          'Morceau pas (encore) retrouvé de façon fiable dans ce passage : « Retrouver le morceau », ou choisis « Son de la vidéo ».',
         );
       }
     }
@@ -212,7 +211,7 @@ export function PassageEditor(props: {
       el.currentTime = inVideo;
       el.muted = mode !== 'video';
       if (mode === 'synced') {
-        sound.currentTime = p.start + offsetInPassage + (src.sync?.offset ?? 0);
+        sound.currentTime = p.start + offsetInPassage + (reel.sync[index]?.offset ?? 0);
       }
       await el.play();
     };

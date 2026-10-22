@@ -32,7 +32,7 @@ const MAX_REELS = 4;
 const MIN_CLIP = 15;
 const MAX_CLIP = 60;
 const EFFECTS: VideoEffectId[] = ['raw', 'calm', 'rhythm', 'cine', 'camera'];
-/** EXPERIMENTAL options of a Reel. */
+/** Sound and intensity of a Reel. */
 const AUDIO_MODES = ['track', 'video', 'synced'] as const;
 const INTENSITIES = ['light', 'medium', 'max'] as const;
 const VIDEO_EXTENSIONS = ['.mp4', '.mov', '.m4v', '.webm', '.mkv', '.avi'];
@@ -53,7 +53,7 @@ interface SourceRow {
   removed_at: string | null;
   /** « Garder » answered: the cleanup is not offered again. */
   keep_copy: number;
-  /** EXPERIMENTAL: where the track plays in the video's sound (track time = video time + offset). */
+  /** v0.13 prototype (whole video): no longer used, the sync is per passage (reels.sync). */
   sync_offset: number | null;
   sync_score: number | null;
   sync_ratio: number | null;
@@ -88,10 +88,12 @@ interface ReelRow {
   error: string | null;
   job_id: string | null;
   published_at: string | null;
-  /** EXPERIMENTAL: « track » | « video » | « synced ». */
+  /** « track » | « video » | « synced ». */
   audio_mode: (typeof AUDIO_MODES)[number];
   intensity: (typeof INTENSITIES)[number];
   overlay_text: string | null;
+  /** JSON PassageSync[]: where the track plays in each passage (« Morceau synchronisé »). */
+  sync: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -185,6 +187,11 @@ export default defineBackendModule({
         ALTER TABLE custom_reels__sources ADD COLUMN sync_reliable INTEGER;
       `,
     },
+    {
+      version: 4,
+      description: 'track sync per passage (« Morceau synchronisé »)',
+      up: `ALTER TABLE custom_reels__reels ADD COLUMN sync TEXT;`,
+    },
   ],
 
   register(ctx: ModuleContext) {
@@ -254,6 +261,47 @@ export default defineBackendModule({
       }
     };
 
+    // « Morceau synchronisé »: where the track plays in each passage ---------------
+    interface PassageSync extends Passage {
+      offset: number;
+      score: number;
+      ratio: number;
+      salience: number;
+      reliable: boolean;
+    }
+    const syncOf = (row: ReelRow): PassageSync[] =>
+      row.sync ? (JSON.parse(row.sync) as PassageSync[]) : [];
+    const samePassage = (a: Passage, b: Passage) =>
+      a.sourceId === b.sourceId && a.start === b.start && a.duration === b.duration;
+    /** Searches the passages not searched yet (all of them when `again`), and keeps the results. */
+    const detectSync = async (row: ReelRow, again = false): Promise<void> => {
+      const track = library.getTrack(row.track_id);
+      const fitted = fittedOf(row);
+      if (!track || fitted.error) return;
+      const known = again ? [] : syncOf(row);
+      const results: PassageSync[] = [];
+      for (const passage of fitted.passages) {
+        const done = known.find((m) => samePassage(m, passage));
+        if (done) {
+          results.push(done);
+          continue;
+        }
+        const src = source(passage.sourceId);
+        if (!src || src.removed_at || !existsSync(src.file_path)) continue;
+        try {
+          const found = await engine.findTrackInVideo(track.audioPath, src.file_path, passage);
+          results.push({ ...passage, ...found });
+          ctx.logger.info(
+            `Synchro « ${src.name} » ${passage.start}–${passage.start + passage.duration} s : décalage ${found.offset} s, saillance ${found.salience}, rapport ${found.ratio}${found.reliable ? '' : ' (pas fiable)'}`,
+          );
+        } catch (error) {
+          ctx.logger.warn(`Synchro impossible pour « ${src.name} »`, error);
+          results.push({ ...passage, offset: 0, score: 0, ratio: 0, salience: 0, reliable: false });
+        }
+      }
+      updateReel(row.id, { sync: JSON.stringify(results) });
+    };
+
     // Texts --------------------------------------------------------------------
     const hashtags = (track: Track) => {
       const all = [...track.tags, ...(ctx.settings.get<string>('hashtags') ?? '').split(/[\s,]+/)]
@@ -294,7 +342,7 @@ export default defineBackendModule({
         effect: row.effect,
         title: track.title,
         artist: track.artist,
-        // EXPERIMENTAL options (absent = as before v0.13 prototype: no « À régénérer »).
+        // Options added in v0.13 (absent = as before: no « À régénérer »).
         ...(row.audio_mode !== 'track' ? { audio: row.audio_mode } : {}),
         ...(row.intensity !== 'medium' ? { intensity: row.intensity } : {}),
         ...(row.overlay_text ? { text: row.overlay_text } : {}),
@@ -475,15 +523,6 @@ export default defineBackendModule({
         allReady,
         /** Offered after the render (setting), until « Garder ». */
         cleanupOffered: offerCleanup() && !removed && !row.keep_copy && allReady,
-        sync:
-          row.sync_offset === null
-            ? null
-            : {
-                offset: row.sync_offset,
-                score: row.sync_score,
-                ratio: row.sync_ratio,
-                reliable: Boolean(row.sync_reliable),
-              },
       };
     };
     /** Disk space of the imported copies (still on disk), for a track or all. */
@@ -525,6 +564,18 @@ export default defineBackendModule({
         loops: fitted.loops,
         /** Chained passages that cannot add up to the Reel's duration (said, not rendered). */
         passagesError: fitted.error,
+        /** « Morceau synchronisé »: the match of each passage (null: not searched yet). */
+        sync: fitted.passages.map((p) => {
+          const match = syncOf(row).find((m) => samePassage(m, p));
+          return match
+            ? {
+                offset: match.offset,
+                salience: match.salience,
+                ratio: match.ratio,
+                reliable: match.reliable,
+              }
+            : null;
+        }),
         audioMode: row.audio_mode,
         intensity: row.intensity,
         overlayText: row.overlay_text ?? '',
@@ -562,30 +613,34 @@ export default defineBackendModule({
             `La copie de « ${src.name} » a été supprimée pour libérer de la place : réimporte-la (Tes vidéos › Réimporter) pour régénérer ce Reel`,
           );
         }
-        return { source: src.file_path, start: segment.start, end: segment.end };
+        return {
+          source: src.file_path,
+          start: segment.start,
+          end: segment.end,
+        } as { source: string; start: number; end: number; syncOffset?: number };
       });
       if (segments.length === 0) throw new Error('Choisis au moins un passage vidéo');
-      // EXPERIMENTAL « Morceau synchronisé »: each video must have a reliable match.
-      const syncOffsets: Record<string, number> = {};
+      // « Morceau synchronisé »: each passage needs a reliable match of its own.
       if (row.audio_mode === 'synced') {
-        for (const segment of segmentsOf(row)) {
-          const src = source(segment.sourceId)!;
-          if (src.sync_offset === null) {
+        const found = syncOf(row);
+        fitted.passages.forEach((passage, i) => {
+          const match = found.find((m) => samePassage(m, passage));
+          const name = source(passage.sourceId)?.name ?? 'la vidéo';
+          if (!match) {
             throw new Error(
-              `Morceau pas encore cherché dans « ${src.name} » : clique « Retrouver le morceau dans la vidéo »`,
+              `Morceau pas encore cherché dans ce passage de « ${name} » : clique « Retrouver le morceau »`,
             );
           }
-          if (!src.sync_reliable) {
+          if (!match.reliable) {
             throw new Error(
-              `Morceau pas retrouvé de façon fiable dans « ${src.name} » : choisis « Son de la vidéo »`,
+              `Morceau pas retrouvé de façon fiable dans ce passage de « ${name} » : choisis « Son de la vidéo », ou un autre passage`,
             );
           }
-          syncOffsets[src.file_path] = src.sync_offset;
-        }
+          segments[i] = { ...segments[i]!, syncOffset: match.offset };
+        });
       }
       return {
         audioMode: row.audio_mode,
-        syncOffsets,
         intensity: row.intensity,
         overlayText: row.overlay_text ?? undefined,
         audioPath: track.audioPath,
@@ -862,28 +917,11 @@ export default defineBackendModule({
       return { warnings, track: trackDto(requireTrack(row.track_id)) };
     });
 
-    // EXPERIMENTAL « Morceau synchronisé »: where the track plays in the video's sound.
-    ctx.routes.post('/sources/:id/sync', async (request) => {
-      const row = requireSource(idParam(request.params));
-      if (row.removed_at || !existsSync(row.file_path)) {
-        throw new HttpError(409, 'Copie supprimée : réimporte la vidéo d’abord');
-      }
-      const track = requireTrack(row.track_id);
-      let result;
-      try {
-        result = await engine.findTrackInVideo(track.audioPath, row.file_path);
-      } catch (error) {
-        throw new HttpError(409, (error as Error).message);
-      }
-      ctx.db
-        .prepare(
-          `UPDATE ${sources} SET sync_offset = ?, sync_score = ?, sync_ratio = ?, sync_reliable = ? WHERE id = ?`,
-        )
-        .run(result.offset, result.score, result.ratio, result.reliable ? 1 : 0, row.id);
-      ctx.logger.info(
-        `Synchro « ${row.name} » : décalage ${result.offset} s, score ${result.score}, rapport ${result.ratio}`,
-      );
-      return { sync: result, track: trackDto(track) };
+    // « Retrouver le morceau » : searches every passage again.
+    ctx.routes.post('/reels/:id/sync', async (request) => {
+      const row = requireReel(idParam(request.params));
+      await detectSync(row, true);
+      return reelDto(requireReel(row.id), requireTrack(row.track_id));
     });
 
     ctx.routes.get('/storage', () => storage());
@@ -921,7 +959,10 @@ export default defineBackendModule({
       // ?count=: more frames for the passage timeline (zoomable); 12 by default (focus picker).
       const asked = Math.round(Number((request.query as { count?: string }).count ?? 12));
       const count = Math.min(120, Math.max(4, Number.isFinite(asked) ? asked : 12));
-      const dir = ctx.files.dataPath('filmstrips', count === 12 ? String(row.id) : `${row.id}-${count}`);
+      const dir = ctx.files.dataPath(
+        'filmstrips',
+        count === 12 ? String(row.id) : `${row.id}-${count}`,
+      );
       let files: string[] = [];
       if (existsSync(dir)) {
         files = readdirSync(dir)
@@ -979,7 +1020,7 @@ export default defineBackendModule({
       return trackDto(track);
     });
 
-    ctx.routes.patch('/reels/:id', (request) => {
+    ctx.routes.patch('/reels/:id', async (request) => {
       const row = requireReel(idParam(request.params));
       const track = requireTrack(row.track_id);
       const input = body(request);
@@ -1083,6 +1124,9 @@ export default defineBackendModule({
         fields.published_at = new Date(input.publishedAt).toISOString();
       }
       updateReel(row.id, fields);
+      // « Morceau synchronisé »: the passages are searched as soon as they are chosen.
+      const updated = requireReel(row.id);
+      if (updated.audio_mode === 'synced') await detectSync(updated);
       return reelDto(requireReel(row.id), track);
     });
 

@@ -1,11 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { bassEnergyPerFrame, breathEnvelope, breathSync } from '../backend/audio-analysis';
 import { buildFramesEncodeArgs } from '../backend/commands';
-import { EFFECTS } from '../backend/effects';
+import { EFFECTS, INTENSITY_FACTOR } from '../backend/effects';
 import { CINE_BAR } from '../backend/effects/cine';
 import { RHYTHM_ZOOM } from '../backend/effects/rhythm';
 import { parseVideoProbe } from '../backend/media-tools';
-import { applyMotion, buildVideoDecodeArgs, planTimeline } from '../backend/video-reel';
+import {
+  applyCamera,
+  applyMotion,
+  buildVideoDecodeArgs,
+  highEnergyPerFrame,
+  planTimeline,
+} from '../backend/video-reel';
 
 const RATE = 22050;
 const FPS = 30;
@@ -79,8 +85,8 @@ describe('9:16 framing without automatic crop', () => {
 });
 
 describe('effects bank', () => {
-  it('has the four documented effects, sober by default', () => {
-    expect(Object.keys(EFFECTS)).toEqual(['raw', 'calm', 'rhythm', 'cine']);
+  it('has the five documented effects, sober by default', () => {
+    expect(Object.keys(EFFECTS)).toEqual(['raw', 'calm', 'rhythm', 'cine', 'camera']);
     expect(EFFECTS.raw.frame({ frame: 10, frames: 100, envelope: 1 })).toEqual({
       zoom: 1,
       flash: 0,
@@ -130,6 +136,82 @@ describe('effects bank', () => {
     for (const { attack, peak } of breathSync(kicks, zoom, FPS)) {
       expect(peak, `kick at ${attack} s`).not.toBeNull();
       expect(Math.abs(peak!), `kick at ${attack} s`).toBeLessThanOrEqual(1 / FPS + 1e-4);
+    }
+  });
+
+  /** Kicks at known, irregular times, with a hat on each (highs). */
+  const kicksSound = (kicks: number[]) => {
+    const samples = new Float32Array(6 * RATE);
+    for (const kick of kicks) {
+      let phase = 0;
+      for (let i = 0; i < 0.3 * RATE; i++) {
+        const t = i / RATE;
+        phase += (2 * Math.PI * (55 + 55 * Math.exp(-t / 0.02))) / RATE;
+        samples[Math.round(kick * RATE) + i]! += 0.7 * Math.exp(-t / 0.09) * Math.sin(phase);
+        if (i < 0.03 * RATE) samples[Math.round(kick * RATE) + i]! += 0.2 * Math.sin(i * 2.7);
+      }
+    }
+    return samples;
+  };
+
+  it('Rythme and Caméra embarquée: the motion peaks on the frame of each attack, at each intensity', () => {
+    const kicks = [0.4, 1.13, 1.71, 2.6, 3.05, 3.9, 4.42, 5.37];
+    const samples = kicksSound(kicks);
+    const frames = 6 * FPS;
+    for (const id of ['rhythm', 'camera'] as const) {
+      const effect = EFFECTS[id];
+      const envelope = breathEnvelope(bassEnergyPerFrame(samples, RATE, FPS, frames), FPS, {
+        releaseSec: effect.releaseSec,
+      });
+      const high = breathEnvelope(highEnergyPerFrame(samples, RATE, frames), FPS, {
+        releaseSec: 0.08,
+        reference: 1e-9,
+      });
+      for (const [name, intensity] of Object.entries(INTENSITY_FACTOR)) {
+        const zoom = envelope.map((e, frame) => {
+          const motion = effect.frame({ frame, frames, envelope: e, high: high[frame], intensity });
+          return motion.zoom;
+        });
+        const top = Math.max(...zoom);
+        const base = Math.min(...zoom);
+        const normalised = zoom.map((z) => (z - base) / (top - base));
+        for (const { attack, peak } of breathSync(kicks, normalised, FPS)) {
+          expect(peak, `${id} ${name}, kick at ${attack} s`).not.toBeNull();
+          expect(Math.abs(peak!), `${id} ${name}, kick at ${attack} s`).toBeLessThanOrEqual(
+            1 / FPS + 1e-4,
+          );
+        }
+      }
+    }
+  });
+
+  it('Intensité: Léger < Moyen < À fond, for Rythme and Caméra embarquée', () => {
+    for (const id of ['rhythm', 'camera'] as const) {
+      const zoomAt = (intensity: number) =>
+        EFFECTS[id].frame({ frame: 5, frames: 10, envelope: 1, high: 1, intensity }).zoom;
+      expect(zoomAt(INTENSITY_FACTOR.light)).toBeLessThan(zoomAt(INTENSITY_FACTOR.medium));
+      expect(zoomAt(INTENSITY_FACTOR.medium)).toBeLessThan(zoomAt(INTENSITY_FACTOR.max));
+    }
+  });
+
+  it('Caméra embarquée: the frame is always filled, even at full intensity (no black edge)', () => {
+    const width = 108;
+    const height = 192;
+    const white = new Uint8Array(width * height * 3).fill(255);
+    const out = new Uint8Array(white.length);
+    for (let frame = 0; frame < 40; frame++) {
+      for (const side of [1, -1]) {
+        const motion = EFFECTS.camera.frame({
+          frame,
+          frames: 40,
+          envelope: (frame % 5) / 4,
+          high: ((frame * 7) % 5) / 4,
+          side,
+          intensity: INTENSITY_FACTOR.max,
+        });
+        applyCamera(white, out, null, width, height, { ...motion, flash: 0 });
+        expect(Math.min(...out), `frame ${frame}, side ${side}`).toBe(255);
+      }
     }
   });
 

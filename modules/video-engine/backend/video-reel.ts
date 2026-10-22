@@ -50,6 +50,8 @@ export const VIDEO_REEL_LAYOUT = {
 
 export interface TimelinePiece {
   source: string;
+  /** « Morceau synchronisé »: track time = video time + this offset (s). */
+  syncOffset?: number;
   /** In the source video, seconds. */
   start: number;
   duration: number;
@@ -60,11 +62,16 @@ export interface TimelinePiece {
  * shorter than the audio excerpt; the last piece is cut at the excerpt's end.
  */
 export function planTimeline(
-  segments: { source: string; start: number; end: number }[],
+  segments: { source: string; start: number; end: number; syncOffset?: number }[],
   duration: number,
 ): { pieces: TimelinePiece[]; videoSeconds: number; looped: boolean } {
   const usable = segments
-    .map((s) => ({ source: s.source, start: Math.max(0, s.start), duration: s.end - s.start }))
+    .map((s) => ({
+      source: s.source,
+      start: Math.max(0, s.start),
+      duration: s.end - s.start,
+      ...(s.syncOffset !== undefined ? { syncOffset: s.syncOffset } : {}),
+    }))
     .filter((s) => s.duration >= 0.2);
   const videoSeconds = usable.reduce((sum, s) => sum + s.duration, 0);
   if (usable.length === 0 || videoSeconds < 0.5) {
@@ -202,7 +209,7 @@ export function applyMotion(
 }
 
 /**
- * EXPERIMENTAL — « Caméra embarquée »: the picture through a projective warp
+ * « Caméra embarquée »: the picture through a projective warp
  * (zoom, rotation, shake, slight keystone of a screen filmed at an angle),
  * bilinear, then a light motion blur (blend with the previous output) and the
  * flash. The zoom is raised until the warped picture covers the whole frame:
@@ -275,7 +282,7 @@ export function applyCamera(
   return out;
 }
 
-/** EXPERIMENTAL — energy of the highs (percussion) per frame: first difference, mean square. */
+/** Energy of the highs (percussion) per frame: first difference, mean square. */
 export function highEnergyPerFrame(samples: Float32Array, rate: number, frames: number): number[] {
   const per = rate / FPS;
   return Array.from({ length: frames }, (_, i) => {
@@ -344,7 +351,7 @@ function drawStillLayer(
     ctx.letterSpacing = `${spacing}px`;
     ctx.fillText(cleanArtist, width / 2, L.artist.top * k);
   }
-  // EXPERIMENTAL « Texte à l'écran »: discreet, readable, inside the top safe zone.
+  // « Texte à l'écran »: discreet, readable, inside the top safe zone.
   const text = overlayText.replace(/[\r\n]+/g, ' ').trim();
   if (text) {
     ctx.letterSpacing = '0px';
@@ -398,7 +405,7 @@ async function* rawFrames(
 }
 
 /**
- * EXPERIMENTAL — soundtrack made of the passages: the videos' own sound
+ * Soundtrack made of the passages: the videos' own sound
  * (« video », loudness-normalised) or the track's master at the matching
  * place (« synced »), concatenated, faded, limited; true peak ≤ -1.1 dBTP.
  */
@@ -408,7 +415,6 @@ async function renderPiecesSoundtrack(
     mode: 'video' | 'synced';
     pieces: TimelinePiece[];
     audioPath: string;
-    offsets: Record<string, number>;
     trackDuration: number;
     duration: number;
     fade: number;
@@ -427,8 +433,8 @@ async function renderPiecesSoundtrack(
         piece.source,
       ];
     }
-    const offset = params.offsets[piece.source];
-    if (offset === undefined) throw new Error('Morceau pas encore retrouvé dans cette vidéo');
+    const offset = piece.syncOffset;
+    if (offset === undefined) throw new Error('Morceau pas encore retrouvé dans ce passage');
     const at = piece.start + offset;
     if (at < 0 || at + piece.duration > params.trackDuration + 0.05) {
       throw new Error('Ce passage de la vidéo est hors du morceau : choisis un passage où il joue');
@@ -544,13 +550,12 @@ export async function renderVideoReel(
         verify: !preview,
       });
     } else {
-      // EXPERIMENTAL: the final sound is made first, the effects follow IT.
+      // The final sound is made first: the effects follow IT.
       handlers.onProgress?.(0, 'Préparation du son…');
       await renderPiecesSoundtrack(run, {
         mode,
         pieces: timeline.pieces,
         audioPath: options.audioPath,
-        offsets: options.syncOffsets ?? {},
         trackDuration: audioDuration,
         duration,
         fade,

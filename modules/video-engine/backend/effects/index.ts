@@ -15,15 +15,11 @@ export type {
 } from './types';
 export { INTENSITY_FACTOR } from './types';
 
-/** Validated effects (docs/DIRECTION-ARTISTIQUE.md). */
-export const EFFECTS: Partial<Record<VideoEffectId, VideoEffect>> &
-  Record<'raw' | 'calm' | 'rhythm' | 'cine', VideoEffect> = { raw, calm, rhythm, cine };
-
-/** EXPERIMENTAL effects (prototype, shown « Expérimental »): not validated yet. */
-export const EXPERIMENTAL_EFFECTS: Partial<Record<VideoEffectId, VideoEffect>> = { camera };
+/** The effects bank (docs/DIRECTION-ARTISTIQUE.md, « Reels depuis mes vidéos »). */
+export const EFFECTS: Record<VideoEffectId, VideoEffect> = { raw, calm, rhythm, cine, camera };
 
 export function effectOf(id: string): VideoEffect {
-  const effect = EFFECTS[id as VideoEffectId] ?? EXPERIMENTAL_EFFECTS[id as VideoEffectId];
+  const effect = EFFECTS[id as VideoEffectId];
   if (!effect) throw new Error(`Effet inconnu : ${id}`);
   return effect;
 }

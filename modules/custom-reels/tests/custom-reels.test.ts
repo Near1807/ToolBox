@@ -41,6 +41,8 @@ const consumer: DiscoveredModule = {
 
 interface Reel {
   id: number;
+  audioMode: string;
+  sync: ({ reliable: boolean } | null)[];
   position: number;
   startSec: number;
   durationSec: number;
@@ -238,6 +240,14 @@ describe('custom-reels (Reels from my videos)', () => {
     expect(
       (await hub.request('PATCH', `${API}/reels/${reel!.id}`, { effect: 'disco' })).status,
     ).toBe(400);
+    // « Morceau synchronisé » on a video that does not contain the track: searched at once,
+    // « not reliable », and the render is refused with the reason (fallback offered in the UI).
+    const synced = await patch({ audioMode: 'synced' });
+    expect(synced.body.sync).toEqual([expect.objectContaining({ reliable: false })]);
+    const refused = await hub.request<{ error: string }>('POST', `${API}/reels/${reel!.id}/render`);
+    expect(refused.status).toBe(400);
+    expect(refused.body.error).toMatch(/plus courte que le Reel|pas retrouvé de façon fiable/);
+    expect((await patch({ audioMode: 'track' })).body.audioMode).toBe('track');
     // Not generated yet: the copy is still needed.
     const [src] = (await track()).sources;
     expect(src).toMatchObject({ allReady: false, cleanupOffered: false });

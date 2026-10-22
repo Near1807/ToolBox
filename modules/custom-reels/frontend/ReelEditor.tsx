@@ -101,18 +101,14 @@ export function ReelEditor(props: {
     run(() => module.api.patch(`/reels/${reel.id}`, fields));
   const [text, setText] = useState(reel.overlayText);
   const [syncing, setSyncing] = useState(false);
-  const used = [...new Set(reel.segments.map((s) => s.sourceId))]
-    .map((id) => props.sources.find((s) => s.id === id))
-    .filter((s): s is Source => Boolean(s));
   const findTrack = async () => {
     setSyncing(true);
-    await run(async () => {
-      for (const source of used) await module.api.post(`/sources/${source.id}/sync`);
-    });
+    await run(() => module.api.post(`/reels/${reel.id}/sync`));
     setSyncing(false);
   };
-  const unreliable = used.filter((s) => s.sync && !s.sync.reliable);
-  const notSearched = used.filter((s) => !s.sync);
+  const unreliable = reel.sync.some((m) => m && !m.reliable);
+  const notSearched = reel.sync.some((m) => !m);
+  const nameOf = (id: number) => props.sources.find((s) => s.id === id)?.name ?? 'Vidéo';
 
   const makePreview = async () => {
     setPreviewing(true);
@@ -221,9 +217,7 @@ export function ReelEditor(props: {
         )}
 
         <section>
-          <h3>
-            Son <span className="badge">Expérimental</span>
-          </h3>
+          <h3>Son</h3>
           <div className="cr-framing">
             {(
               [
@@ -254,22 +248,29 @@ export function ReelEditor(props: {
           </div>
           {reel.audioMode !== 'track' && (
             <p className="muted small">
-              Le Reel dure le temps des passages choisis ci-dessous (60 s au plus) ; l’extrait du
-              morceau n’est pas utilisé.
+              Le son suit le passage vidéo choisi ci-dessous ; l’extrait du morceau n’est pas
+              utilisé. Son limité à -1,1 dBTP.
             </p>
           )}
           {reel.audioMode === 'synced' && (
             <div className="cr-sync">
-              {used.map((source) => (
-                <p key={source.id} className="small">
-                  <strong>{source.name}</strong> :{' '}
-                  {!source.sync
-                    ? 'pas encore cherché'
-                    : source.sync.reliable
-                      ? `morceau retrouvé (décalage ${source.sync.offset.toFixed(3)} s, confiance ${source.sync.score?.toFixed(2)})`
-                      : `pas retrouvé de façon fiable (confiance ${source.sync.score?.toFixed(2)})`}
-                </p>
-              ))}
+              {reel.segments.map((passage, index) => {
+                const match = reel.sync[index] ?? null;
+                return (
+                  <p
+                    key={index}
+                    className={`small${match && !match.reliable ? ' cr-warning' : ''}`}
+                  >
+                    <strong>{nameOf(passage.sourceId)}</strong>, de {formatDuration(passage.start)}{' '}
+                    à {formatDuration(passage.end)} :{' '}
+                    {!match
+                      ? 'pas encore cherché'
+                      : match.reliable
+                        ? `morceau retrouvé (à ${formatDuration(passage.start + match.offset)} dans le morceau, décalage ${match.offset.toFixed(3)} s)`
+                        : 'morceau pas retrouvé de façon fiable dans ce passage (prise de son trop faible, ou le morceau n’y est pas). Choisis « Son de la vidéo », ou un autre passage.'}
+                  </p>
+                );
+              })}
               <div className="inline-form">
                 <Button
                   small
@@ -279,11 +280,11 @@ export function ReelEditor(props: {
                 >
                   {syncing
                     ? 'Recherche…'
-                    : notSearched.length > 0
-                      ? 'Retrouver le morceau dans la vidéo'
+                    : notSearched
+                      ? 'Retrouver le morceau'
                       : 'Chercher à nouveau'}
                 </Button>
-                {unreliable.length > 0 && (
+                {unreliable && (
                   <Button small onClick={() => void patch({ audioMode: 'video' })}>
                     Utiliser « Son de la vidéo »
                   </Button>
@@ -313,7 +314,7 @@ export function ReelEditor(props: {
           </div>
           {(reel.effect === 'rhythm' || reel.effect === 'camera') && (
             <label className="cr-inline-field small">
-              Intensité <span className="badge">Expérimental</span>
+              Intensité
               <select
                 className="input input--short"
                 value={reel.intensity}
@@ -327,7 +328,7 @@ export function ReelEditor(props: {
             </label>
           )}
           <label className="cr-inline-field small">
-            Texte à l’écran <span className="badge">Expérimental</span>
+            Texte à l’écran
             <input
               className="input"
               value={text}

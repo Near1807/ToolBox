@@ -368,7 +368,7 @@
   }
 }
 
-/* EXPERIMENTAL options (son, intensité, texte à l'écran). */
+/* Options of a Reel (son, intensité, texte à l'écran). */
 .cr-inline-field {
   display: grid;
   gap: 4px;
