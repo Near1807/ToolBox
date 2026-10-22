@@ -81,6 +81,15 @@ site/            site public statique (accueil + confidentialité, exigés par G
 - Toute modification du contrat de module ou de l'architecture met à jour la doc **dans le même commit**. Nouvelle décision structurante → nouvel ADR.
 - Fin de phase : mettre à jour `docs/ROADMAP.md` et `CHANGELOG.md`, versionnage sémantique (`package.json`).
 
+## Hygiène du code
+
+- Une **passe de nettoyage et d'audit** est recommandée toutes les 3 à 4 sessions de fonctionnalités, ou avant un gros nouveau module. Modèle : `docs/rapports/2026-10-22-v0.14.1.md`.
+- Règle : **corrections sûres directement, risquées seulement proposées** (dans le rapport : problème, bénéfice, risque, effort, recommandation). Sûr = aucun changement visible pour Thomas : mêmes fonctions, mêmes rendus, mêmes données.
+- Ce que la passe vérifie : contrat de module (imports entre modules hors `contract.ts`, tables d'autres modules, fichiers hors `ctx.outputs`, `onReattach`, dépendances obligatoires / optionnelles, couleurs en dur) ; code mort (fonctions, composants, routes, réglages, CSS, dépendances npm) ; doublons à remonter dans le SDK ou le socle ; sécurité (jeton, Host/Origin, tickets, chemins) ; tests instables ou lents ; documentation contredite par le code ; `npm audit` / `npm outdated` (mineures et correctifs seulement) ; processus FFmpeg et écouteurs non libérés.
+- Colonnes de base inutilisées : jamais supprimées (pas de migration destructive) ; on retire le code qui les lit et on les documente dans le README du module.
+- Preuve de non-régression : tests, lint, typecheck, CI Windows verte ; rendus de référence avant / après (YouTube, Pack Insta, un Reel perso par mode de son) : son décodé identique (md5 du PCM), images équivalentes (PSNR, ≥ 45 dB ; le grain aléatoire donne ~50 dB d'un rendu à l'autre) ; montée de version depuis la base de la version précédente.
+- Outils utiles : `npx knip` (exports et fichiers inutilisés ; les points d'entrée découverts par les scripts de build sont des faux positifs), `npm audit`, `npm outdated`.
+
 ## Fin de session (obligatoire)
 
 À la fin de **chaque** session de travail : rapport complet, enregistré dans `docs/rapports/AAAA-MM-JJ-vX.Y.Z.md` (commité avec le reste) **et affiché en entier** dans le résumé final. En français, clair et factuel : pas de formule creuse, pas de « tout est parfait » sans vérification ; tout ce qui n'a pas été testé en réel est marqué **« non testé en réel »**. Structure obligatoire, dans cet ordre :
