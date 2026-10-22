@@ -9,6 +9,7 @@ import path from 'node:path';
 import ffprobeStatic from '@derhuerst/ffprobe-static';
 import ffmpegStatic from 'ffmpeg-static';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { fullRenderTests } from '@hub/sdk/testing';
 import type { EngineEnvironment } from '../backend/engine';
 import { decodeExcerpt } from '../backend/engine';
 import { matchWindow } from '../backend/sync';
@@ -18,7 +19,8 @@ import { testTrack, wavBuffer } from './sync-fixtures';
 const MODULE_DIR = path.resolve(import.meta.dirname, '..');
 const ffmpeg = ffmpegStatic!;
 
-describe('sound of the video Reels (real renders)', () => {
+// Complete renders: full suite only (npm run test:full).
+describe.runIf(fullRenderTests)('sound of the video Reels (real renders)', () => {
   let dir: string;
   let env: EngineEnvironment;
   let master: string;

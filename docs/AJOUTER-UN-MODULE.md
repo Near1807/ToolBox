@@ -49,7 +49,7 @@ Supprimer tout ce qui ne sert pas (route de démo, tâche planifiée…).
 - Tester au minimum : chargement sans erreur, chaque route, les erreurs prévues, les migrations sur une base existante si le module évolue, et pour les fichiers générés : présence dans `/api/core/outputs`, suppression, fichier effacé à la main (signalé introuvable).
 
 ```bash
-npm test
+npm test            # rapide ; npm run test:full si un rendu a changé (la CI la lance toujours)
 npm run lint        # vérifie aussi les frontières du module
 npm run typecheck
 ```

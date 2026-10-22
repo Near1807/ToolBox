@@ -19,6 +19,7 @@
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:full": "vitest run --mode full",
     "test:watch": "vitest",
     "check:native": "node scripts/check-native.mjs",
     "check:ui-colors": "node scripts/check-ui-colors.mjs"

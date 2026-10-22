@@ -407,6 +407,8 @@ await hub.close();
 
 Pour un module qui consomme un service, fournir un faux module fournisseur dans `modules: [...]`.
 
+Deux niveaux : `npm test` (rapide, par défaut, pendant le travail) et `npm run test:full` (tout, dont les rendus complets ; toujours exécuté par la CI Windows). Un test qui fait un rendu complet (vidéo, pack, Reel en taille réelle), et ceux qui utilisent ses fichiers, ne tournent que dans la suite complète : `describe.runIf(fullRenderTests)` / `it.runIf(fullRenderTests)` (`fullRenderTests` de `@hub/sdk/testing`). Les aperçus et petits rendus restent dans les tests rapides.
+
 ## 9. Gestion des erreurs : ce qui ne fait pas tomber le hub
 
 | Problème                                                   | Conséquence                                                  |

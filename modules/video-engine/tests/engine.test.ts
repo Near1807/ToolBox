@@ -10,6 +10,7 @@ import {
   loadModuleFolder,
   type DiscoveredModule,
   type TestHub,
+  fullRenderTests,
 } from '@hub/sdk/testing';
 import type { VideoEngineService } from '../contract';
 import { renderPostImage, renderVideo, type EngineEnvironment } from '../backend/engine';
@@ -152,34 +153,38 @@ describe('renderVideo (real FFmpeg)', () => {
   });
 
   // The bug of v0.6: a non-square pixel shape (SAR 16:9) made players stretch the Reels.
-  it('writes square pixels at full size: 1080×1920 (9:16) and 1920×1080 (16:9)', async () => {
-    const cases = [
-      { format: 'instagram', width: 1080, height: 1920, dar: '9:16' },
-      { format: 'youtube', width: 1920, height: 1080, dar: '16:9' },
-    ] as const;
-    for (const { format, width, height, dar } of cases) {
-      const outputPath = path.join(fixtures.dir, 'out', `full-${format}.mp4`);
-      await renderVideo(env, {
-        format,
-        audioPath: fixtures.audio,
-        coverPath: fixtures.wideCover,
-        title: 'Plein format',
-        artist: 'Thomas',
-        duration: 1,
-        outputPath,
-        quality: 'preview',
-      });
-      const video = probe(outputPath).streams.find((s) => s.codec_type === 'video')!;
-      expect(video).toMatchObject({
-        width,
-        height,
-        sample_aspect_ratio: '1:1',
-        display_aspect_ratio: dar,
-      });
-    }
-  }, 120_000);
+  it.runIf(fullRenderTests)(
+    'writes square pixels at full size: 1080×1920 (9:16) and 1920×1080 (16:9)',
+    async () => {
+      const cases = [
+        { format: 'instagram', width: 1080, height: 1920, dar: '9:16' },
+        { format: 'youtube', width: 1920, height: 1080, dar: '16:9' },
+      ] as const;
+      for (const { format, width, height, dar } of cases) {
+        const outputPath = path.join(fixtures.dir, 'out', `full-${format}.mp4`);
+        await renderVideo(env, {
+          format,
+          audioPath: fixtures.audio,
+          coverPath: fixtures.wideCover,
+          title: 'Plein format',
+          artist: 'Thomas',
+          duration: 1,
+          outputPath,
+          quality: 'preview',
+        });
+        const video = probe(outputPath).streams.find((s) => s.codec_type === 'video')!;
+        expect(video).toMatchObject({
+          width,
+          height,
+          sample_aspect_ratio: '1:1',
+          display_aspect_ratio: dar,
+        });
+      }
+    },
+    120_000,
+  );
 
-  it('can be cancelled: FFmpeg stops and no file is left', async () => {
+  it.runIf(fullRenderTests)('can be cancelled: FFmpeg stops and no file is left', async () => {
     const outputPath = path.join(fixtures.dir, 'out', 'cancelled.mp4');
     const controller = new AbortController();
     const rendering = renderVideo(
@@ -313,23 +318,27 @@ describe('videoEngine service', () => {
     ).toBe(true);
   });
 
-  it('runs full renders one at a time', async () => {
-    const messages: string[] = [];
-    const request = {
-      format: 'youtube' as const,
-      audioPath: fixtures.audio,
-      coverPath: fixtures.cover,
-      title: 'File',
-      artist: 'Thomas',
-      duration: 1,
-    };
-    const first = engine.render({ ...request, outputPath: path.join(fixtures.dir, 'q1.mp4') });
-    const second = engine.render(
-      { ...request, outputPath: path.join(fixtures.dir, 'q2.mp4') },
-      { onProgress: (_f, message) => messages.push(message) },
-    );
-    await Promise.all([first, second]);
-    expect(messages[0]).toMatch(/En attente du moteur/);
-    // Two full renders in a row: slow on a shared CI runner (Windows) when other render tests run.
-  }, 120_000);
+  it.runIf(fullRenderTests)(
+    'runs full renders one at a time',
+    async () => {
+      const messages: string[] = [];
+      const request = {
+        format: 'youtube' as const,
+        audioPath: fixtures.audio,
+        coverPath: fixtures.cover,
+        title: 'File',
+        artist: 'Thomas',
+        duration: 1,
+      };
+      const first = engine.render({ ...request, outputPath: path.join(fixtures.dir, 'q1.mp4') });
+      const second = engine.render(
+        { ...request, outputPath: path.join(fixtures.dir, 'q2.mp4') },
+        { onProgress: (_f, message) => messages.push(message) },
+      );
+      await Promise.all([first, second]);
+      expect(messages[0]).toMatch(/En attente du moteur/);
+      // Two full renders in a row: slow on a shared CI runner (Windows) when other render tests run.
+    },
+    120_000,
+  );
 });

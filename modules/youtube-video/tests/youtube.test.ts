@@ -11,6 +11,7 @@ import {
   loadModuleFolder,
   type DiscoveredModule,
   type TestHub,
+  fullRenderTests,
 } from '@hub/sdk/testing';
 import type { YouTubeVideoService } from '../contract';
 
@@ -178,75 +179,84 @@ describe('youtube-video', () => {
     expect(body.url).toMatch(/^\/api\/media\//);
   });
 
-  it('renders the full video as a job and records it in the library', async () => {
-    const { body: job } = await hub.request<JobInfo>('POST', `${API}/tracks/${trackId}/render`);
-    let done: JobInfo | undefined;
-    for (let i = 0; i < 600 && !done; i++) {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      const { body: jobs } = await hub.request<JobInfo[]>(
+  // Complete renders, and the tests that use their files: full suite only.
+  describe.runIf(fullRenderTests)('rendu complet de la vidéo', () => {
+    it('renders the full video as a job and records it in the library', async () => {
+      const { body: job } = await hub.request<JobInfo>('POST', `${API}/tracks/${trackId}/render`);
+      let done: JobInfo | undefined;
+      for (let i = 0; i < 600 && !done; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        const { body: jobs } = await hub.request<JobInfo[]>(
+          'GET',
+          '/api/core/jobs?module=youtube-video',
+        );
+        done = jobs.find((j) => j.id === job.id && ['succeeded', 'failed'].includes(j.status));
+      }
+      expect(done?.status).toBe('succeeded');
+
+      const file = path.join(outputRoot, 'youtube-video', 'Thomas - Night Drive (YouTube).mp4');
+      expect(existsSync(file)).toBe(true);
+
+      const { body: track } = await hub.request<{ outputs: { label: string; fileName: string }[] }>(
         'GET',
-        '/api/core/jobs?module=youtube-video',
+        `/api/modules/music-library/tracks/${trackId}`,
       );
-      done = jobs.find((j) => j.id === job.id && ['succeeded', 'failed'].includes(j.status));
-    }
-    expect(done?.status).toBe('succeeded');
+      expect(track.outputs).toEqual([
+        expect.objectContaining({
+          label: 'Vidéo YouTube',
+          fileName: 'Thomas - Night Drive (YouTube).mp4',
+        }),
+      ]);
+      const { body: detail } = await hub.request<{ videos: unknown[] }>(
+        'GET',
+        `${API}/tracks/${trackId}`,
+      );
+      expect(detail.videos).toHaveLength(1);
+    });
 
-    const file = path.join(outputRoot, 'youtube-video', 'Thomas - Night Drive (YouTube).mp4');
-    expect(existsSync(file)).toBe(true);
+    it('shares its videos with other modules (service youtubeVideo)', async () => {
+      const shared = await hub.request<{
+        videos: { id: number; exists: boolean; youtubeVideoId: string | null }[];
+        texts: { videoTitle: string; tags: string[] };
+      }>('GET', `/api/modules/consumer/tracks/${trackId}`);
+      expect(shared.body.videos).toHaveLength(1);
+      expect(shared.body.videos[0]).toMatchObject({ exists: true, youtubeVideoId: null });
+      expect(shared.body.texts).toMatchObject({
+        videoTitle: 'Thomas - Night Drive',
+        tags: ['lofi'],
+      });
+      await hub.request(
+        'POST',
+        `/api/modules/consumer/videos/${shared.body.videos[0]!.id}/uploaded`,
+      );
+      const { body } = await hub.request<{ videos: { youtubeUrl: string | null }[] }>(
+        'GET',
+        `${API}/tracks/${trackId}`,
+      );
+      expect(body.videos[0]!.youtubeUrl).toBe('https://www.youtube.com/watch?v=abc123');
+    });
 
-    const { body: track } = await hub.request<{ outputs: { label: string; fileName: string }[] }>(
-      'GET',
-      `/api/modules/music-library/tracks/${trackId}`,
-    );
-    expect(track.outputs).toEqual([
-      expect.objectContaining({
-        label: 'Vidéo YouTube',
-        fileName: 'Thomas - Night Drive (YouTube).mp4',
-      }),
-    ]);
-    const { body: detail } = await hub.request<{ videos: unknown[] }>(
-      'GET',
-      `${API}/tracks/${trackId}`,
-    );
-    expect(detail.videos).toHaveLength(1);
-  });
+    it('shows a video deleted outside the app as missing, and deletes from the app', async () => {
+      interface Video {
+        id: number;
+        outputId: number;
+        exists: boolean;
+      }
+      const file = path.join(outputRoot, 'youtube-video', 'Thomas - Night Drive (YouTube).mp4');
+      const { body } = await hub.request<{ videos: Video[] }>('GET', `${API}/tracks/${trackId}`);
+      const [video] = body.videos;
+      expect(video!.exists).toBe(true);
 
-  it('shares its videos with other modules (service youtubeVideo)', async () => {
-    const shared = await hub.request<{
-      videos: { id: number; exists: boolean; youtubeVideoId: string | null }[];
-      texts: { videoTitle: string; tags: string[] };
-    }>('GET', `/api/modules/consumer/tracks/${trackId}`);
-    expect(shared.body.videos).toHaveLength(1);
-    expect(shared.body.videos[0]).toMatchObject({ exists: true, youtubeVideoId: null });
-    expect(shared.body.texts).toMatchObject({ videoTitle: 'Thomas - Night Drive', tags: ['lofi'] });
-    await hub.request('POST', `/api/modules/consumer/videos/${shared.body.videos[0]!.id}/uploaded`);
-    const { body } = await hub.request<{ videos: { youtubeUrl: string | null }[] }>(
-      'GET',
-      `${API}/tracks/${trackId}`,
-    );
-    expect(body.videos[0]!.youtubeUrl).toBe('https://www.youtube.com/watch?v=abc123');
-  });
+      copyFileSync(file, `${file}.bak`);
+      rmSync(file);
+      const missing = await hub.request<{ videos: Video[] }>('GET', `${API}/tracks/${trackId}`);
+      expect(missing.body.videos[0]!.exists).toBe(false);
+      copyFileSync(`${file}.bak`, file);
 
-  it('shows a video deleted outside the app as missing, and deletes from the app', async () => {
-    interface Video {
-      id: number;
-      outputId: number;
-      exists: boolean;
-    }
-    const file = path.join(outputRoot, 'youtube-video', 'Thomas - Night Drive (YouTube).mp4');
-    const { body } = await hub.request<{ videos: Video[] }>('GET', `${API}/tracks/${trackId}`);
-    const [video] = body.videos;
-    expect(video!.exists).toBe(true);
-
-    copyFileSync(file, `${file}.bak`);
-    rmSync(file);
-    const missing = await hub.request<{ videos: Video[] }>('GET', `${API}/tracks/${trackId}`);
-    expect(missing.body.videos[0]!.exists).toBe(false);
-    copyFileSync(`${file}.bak`, file);
-
-    await hub.request('POST', '/api/core/outputs/delete', { ids: [video!.outputId] });
-    expect(existsSync(file)).toBe(false);
-    const after = await hub.request<{ videos: Video[] }>('GET', `${API}/tracks/${trackId}`);
-    expect(after.body.videos).toEqual([]);
+      await hub.request('POST', '/api/core/outputs/delete', { ids: [video!.outputId] });
+      expect(existsSync(file)).toBe(false);
+      const after = await hub.request<{ videos: Video[] }>('GET', `${API}/tracks/${trackId}`);
+      expect(after.body.videos).toEqual([]);
+    });
   });
 });
