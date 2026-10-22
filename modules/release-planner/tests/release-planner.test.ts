@@ -482,6 +482,15 @@ describe('release-planner (mock YouTube)', () => {
       () => release(first.id),
       (r) => youtubeItems(r).every((i) => i.state === 'scheduled' || i.state === 'failed'),
     );
+    // An item reads « scheduled » before its thumbnail and playlist are done: the
+    // checks below wait for the upload jobs to finish.
+    await waitFor(
+      async () =>
+        (await hub.request<{ status: string }[]>('GET', '/api/core/jobs?module=release-planner'))
+          .body,
+      (jobs) => jobs.every((j) => j.status !== 'queued' && j.status !== 'running'),
+    );
+    first = await release(first.id);
     expect(youtubeItems(first).map((i) => [i.label, i.state, i.error])).toEqual(
       youtubeItems(first).map((i) => [i.label, 'scheduled', null]),
     );
