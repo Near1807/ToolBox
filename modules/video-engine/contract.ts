@@ -84,7 +84,7 @@ export interface VideoReelRequest {
    * EXPERIMENTAL. « track » (default): the track excerpt. « video »: the videos'
    * own sound for the chosen passages (normalised, limited). « synced »: the
    * master of the track placed exactly where it plays in the video (`syncOffsets`).
-   * Outside « track », the Reel lasts as long as the passages (no loop).
+   * The Reel lasts `duration` in every mode (the passages add up to it).
    */
   audioMode?: ReelAudioMode;
   /** « synced »: per video file, track time = video time + offset (s). */

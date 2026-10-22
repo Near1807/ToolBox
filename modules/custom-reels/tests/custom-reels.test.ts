@@ -44,7 +44,7 @@ interface Reel {
   position: number;
   startSec: number;
   durationSec: number;
-  segments: { sourceId: number; start: number; end: number }[];
+  segments: { sourceId: number; start: number; duration: number; end: number }[];
   loops: boolean;
   framing: string;
   effect: string;
@@ -189,13 +189,36 @@ describe('custom-reels (Reels from my videos)', () => {
     const sourceId = (await track()).sources[0]!.id;
     const bad = await hub.request('PATCH', `${API}/reels/${reel!.id}`, { durationSec: 10 });
     expect(bad.status).toBe(400);
-    const { body } = await hub.request<Reel>('PATCH', `${API}/reels/${reel!.id}`, {
+    const patch = (fields: Record<string, unknown>) =>
+      hub.request<Reel & { error?: string }>('PATCH', `${API}/reels/${reel!.id}`, fields);
+    // Chained passages: their durations always add up to the Reel's (the last one takes the rest).
+    const chained = await patch({
       durationSec: 15,
-      startSec: 100, // clamped inside the track
       segments: [
-        { sourceId, start: 0, end: 4 },
-        { sourceId, start: 4.5, end: 99 }, // clamped to the video
+        { sourceId, start: 0, duration: 5 },
+        { sourceId, start: 0.5, duration: 5 },
+        { sourceId, start: 9, duration: 1 }, // start moved back inside the 6 s video
       ],
+    });
+    expect(chained.status).toBe(200);
+    expect(chained.body.segments.map((p) => [p.start, p.duration])).toEqual([
+      [0, 5],
+      [0.5, 5],
+      [1, 5],
+    ]);
+    // Impossible: the last passage would need 11 s of a 6 s video.
+    const tooShort = await patch({
+      segments: [
+        { sourceId, start: 0, duration: 4 },
+        { sourceId, start: 1, duration: 1 },
+      ],
+    });
+    expect(tooShort.status).toBe(400);
+    expect(tooShort.body.error).toMatch(/dernier passage devrait durer 11,0 s/);
+    // Back to one passage: only its start is given, its duration is the Reel's.
+    const { body } = await patch({
+      startSec: 100, // clamped inside the track
+      segments: [{ sourceId, start: 3 }],
       framing: 'fill',
       focusX: 0.2,
       effect: 'rhythm',
@@ -208,8 +231,10 @@ describe('custom-reels (Reels from my videos)', () => {
       effect: 'rhythm',
       caption: 'Ma légende',
       captionCustom: true,
+      // The 6 s video is shorter than the 15 s Reel: played from its start, looped.
+      segments: [{ sourceId, start: 0, duration: 15, end: 15 }],
+      loops: true,
     });
-    expect(body.segments[1]!.end).toBeCloseTo(6, 0);
     expect(
       (await hub.request('PATCH', `${API}/reels/${reel!.id}`, { effect: 'disco' })).status,
     ).toBe(400);

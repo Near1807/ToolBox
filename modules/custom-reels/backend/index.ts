@@ -18,6 +18,14 @@ import {
   type CustomReelsService,
 } from '../contract';
 import { clampExcerpt, suggestStarts } from './excerpts';
+import {
+  fitPassages,
+  MAX_PASSAGES,
+  PassageError,
+  readPassages,
+  toSegments,
+  type Passage,
+} from './passages';
 
 const execFileAsync = promisify(execFile);
 const MAX_REELS = 4;
@@ -228,7 +236,23 @@ export default defineBackendModule({
         )
         .run(...entries.map(([, v]) => v as string | number | null), new Date().toISOString(), id);
     };
-    const segmentsOf = (row: ReelRow) => JSON.parse(row.segments) as Segment[];
+    /** Stored passages (start + duration), as saved. */
+    const segmentsOf = (row: ReelRow) => readPassages(row.segments);
+    const videoLength = (sourceId: number) => source(sourceId)?.duration_sec ?? 0;
+    /**
+     * Passages fitted to the Reel's duration (one passage = exactly the Reel's
+     * duration; chained ones add up to it). An impossible chain is reported, not rendered.
+     */
+    const fittedOf = (
+      row: ReelRow,
+    ): { passages: Passage[]; loops: boolean; error: string | null } => {
+      try {
+        return { ...fitPassages(segmentsOf(row), row.duration_sec, videoLength), error: null };
+      } catch (error) {
+        if (!(error instanceof PassageError)) throw error;
+        return { passages: segmentsOf(row), loops: false, error: error.message };
+      }
+    };
 
     // Texts --------------------------------------------------------------------
     const hashtags = (track: Track) => {
@@ -263,7 +287,8 @@ export default defineBackendModule({
       JSON.stringify({
         start: row.start_sec,
         duration: row.duration_sec,
-        segments: segmentsOf(row),
+        // Same shape as before v0.14 (start, end): an unchanged Reel stays « À jour ».
+        segments: toSegments(fittedOf(row).passages),
         framing: row.framing,
         focus: row.framing === 'fill' ? [row.focus_x, row.focus_y] : null,
         effect: row.effect,
@@ -481,8 +506,12 @@ export default defineBackendModule({
     };
     const reelDto = (row: ReelRow, track: Track, records = outputsByRef(track.id)) => {
       const record = records.get(`reel:${row.id}`);
-      const segments = segmentsOf(row);
-      const videoSeconds = segments.reduce((sum, s) => sum + Math.max(0, s.end - s.start), 0);
+      const fitted = fittedOf(row);
+      const segments = fitted.passages.map((p) => ({
+        ...p,
+        end: Math.round((p.start + p.duration) * 10) / 10,
+      }));
+      const videoSeconds = segments.reduce((sum, s) => sum + s.duration, 0);
       return {
         id: row.id,
         outputId: record?.id ?? null,
@@ -492,9 +521,10 @@ export default defineBackendModule({
         durationSec: row.duration_sec,
         segments,
         videoSeconds,
-        /** The chosen passages are shorter than the excerpt: they will be looped (track sound only). */
-        loops:
-          row.audio_mode === 'track' && videoSeconds > 0 && videoSeconds < row.duration_sec - 0.05,
+        /** The video is shorter than the Reel: it will be looped. */
+        loops: fitted.loops,
+        /** Chained passages that cannot add up to the Reel's duration (said, not rendered). */
+        passagesError: fitted.error,
         audioMode: row.audio_mode,
         intensity: row.intensity,
         overlayText: row.overlay_text ?? '',
@@ -517,7 +547,14 @@ export default defineBackendModule({
 
     // Render ---------------------------------------------------------------------
     const renderRequest = (row: ReelRow, track: Track) => {
-      const segments = segmentsOf(row).map((segment) => {
+      const fitted = fittedOf(row);
+      if (fitted.error) throw new Error(fitted.error);
+      if (fitted.loops && row.audio_mode === 'synced') {
+        throw new Error(
+          'Vidéo plus courte que le Reel : impossible en « Morceau synchronisé » (raccourcis le Reel)',
+        );
+      }
+      const segments = toSegments(fitted.passages).map((segment) => {
         const src = source(segment.sourceId);
         if (!src) throw new Error('Une vidéo de ce Reel a été retirée : choisis un autre passage');
         if (src.removed_at || !existsSync(src.file_path)) {
@@ -754,6 +791,11 @@ export default defineBackendModule({
       await ctx.outputs.delete({ ref: `source:${row.id}` });
       ctx.db.prepare(`DELETE FROM ${sources} WHERE id = ?`).run(row.id);
       rmSync(ctx.files.dataPath('filmstrips', String(row.id)), { recursive: true, force: true });
+      for (const frame of existsSync(ctx.files.dataPath('frames'))
+        ? readdirSync(ctx.files.dataPath('frames')).filter((f) => f.startsWith(`${row.id}-`))
+        : []) {
+        rmSync(ctx.files.dataPath('frames', frame), { force: true });
+      }
       return trackDto(requireTrack(row.track_id));
     });
 
@@ -840,6 +882,33 @@ export default defineBackendModule({
 
     ctx.routes.get('/storage', () => storage());
 
+    // One frame of a video at `t` (s), 240 px high: first and last image of a passage (cached).
+    ctx.routes.get('/sources/:id/frame', async (request) => {
+      const row = requireSource(idParam(request.params));
+      if (row.removed_at || !existsSync(row.file_path)) return { url: null };
+      const raw = Number((request.query as { t?: string }).t);
+      const t =
+        Math.round(
+          Math.min(
+            Math.max(0, Number.isFinite(raw) ? raw : 0),
+            Math.max(0, row.duration_sec - 0.05),
+          ) * 10,
+        ) / 10;
+      const file = ctx.files.dataPath('frames', `${row.id}-${Math.round(t * 10)}.jpg`);
+      if (!existsSync(file)) {
+        mkdirSync(path.dirname(file), { recursive: true });
+        await execFileAsync(
+          ctx.binaries.ffmpeg,
+          [
+            ...['-v', 'error', '-y', '-ss', String(t), '-i', row.file_path],
+            ...['-frames:v', '1', '-vf', 'scale=-2:240', '-q:v', '4', file],
+          ],
+          { windowsHide: true, timeout: 30_000 },
+        );
+      }
+      return { url: existsSync(file) ? ctx.files.mediaUrl(file) : null };
+    });
+
     // Frames of a video for its timeline (cached).
     ctx.routes.get('/sources/:id/filmstrip', async (request) => {
       const row = requireSource(idParam(request.params));
@@ -879,13 +948,8 @@ export default defineBackendModule({
         for (let i = 0; i < count; i++) {
           // The videos in turn: Reel 1 with the first, Reel 2 with the second…
           const video = videos[(existing.length + i) % videos.length]!;
-          const segments: Segment[] = [
-            {
-              sourceId: video.id,
-              start: 0,
-              end: Math.round(Math.min(video.duration_sec, clip) * 10) / 10,
-            },
-          ];
+          // One passage from the start of the video, as long as the Reel.
+          const segments: Passage[] = [{ sourceId: video.id, start: 0, duration: clip }];
           ctx.db
             .prepare(
               `INSERT INTO ${reels} (track_id, position, start_sec, duration_sec, segments, effect, created_at, updated_at)
@@ -925,25 +989,33 @@ export default defineBackendModule({
         if (!Number.isFinite(start)) throw new HttpError(400, 'Point de départ invalide');
         fields.start_sec = clampExcerpt(start, clip, audioDuration);
       }
-      if (input.segments !== undefined) {
-        if (!Array.isArray(input.segments) || input.segments.length > 12) {
-          throw new HttpError(400, 'Passages invalides');
-        }
-        const segments = (input.segments as Record<string, unknown>[]).map((raw) => {
-          const src = source(Number(raw.sourceId));
-          if (!src || src.track_id !== row.track_id) throw new HttpError(400, 'Vidéo inconnue');
-          const start = Math.max(0, Math.min(Number(raw.start), src.duration_sec));
-          const end = Math.max(0, Math.min(Number(raw.end), src.duration_sec));
-          if (!Number.isFinite(start) || !Number.isFinite(end) || end - start < 0.5) {
-            throw new HttpError(400, 'Chaque passage dure au moins 0,5 s');
+      // Passages: a start (and, when chained, a duration); always fitted to the Reel's duration.
+      if (input.segments !== undefined || fields.duration_sec !== undefined) {
+        let passages = segmentsOf(row);
+        if (input.segments !== undefined) {
+          if (!Array.isArray(input.segments) || input.segments.length > MAX_PASSAGES) {
+            throw new HttpError(400, 'Passages invalides');
           }
-          return {
-            sourceId: src.id,
-            start: Math.round(start * 10) / 10,
-            end: Math.round(end * 10) / 10,
-          };
-        });
-        fields.segments = JSON.stringify(segments);
+          passages = (input.segments as Record<string, unknown>[]).map((raw) => {
+            const src = source(Number(raw.sourceId));
+            if (!src || src.track_id !== row.track_id) throw new HttpError(400, 'Vidéo inconnue');
+            const start = Number(raw.start);
+            const duration =
+              raw.duration !== undefined ? Number(raw.duration) : Number(raw.end) - start;
+            if (!Number.isFinite(start)) throw new HttpError(400, 'Départ du passage invalide');
+            return {
+              sourceId: src.id,
+              start,
+              duration: Number.isFinite(duration) ? duration : clip,
+            };
+          });
+        }
+        try {
+          fields.segments = JSON.stringify(fitPassages(passages, clip, videoLength).passages);
+        } catch (error) {
+          if (error instanceof PassageError) throw new HttpError(400, error.message);
+          throw error;
+        }
       }
       if (input.framing !== undefined) {
         if (input.framing !== 'fit' && input.framing !== 'fill') {

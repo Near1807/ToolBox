@@ -373,6 +373,92 @@ export function ExcerptWaveform(props: {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Passage selection on a video filmstrip
+// ---------------------------------------------------------------------------
+
+/**
+ * Filmstrip of a video (frames side by side) with a window of FIXED width:
+ * the passage lasts `windowSec`, only its start is chosen. Drag the window to
+ * move it, or click elsewhere to place its start there (same as the excerpt
+ * on the waveform). The start is kept inside the video (moved back when the
+ * window would pass its end). `onPreview` follows the drag (e.g. to seek a player).
+ */
+export function FilmstripWindow(props: {
+  frames: string[];
+  durationSec: number;
+  windowSec: number;
+  start: number;
+  locked?: boolean;
+  onMove: (start: number) => void;
+  onPreview?: (start: number) => void;
+  label?: string;
+}) {
+  const { durationSec, windowSec } = props;
+  const box = useRef<HTMLDivElement>(null);
+  const [drag, setDrag] = useState<{ offset: number; start: number } | null>(null);
+  const length = Math.max(0.1, durationSec);
+  const percent = (seconds: number) =>
+    `${(Math.min(length, Math.max(0, seconds)) / length) * 100}%`;
+  const fit = (start: number) =>
+    Math.round(Math.min(Math.max(0, start), Math.max(0, length - windowSec)) * 10) / 10;
+  const timeAt = (event: PointerEvent) => {
+    const rect = box.current!.getBoundingClientRect();
+    return ((event.clientX - rect.left) / rect.width) * length;
+  };
+  const start = drag ? drag.start : props.start;
+
+  const down = (event: PointerEvent<HTMLDivElement>) => {
+    if (props.locked) return;
+    const time = timeAt(event);
+    event.currentTarget.setPointerCapture(event.pointerId);
+    if (time >= start && time <= start + windowSec) {
+      setDrag({ offset: time - start, start });
+    } else {
+      // A click places the start there, then the window can be dragged on.
+      const placed = fit(time);
+      setDrag({ offset: time - placed, start: placed });
+      props.onPreview?.(placed);
+    }
+  };
+  const move = (event: PointerEvent<HTMLDivElement>) => {
+    if (!drag) return;
+    const next = fit(timeAt(event) - drag.offset);
+    if (next !== drag.start) {
+      setDrag({ ...drag, start: next });
+      props.onPreview?.(next);
+    }
+  };
+  const up = () => {
+    if (!drag) return;
+    if (drag.start !== props.start) props.onMove(drag.start);
+    setDrag(null);
+  };
+
+  return (
+    <div
+      ref={box}
+      className={`ui-film${props.locked ? ' ui-film--locked' : ''}`}
+      onPointerDown={down}
+      onPointerMove={move}
+      onPointerUp={up}
+      onPointerCancel={() => setDrag(null)}
+      role="group"
+      aria-label={props.label ?? 'Passage sur la pellicule de la vidéo'}
+    >
+      <div className="ui-film__frames">
+        {props.frames.map((frame) => (
+          <img key={frame} src={frame} alt="" draggable={false} />
+        ))}
+      </div>
+      <div
+        className="ui-film__window"
+        style={{ left: percent(start), width: percent(Math.min(windowSec, length)) }}
+      />
+    </div>
+  );
+}
+
 /** Round numbered chip in the colour of an excerpt (1..4). */
 export function ExcerptChip(props: {
   position: number;

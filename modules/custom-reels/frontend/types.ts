@@ -36,9 +36,11 @@ export interface Storage {
   folder: string;
 }
 
+/** A passage of the video: a start and a duration (the end follows). */
 export interface Segment {
   sourceId: number;
   start: number;
+  duration: number;
   end: number;
 }
 
@@ -52,6 +54,8 @@ export interface Reel {
   segments: Segment[];
   videoSeconds: number;
   loops: boolean;
+  /** Chained passages that cannot add up to the Reel's duration. */
+  passagesError: string | null;
   framing: 'fit' | 'fill';
   focus: { x: number; y: number };
   effect: EffectId;

@@ -504,12 +504,9 @@ export async function renderVideoReel(
   const audioDuration = await probeDuration(env.ffprobe, options.audioPath);
   const mode = options.audioMode ?? 'track';
   const start = Math.min(Math.max(0, options.start), Math.max(0, audioDuration - 1));
-  // Outside « track », the sound follows the chosen passages: the Reel lasts as long as them.
-  const passages = options.segments.reduce((sum, s) => sum + Math.max(0, s.end - s.start), 0);
+  // The Reel lasts `duration` in every mode; outside « track » the sound follows the passages.
   const duration =
-    mode === 'track'
-      ? Math.min(options.duration, audioDuration - start)
-      : Math.min(60, passages, preview ? options.duration : Infinity);
+    mode === 'track' ? Math.min(options.duration, audioDuration - start) : options.duration;
   if (duration < 1) throw new Error('Extrait trop court (1 seconde minimum)');
   const frames = Math.round(duration * FPS);
   const timeline = planTimeline(options.segments, duration);
