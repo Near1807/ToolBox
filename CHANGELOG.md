@@ -4,6 +4,29 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.14.1] — 2026-10-22
+
+Session de nettoyage et d'audit du code : aucun changement visible (mêmes fonctions, mêmes rendus, mêmes données).
+
+### Modifié
+
+- SDK : aides `idParam` et `requestBody` pour les routes, `ctx.files.mediaUrlIfExists` (remplacent du code recopié dans quatre modules).
+- Dépendances : Electron 44.9.3, Vite 8.3.5, @fastify/static 10.1.7, typescript-eslint 8.72.0 (correctifs et mineures).
+- CLAUDE.md : section « Hygiène du code » (passe de nettoyage toutes les 3 à 4 sessions).
+
+### Retiré
+
+- Code mort : classes CSS, symboles et trois routes jamais appelés par l'interface (`music-library` `/outputs/:id/open|reveal`, `custom-reels` `GET /storage`).
+
+### Corrigé
+
+- Test du Planning « coupure réseau » instable sous charge (il lisait les appels Google avant la fin des envois).
+- L'attente entre deux essais d'envoi YouTube ne laisse plus d'écouteur d'annulation derrière elle ; avertissement de dépréciation Fastify supprimé.
+
+### Données
+
+- Aucune migration. Les colonnes `sync_*` des vidéos de « Reels depuis mes vidéos » (prototype v0.13) restent en base, plus lues par le code.
+
 ## [0.14.0] — 2026-10-22
 
 Reels depuis mes vidéos en version finale : passage choisi par son départ, grand lecteur, son au choix, Caméra embarquée.
