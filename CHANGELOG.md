@@ -4,6 +4,16 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.14.2] — 2026-10-22
+
+Suite de l'audit : décisions de Thomas sur les propositions de la v0.14.1.
+
+### Modifié
+
+- **Liste des morceaux** de Vidéo YouTube, Pack Insta et Reels perso : un seul composant partagé du SDK (`TrackList`). Petites harmonisations : « ♪ » centré dans la vignette sans cover, la vignette vide des Reels perso affiche aussi « ♪ », arrondi des lignes pris dans le thème.
+- **Tests en deux niveaux** : `npm test` (rapides, ~17 s) pendant le travail, `npm run test:full` (avec les rendus complets, ~100 s), toujours lancée par la CI Windows.
+- ROADMAP : maintenance décidée (electron-builder, versions majeures) et propositions écartées.
+
 ## [0.14.1] — 2026-10-22
 
 Session de nettoyage et d'audit du code : aucun changement visible (mêmes fonctions, mêmes rendus, mêmes données).
