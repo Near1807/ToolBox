@@ -92,6 +92,8 @@ export default defineBackendModule({
 
 ## 5. Le contexte `ctx`
 
+`ctx.id` et `ctx.manifest` : identifiant et manifest validé du module.
+
 ### 5.1 `ctx.db` — base SQLite
 
 | Membre            | Rôle                                                                                                                                    |
@@ -356,7 +358,7 @@ export default defineFrontendModule({
 - Navigation interne : `useModule().path('tracks/3')` donne l'adresse d'une page du module (pour `<Link to>` / `navigate()`).
 - CSS propre à un module : un fichier importé depuis `frontend/`, classes préfixées par les initiales du module (ex. `ml-` pour music-library).
 - Fichiers générés : `outputs` (client des routes `/api/core/outputs`), `confirmDelete`, `useSelection`, et les composants `SelectionBar`, `MissingFile`, `OutputList` (voir §5.13).
-- Outils du SDK : `useModule`, `useApi`, `useJobs`, `api`, `apiFetch`, `openEventStream`, `getFilePath`, `startFileDrag`, `pickFiles`, `pickFolder`, `copyText`, `formatDuration`, et les composants `Page`, `Card`, `Button`, `EmptyState`, `ErrorMessage`, `ProgressBar`, `ErrorBoundary`.
+- Outils du SDK : `useModule`, `useApi`, `useJobs`, `api`, `apiFetch`, `openEventStream`, `getFilePath`, `startFileDrag`, `pickFiles`, `pickFolder`, `copyText`, `formatDuration`, `formatBytes`, `errorMessage`, `ApiError`, `dateInputValue` (composants), les fonctions de textes (`fillTemplate`, `toTemplate`, `parseTags`, `formatTags`, aussi dans `@hub/sdk/texts`), et les composants `Page`, `Card`, `Button`, `EmptyState`, `ErrorMessage`, `ProgressBar`, `ErrorBoundary`.
 
 ### 7.1 Composants partagés (obligatoires)
 

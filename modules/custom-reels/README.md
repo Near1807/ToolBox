@@ -45,7 +45,7 @@ Chaque copie importée est aussi enregistrée dans `ctx.outputs` (ref `source:<i
 
 ## Dépendances
 
-Modules `music-library` et `video-engine` ; services `musicLibrary` et `videoEngine` (`renderVideoReel`, `previewVideoReel`, `probeVideo`, `filmstrip`, `waveform`, `videoEffects`).
+Modules `music-library` et `video-engine` ; services `musicLibrary` et `videoEngine` (`renderVideoReel`, `previewVideoReel`, `probeVideo`, `filmstrip`, `waveform`, `videoEffects`, `findTrackInVideo`).
 
 ## API
 

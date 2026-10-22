@@ -38,7 +38,7 @@ Supprimer tout ce qui ne sert pas (route de démo, tâche planifiée…).
 
 - Une page principale `{ path: '', component: MaPage }` ; d'autres pages si besoin (`'details/:id'`).
 - `useModule()` pour appeler son backend (`module.api.post('/x', data)`), `useApi(module.url('/x'))` pour charger des données, `useJobs(module.id)` pour suivre ses tâches.
-- Composants du SDK (`Page`, `Card`, `Button`…) pour rester homogène avec le reste de l'app. Éléments générés : **composants partagés** `OutputCard`, `MediaThumb`, `FileActions`, `PublishedCheck`, `StateBadge`, `CopyButton`, `ExcerptWaveform` (`docs/MODULES.md` §7.1), obligatoires.
+- Composants du SDK (`Page`, `Card`, `Button`…) pour rester homogène avec le reste de l'app. Éléments générés : **composants partagés** `OutputCard`, `MediaThumb`, `FileActions`, `PublishedCheck`, `StateBadge`, `CopyButton`, `ExcerptWaveform`… et tous ceux de `docs/MODULES.md` §7.1, obligatoires.
 - CSS du module : mise en page et variables du thème uniquement (`var(--accent)`, `var(--surface-2)`…), **aucune couleur en dur** — `npm run lint` le vérifie. Liste des variables : `docs/THEMES.md`.
 - Fichiers générés : `<OutputList module={module.id} />` donne une liste complète (ouvrir, supprimer avec confirmation, sélection multiple, fichiers introuvables). Pour une présentation sur mesure (vignettes…), utiliser `outputs.delete/forget`, `confirmDelete`, `useSelection` + `SelectionBar` et `MissingFile`.
 - Pas de frontend ? Supprimer le dossier `frontend/` (module de service).

@@ -32,7 +32,7 @@ flowchart LR
 | -------------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | Coquille       | `electron/`     | Crée la fenêtre, démarre le backend, fournit le `HostAdapter` (chiffrement, dialogues, ouverture de dossiers, redémarrage), preload minimal. |
 | Socle backend  | `backend/`      | Serveur Fastify, sécurité, `Hub` (chargeur de modules, services `ctx`, migrations, sauvegardes), API `/api/core/*`.                          |
-| Socle frontend | `frontend/`     | Shell : accueil par sections, navigation, pages Tâches, Journaux, Réglages ; héberge les pages des modules.                                  |
+| Socle frontend | `frontend/`     | Shell : accueil par sections, navigation, pages Fichiers générés, Tâches, Journaux, Réglages ; héberge les pages des modules.                |
 | SDK            | `packages/sdk/` | Le contrat vu par les modules : types, `ctx`, client API, hooks, composants. Seul import autorisé aux modules.                               |
 | Modules        | `modules/<id>/` | Outils métier, branchés sur le socle par le contrat de [MODULES.md](MODULES.md).                                                             |
 
@@ -83,25 +83,25 @@ Les migrations de **tous** les modules passent avant le premier `register()` : r
 
 ### API du socle
 
-| Route                                                                                            | Rôle                                                                                                             |
-| ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
-| `GET /api/health`                                                                                | Vivacité (sans jeton)                                                                                            |
-| `GET /api/core/system`                                                                           | Versions (app, SQLite, FFmpeg), dossier de données                                                               |
-| `GET /api/core/modules` · `PUT /api/core/modules/:id/enabled`                                    | État des modules ; activer/désactiver (au redémarrage)                                                           |
-| `POST /api/core/restart`                                                                         | Redémarre l'app                                                                                                  |
-| `GET /api/core/settings` · `PUT /api/core/settings/:scope`                                       | Réglages (schéma + valeurs, secrets masqués) ; enregistrement validé                                             |
-| `GET /api/core/ui` · `PUT /api/core/ui`                                                          | Préférences d'interface (thème, disposition de la barre latérale), réglage caché `ui`                            |
-| `POST /api/core/dialogs/select-folder` · `POST /api/core/dialogs/select-files`                   | Sélecteurs natifs de dossier et de fichiers                                                                      |
-| `GET /api/media/:jeton/:nom`                                                                     | Fichier multimédia par URL signée (sans jeton de session)                                                        |
-| `GET /api/core/jobs` · `POST /api/core/jobs/:id/cancel` · `GET /api/core/jobs/stream` (SSE)      | Tâches longues                                                                                                   |
-| `GET /api/core/logs`                                                                             | Journaux filtrés                                                                                                 |
-| `GET /api/core/outputs` (`?module=`, `?subject=`, `?missing=1`)                                  | Fichiers générés de tous les modules (chacun rattaché à un projet : `subject`, ADR 0022), vérifiés sur le disque |
-| `POST /api/core/outputs/delete` · `/forget` (`{ ids }`) · `/clean-missing`                       | Corbeille / retirer de la liste / oublier les introuvables                                                       |
-| `POST /api/core/outputs/:id/open` · `/:id/reveal`                                                | Ouvrir un fichier généré / le montrer dans l'Explorateur                                                         |
-| `GET /api/core/backups` · `POST /api/core/backups/export` · `POST /api/core/backups/open-folder` | Sauvegardes                                                                                                      |
-| `POST /api/core/stream-tickets`                                                                  | Ticket à usage unique pour un flux SSE                                                                           |
-| `POST /api/core/open-data-dir`                                                                   | Ouvre le dossier de données                                                                                      |
-| `GET /api/core/accounts` · `POST /api/core/accounts/:provider/reconnect` · `DELETE …/:provider`  | Comptes connectés : état, reconnexion (mêmes autorisations), déconnexion (révocation)                            |
+| Route                                                                                                    | Rôle                                                                                                             |
+| -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `GET /api/health`                                                                                        | Vivacité (sans jeton)                                                                                            |
+| `GET /api/core/system`                                                                                   | Versions (app, SQLite, FFmpeg), dossier de données                                                               |
+| `GET /api/core/modules` · `PUT /api/core/modules/:id/enabled`                                            | État des modules ; activer/désactiver (au redémarrage)                                                           |
+| `POST /api/core/restart`                                                                                 | Redémarre l'app                                                                                                  |
+| `GET /api/core/settings` · `PUT /api/core/settings/:scope`                                               | Réglages (schéma + valeurs, secrets masqués) ; enregistrement validé                                             |
+| `GET /api/core/ui` · `PUT /api/core/ui`                                                                  | Préférences d'interface (thème, disposition de la barre latérale), réglage caché `ui`                            |
+| `POST /api/core/dialogs/select-folder` · `POST /api/core/dialogs/select-files`                           | Sélecteurs natifs de dossier et de fichiers                                                                      |
+| `GET /api/media/:jeton/:nom`                                                                             | Fichier multimédia par URL signée (sans jeton de session)                                                        |
+| `GET /api/core/jobs` (`?module=`) · `POST /api/core/jobs/:id/cancel` · `GET /api/core/jobs/stream` (SSE) | Tâches longues                                                                                                   |
+| `GET /api/core/logs`                                                                                     | Journaux filtrés                                                                                                 |
+| `GET /api/core/outputs` (`?module=`, `?subject=`, `?missing=1`)                                          | Fichiers générés de tous les modules (chacun rattaché à un projet : `subject`, ADR 0022), vérifiés sur le disque |
+| `POST /api/core/outputs/delete` · `/forget` (`{ ids }`) · `/clean-missing`                               | Corbeille / retirer de la liste / oublier les introuvables                                                       |
+| `POST /api/core/outputs/:id/open` · `/:id/reveal`                                                        | Ouvrir un fichier généré / le montrer dans l'Explorateur                                                         |
+| `GET /api/core/backups` · `POST /api/core/backups/export` · `POST /api/core/backups/open-folder`         | Sauvegardes                                                                                                      |
+| `POST /api/core/stream-tickets`                                                                          | Ticket à usage unique pour un flux SSE                                                                           |
+| `POST /api/core/open-data-dir`                                                                           | Ouvre le dossier de données                                                                                      |
+| `GET /api/core/accounts` · `POST /api/core/accounts/:provider/reconnect` · `DELETE …/:provider`          | Comptes connectés : état, reconnexion (mêmes autorisations), déconnexion (révocation)                            |
 
 ## Pourquoi le backend tourne dans le process principal
 
@@ -113,7 +113,7 @@ Voir `docs/decisions/0001-electron-backend-dans-le-main.md`.
 
 ## Rendu vidéo
 
-Le module `video-engine` rend tout par FFmpeg (enfant), selon deux chemins :
+Le module `video-engine` rend tout par FFmpeg (enfant), selon trois chemins :
 
 - **YouTube** : un seul graphe FFmpeg (`buildRenderArgs`) : fond, carte de la cover, texte libass, spectre `showcqt`.
 - **Reels, image par image** (`renderReel`, ADR 0017) :
@@ -124,6 +124,8 @@ Le module `video-engine` rend tout par FFmpeg (enfant), selon deux chemins :
   5. Les pixels RGBA bruts partent dans l'entrée standard d'un FFmpeg (`buildFramesEncodeArgs`), avec contre-pression (`drain`). FFmpeg ajoute le grain, les fondus, `setsar=1`, et copie la bande-son déjà vérifiée (≤ -1 dBTP).
 
   Un Reel de 28 s (840 images) prend ~30 s sur 4 cœurs ; l'annulation tue FFmpeg et arrête le dessin.
+
+- **Reels perso** (`renderVideoReel`) : les vidéos de l'utilisateur décodées et cadrées par FFmpeg, mouvement image par image en JS, banque d'effets, son au choix ; voir le README du module.
 
 ## Même origine, partout
 
@@ -160,10 +162,10 @@ L'interface n'a accès qu'à cinq choses hors de l'API REST (`electron/preload.t
 - le jeton de session ;
 - le chemin réel d'un fichier glissé **dans** la fenêtre (`webUtils.getPathForFile`) ;
 - le glisser d'un fichier **hors** de la fenêtre (`startDrag`) ;
-- les boutons de la fenêtre (`window` : plein écran, réduire, fermer) ;
+- les boutons de la fenêtre (`window` : plein écran, réduire, fermer, thème clair/sombre de la barre de titre) ;
 - la page à ouvrir quand on clique une notification (`onNavigate`, une route de l'interface uniquement).
 
-Le glisser hors de la fenêtre Ce dernier ne reçoit qu'une URL de média signée : le process principal en vérifie la signature (`hub.media.resolve`) avant d'appeler `webContents.startDrag`, si bien qu'une page ne peut pas faire glisser un fichier arbitraire.
+Le glisser hors de la fenêtre ne reçoit qu'une URL de média signée : le process principal en vérifie la signature (`hub.media.resolve`) avant d'appeler `webContents.startDrag`, si bien qu'une page ne peut pas faire glisser un fichier arbitraire.
 
 ### Fenêtre et plein écran
 
@@ -192,7 +194,7 @@ La disposition est un JSON dans le réglage caché `ui.navigation` (`{ categorie
   - Un clic remet la fenêtre au premier plan et ouvre `/m/<module>/<path>` (IPC `toolbox:navigate`).
   - Chaque notification est aussi consignée dans les journaux du module.
 
-Fermer la fenêtre alors que des tâches tournent (envoi YouTube, rendu) — zone de notification désactivée — ouvre une confirmation qui les liste (`electron/desktop.ts`) : elles s'arrêtent avec l'app et reprennent au lancement suivant.
+Fermer la fenêtre alors que des tâches tournent (envoi YouTube, rendu) — zone de notification désactivée — ouvre une confirmation qui les liste (`electron/desktop.ts`) : elles s'arrêtent avec l'app ; un envoi YouTube reprend au lancement suivant là où il s'était arrêté, les autres tâches (rendus) sont marquées « interrompues » et sont à relancer.
 
 ### Comptes connectés (`ctx.accounts`)
 
