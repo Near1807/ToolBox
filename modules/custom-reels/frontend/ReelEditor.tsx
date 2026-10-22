@@ -59,6 +59,8 @@ function FocusPicker(props: {
 export function ReelEditor(props: {
   reel: Reel;
   sources: Source[];
+  /** The track's audio, for « Lire le passage ». */
+  audioUrl: string | null;
   effects: EffectInfo[];
   job: JobInfo | null;
   onChanged: () => void;
@@ -390,6 +392,7 @@ export function ReelEditor(props: {
           <PassageEditor
             reel={reel}
             sources={props.sources}
+            audioUrl={props.audioUrl}
             locked={locked}
             onPatch={(fields) => void patch(fields)}
           />

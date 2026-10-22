@@ -790,7 +790,13 @@ export default defineBackendModule({
       }
       await ctx.outputs.delete({ ref: `source:${row.id}` });
       ctx.db.prepare(`DELETE FROM ${sources} WHERE id = ?`).run(row.id);
-      rmSync(ctx.files.dataPath('filmstrips', String(row.id)), { recursive: true, force: true });
+      for (const strip of existsSync(ctx.files.dataPath('filmstrips'))
+        ? readdirSync(ctx.files.dataPath('filmstrips')).filter(
+            (f) => f === String(row.id) || f.startsWith(`${row.id}-`),
+          )
+        : []) {
+        rmSync(ctx.files.dataPath('filmstrips', strip), { recursive: true, force: true });
+      }
       for (const frame of existsSync(ctx.files.dataPath('frames'))
         ? readdirSync(ctx.files.dataPath('frames')).filter((f) => f.startsWith(`${row.id}-`))
         : []) {
@@ -912,7 +918,10 @@ export default defineBackendModule({
     // Frames of a video for its timeline (cached).
     ctx.routes.get('/sources/:id/filmstrip', async (request) => {
       const row = requireSource(idParam(request.params));
-      const dir = ctx.files.dataPath('filmstrips', String(row.id));
+      // ?count=: more frames for the passage timeline (zoomable); 12 by default (focus picker).
+      const asked = Math.round(Number((request.query as { count?: string }).count ?? 12));
+      const count = Math.min(120, Math.max(4, Number.isFinite(asked) ? asked : 12));
+      const dir = ctx.files.dataPath('filmstrips', count === 12 ? String(row.id) : `${row.id}-${count}`);
       let files: string[] = [];
       if (existsSync(dir)) {
         files = readdirSync(dir)
@@ -920,7 +929,7 @@ export default defineBackendModule({
           .sort()
           .map((f) => path.join(dir, f));
       }
-      if (files.length === 0) files = await engine.filmstrip(row.file_path, 12, dir);
+      if (files.length === 0) files = await engine.filmstrip(row.file_path, count, dir);
       return { frames: files.map((f) => ctx.files.mediaUrl(f)) };
     });
 

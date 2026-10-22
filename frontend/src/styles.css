@@ -1137,9 +1137,36 @@ input[type='range'] {
   opacity: 0.6;
 }
 
+.ui-film-wrap {
+  display: grid;
+  gap: 6px;
+}
+
+.ui-film-scroll {
+  overflow-x: auto;
+  border-radius: var(--radius-sm);
+}
+
+.ui-film__zoom {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.ui-film__playhead {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 2px;
+  background: var(--text);
+  box-shadow: 0 0 6px var(--text);
+  pointer-events: none;
+}
+
 .ui-film {
   position: relative;
-  height: 72px;
+  height: 104px;
   background: var(--media-bg);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
@@ -1158,6 +1185,7 @@ input[type='range'] {
 .ui-film__frames img {
   flex: 1;
   min-width: 0;
+  border-right: 1px solid var(--media-bg);
   height: 100%;
   object-fit: cover;
   opacity: 0.5;

@@ -297,6 +297,10 @@
   margin: 4px 0 6px;
 }
 
+.cr-passage--active {
+  border-color: color-mix(in srgb, var(--accent-2) 55%, var(--border));
+}
+
 .cr-passage__body {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -304,13 +308,24 @@
   align-items: start;
 }
 
-.cr-passage__video {
+/* Large player of the passage (« Lire le passage »). */
+.cr-player {
+  display: grid;
+  gap: 8px;
+}
+
+.cr-player__video {
   width: 100%;
-  max-height: 360px;
+  max-height: 460px;
   aspect-ratio: 16 / 9;
   object-fit: contain;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--media-bg);
+}
+
+.cr-player__empty {
+  display: grid;
+  place-items: center;
 }
 
 .cr-passage__frames {
@@ -327,15 +342,15 @@
 .cr-frame img,
 .cr-frame__empty {
   display: block;
-  height: 84px;
-  max-width: 150px;
+  height: 58px;
+  max-width: 104px;
   object-fit: contain;
   border-radius: 4px;
   background: var(--media-bg);
 }
 
 .cr-frame__empty {
-  width: 150px;
+  width: 104px;
 }
 
 .cr-advanced summary {

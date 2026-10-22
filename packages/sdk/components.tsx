@@ -377,18 +377,24 @@ export function ExcerptWaveform(props: {
 // Passage selection on a video filmstrip
 // ---------------------------------------------------------------------------
 
+/** Zoom levels of the filmstrip (the visible part is 1/zoom of the video). */
+const FILM_ZOOMS = [1, 2, 4, 8];
+
 /**
  * Filmstrip of a video (frames side by side) with a window of FIXED width:
  * the passage lasts `windowSec`, only its start is chosen. Drag the window to
  * move it, or click elsewhere to place its start there (same as the excerpt
  * on the waveform). The start is kept inside the video (moved back when the
- * window would pass its end). `onPreview` follows the drag (e.g. to seek a player).
+ * window would pass its end). Zoom (−/+) for long videos: the strip scrolls
+ * and keeps the window in view. `playheadSec`: position of a player, shown
+ * on the strip. `onPreview` follows the drag (e.g. to seek the player).
  */
 export function FilmstripWindow(props: {
   frames: string[];
   durationSec: number;
   windowSec: number;
   start: number;
+  playheadSec?: number | null;
   locked?: boolean;
   onMove: (start: number) => void;
   onPreview?: (start: number) => void;
@@ -396,6 +402,8 @@ export function FilmstripWindow(props: {
 }) {
   const { durationSec, windowSec } = props;
   const box = useRef<HTMLDivElement>(null);
+  const scroller = useRef<HTMLDivElement>(null);
+  const [zoom, setZoom] = useState(1);
   const [drag, setDrag] = useState<{ offset: number; start: number } | null>(null);
   const length = Math.max(0.1, durationSec);
   const percent = (seconds: number) =>
@@ -407,6 +415,16 @@ export function FilmstripWindow(props: {
     return ((event.clientX - rect.left) / rect.width) * length;
   };
   const start = drag ? drag.start : props.start;
+
+  const changeZoom = (next: number) => {
+    setZoom(next);
+    // Keep the window in view: scroll so that its start is a little after the left edge.
+    requestAnimationFrame(() => {
+      const el = scroller.current;
+      if (!el) return;
+      el.scrollLeft = Math.max(0, (start / length) * el.scrollWidth - el.clientWidth * 0.15);
+    });
+  };
 
   const down = (event: PointerEvent<HTMLDivElement>) => {
     if (props.locked) return;
@@ -434,27 +452,57 @@ export function FilmstripWindow(props: {
     if (drag.start !== props.start) props.onMove(drag.start);
     setDrag(null);
   };
+  const index = FILM_ZOOMS.indexOf(zoom);
 
   return (
-    <div
-      ref={box}
-      className={`ui-film${props.locked ? ' ui-film--locked' : ''}`}
-      onPointerDown={down}
-      onPointerMove={move}
-      onPointerUp={up}
-      onPointerCancel={() => setDrag(null)}
-      role="group"
-      aria-label={props.label ?? 'Passage sur la pellicule de la vidéo'}
-    >
-      <div className="ui-film__frames">
-        {props.frames.map((frame) => (
-          <img key={frame} src={frame} alt="" draggable={false} />
-        ))}
+    <div className="ui-film-wrap">
+      <div ref={scroller} className="ui-film-scroll">
+        <div
+          ref={box}
+          className={`ui-film${props.locked ? ' ui-film--locked' : ''}`}
+          style={{ width: `${zoom * 100}%` }}
+          onPointerDown={down}
+          onPointerMove={move}
+          onPointerUp={up}
+          onPointerCancel={() => setDrag(null)}
+          role="group"
+          aria-label={props.label ?? 'Passage sur la pellicule de la vidéo'}
+        >
+          <div className="ui-film__frames">
+            {props.frames.map((frame) => (
+              <img key={frame} src={frame} alt="" draggable={false} />
+            ))}
+          </div>
+          <div
+            className="ui-film__window"
+            style={{ left: percent(start), width: percent(Math.min(windowSec, length)) }}
+          />
+          {props.playheadSec !== undefined && props.playheadSec !== null && (
+            <div className="ui-film__playhead" style={{ left: percent(props.playheadSec) }} />
+          )}
+        </div>
       </div>
-      <div
-        className="ui-film__window"
-        style={{ left: percent(start), width: percent(Math.min(windowSec, length)) }}
-      />
+      <div className="ui-film__zoom">
+        <button
+          type="button"
+          className="button button--secondary button--small"
+          disabled={index <= 0}
+          onClick={() => changeZoom(FILM_ZOOMS[index - 1]!)}
+          aria-label="Dézoomer la pellicule"
+        >
+          −
+        </button>
+        <span className="small muted num">×{zoom}</span>
+        <button
+          type="button"
+          className="button button--secondary button--small"
+          disabled={index >= FILM_ZOOMS.length - 1}
+          onClick={() => changeZoom(FILM_ZOOMS[index + 1]!)}
+          aria-label="Zoomer la pellicule"
+        >
+          +
+        </button>
+      </div>
     </div>
   );
 }

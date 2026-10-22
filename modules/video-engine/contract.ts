@@ -157,7 +157,7 @@ export interface VideoEngineService {
   probeVideo(videoPath: string): Promise<VideoInfo>;
   /** EXPERIMENTAL: finds where the track plays in the video's sound. */
   findTrackInVideo(trackPath: string, videoPath: string): Promise<TrackSync>;
-  /** `count` small JPEG frames evenly spread over the video (timeline), written to `outputDir`. */
+  /** `count` (up to 120) small JPEG frames evenly spread over the video (timeline), written to `outputDir`. */
   filmstrip(videoPath: string, count: number, outputDir: string): Promise<string[]>;
   /** Peaks (0..1, `bars` values) of a whole audio file, for the excerpt waveform. */
   waveform(audioPath: string, bars: number): Promise<{ durationSec: number; peaks: number[] }>;

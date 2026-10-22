@@ -369,6 +369,7 @@ export default defineFrontendModule({
 | `FileActions`                    | boutons, toujours dans cet ordre : Lire/Voir, Dossier, Régénérer, (spécifiques), Supprimer                                                                                                      |
 | `CopyButton`                     | « Copier » avec confirmation                                                                                                                                                                    |
 | `ExcerptWaveform`, `ExcerptChip` | choix d'extraits (1 à 4, couleurs `--series-1..4`) sur la forme d'onde d'un morceau                                                                                                             |
+| `FilmstripWindow`                | passage d'une vidéo : fenêtre de largeur fixe (la durée) glissée sur la pellicule ou placée par un clic, zoom, tête de lecture                                                                  |
 | `TextFields`                     | titre, description, légende, tags d'un élément, **modifiables sous l'élément** (§7.3)                                                                                                           |
 
 Un besoin non couvert : enrichir le composant du SDK (pour tous), pas en écrire un autre dans le module.

@@ -445,6 +445,7 @@ function TrackPanel(props: { trackId: number; effects: EffectInfo[]; onChange: (
           <ReelEditor
             reel={reel}
             sources={track.sources}
+            audioUrl={track.audioUrl}
             effects={props.effects}
             job={jobs.find((job) => job.id === reel.jobId) ?? null}
             onChanged={refresh}

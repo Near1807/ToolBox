@@ -1,8 +1,10 @@
 // The video passage of a Reel: only its START is chosen, its duration is the
 // Reel's (the same « Durée » as the track excerpt). A fixed-width window on the
 // video's filmstrip, dragged or placed by a click, like the excerpt on the
-// waveform. Chained passages (advanced) share the Reel's duration.
-import { useRef, useState } from 'react';
+// waveform; a large player above it, and « Lire le passage » that plays the
+// passage exactly, with the sound of the chosen mode (no render). Chained
+// passages (advanced) share the Reel's duration.
+import { useEffect, useRef, useState } from 'react';
 import { Button, FilmstripWindow, formatDuration, useApi, useModule } from '@hub/sdk/frontend';
 import type { Reel, Segment, Source } from './types';
 
@@ -10,13 +12,18 @@ export const CLIPS = [15, 20, 25, 28, 30, 35, 40, 45, 50, 55, 60];
 
 const seconds = (n: number) => `${n.toFixed(1).replace('.', ',')} s`;
 
-/** Frames of a source video, for its timeline and the focus picker. */
-export function useFilmstrip(sourceId: number | null) {
+/** Frames of a source video: 12 for the focus picker, more for the zoomable timeline. */
+export function useFilmstrip(sourceId: number | null, count = 12) {
   const module = useModule();
   return useApi<{ frames: string[] }>(
-    sourceId === null ? null : module.url(`/sources/${sourceId}/filmstrip`),
+    sourceId === null
+      ? null
+      : module.url(`/sources/${sourceId}/filmstrip${count === 12 ? '' : `?count=${count}`}`),
   );
 }
+
+/** About one frame every 2 s (24 to 120): enough to zoom on long videos. */
+const timelineFrames = (duration: number) => Math.min(120, Math.max(24, Math.round(duration / 2)));
 
 /** One exact frame of a video (first or last image of the passage). */
 function FrameThumb(props: { sourceId: number; time: number; label: string }) {
@@ -34,24 +41,26 @@ function FrameThumb(props: { sourceId: number; time: number; label: string }) {
   );
 }
 
-/** One passage: its video, the window on the filmstrip, start and end, first and last image. */
+/** One passage: its video, start and end, first and last image, the window on the filmstrip. */
 function PassageWindow(props: {
   passage: Segment;
   sources: Source[];
   locked: boolean;
   chained: boolean;
+  active: boolean;
+  playheadSec: number | null;
+  onSeek: (sourceId: number, time: number) => void;
   onChange: (passage: Segment) => void;
 }) {
   const { passage } = props;
   const source = props.sources.find((s) => s.id === passage.sourceId) ?? props.sources[0];
-  const strip = useFilmstrip(source?.id ?? null);
-  const video = useRef<HTMLVideoElement>(null);
+  const strip = useFilmstrip(source?.id ?? null, timelineFrames(source?.durationSec ?? 0));
   const [preview, setPreview] = useState<number | null>(null);
-  const start = preview ?? passage.start;
-  const end = Math.min(source?.durationSec ?? 0, start + passage.duration);
   if (!source) return null;
+  const start = preview ?? passage.start;
+  const end = Math.min(source.durationSec, start + passage.duration);
   return (
-    <div className="cr-passage">
+    <div className={`cr-passage${props.active ? ' cr-passage--active' : ''}`}>
       <div className="cr-passage__head">
         <select
           className="input"
@@ -77,37 +86,29 @@ function PassageWindow(props: {
         </span>
       </div>
       <div className="cr-passage__body">
-        {source.url && (
-          <video
-            ref={video}
-            className="cr-passage__video"
-            src={`${source.url}#t=${start}`}
-            muted
-            playsInline
-            preload="metadata"
-          />
-        )}
+        <FilmstripWindow
+          frames={strip.data?.frames ?? []}
+          durationSec={source.durationSec}
+          windowSec={passage.duration}
+          start={passage.start}
+          playheadSec={props.active ? props.playheadSec : null}
+          locked={props.locked}
+          onPreview={(time) => {
+            setPreview(time);
+            props.onSeek(source.id, time);
+          }}
+          onMove={(time) => {
+            setPreview(null);
+            props.onSeek(source.id, time);
+            props.onChange({ ...passage, start: time });
+          }}
+          label={`Passage de ${seconds(passage.duration)} sur « ${source.name} »`}
+        />
         <div className="cr-passage__frames">
           <FrameThumb sourceId={source.id} time={start} label="Première image" />
           <FrameThumb sourceId={source.id} time={Math.max(0, end - 0.1)} label="Dernière image" />
         </div>
       </div>
-      <FilmstripWindow
-        frames={strip.data?.frames ?? []}
-        durationSec={source.durationSec}
-        windowSec={passage.duration}
-        start={passage.start}
-        locked={props.locked}
-        onPreview={(time) => {
-          setPreview(time);
-          if (video.current) video.current.currentTime = time;
-        }}
-        onMove={(time) => {
-          setPreview(null);
-          props.onChange({ ...passage, start: time });
-        }}
-        label={`Passage de ${seconds(passage.duration)} sur « ${source.name} »`}
-      />
       {!props.chained && source.durationSec < passage.duration && (
         <p className="small cr-warning">
           Vidéo plus courte que le Reel ({seconds(source.durationSec)}) : elle sera bouclée
@@ -122,20 +123,164 @@ function PassageWindow(props: {
 export function PassageEditor(props: {
   reel: Reel;
   sources: Source[];
+  /** The track's audio (« Son du morceau », « Morceau synchronisé »). */
+  audioUrl: string | null;
   locked: boolean;
   onPatch: (fields: Record<string, unknown>) => void;
 }) {
   const { reel, locked } = props;
   const passages = reel.segments;
   const chained = passages.length > 1;
+  const total = passages.reduce((sum, p) => sum + p.duration, 0);
+  const video = useRef<HTMLVideoElement>(null);
+  const audio = useRef<HTMLAudioElement>(null);
+  const frame = useRef<number | null>(null);
+  const [shown, setShown] = useState<{ sourceId: number; time: number }>({
+    sourceId: passages[0]?.sourceId ?? props.sources[0]?.id ?? 0,
+    time: passages[0]?.start ?? 0,
+  });
+  const [active, setActive] = useState(0);
+  const [playhead, setPlayhead] = useState<number | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const sourceOf = (id: number) => props.sources.find((s) => s.id === id);
+  const shownSource = sourceOf(shown.sourceId) ?? props.sources[0];
+
   const set = (next: Segment[]) =>
     props.onPatch({
       segments: next.map((p) => ({ sourceId: p.sourceId, start: p.start, duration: p.duration })),
     });
-  const total = passages.reduce((sum, p) => sum + p.duration, 0);
+
+  /** Shows a time of a video in the large player (paused). */
+  const seek = (sourceId: number, time: number) => {
+    stop();
+    setShown({ sourceId, time });
+    const el = video.current;
+    if (el && sourceOf(sourceId)?.url && el.dataset.source === String(sourceId)) {
+      el.currentTime = time;
+    }
+  };
+
+  const stop = () => {
+    if (frame.current !== null) cancelAnimationFrame(frame.current);
+    frame.current = null;
+    video.current?.pause();
+    audio.current?.pause();
+    setPlaying(false);
+  };
+  useEffect(() => () => stop(), []);
+
+  /**
+   * « Lire le passage »: the passages one after the other, exactly their
+   * durations, with the sound of the mode: the track excerpt (continuous),
+   * the video's own sound, or the master placed with the detected offset.
+   */
+  const play = async () => {
+    stop();
+    setNotice(null);
+    const mode = reel.audioMode;
+    if (mode !== 'video' && !props.audioUrl) return setNotice('Son du morceau introuvable');
+    if (mode === 'synced') {
+      const missing = passages.find((p) => !sourceOf(p.sourceId)?.sync?.reliable);
+      if (missing) {
+        return setNotice(
+          'Morceau pas (encore) retrouvé de façon fiable dans cette vidéo : « Retrouver le morceau dans la vidéo », ou choisis « Son de la vidéo ».',
+        );
+      }
+    }
+    const el = video.current;
+    const sound = audio.current;
+    if (!el || !sound) return;
+    const bounds = passages.reduce<number[]>(
+      (list, p) => [...list, (list.at(-1) ?? 0) + p.duration],
+      [],
+    );
+    let current = -1;
+    const enter = async (index: number, offsetInPassage: number) => {
+      const p = passages[index]!;
+      const src = sourceOf(p.sourceId)!;
+      current = index;
+      setActive(index);
+      if (el.dataset.source !== String(src.id)) {
+        el.src = src.url ?? '';
+        el.dataset.source = String(src.id);
+        await new Promise((resolve) =>
+          el.addEventListener('loadedmetadata', resolve, { once: true }),
+        );
+      }
+      const inVideo = src.durationSec > 0 ? (p.start + offsetInPassage) % src.durationSec : 0;
+      el.currentTime = inVideo;
+      el.muted = mode !== 'video';
+      if (mode === 'synced') {
+        sound.currentTime = p.start + offsetInPassage + (src.sync?.offset ?? 0);
+      }
+      await el.play();
+    };
+    setPlaying(true);
+    if (mode !== 'video') {
+      sound.src = props.audioUrl!;
+      sound.currentTime = mode === 'track' ? reel.startSec : 0;
+    }
+    await enter(0, 0);
+    if (mode !== 'video') await sound.play();
+    const t0 = performance.now();
+    const tick = () => {
+      const elapsed = (performance.now() - t0) / 1000;
+      if (elapsed >= total) {
+        stop();
+        setPlayhead(null);
+        return;
+      }
+      const index = bounds.findIndex((b) => elapsed < b);
+      const passageStart = index > 0 ? bounds[index - 1]! : 0;
+      if (index !== current) void enter(index, elapsed - passageStart);
+      // A video shorter than the Reel is looped, like in the render.
+      if (el.ended || (el.duration && el.currentTime >= el.duration - 0.04)) {
+        el.currentTime = 0;
+        void el.play();
+      }
+      setPlayhead(el.currentTime);
+      frame.current = requestAnimationFrame(tick);
+    };
+    frame.current = requestAnimationFrame(tick);
+  };
 
   return (
     <div className="cr-passages">
+      <div className="cr-player">
+        {shownSource?.url ? (
+          <video
+            ref={video}
+            className="cr-player__video"
+            src={`${shownSource.url}#t=${shown.time}`}
+            data-source={shownSource.id}
+            playsInline
+            preload="auto"
+            muted
+            onLoadedMetadata={(e) => {
+              if (!playing) e.currentTarget.currentTime = shown.time;
+            }}
+            onTimeUpdate={(e) => !playing && setPlayhead(e.currentTarget.currentTime)}
+          />
+        ) : (
+          <div className="cr-player__video cr-player__empty muted">Vidéo introuvable</div>
+        )}
+        <audio ref={audio} preload="auto" />
+        <div className="inline-form cr-player__bar">
+          <Button small onClick={() => void (playing ? stop() : play())}>
+            {playing ? 'Arrêter' : 'Lire le passage'}
+          </Button>
+          <span className="muted small">
+            {reel.audioMode === 'track'
+              ? 'Avec l’extrait du morceau.'
+              : reel.audioMode === 'video'
+                ? 'Avec le son de la vidéo (non normalisé à l’écoute).'
+                : 'Avec le master calé sur la vidéo.'}{' '}
+            Sans rendu : pour valider l’intervalle avant de générer.
+          </span>
+        </div>
+        {notice && <p className="small cr-warning">{notice}</p>}
+      </div>
       <div className="inline-form">
         <label className="cr-inline-field small">
           Durée du Reel
@@ -202,6 +347,12 @@ export function PassageEditor(props: {
             sources={props.sources}
             locked={locked}
             chained={chained}
+            active={index === active}
+            playheadSec={playhead}
+            onSeek={(sourceId, time) => {
+              setActive(index);
+              seek(sourceId, time);
+            }}
             onChange={(next) => set(passages.map((p, i) => (i === index ? next : p)))}
           />
         </div>
@@ -223,7 +374,7 @@ export function PassageEditor(props: {
           small
           disabled={locked || passages.length >= 12 || props.sources.length === 0}
           onClick={() => {
-            // The last passage is split in two: the new one takes half of it.
+            // The last passage is split in two: the new one takes its second half.
             const last = passages[passages.length - 1]!;
             const half = Math.max(0.5, Math.round((last.duration / 2) * 10) / 10);
             set([
