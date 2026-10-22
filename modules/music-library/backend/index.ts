@@ -1,6 +1,6 @@
 // music-library: the shared track library of the Music section.
 // Provides the "musicLibrary" service used by the video generators.
-import { defineBackendModule, HttpError, type ModuleContext } from '@hub/sdk/backend';
+import { defineBackendModule, HttpError, idParam, type ModuleContext } from '@hub/sdk/backend';
 import {
   MUSIC_LIBRARY_SERVICE,
   type MusicLibraryService,
@@ -24,12 +24,6 @@ function toDto(ctx: ModuleContext, track: Track): TrackDto {
 
 /** Subject of the files generated from a track, shared with the other modules (ctx.outputs). */
 const trackSubject = (id: number) => `music-library:track:${id}`;
-
-function idParam(params: unknown): number {
-  const id = Number((params as { id?: string }).id);
-  if (!Number.isInteger(id) || id <= 0) throw new HttpError(400, 'Identifiant invalide');
-  return id;
-}
 
 function stringField(body: unknown, key: string, required: boolean): string | null {
   const value = (body as Record<string, unknown> | undefined)?.[key];

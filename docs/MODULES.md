@@ -112,6 +112,7 @@ Une seule base `hub.db`, partagée. Tables, index, vues et triggers d'un module 
 | `outputDir()`                  | Dossier de sortie `<dossier de sortie>/<id>/` (réglage « Dossier de sortie » du socle, par défaut `Vidéos\ToolBox`)                                                                                                            |
 | `open(path)` / `reveal(path)`  | Ouvre un fichier/dossier avec Windows, ou le montre dans l'Explorateur                                                                                                                                                         |
 | `mediaUrl(path)`               | URL signée pour `<img>`, `<audio>`, `<video>` (qui ne peuvent pas envoyer le jeton). Valable pour la session, uniquement pour les fichiers des dossiers du hub (données, sortie, assets). Gère la lecture par morceaux (Range) |
+| `mediaUrlIfExists(path)`       | Comme `mediaUrl`, mais `null` si le chemin est vide, si le fichier n'existe plus ou s'il est sorti des dossiers autorisés : pour les DTO, l'interface affiche alors « Fichier introuvable »                                    |
 | `assetsDir` / `assetPath(...)` | Fichiers en lecture seule livrés avec le module : `modules/<id>/assets/` (polices, images…). Copiés au build et extraits de l'archive asar, donc lisibles par FFmpeg                                                           |
 
 Les fichiers importés par l'utilisateur sont **copiés** dans `dataDir` (jamais de lien vers leur emplacement d'origine).
@@ -137,6 +138,7 @@ Tous acceptent `label` (obligatoire) et `description`. API : `get(key)` (valeur 
 `get | post | put | patch | delete (path, handler, options?)`, montées sous `/api/modules/<id>/`. Le handler reçoit `(request, reply)` de Fastify et renvoie l'objet à sérialiser en JSON.
 
 - Erreur prévue : `throw new HttpError(404, 'Morceau introuvable')` → réponse `{ "error": "Morceau introuvable" }`.
+- Aides du SDK pour les routes : `idParam(request.params)` (le `:id`, entier positif, sinon 400 « Identifiant invalide ») et `requestBody(request)` (le corps JSON, `{}` s'il n'y en a pas ; les champs restent à vérifier).
 - Toute autre exception → 500 avec un message clair, consignée dans les journaux du module. Le hub continue.
 - Options : `streamTicket: true` pour une route SSE lue par `EventSource` (voir `openEventStream()` dans `@hub/sdk/backend` et [ARCHITECTURE.md](ARCHITECTURE.md#flux-sse-et-tickets-à-usage-unique)), `bodyLimit` (octets, défaut 1 Mo).
 - La sécurité (jeton de session, Host, Origin) est appliquée par le socle à toutes les routes.
