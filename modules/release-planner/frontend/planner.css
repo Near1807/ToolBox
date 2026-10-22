@@ -495,14 +495,6 @@
   min-width: 0;
 }
 
-.rp-caption {
-  margin: 0;
-  white-space: pre-wrap;
-  font-size: 0.88rem;
-  max-height: 180px;
-  overflow-y: auto;
-}
-
 /* Plan dialog */
 .rp-dialog {
   position: fixed;

@@ -184,14 +184,6 @@ kbd {
   box-shadow: var(--glow);
 }
 
-.sidebar__brand-version {
-  margin-left: auto;
-  font-family: var(--font-mono);
-  font-size: 0.68rem;
-  font-weight: 500;
-  color: var(--text-3);
-}
-
 .sidebar__scroll {
   flex: 1;
   min-height: 0;
@@ -210,21 +202,8 @@ kbd {
   border-top: 1px solid var(--border);
 }
 
-.sidebar__spacer {
-  flex: 1;
-}
-
 .sidebar__section {
   margin-top: 12px;
-}
-
-.sidebar__section-title {
-  font-size: 0.7rem;
-  font-weight: 650;
-  text-transform: uppercase;
-  letter-spacing: 0.09em;
-  color: var(--text-3);
-  padding: 4px 10px;
 }
 
 .nav-link {
@@ -1497,4 +1476,84 @@ input[type='range'] {
   min-height: 28px;
   height: auto;
   padding-block: 4px;
+}
+
+/* Track list (TrackList, SDK) */
+.ui-tracks-layout {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.ui-tracks-layout__main {
+  min-width: 0;
+}
+
+.ui-tracks {
+  position: sticky;
+  top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ui-tracks ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: calc(100vh - 220px);
+  overflow-y: auto;
+}
+
+.ui-tracks__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 6px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ui-tracks__item:hover,
+.ui-tracks__item--active {
+  background: var(--surface-hover);
+}
+
+.ui-tracks__item--active {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.ui-tracks__item img,
+.ui-tracks__placeholder {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.ui-tracks__placeholder {
+  display: grid;
+  place-items: center;
+  background: var(--surface-hover);
+  color: var(--text-muted);
+}
+
+.ui-tracks__item > span:last-child {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ui-tracks__item strong {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }

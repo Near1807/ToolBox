@@ -8,6 +8,8 @@ import {
   AccountError,
   defineBackendModule,
   HttpError,
+  idParam,
+  requestBody,
   type ModuleContext,
   type OutputRecord,
 } from '@hub/sdk/backend';
@@ -79,16 +81,6 @@ import {
 export const YOUTUBE_SCOPES = ['https://www.googleapis.com/auth/youtube'];
 const GOOGLE = 'google';
 const subject = (trackId: number) => `music-library:track:${trackId}`;
-
-function idParam(params: unknown): number {
-  const id = Number((params as { id?: string }).id);
-  if (!Number.isInteger(id) || id <= 0) throw new HttpError(400, 'Identifiant invalide');
-  return id;
-}
-
-function body(request: { body?: unknown }): Record<string, unknown> {
-  return (request.body ?? {}) as Record<string, unknown>;
-}
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -259,15 +251,6 @@ export default defineBackendModule({
         packItem,
         video: null,
       };
-    };
-
-    const mediaUrl = (file: string | null | undefined) => {
-      if (!file || !existsSync(file)) return null;
-      try {
-        return ctx.files.mediaUrl(file);
-      } catch {
-        return null;
-      }
     };
 
     // Metadata (templates of the settings, editable per element) -----------
@@ -458,8 +441,8 @@ export default defineBackendModule({
           exists: source.exists,
           rendered: Boolean(source.filePath),
           fileName: source.filePath ? path.basename(source.filePath) : null,
-          url: source.exists ? mediaUrl(source.filePath) : null,
-          thumbnailUrl: mediaUrl(source.packItem?.thumbnailPath ?? null),
+          url: source.exists ? ctx.files.mediaUrlIfExists(source.filePath) : null,
+          thumbnailUrl: ctx.files.mediaUrlIfExists(source.packItem?.thumbnailPath ?? null),
           outputId: source.record?.id ?? null,
         },
         youtube: item.yt_video_id
@@ -510,7 +493,7 @@ export default defineBackendModule({
         trackId: release.track_id,
         trackTitle: track?.title ?? '(morceau supprimé)',
         artist: track?.artist ?? '',
-        coverUrl: mediaUrl(track?.coverPath),
+        coverUrl: ctx.files.mediaUrlIfExists(track?.coverPath),
         colorIndex: release.track_id % 8,
         date: release.release_date,
         time: release.release_time,
@@ -521,7 +504,7 @@ export default defineBackendModule({
           createdAt: video.createdAt,
           exists: video.exists,
         })),
-        thumbnailUrl: mediaUrl(release.thumbnail_path),
+        thumbnailUrl: ctx.files.mediaUrlIfExists(release.thumbnail_path),
         items: itemsDto(store.itemsOf(release.id)),
       };
     };
@@ -1402,7 +1385,7 @@ export default defineBackendModule({
           id: track.id,
           title: track.title,
           artist: track.artist,
-          coverUrl: mediaUrl(track.coverPath),
+          coverUrl: ctx.files.mediaUrlIfExists(track.coverPath),
           videos: videos.filter((v) => v.exists).length,
           pack: pack
             ? { items: pack.items.length, rendered: pack.items.filter((i) => i.filePath).length }
@@ -1413,7 +1396,7 @@ export default defineBackendModule({
       }),
     );
 
-    ctx.routes.post('/plan', (request) => proposePlan(planInput(body(request))));
+    ctx.routes.post('/plan', (request) => proposePlan(planInput(requestBody(request))));
 
     /**
      * Reels perso ticked in the dialog: { custom: [{ customReelId, kinds: ['insta-reel', 'short'],
@@ -1492,7 +1475,7 @@ export default defineBackendModule({
     /** { customReelId, kinds: ['insta-reel', 'short'], date, time? } — the date on an allowed day. */
     ctx.routes.post('/releases/:id/items', (request) => {
       const release = store.requireRelease(idParam(request.params));
-      const input = body(request);
+      const input = requestBody(request);
       const reel = customReels.getReel(Number(input.customReelId));
       if (!reel || reel.trackId !== release.track_id)
         throw new HttpError(400, 'Reel perso inconnu');
@@ -1547,7 +1530,7 @@ export default defineBackendModule({
     });
 
     ctx.routes.post('/releases', (request) => {
-      const input = body(request);
+      const input = requestBody(request);
       const plan = proposePlan(planInput(input));
       if (store.releaseByTrack(plan.track.id)) {
         throw new HttpError(
@@ -1596,7 +1579,7 @@ export default defineBackendModule({
     // Another generated video for the release (the planned one was deleted…).
     ctx.routes.patch('/releases/:id', (request) => {
       const release = store.requireRelease(idParam(request.params));
-      const input = body(request);
+      const input = requestBody(request);
       if (input.videoId !== undefined) {
         const video = youtubeVideos.getVideo(Number(input.videoId));
         if (!video || video.trackId !== release.track_id)
@@ -1684,7 +1667,7 @@ export default defineBackendModule({
       if (PLATFORM[item.kind] !== 'instagram' || !source.packItem) {
         throw new HttpError(400, 'Pas de légende pour cet élément');
       }
-      const caption = body(request).caption;
+      const caption = requestBody(request).caption;
       if (caption !== null && typeof caption !== 'string') {
         throw new HttpError(400, 'Légende invalide');
       }
@@ -1702,7 +1685,7 @@ export default defineBackendModule({
       const release = store.requireRelease(item.release_id);
       const track = library.getTrack(release.track_id);
       if (!track) throw new HttpError(404, 'Morceau introuvable');
-      const input = body(request);
+      const input = requestBody(request);
       const { values } = templateTextsOf(release, item, track);
       const asTemplate = (text: string) =>
         toTemplate(text.replaceAll(`(${values.n}/${values.total})`, '({n}/{total})'), values);
@@ -1723,7 +1706,7 @@ export default defineBackendModule({
 
     ctx.routes.patch('/items/:id', async (request) => {
       const item = store.requireItem(idParam(request.params));
-      const input = body(request);
+      const input = requestBody(request);
       const youtubeItem = PLATFORM[item.kind] === 'youtube';
       const warnings: string[] = [];
       const fields: Parameters<PlannerStore['updateItem']>[1] = {};
@@ -1850,7 +1833,7 @@ export default defineBackendModule({
       if (PLATFORM[item.kind] !== 'instagram' || (!item.pack_item_id && !item.custom_reel_id)) {
         throw new HttpError(400, 'Seuls les éléments Instagram se cochent à la main');
       }
-      const published = body(request).published === true;
+      const published = requestBody(request).published === true;
       if (item.custom_reel_id !== null) customReels.setPublished(item.custom_reel_id, published);
       else packs.setPublished(item.pack_item_id!, published);
       const release = store.requireRelease(item.release_id);

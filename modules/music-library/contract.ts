@@ -101,10 +101,3 @@ export interface TrackDto extends Omit<Track, 'audioPath' | 'coverPath'> {
   audioUrl: string;
   coverUrl: string | null;
 }
-
-export interface TrackOutputDto extends Omit<TrackOutput, 'filePath'> {
-  fileName: string;
-  exists: boolean;
-  /** Playable URL when the file still exists. */
-  url: string | null;
-}

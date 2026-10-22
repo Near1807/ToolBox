@@ -21,19 +21,6 @@ export const DEFAULT_TEMPLATE = [
   'J+4 : Reel 4, Short 4',
 ].join('\n');
 
-/** Previous default template (v0.11): kept to recognise it in the settings. */
-export const TEMPLATE_V011 = [
-  'J : vidéo YouTube, post Insta',
-  'J+2 : Reel 1',
-  'J+3 : Short 1',
-  'J+5 : Reel 2',
-  'J+6 : Short 2',
-  'J+9 : Reel 3',
-  'J+10 : Short 3',
-  'J+13 : Reel 4',
-  'J+14 : Short 4',
-].join('\n');
-
 /** Positions above this are the user's own Reels (custom-reels): 100 + their position. */
 export const CUSTOM_OFFSET = 100;
 

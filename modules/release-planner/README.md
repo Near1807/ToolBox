@@ -158,13 +158,14 @@ Si Google est injoignable (réseau coupé), l'envoi est retenté 15 minutes plus
 | `videoTitle`, `videoDescription` | modèles de la vidéo longue. Repères : `{titre}`, `{artiste}`, `{titre_youtube}`, `{description_youtube}` (préparés par Vidéo YouTube : liens, hashtags), `{hashtags}`, `{date}` |
 | `shortTitle`, `shortDescription` | modèles des Shorts. Repères : `{n}`, `{total}`, `{lien_video}`…                                                                                                                 |
 
-Les modèles **ne font que pré-remplir** : dans le panneau d'un élément, titre, description et tags (YouTube) ou légende (Instagram, enregistrée dans le pack) se modifient sur place avec le composant partagé `TextFields`. Tant qu'un élément n'est pas modifié, ses textes suivent les modèles (et les textes de Vidéo YouTube) ; une fois modifié, il est « Personnalisé » (colonne `texts_custom`, migration 2 : les éléments créés avant sont considérés personnalisés, leurs textes ne bougent pas). « Rétablir le modèle » y revient ; « Enregistrer comme modèle par défaut » met à jour le modèle des réglages.
 | `extraTags` | tags YouTube en plus de ceux du morceau |
 | `language` | langue des métadonnées (`defaultLanguage`, `defaultAudioLanguage`) |
 | `playlist` | playlist de la chaîne (nom ou ID), facultative |
 | `uploadsPerDay`, `unitsPerDay` | limites de quota |
 | `remindInstagram` | notifications de rappel |
 | `autoUpload`, `autoUploadDays` | envoi automatique (non) ; combien de jours avant (3) |
+
+Les modèles **ne font que pré-remplir** : dans le panneau d'un élément, titre, description et tags (YouTube) ou légende (Instagram, enregistrée dans le pack) se modifient sur place avec le composant partagé `TextFields`. Tant qu'un élément n'est pas modifié, ses textes suivent les modèles (et les textes de Vidéo YouTube) ; une fois modifié, il est « Personnalisé » (colonne `texts_custom`, migration 2 : les éléments créés avant sont considérés personnalisés, leurs textes ne bougent pas). « Rétablir le modèle » y revient ; « Enregistrer comme modèle par défaut » met à jour le modèle des réglages.
 
 ## Dépendances
 

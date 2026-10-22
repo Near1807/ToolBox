@@ -29,7 +29,8 @@ Modules actuels (section Musique) : `music-library` (bibliothèque, service `mus
 | `npm run dev`                              | Vite + backend + Electron avec rechargement. UI aussi ouvrable sur http://localhost:5173. **À relancer après l'ajout d'un dossier de module** |
 | `TOOLBOX_LOAD_EXAMPLES=1 npm run dev`      | Idem, en chargeant aussi les modules d'exemple (`modules/_*`)                                                                                 |
 | `npm run build` / `npm start`              | Build (`build/renderer`, `build/main`) / lance Electron sur le build                                                                          |
-| `npm test` / `npm run test:watch`          | Tests Vitest (socle dans `tests/`, modules dans `modules/*/tests/`)                                                                           |
+| `npm test` / `npm run test:watch`          | Tests rapides Vitest (socle dans `tests/`, modules dans `modules/*/tests/`), sans les rendus complets (~20 s)                                 |
+| `npm run test:full`                        | Suite complète, dont les rendus complets (`fullRenderTests`) ; toujours lancée par la CI Windows                                              |
 | `npm run lint` / `npm run format`          | ESLint (dont la règle des frontières de modules) + Prettier + aucune couleur en dur dans l'interface (`check:ui-colors`)                      |
 | `npm run typecheck`                        | `tsc --noEmit`                                                                                                                                |
 | `npm run check:native`                     | Vérifie que better-sqlite3 et @napi-rs/canvas se chargent dans le Node d'Electron                                                             |
@@ -79,7 +80,17 @@ site/            site public statique (accueil + confidentialité, exigés par G
 - **Données : une migration publiée ne se modifie jamais ; aucune suppression de données hors migration explicite** (ou demande explicite de l'utilisateur dans l'interface, avec confirmation). Le socle sauvegarde `hub.db` avant chaque migration et restaure en cas d'échec (`docs/MODULES.md` §6).
 - **Dépendances** : un module n'exige (`dependsOn`) que ce sans quoi il n'a aucun sens ; le reste en `dependsOn.optionalServices` + `ctx.services.optional()`, et le module fonctionne sans. ADR 0024.
 - Toute modification du contrat de module ou de l'architecture met à jour la doc **dans le même commit**. Nouvelle décision structurante → nouvel ADR.
+- **Tests** : pendant une session, lancer les tests rapides (`npm test`). La suite complète (`npm run test:full`) tourne en CI à chaque push ; en local, seulement si un rendu (moteur, effets, générateurs) a été modifié. Un nouveau test de rendu complet se marque `describe.runIf(fullRenderTests)` (`docs/MODULES.md` §8).
 - Fin de phase : mettre à jour `docs/ROADMAP.md` et `CHANGELOG.md`, versionnage sémantique (`package.json`).
+
+## Hygiène du code
+
+- Une **passe de nettoyage et d'audit** est recommandée toutes les 3 à 4 sessions de fonctionnalités, ou avant un gros nouveau module. Modèle : `docs/rapports/2026-10-22-v0.14.1.md`.
+- Règle : **corrections sûres directement, risquées seulement proposées** (dans le rapport : problème, bénéfice, risque, effort, recommandation). Sûr = aucun changement visible pour Thomas : mêmes fonctions, mêmes rendus, mêmes données.
+- Ce que la passe vérifie : contrat de module (imports entre modules hors `contract.ts`, tables d'autres modules, fichiers hors `ctx.outputs`, `onReattach`, dépendances obligatoires / optionnelles, couleurs en dur) ; code mort (fonctions, composants, routes, réglages, CSS, dépendances npm) ; doublons à remonter dans le SDK ou le socle ; sécurité (jeton, Host/Origin, tickets, chemins) ; tests instables ou lents ; documentation contredite par le code ; `npm audit` / `npm outdated` (mineures et correctifs seulement) ; processus FFmpeg et écouteurs non libérés.
+- Colonnes de base inutilisées : jamais supprimées (pas de migration destructive) ; on retire le code qui les lit et on les documente dans le README du module.
+- Preuve de non-régression : suite complète (`npm run test:full`), lint, typecheck, CI Windows verte ; rendus de référence avant / après (YouTube, Pack Insta, un Reel perso par mode de son) : son décodé identique (md5 du PCM), images équivalentes (PSNR du même ordre que deux rendus successifs du code d'avant : le grain aléatoire donne ~50 dB, ~42 dB pour l'effet Ciné) ; montée de version depuis la base de la version précédente.
+- Outils utiles : `npx knip` (exports et fichiers inutilisés ; les points d'entrée découverts par les scripts de build sont des faux positifs), `npm audit`, `npm outdated`.
 
 ## Fin de session (obligatoire)
 

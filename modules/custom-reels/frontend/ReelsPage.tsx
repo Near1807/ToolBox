@@ -16,6 +16,7 @@ import {
   useApi,
   useJobs,
   useModule,
+  TrackList,
 } from '@hub/sdk/frontend';
 import { ReelEditor } from './ReelEditor';
 import type { EffectInfo, Source, TrackDetail, TrackSummary } from './types';
@@ -462,11 +463,7 @@ export function ReelsPage() {
   const tracks = useApi<TrackSummary[]>(module.url('/tracks'));
   const effects = useApi<EffectInfo[]>(module.url('/effects'));
   const [params, setParams] = useSearchParams();
-  const [query, setQuery] = useState('');
   const selected = Number(params.get('track')) || tracks.data?.[0]?.id || null;
-  const visible = (tracks.data ?? []).filter((t) =>
-    `${t.title} ${t.artist}`.toLowerCase().includes(query.trim().toLowerCase()),
-  );
 
   return (
     <Page
@@ -480,47 +477,25 @@ export function ReelsPage() {
         </EmptyState>
       )}
       {tracks.data && tracks.data.length > 0 && (
-        <div className="cr-layout">
-          <aside className="cr-tracks">
-            <input
-              className="input"
-              placeholder="Rechercher…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
+        <TrackList
+          tracks={tracks.data}
+          selected={selected}
+          onSelect={(id) => setParams({ track: String(id) })}
+          detail={(track) =>
+            track.reels
+              ? `Reels : ${track.reels.published}/${track.reels.total} publiés`
+              : formatDuration(track.durationSec)
+          }
+        >
+          {selected && (
+            <TrackPanel
+              key={selected}
+              trackId={selected}
+              effects={effects.data ?? []}
+              onChange={tracks.reload}
             />
-            <ul>
-              {visible.map((track) => (
-                <li key={track.id}>
-                  <button
-                    type="button"
-                    className={`cr-tracks__item${track.id === selected ? ' cr-tracks__item--active' : ''}`}
-                    onClick={() => setParams({ track: String(track.id) })}
-                  >
-                    {track.coverUrl ? <img src={track.coverUrl} alt="" /> : <span />}
-                    <span>
-                      <strong>{track.title}</strong>
-                      <span className="muted small">
-                        {track.reels
-                          ? `Reels : ${track.reels.published}/${track.reels.total} publiés`
-                          : formatDuration(track.durationSec)}
-                      </span>
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </aside>
-          <div className="cr-panel">
-            {selected && (
-              <TrackPanel
-                key={selected}
-                trackId={selected}
-                effects={effects.data ?? []}
-                onChange={tracks.reload}
-              />
-            )}
-          </div>
-        </div>
+          )}
+        </TrackList>
       )}
     </Page>
   );

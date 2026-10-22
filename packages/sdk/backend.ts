@@ -102,6 +102,11 @@ export interface ModuleFiles {
    * output folder or module assets. Supports seeking (HTTP Range).
    */
   mediaUrl(path: string): string;
+  /**
+   * Same, but null when there is no file, it no longer exists, or it was moved
+   * outside the allowed folders (for DTOs: a missing file shows « Fichier introuvable »).
+   */
+  mediaUrlIfExists(path: string | null | undefined): string | null;
   /** Read-only files shipped with the module: modules/<id>/assets/ (fonts, images…). */
   readonly assetsDir: string;
   /** Path inside assetsDir; throws if it escapes the folder. */
@@ -244,6 +249,18 @@ export class HttpError extends Error {
     super(message);
     this.name = 'HttpError';
   }
+}
+
+/** The `:id` of a route (a positive integer); answers 400 otherwise. */
+export function idParam(params: unknown): number {
+  const id = Number((params as { id?: string }).id);
+  if (!Number.isInteger(id) || id <= 0) throw new HttpError(400, 'Identifiant invalide');
+  return id;
+}
+
+/** The JSON body of a request, or {} when there is none (fields still to be checked). */
+export function requestBody(request: { body?: unknown }): Record<string, unknown> {
+  return (request.body ?? {}) as Record<string, unknown>;
 }
 
 export type JobStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'interrupted';

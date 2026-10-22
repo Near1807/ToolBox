@@ -1,13 +1,11 @@
 // music-library: the shared track library of the Music section.
 // Provides the "musicLibrary" service used by the video generators.
-import { existsSync } from 'node:fs';
-import { defineBackendModule, HttpError, type ModuleContext } from '@hub/sdk/backend';
+import { defineBackendModule, HttpError, idParam, type ModuleContext } from '@hub/sdk/backend';
 import {
   MUSIC_LIBRARY_SERVICE,
   type MusicLibraryService,
   type Track,
   type TrackDto,
-  type TrackOutput,
   type TrackInfoProvider,
   type ProjectStatus,
   type ProjectStatusEntry,
@@ -26,12 +24,6 @@ function toDto(ctx: ModuleContext, track: Track): TrackDto {
 
 /** Subject of the files generated from a track, shared with the other modules (ctx.outputs). */
 const trackSubject = (id: number) => `music-library:track:${id}`;
-
-function idParam(params: unknown): number {
-  const id = Number((params as { id?: string }).id);
-  if (!Number.isInteger(id) || id <= 0) throw new HttpError(400, 'Identifiant invalide');
-  return id;
-}
 
 function stringField(body: unknown, key: string, required: boolean): string | null {
   const value = (body as Record<string, unknown> | undefined)?.[key];
@@ -302,25 +294,6 @@ export default defineBackendModule({
       }
       await library.remove(id);
       return { ok: true, deletedOutputs };
-    });
-
-    const requireOutput = (params: unknown): TrackOutput => {
-      const output = library.getOutput(idParam(params));
-      if (!output) throw new HttpError(404, 'Fichier introuvable');
-      if (!existsSync(output.filePath)) {
-        throw new HttpError(404, `Le fichier n’existe plus : ${output.filePath}`);
-      }
-      return output;
-    };
-
-    ctx.routes.post('/outputs/:id/open', async (request) => {
-      await ctx.files.open(requireOutput(request.params).filePath);
-      return { ok: true };
-    });
-
-    ctx.routes.post('/outputs/:id/reveal', (request) => {
-      ctx.files.reveal(requireOutput(request.params).filePath);
-      return { ok: true };
     });
 
     ctx.routes.get('/summary', () => {

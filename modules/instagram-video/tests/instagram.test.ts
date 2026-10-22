@@ -12,6 +12,7 @@ import {
   loadModuleFolder,
   type DiscoveredModule,
   type TestHub,
+  fullRenderTests,
 } from '@hub/sdk/testing';
 import type { InstagramPackService, PackItem } from '../contract';
 
@@ -225,103 +226,6 @@ describe('instagram-video', () => {
     expect(reset.body.items[1]!.caption).toBe('Légende du Reel 1');
   });
 
-  it(
-    'renders the pack (post + Reels) as jobs, then a single Reel again',
-    { timeout: 300_000 },
-    async () => {
-      const { body } = await hub.request<{ queued: number }>(
-        'POST',
-        `${API}/packs/${pack.id}/render`,
-      );
-      expect(body.queued).toBe(3);
-      const jobs = await waitForJobs(3);
-      expect(jobs.map((j) => j.error)).toEqual([null, null, null]);
-
-      const folder = path.join(outputRoot, 'instagram-video', 'Thomas - Drop');
-      for (const name of ['Drop - Post.jpg', 'Drop - Reel 1.mp4', 'Drop - Reel 2.mp4']) {
-        expect(existsSync(path.join(folder, name))).toBe(true);
-      }
-      const { body: track } = await hub.request<{ pack: Pack }>('GET', `${API}/tracks/${trackId}`);
-      expect(track.pack.items.map((i) => i.state)).toEqual(['ready', 'ready', 'ready']);
-
-      // Moving a rendered Reel marks it outdated; "Régénérer" renders only that one.
-      const reel = track.pack.items[2]!;
-      await hub.request('PATCH', `${API}/items/${reel.id}`, { startSec: 12 });
-      const after = await hub.request<{ pack: Pack }>('GET', `${API}/tracks/${trackId}`);
-      expect(after.body.pack.items[2]!.state).toBe('outdated');
-      await hub.request('POST', `${API}/items/${reel.id}/render`);
-      await waitForJobs(4);
-      const final = await hub.request<{ pack: Pack }>('GET', `${API}/tracks/${trackId}`);
-      expect(final.body.pack.items[2]).toMatchObject({
-        state: 'ready',
-        fileName: 'Drop - Reel 2.mp4',
-      });
-
-      // Files made by v0.8 (render version 2): Reels to redo, the post unchanged.
-      const db = new Database(path.join(hub.dataDir, 'hub.db'));
-      db.prepare('UPDATE instagram_video__pack_items SET render_version = 2').run();
-      db.close();
-      const old = await hub.request<{ pack: Pack }>('GET', `${API}/tracks/${trackId}`);
-      expect(old.body.pack.items.map((i) => i.state)).toEqual(['ready', 'outdated', 'outdated']);
-    },
-  );
-
-  it('tracks publication: checkbox, date, « À publier » and the library info', async () => {
-    const toPublish = await hub.request<{ item: Item }[]>('GET', `${API}/to-publish`);
-    expect(toPublish.body).toHaveLength(3);
-
-    const post = pack.items[0]!;
-    const checked = await hub.request<Item>('PATCH', `${API}/items/${post.id}`, {
-      published: true,
-    });
-    expect(checked.body.publishedAt).not.toBeNull();
-    const dated = await hub.request<Item>('PATCH', `${API}/items/${post.id}`, {
-      publishedAt: '2026-10-01',
-    });
-    expect(dated.body.publishedAt).toBe('2026-10-01T00:00:00.000Z');
-    expect(
-      (await hub.request('PATCH', `${API}/items/${post.id}`, { publishedAt: 'x' })).status,
-    ).toBe(400);
-
-    expect((await hub.request<unknown[]>('GET', `${API}/to-publish`)).body).toHaveLength(2);
-    const { body: libraryTrack } = await hub.request<{ infos: { label: string; value: string }[] }>(
-      'GET',
-      `/api/modules/music-library/tracks/${trackId}`,
-    );
-    expect(libraryTrack.infos).toContainEqual(
-      expect.objectContaining({ label: 'Pack Instagram', value: '1/3 publiés' }),
-    );
-
-    const unchecked = await hub.request<Item>('PATCH', `${API}/items/${post.id}`, {
-      published: false,
-    });
-    expect(unchecked.body.publishedAt).toBeNull();
-  });
-
-  it('shares the pack with other modules (service instagramPack, « Publié » in sync)', async () => {
-    const shared = await hub.request<{ items: PackItem[] }>(
-      'GET',
-      `/api/modules/consumer/pack/${trackId}`,
-    );
-    expect(shared.body.items.map((i) => [i.label, i.kind])).toEqual([
-      ['Post', 'post'],
-      ['Reel 1', 'reel'],
-      ['Reel 2', 'reel'],
-    ]);
-    expect(shared.body.items[1]!.filePath).toMatch(/Reel 1\.mp4$/);
-    const reel = shared.body.items[1]!;
-    await hub.request('POST', `/api/modules/consumer/items/${reel.id}/published`, {
-      published: true,
-    });
-    const own = await hub.request<{ pack: Pack }>('GET', `${API}/tracks/${trackId}`);
-    expect(own.body.pack.items[1]!.publishedAt).not.toBeNull();
-    await hub.request('POST', `/api/modules/consumer/items/${reel.id}/published`, {
-      published: false,
-    });
-    const back = await hub.request<{ pack: Pack }>('GET', `${API}/tracks/${trackId}`);
-    expect(back.body.pack.items[1]!.publishedAt).toBeNull();
-  });
-
   it('has no Reel styles any more: one sober look for the whole pack', async () => {
     const { body } = await hub.request<{ pack: Pack }>('GET', `${API}/tracks/${trackId}`);
     for (const item of body.pack.items) {
@@ -330,38 +234,143 @@ describe('instagram-video', () => {
     }
   });
 
-  it('shows a file deleted outside the app as missing, and can remove it from the list', async () => {
-    const { body } = await hub.request<{ pack: Pack }>('GET', `${API}/tracks/${trackId}`);
-    const reel1 = body.pack.items[1]!;
-    rmSync(path.join(outputRoot, 'instagram-video', 'Thomas - Drop', 'Drop - Reel 1.mp4'));
-    const after = await hub.request<{ pack: Pack }>('GET', `${API}/tracks/${trackId}`);
-    expect(after.body.pack.items[1]!.state).toBe('missing');
-    const missing = await hub.request<{ id: number }[]>(
-      'GET',
-      '/api/core/outputs?module=instagram-video&missing=1',
+  // Complete renders, and the tests that use their files: full suite only.
+  describe.runIf(fullRenderTests)('rendu complet du pack', () => {
+    it(
+      'renders the pack (post + Reels) as jobs, then a single Reel again',
+      { timeout: 300_000 },
+      async () => {
+        const { body } = await hub.request<{ queued: number }>(
+          'POST',
+          `${API}/packs/${pack.id}/render`,
+        );
+        expect(body.queued).toBe(3);
+        const jobs = await waitForJobs(3);
+        expect(jobs.map((j) => j.error)).toEqual([null, null, null]);
+
+        const folder = path.join(outputRoot, 'instagram-video', 'Thomas - Drop');
+        for (const name of ['Drop - Post.jpg', 'Drop - Reel 1.mp4', 'Drop - Reel 2.mp4']) {
+          expect(existsSync(path.join(folder, name))).toBe(true);
+        }
+        const { body: track } = await hub.request<{ pack: Pack }>(
+          'GET',
+          `${API}/tracks/${trackId}`,
+        );
+        expect(track.pack.items.map((i) => i.state)).toEqual(['ready', 'ready', 'ready']);
+
+        // Moving a rendered Reel marks it outdated; "Régénérer" renders only that one.
+        const reel = track.pack.items[2]!;
+        await hub.request('PATCH', `${API}/items/${reel.id}`, { startSec: 12 });
+        const after = await hub.request<{ pack: Pack }>('GET', `${API}/tracks/${trackId}`);
+        expect(after.body.pack.items[2]!.state).toBe('outdated');
+        await hub.request('POST', `${API}/items/${reel.id}/render`);
+        await waitForJobs(4);
+        const final = await hub.request<{ pack: Pack }>('GET', `${API}/tracks/${trackId}`);
+        expect(final.body.pack.items[2]).toMatchObject({
+          state: 'ready',
+          fileName: 'Drop - Reel 2.mp4',
+        });
+
+        // Files made by v0.8 (render version 2): Reels to redo, the post unchanged.
+        const db = new Database(path.join(hub.dataDir, 'hub.db'));
+        db.prepare('UPDATE instagram_video__pack_items SET render_version = 2').run();
+        db.close();
+        const old = await hub.request<{ pack: Pack }>('GET', `${API}/tracks/${trackId}`);
+        expect(old.body.pack.items.map((i) => i.state)).toEqual(['ready', 'outdated', 'outdated']);
+      },
     );
-    expect(missing.body.map((r) => r.id)).toEqual([reel1.outputId]);
 
-    await hub.request('POST', '/api/core/outputs/forget', { ids: [reel1.outputId] });
-    const forgotten = await hub.request<{ pack: Pack }>('GET', `${API}/tracks/${trackId}`);
-    expect(forgotten.body.pack.items[1]).toMatchObject({ state: 'draft', outputId: null });
-  });
+    it('tracks publication: checkbox, date, « À publier » and the library info', async () => {
+      const toPublish = await hub.request<{ item: Item }[]>('GET', `${API}/to-publish`);
+      expect(toPublish.body).toHaveLength(3);
 
-  it('deletes one file, then the whole pack (files to the Recycle Bin)', async () => {
-    const folder = path.join(outputRoot, 'instagram-video', 'Thomas - Drop');
-    const { body } = await hub.request<{ pack: Pack }>('GET', `${API}/tracks/${trackId}`);
-    const post = body.pack.items[0]!;
-    await hub.request('POST', '/api/core/outputs/delete', { ids: [post.outputId] });
-    expect(existsSync(path.join(folder, 'Drop - Post.jpg'))).toBe(false);
-    const after = await hub.request<{ pack: Pack }>('GET', `${API}/tracks/${trackId}`);
-    expect(after.body.pack.items[0]).toMatchObject({ state: 'draft', outputId: null });
+      const post = pack.items[0]!;
+      const checked = await hub.request<Item>('PATCH', `${API}/items/${post.id}`, {
+        published: true,
+      });
+      expect(checked.body.publishedAt).not.toBeNull();
+      const dated = await hub.request<Item>('PATCH', `${API}/items/${post.id}`, {
+        publishedAt: '2026-10-01',
+      });
+      expect(dated.body.publishedAt).toBe('2026-10-01T00:00:00.000Z');
+      expect(
+        (await hub.request('PATCH', `${API}/items/${post.id}`, { publishedAt: 'x' })).status,
+      ).toBe(400);
 
-    const deleted = await hub.request<{ deleted: number }>('DELETE', `${API}/packs/${pack.id}`);
-    expect(deleted.body.deleted).toBe(1); // Reel 2, the only file left
-    expect(existsSync(path.join(folder, 'Drop - Reel 2.mp4'))).toBe(false);
-    const gone = await hub.request<{ pack: Pack | null }>('GET', `${API}/tracks/${trackId}`);
-    expect(gone.body.pack).toBeNull();
-    const records = await hub.request<unknown[]>('GET', '/api/core/outputs?module=instagram-video');
-    expect(records.body).toEqual([]);
+      expect((await hub.request<unknown[]>('GET', `${API}/to-publish`)).body).toHaveLength(2);
+      const { body: libraryTrack } = await hub.request<{
+        infos: { label: string; value: string }[];
+      }>('GET', `/api/modules/music-library/tracks/${trackId}`);
+      expect(libraryTrack.infos).toContainEqual(
+        expect.objectContaining({ label: 'Pack Instagram', value: '1/3 publiés' }),
+      );
+
+      const unchecked = await hub.request<Item>('PATCH', `${API}/items/${post.id}`, {
+        published: false,
+      });
+      expect(unchecked.body.publishedAt).toBeNull();
+    });
+
+    it('shares the pack with other modules (service instagramPack, « Publié » in sync)', async () => {
+      const shared = await hub.request<{ items: PackItem[] }>(
+        'GET',
+        `/api/modules/consumer/pack/${trackId}`,
+      );
+      expect(shared.body.items.map((i) => [i.label, i.kind])).toEqual([
+        ['Post', 'post'],
+        ['Reel 1', 'reel'],
+        ['Reel 2', 'reel'],
+      ]);
+      expect(shared.body.items[1]!.filePath).toMatch(/Reel 1\.mp4$/);
+      const reel = shared.body.items[1]!;
+      await hub.request('POST', `/api/modules/consumer/items/${reel.id}/published`, {
+        published: true,
+      });
+      const own = await hub.request<{ pack: Pack }>('GET', `${API}/tracks/${trackId}`);
+      expect(own.body.pack.items[1]!.publishedAt).not.toBeNull();
+      await hub.request('POST', `/api/modules/consumer/items/${reel.id}/published`, {
+        published: false,
+      });
+      const back = await hub.request<{ pack: Pack }>('GET', `${API}/tracks/${trackId}`);
+      expect(back.body.pack.items[1]!.publishedAt).toBeNull();
+    });
+
+    it('shows a file deleted outside the app as missing, and can remove it from the list', async () => {
+      const { body } = await hub.request<{ pack: Pack }>('GET', `${API}/tracks/${trackId}`);
+      const reel1 = body.pack.items[1]!;
+      rmSync(path.join(outputRoot, 'instagram-video', 'Thomas - Drop', 'Drop - Reel 1.mp4'));
+      const after = await hub.request<{ pack: Pack }>('GET', `${API}/tracks/${trackId}`);
+      expect(after.body.pack.items[1]!.state).toBe('missing');
+      const missing = await hub.request<{ id: number }[]>(
+        'GET',
+        '/api/core/outputs?module=instagram-video&missing=1',
+      );
+      expect(missing.body.map((r) => r.id)).toEqual([reel1.outputId]);
+
+      await hub.request('POST', '/api/core/outputs/forget', { ids: [reel1.outputId] });
+      const forgotten = await hub.request<{ pack: Pack }>('GET', `${API}/tracks/${trackId}`);
+      expect(forgotten.body.pack.items[1]).toMatchObject({ state: 'draft', outputId: null });
+    });
+
+    it('deletes one file, then the whole pack (files to the Recycle Bin)', async () => {
+      const folder = path.join(outputRoot, 'instagram-video', 'Thomas - Drop');
+      const { body } = await hub.request<{ pack: Pack }>('GET', `${API}/tracks/${trackId}`);
+      const post = body.pack.items[0]!;
+      await hub.request('POST', '/api/core/outputs/delete', { ids: [post.outputId] });
+      expect(existsSync(path.join(folder, 'Drop - Post.jpg'))).toBe(false);
+      const after = await hub.request<{ pack: Pack }>('GET', `${API}/tracks/${trackId}`);
+      expect(after.body.pack.items[0]).toMatchObject({ state: 'draft', outputId: null });
+
+      const deleted = await hub.request<{ deleted: number }>('DELETE', `${API}/packs/${pack.id}`);
+      expect(deleted.body.deleted).toBe(1); // Reel 2, the only file left
+      expect(existsSync(path.join(folder, 'Drop - Reel 2.mp4'))).toBe(false);
+      const gone = await hub.request<{ pack: Pack | null }>('GET', `${API}/tracks/${trackId}`);
+      expect(gone.body.pack).toBeNull();
+      const records = await hub.request<unknown[]>(
+        'GET',
+        '/api/core/outputs?module=instagram-video',
+      );
+      expect(records.body).toEqual([]);
+    });
   });
 });

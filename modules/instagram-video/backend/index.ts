@@ -4,7 +4,13 @@ import { execFile } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { defineBackendModule, HttpError, type ModuleContext } from '@hub/sdk/backend';
+import {
+  defineBackendModule,
+  HttpError,
+  idParam,
+  requestBody,
+  type ModuleContext,
+} from '@hub/sdk/backend';
 import type { MusicLibraryService, Track } from '../../music-library/contract';
 import type { VideoEngineService } from '../../video-engine/contract';
 import {
@@ -43,16 +49,6 @@ interface LegacyReelRow {
   start_sec: number;
   duration_sec: number;
   created_at: string;
-}
-
-function idParam(params: unknown): number {
-  const id = Number((params as { id?: string }).id);
-  if (!Number.isInteger(id) || id <= 0) throw new HttpError(400, 'Identifiant invalide');
-  return id;
-}
-
-function body(request: { body?: unknown }): Record<string, unknown> {
-  return (request.body ?? {}) as Record<string, unknown>;
 }
 
 /** "2026-10-19" or a full ISO date → ISO string; throws a 400 otherwise. */
@@ -160,15 +156,6 @@ export default defineBackendModule({
         .length,
     });
 
-    const fileUrl = (file: string | null) => {
-      if (!file || !existsSync(file)) return null;
-      try {
-        return ctx.files.mediaUrl(file);
-      } catch {
-        return null; // Moved outside the output folder.
-      }
-    };
-
     const itemDto = (
       pack: PackRow,
       item: ItemRow,
@@ -188,8 +175,8 @@ export default defineBackendModule({
       jobId: item.job_id,
       error: item.error,
       fileName: item.file_path ? path.basename(item.file_path) : null,
-      url: fileUrl(item.file_path),
-      thumbnailUrl: fileUrl(item.thumbnail_path),
+      url: ctx.files.mediaUrlIfExists(item.file_path),
+      thumbnailUrl: ctx.files.mediaUrlIfExists(item.thumbnail_path),
       renderedAt: item.rendered_at,
       publishedAt: item.published_at,
     });
@@ -570,7 +557,7 @@ export default defineBackendModule({
     ctx.routes.post('/tracks/:id/pack', async (request) => {
       const track = requireTrack(idParam(request.params));
       if (store.byTrack(track.id)) throw new HttpError(409, 'Ce morceau a déjà un pack');
-      const input = body(request);
+      const input = requestBody(request);
       const clip = clipParam(input.clipDuration);
       const count = Math.round(Number(input.count ?? MAX_REELS));
       if (!Number.isInteger(count) || count < 1 || count > MAX_REELS) {
@@ -594,7 +581,7 @@ export default defineBackendModule({
 
     ctx.routes.patch('/packs/:id', (request) => {
       const pack = store.requirePack(idParam(request.params));
-      const input = body(request);
+      const input = requestBody(request);
       if (input.caption !== undefined && typeof input.caption !== 'string') {
         throw new HttpError(400, 'Légende invalide');
       }
@@ -666,7 +653,7 @@ export default defineBackendModule({
       const { starts } = pickExcerpts(await analyze(track), {
         count: open.length,
         clipSec: pack.clip_duration,
-        allowOverlap: body(request).allowOverlap === true,
+        allowOverlap: requestBody(request).allowOverlap === true,
         fixed: published.map((item) => item.start_sec ?? 0),
       });
       ctx.db.transaction(() =>
@@ -720,7 +707,7 @@ export default defineBackendModule({
     ctx.routes.patch('/items/:id', (request) => {
       const item = store.requireItem(idParam(request.params));
       const { track } = packOfItem(item);
-      const input = body(request);
+      const input = requestBody(request);
       const fields: Parameters<PackStore['updateItem']>[1] = {};
       if (input.startSec !== undefined) {
         if (item.kind !== 'reel') throw new HttpError(400, 'Seuls les Reels ont un extrait');

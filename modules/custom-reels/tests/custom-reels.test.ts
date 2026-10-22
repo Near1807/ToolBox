@@ -12,6 +12,7 @@ import {
   loadModuleFolder,
   type DiscoveredModule,
   type TestHub,
+  fullRenderTests,
 } from '@hub/sdk/testing';
 import type { CustomReelsService } from '../contract';
 import { clampExcerpt, suggestStarts } from '../backend/excerpts';
@@ -259,109 +260,120 @@ describe('custom-reels (Reels from my videos)', () => {
     expect(needed.body.error).toMatch(/Encore nécessaire : Reel perso 1/);
   });
 
-  it('renders a 1080×1920 Reel whose only sound is the track excerpt', async () => {
-    const [reel] = (await track()).reels;
-    const started = await hub.request<JobInfo>('POST', `${API}/reels/${reel!.id}/render`);
-    expect(started.status).toBe(200);
-    let job: JobInfo | undefined;
-    for (let i = 0; i < 1800 && !['succeeded', 'failed'].includes(job?.status ?? ''); i++) {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      job = (await hub.request<JobInfo[]>('GET', '/api/core/jobs?module=custom-reels')).body[0];
-    }
-    expect(job?.error ?? null).toBeNull();
-    const rendered = (await track()).reels[0]!;
-    expect(rendered.state).toBe('ready');
-    const file = path.join(outputRoot, 'custom-reels', 'Thomas - Drop', 'Drop - Reel perso 1.mp4');
-    expect(existsSync(file)).toBe(true);
-    const probe = JSON.parse(
-      execFileSync(ffprobePath as unknown as string, [
-        ...['-v', 'error', '-show_streams', '-of', 'json', file],
-      ]).toString(),
-    ) as { streams: Record<string, string | number>[] };
-    const v = probe.streams.find((s) => s.codec_type === 'video')!;
-    const a = probe.streams.filter((s) => s.codec_type === 'audio');
-    expect([v.width, v.height, v.sample_aspect_ratio]).toEqual([1080, 1920, '1:1']);
-    expect(a).toHaveLength(1);
-    expect(Number(v.duration)).toBeCloseTo(15, 0);
-    // The track is a 110 Hz tone; the video's own 1 kHz tone must be absent.
-    const read = (filter: string) => {
-      const { stderr } = spawnSync(ffmpegPath!, [
-        ...['-hide_banner', '-i', file, '-af', `${filter},volumedetect`, '-f', 'null', '-'],
-      ]);
-      return Number(/mean_volume: (-?[\d.]+) dB/.exec(stderr.toString())![1]);
-    };
-    const at1k = read('bandpass=f=1000:w=100');
-    const at110 = read('bandpass=f=110:w=40');
-    expect(at110 - at1k).toBeGreaterThan(30);
-    // Shared with the planner; attached to the track (project).
-    expect(service.listReels(trackId)[0]).toMatchObject({ state: 'ready', exists: true });
-    const outputs = await hub.request<{ ref: string; subject: string }[]>(
-      'GET',
-      `/api/core/outputs?module=custom-reels`,
-    );
-    expect(outputs.body.find((r) => r.ref === `reel:${rendered.id}`)).toMatchObject({
-      subject: `music-library:track:${trackId}`,
-    });
-  }, 480_000);
-
-  it('offers to delete the imported copy once its Reels are generated (Recycle Bin), then re-imports it', async () => {
-    let [src] = (await track()).sources;
-    const size = src!.sizeBytes!;
-    expect(src).toMatchObject({ usedBy: ['Reel perso 1'], allReady: true, cleanupOffered: true });
-    const copy = (
-      await hub.request<{ ref: string; path: string }[]>(
+  // Complete renders, and the tests that use their files: full suite only.
+  describe.runIf(fullRenderTests)('rendu complet d’un Reel perso', () => {
+    it('renders a 1080×1920 Reel whose only sound is the track excerpt', async () => {
+      const [reel] = (await track()).reels;
+      const started = await hub.request<JobInfo>('POST', `${API}/reels/${reel!.id}/render`);
+      expect(started.status).toBe(200);
+      let job: JobInfo | undefined;
+      for (let i = 0; i < 1800 && !['succeeded', 'failed'].includes(job?.status ?? ''); i++) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        job = (await hub.request<JobInfo[]>('GET', '/api/core/jobs?module=custom-reels')).body[0];
+      }
+      expect(job?.error ?? null).toBeNull();
+      const rendered = (await track()).reels[0]!;
+      expect(rendered.state).toBe('ready');
+      const file = path.join(
+        outputRoot,
+        'custom-reels',
+        'Thomas - Drop',
+        'Drop - Reel perso 1.mp4',
+      );
+      expect(existsSync(file)).toBe(true);
+      const probe = JSON.parse(
+        execFileSync(ffprobePath as unknown as string, [
+          ...['-v', 'error', '-show_streams', '-of', 'json', file],
+        ]).toString(),
+      ) as { streams: Record<string, string | number>[] };
+      const v = probe.streams.find((s) => s.codec_type === 'video')!;
+      const a = probe.streams.filter((s) => s.codec_type === 'audio');
+      expect([v.width, v.height, v.sample_aspect_ratio]).toEqual([1080, 1920, '1:1']);
+      expect(a).toHaveLength(1);
+      expect(Number(v.duration)).toBeCloseTo(15, 0);
+      // The track is a 110 Hz tone; the video's own 1 kHz tone must be absent.
+      const read = (filter: string) => {
+        const { stderr } = spawnSync(ffmpegPath!, [
+          ...['-hide_banner', '-i', file, '-af', `${filter},volumedetect`, '-f', 'null', '-'],
+        ]);
+        return Number(/mean_volume: (-?[\d.]+) dB/.exec(stderr.toString())![1]);
+      };
+      const at1k = read('bandpass=f=1000:w=100');
+      const at110 = read('bandpass=f=110:w=40');
+      expect(at110 - at1k).toBeGreaterThan(30);
+      // Shared with the planner; attached to the track (project).
+      expect(service.listReels(trackId)[0]).toMatchObject({ state: 'ready', exists: true });
+      const outputs = await hub.request<{ ref: string; subject: string }[]>(
         'GET',
-        '/api/core/outputs?module=custom-reels',
-      )
-    ).body.find((r) => r.ref === `source:${src!.id}`)!;
-    expect(existsSync(copy.path)).toBe(true);
+        `/api/core/outputs?module=custom-reels`,
+      );
+      expect(outputs.body.find((r) => r.ref === `reel:${rendered.id}`)).toMatchObject({
+        subject: `music-library:track:${trackId}`,
+      });
+    }, 480_000);
 
-    const after = await hub.request<Track>('POST', `${API}/sources/${src!.id}/delete-copy`);
-    expect(after.status).toBe(200);
-    src = after.body.sources[0];
-    expect(src).toMatchObject({ exists: false, cleanupOffered: false });
-    expect(src!.removedAt).not.toBeNull();
-    expect(existsSync(copy.path)).toBe(false);
-    expect(existsSync(video)).toBe(true); // the original is never touched
-    expect(after.body.storage.track).toMatchObject({
-      bytes: 0,
-      count: 0,
-      freedBytes: size,
-      freedCount: 1,
+    it('offers to delete the imported copy once its Reels are generated (Recycle Bin), then re-imports it', async () => {
+      let [src] = (await track()).sources;
+      const size = src!.sizeBytes!;
+      expect(src).toMatchObject({ usedBy: ['Reel perso 1'], allReady: true, cleanupOffered: true });
+      const copy = (
+        await hub.request<{ ref: string; path: string }[]>(
+          'GET',
+          '/api/core/outputs?module=custom-reels',
+        )
+      ).body.find((r) => r.ref === `source:${src!.id}`)!;
+      expect(existsSync(copy.path)).toBe(true);
+
+      const after = await hub.request<Track>('POST', `${API}/sources/${src!.id}/delete-copy`);
+      expect(after.status).toBe(200);
+      src = after.body.sources[0];
+      expect(src).toMatchObject({ exists: false, cleanupOffered: false });
+      expect(src!.removedAt).not.toBeNull();
+      expect(existsSync(copy.path)).toBe(false);
+      expect(existsSync(video)).toBe(true); // the original is never touched
+      expect(after.body.storage.track).toMatchObject({
+        bytes: 0,
+        count: 0,
+        freedBytes: size,
+        freedCount: 1,
+      });
+      // The Reel made with it stays, and can be published; it cannot be rendered again.
+      const [reel] = after.body.reels;
+      expect(reel!.state).toBe('ready');
+      const refused = await hub.request<{ error: string }>(
+        'POST',
+        `${API}/reels/${reel!.id}/render`,
+      );
+      expect(refused.status).toBe(400);
+      expect(refused.body.error).toMatch(/copie de « clip\.mp4 » a été supprimée.*réimporte/);
+
+      // « Réimporter »: the same video, its Reels can change again.
+      const back = await hub.request<{ track: Track; warnings: string[] }>(
+        'POST',
+        `${API}/sources/${src!.id}/reimport`,
+        { path: video },
+      );
+      expect(back.status).toBe(200);
+      expect(back.body.warnings).toEqual([]);
+      expect(back.body.track.sources[0]).toMatchObject({ exists: true, removedAt: null });
+      // « Garder »: not offered any more.
+      const kept = await hub.request<Track>('POST', `${API}/sources/${src!.id}/keep`);
+      expect(kept.body.sources[0]).toMatchObject({ allReady: true, cleanupOffered: false });
     });
-    // The Reel made with it stays, and can be published; it cannot be rendered again.
-    const [reel] = after.body.reels;
-    expect(reel!.state).toBe('ready');
-    const refused = await hub.request<{ error: string }>('POST', `${API}/reels/${reel!.id}/render`);
-    expect(refused.status).toBe(400);
-    expect(refused.body.error).toMatch(/copie de « clip\.mp4 » a été supprimée.*réimporte/);
 
-    // « Réimporter »: the same video, its Reels can change again.
-    const back = await hub.request<{ track: Track; warnings: string[] }>(
-      'POST',
-      `${API}/sources/${src!.id}/reimport`,
-      { path: video },
-    );
-    expect(back.status).toBe(200);
-    expect(back.body.warnings).toEqual([]);
-    expect(back.body.track.sources[0]).toMatchObject({ exists: true, removedAt: null });
-    // « Garder »: not offered any more.
-    const kept = await hub.request<Track>('POST', `${API}/sources/${src!.id}/keep`);
-    expect(kept.body.sources[0]).toMatchObject({ allReady: true, cleanupOffered: false });
-  });
-
-  it('marks a changed Reel « À régénérer », tracks publication, then deletes it', async () => {
-    const [reel] = (await track()).reels;
-    await hub.request('PATCH', `${API}/reels/${reel!.id}`, { effect: 'cine' });
-    expect((await track()).reels[0]!.state).toBe('outdated');
-    service.setPublished(reel!.id, true);
-    expect((await track()).reels[0]!.publishedAt).not.toBeNull();
-    // A video used by a Reel cannot be removed.
-    const sourceId = (await track()).sources[0]!.id;
-    expect((await hub.request('DELETE', `${API}/sources/${sourceId}`)).status).toBe(409);
-    await hub.request('DELETE', `${API}/reels/${reel!.id}`);
-    expect((await track()).reels).toEqual([]);
-    expect((await hub.request('DELETE', `${API}/sources/${sourceId}`)).status).toBe(200);
+    it('marks a changed Reel « À régénérer », tracks publication, then deletes it', async () => {
+      const [reel] = (await track()).reels;
+      await hub.request('PATCH', `${API}/reels/${reel!.id}`, { effect: 'cine' });
+      expect((await track()).reels[0]!.state).toBe('outdated');
+      service.setPublished(reel!.id, true);
+      expect((await track()).reels[0]!.publishedAt).not.toBeNull();
+      // A video used by a Reel cannot be removed.
+      const sourceId = (await track()).sources[0]!.id;
+      expect((await hub.request('DELETE', `${API}/sources/${sourceId}`)).status).toBe(409);
+      await hub.request('DELETE', `${API}/reels/${reel!.id}`);
+      expect((await track()).reels).toEqual([]);
+      expect((await hub.request('DELETE', `${API}/sources/${sourceId}`)).status).toBe(200);
+    });
   });
 });
 

@@ -92,6 +92,8 @@ export default defineBackendModule({
 
 ## 5. Le contexte `ctx`
 
+`ctx.id` et `ctx.manifest` : identifiant et manifest validé du module.
+
 ### 5.1 `ctx.db` — base SQLite
 
 | Membre            | Rôle                                                                                                                                    |
@@ -112,6 +114,7 @@ Une seule base `hub.db`, partagée. Tables, index, vues et triggers d'un module 
 | `outputDir()`                  | Dossier de sortie `<dossier de sortie>/<id>/` (réglage « Dossier de sortie » du socle, par défaut `Vidéos\ToolBox`)                                                                                                            |
 | `open(path)` / `reveal(path)`  | Ouvre un fichier/dossier avec Windows, ou le montre dans l'Explorateur                                                                                                                                                         |
 | `mediaUrl(path)`               | URL signée pour `<img>`, `<audio>`, `<video>` (qui ne peuvent pas envoyer le jeton). Valable pour la session, uniquement pour les fichiers des dossiers du hub (données, sortie, assets). Gère la lecture par morceaux (Range) |
+| `mediaUrlIfExists(path)`       | Comme `mediaUrl`, mais `null` si le chemin est vide, si le fichier n'existe plus ou s'il est sorti des dossiers autorisés : pour les DTO, l'interface affiche alors « Fichier introuvable »                                    |
 | `assetsDir` / `assetPath(...)` | Fichiers en lecture seule livrés avec le module : `modules/<id>/assets/` (polices, images…). Copiés au build et extraits de l'archive asar, donc lisibles par FFmpeg                                                           |
 
 Les fichiers importés par l'utilisateur sont **copiés** dans `dataDir` (jamais de lien vers leur emplacement d'origine).
@@ -137,6 +140,7 @@ Tous acceptent `label` (obligatoire) et `description`. API : `get(key)` (valeur 
 `get | post | put | patch | delete (path, handler, options?)`, montées sous `/api/modules/<id>/`. Le handler reçoit `(request, reply)` de Fastify et renvoie l'objet à sérialiser en JSON.
 
 - Erreur prévue : `throw new HttpError(404, 'Morceau introuvable')` → réponse `{ "error": "Morceau introuvable" }`.
+- Aides du SDK pour les routes : `idParam(request.params)` (le `:id`, entier positif, sinon 400 « Identifiant invalide ») et `requestBody(request)` (le corps JSON, `{}` s'il n'y en a pas ; les champs restent à vérifier).
 - Toute autre exception → 500 avec un message clair, consignée dans les journaux du module. Le hub continue.
 - Options : `streamTicket: true` pour une route SSE lue par `EventSource` (voir `openEventStream()` dans `@hub/sdk/backend` et [ARCHITECTURE.md](ARCHITECTURE.md#flux-sse-et-tickets-à-usage-unique)), `bodyLimit` (octets, défaut 1 Mo).
 - La sécurité (jeton de session, Host, Origin) est appliquée par le socle à toutes les routes.
@@ -354,7 +358,7 @@ export default defineFrontendModule({
 - Navigation interne : `useModule().path('tracks/3')` donne l'adresse d'une page du module (pour `<Link to>` / `navigate()`).
 - CSS propre à un module : un fichier importé depuis `frontend/`, classes préfixées par les initiales du module (ex. `ml-` pour music-library).
 - Fichiers générés : `outputs` (client des routes `/api/core/outputs`), `confirmDelete`, `useSelection`, et les composants `SelectionBar`, `MissingFile`, `OutputList` (voir §5.13).
-- Outils du SDK : `useModule`, `useApi`, `useJobs`, `api`, `apiFetch`, `openEventStream`, `getFilePath`, `startFileDrag`, `pickFiles`, `pickFolder`, `copyText`, `formatDuration`, et les composants `Page`, `Card`, `Button`, `EmptyState`, `ErrorMessage`, `ProgressBar`, `ErrorBoundary`.
+- Outils du SDK : `useModule`, `useApi`, `useJobs`, `api`, `apiFetch`, `openEventStream`, `getFilePath`, `startFileDrag`, `pickFiles`, `pickFolder`, `copyText`, `formatDuration`, `formatBytes`, `errorMessage`, `ApiError`, `dateInputValue` (composants), les fonctions de textes (`fillTemplate`, `toTemplate`, `parseTags`, `formatTags`, aussi dans `@hub/sdk/texts`), et les composants `Page`, `Card`, `Button`, `EmptyState`, `ErrorMessage`, `ProgressBar`, `ErrorBoundary`.
 
 ### 7.1 Composants partagés (obligatoires)
 
@@ -370,6 +374,7 @@ export default defineFrontendModule({
 | `CopyButton`                     | « Copier » avec confirmation                                                                                                                                                                    |
 | `ExcerptWaveform`, `ExcerptChip` | choix d'extraits (1 à 4, couleurs `--series-1..4`) sur la forme d'onde d'un morceau                                                                                                             |
 | `FilmstripWindow`                | passage d'une vidéo : fenêtre de largeur fixe (la durée) glissée sur la pellicule ou placée par un clic, zoom, tête de lecture                                                                  |
+| `TrackList`                      | page organisée autour des morceaux : liste à gauche (recherche, cover ou « ♪ », titre, ligne de détail du module), panneau du morceau choisi à droite                                           |
 | `TextFields`                     | titre, description, légende, tags d'un élément, **modifiables sous l'élément** (§7.3)                                                                                                           |
 
 Un besoin non couvert : enrichir le composant du SDK (pour tous), pas en écrire un autre dans le module.
@@ -401,6 +406,8 @@ await hub.close();
 ```
 
 Pour un module qui consomme un service, fournir un faux module fournisseur dans `modules: [...]`.
+
+Deux niveaux : `npm test` (rapide, par défaut, pendant le travail) et `npm run test:full` (tout, dont les rendus complets ; toujours exécuté par la CI Windows). Un test qui fait un rendu complet (vidéo, pack, Reel en taille réelle), et ceux qui utilisent ses fichiers, ne tournent que dans la suite complète : `describe.runIf(fullRenderTests)` / `it.runIf(fullRenderTests)` (`fullRenderTests` de `@hub/sdk/testing`). Les aperçus et petits rendus restent dans les tests rapides.
 
 ## 9. Gestion des erreurs : ce qui ne fait pas tomber le hub
 

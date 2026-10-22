@@ -7,7 +7,13 @@ import { existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { copyFile } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { defineBackendModule, HttpError, type ModuleContext } from '@hub/sdk/backend';
+import {
+  defineBackendModule,
+  HttpError,
+  idParam,
+  requestBody,
+  type ModuleContext,
+} from '@hub/sdk/backend';
 import { fillTemplate, toTemplate } from '@hub/sdk/texts';
 import type { MusicLibraryService, Track } from '../../music-library/contract';
 import type { VideoEffectId, VideoEngineService } from '../../video-engine/contract';
@@ -53,11 +59,6 @@ interface SourceRow {
   removed_at: string | null;
   /** « Garder » answered: the cleanup is not offered again. */
   keep_copy: number;
-  /** v0.13 prototype (whole video): no longer used, the sync is per passage (reels.sync). */
-  sync_offset: number | null;
-  sync_score: number | null;
-  sync_ratio: number | null;
-  sync_reliable: number | null;
 }
 
 export interface Segment {
@@ -112,16 +113,6 @@ function safeName(text: string, fallback: string): string {
   return clean || fallback;
 }
 
-function idParam(params: unknown): number {
-  const id = Number((params as { id?: string }).id);
-  if (!Number.isInteger(id) || id <= 0) throw new HttpError(400, 'Identifiant invalide');
-  return id;
-}
-
-function body(request: { body?: unknown }): Record<string, unknown> {
-  return (request.body ?? {}) as Record<string, unknown>;
-}
-
 export default defineBackendModule({
   migrations: [
     {
@@ -174,6 +165,9 @@ export default defineBackendModule({
         ALTER TABLE custom_reels__sources ADD COLUMN keep_copy INTEGER NOT NULL DEFAULT 0;
       `,
     },
+    // The sources' sync_* columns (whole-video sync of the v0.13 prototype) are no
+    // longer read or written: the sync is per passage (reels.sync, v4). Kept in the
+    // database, a published migration is never changed.
     {
       version: 3,
       description: 'EXPERIMENTAL: sound of a Reel, intensity, text on screen, track sync',
@@ -206,15 +200,6 @@ export default defineBackendModule({
       return track;
     };
     const defaultClip = () => ctx.settings.get<number>('clipDuration') ?? 28;
-    const mediaUrl = (file: string | null) => {
-      if (!file || !existsSync(file)) return null;
-      try {
-        return ctx.files.mediaUrl(file);
-      } catch {
-        return null;
-      }
-    };
-
     // Store ------------------------------------------------------------------
     const source = (id: number) =>
       ctx.db.prepare(`SELECT * FROM ${sources} WHERE id = ?`).get(id) as SourceRow | undefined;
@@ -515,7 +500,7 @@ export default defineBackendModule({
         width: row.width,
         height: row.height,
         exists: !removed && existsSync(row.file_path),
-        url: removed ? null : mediaUrl(row.file_path),
+        url: removed ? null : ctx.files.mediaUrlIfExists(row.file_path),
         sizeBytes: row.size_bytes,
         removedAt: row.removed_at,
         usedBy: users.map((u) => u.label),
@@ -588,8 +573,8 @@ export default defineBackendModule({
         jobId: row.job_id,
         error: row.error,
         fileName: row.file_path ? path.basename(row.file_path) : null,
-        url: mediaUrl(row.file_path),
-        thumbnailUrl: mediaUrl(row.thumbnail_path),
+        url: ctx.files.mediaUrlIfExists(row.file_path),
+        thumbnailUrl: ctx.files.mediaUrlIfExists(row.thumbnail_path),
         renderedAt: row.rendered_at,
         publishedAt: row.published_at,
         included: record ? library.isIncluded(ctx.id, record.ref) : true,
@@ -737,7 +722,7 @@ export default defineBackendModule({
           title: track.title,
           artist: track.artist,
           durationSec: track.durationSec,
-          coverUrl: mediaUrl(track.coverPath),
+          coverUrl: ctx.files.mediaUrlIfExists(track.coverPath),
           reels: list.length
             ? { total: list.length, published: list.filter((r) => r.published_at).length }
             : null,
@@ -752,8 +737,8 @@ export default defineBackendModule({
         title: track.title,
         artist: track.artist,
         durationSec: track.durationSec,
-        coverUrl: mediaUrl(track.coverPath),
-        audioUrl: mediaUrl(track.audioPath),
+        coverUrl: ctx.files.mediaUrlIfExists(track.coverPath),
+        audioUrl: ctx.files.mediaUrlIfExists(track.audioPath),
         defaultClip: defaultClip(),
         sources: sourcesOf(track.id).map(sourceDto),
         storage: { track: storage(track.id), all: storage() },
@@ -779,7 +764,7 @@ export default defineBackendModule({
     // Import: the videos are copied into ToolBox (the originals are never touched).
     ctx.routes.post('/tracks/:id/sources', async (request) => {
       const track = requireTrack(idParam(request.params));
-      const paths = body(request).paths;
+      const paths = requestBody(request).paths;
       if (!Array.isArray(paths) || paths.length === 0 || paths.some((p) => typeof p !== 'string')) {
         throw new HttpError(400, 'Aucune vidéo à importer');
       }
@@ -894,7 +879,7 @@ export default defineBackendModule({
     // « Réimporter » a video whose copy was deleted: same video, its Reels can change again.
     ctx.routes.post('/sources/:id/reimport', async (request) => {
       const row = requireSource(idParam(request.params));
-      const file = body(request).path;
+      const file = requestBody(request).path;
       if (typeof file !== 'string' || !VIDEO_EXTENSIONS.includes(path.extname(file).toLowerCase()))
         throw new HttpError(400, 'Choisis une vidéo');
       const info = await engine.probeVideo(file);
@@ -923,8 +908,6 @@ export default defineBackendModule({
       await detectSync(row, true);
       return reelDto(requireReel(row.id), requireTrack(row.track_id));
     });
-
-    ctx.routes.get('/storage', () => storage());
 
     // One frame of a video at `t` (s), 240 px high: first and last image of a passage (cached).
     ctx.routes.get('/sources/:id/frame', async (request) => {
@@ -978,7 +961,7 @@ export default defineBackendModule({
     ctx.routes.post('/tracks/:id/reels', async (request) => {
       const track = requireTrack(idParam(request.params));
       const existing = reelsOf(track.id);
-      const count = Math.round(Number(body(request).count ?? 1));
+      const count = Math.round(Number(requestBody(request).count ?? 1));
       if (!Number.isInteger(count) || count < 1 || existing.length + count > MAX_REELS) {
         throw new HttpError(400, `De 1 à ${MAX_REELS} Reels par morceau`);
       }
@@ -1023,7 +1006,7 @@ export default defineBackendModule({
     ctx.routes.patch('/reels/:id', async (request) => {
       const row = requireReel(idParam(request.params));
       const track = requireTrack(row.track_id);
-      const input = body(request);
+      const input = requestBody(request);
       const fields: Partial<ReelRow> = {};
       const audioDuration = track.durationSec ?? row.start_sec + row.duration_sec;
       if (input.durationSec !== undefined) {
@@ -1134,7 +1117,7 @@ export default defineBackendModule({
     ctx.routes.post('/reels/:id/caption/template', (request) => {
       const row = requireReel(idParam(request.params));
       const track = requireTrack(row.track_id);
-      const caption = body(request).caption;
+      const caption = requestBody(request).caption;
       if (typeof caption !== 'string' || !caption.trim()) throw new HttpError(400, 'Légende vide');
       ctx.settings.set('captionTemplate', toTemplate(caption, captionValues(track)));
       ctx.db.prepare(`UPDATE ${reels} SET caption = NULL WHERE id = ?`).run(row.id);

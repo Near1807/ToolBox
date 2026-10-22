@@ -1,4 +1,4 @@
-import { mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import type { ModuleFiles } from '../../packages/sdk/backend';
 import type { HostAdapter } from './host';
@@ -27,6 +27,14 @@ export function createModuleFiles(options: {
     assetsDir: options.assetsDir,
     assetPath: (...segments) => safeJoin(options.assetsDir, ...segments),
     mediaUrl: options.mediaUrl,
+    mediaUrlIfExists: (filePath) => {
+      if (!filePath || !existsSync(filePath)) return null;
+      try {
+        return options.mediaUrl(filePath);
+      } catch {
+        return null; // Moved outside the allowed folders.
+      }
+    },
     dataDir,
     dataPath: (...segments) => safeJoin(dataDir, ...segments),
     outputDir: () => {

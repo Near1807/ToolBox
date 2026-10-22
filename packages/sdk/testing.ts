@@ -15,6 +15,14 @@ import { TOKEN_HEADER } from '../../backend/core/security';
 import { buildServer } from '../../backend/server';
 import type { FastifyInstance } from 'fastify';
 
+/**
+ * True in the full suite (`npm run test:full`, always run by the Windows CI):
+ * tests that make complete renders (and the ones that use their files) run
+ * only then, with `describe.runIf(fullRenderTests)` / `it.runIf(...)`.
+ * `npm test` (fast tests) is what a work session runs.
+ */
+export const fullRenderTests = process.env.TOOLBOX_TEST_FULL === '1';
+
 const TEST_TOKEN = 'test-token';
 const TEST_PORT = 4321;
 

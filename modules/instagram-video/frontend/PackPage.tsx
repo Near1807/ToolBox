@@ -19,6 +19,7 @@ import {
   useJobs,
   useModule,
   useSelection,
+  TrackList,
 } from '@hub/sdk/frontend';
 import { ItemTile } from './ItemTile';
 import type { Pack, PackItem, TrackDetail, TrackSummary, WaveformData } from './types';
@@ -651,11 +652,7 @@ export function PackPage() {
   const tracks = useApi<TrackSummary[]>(module.url('/tracks'));
   const toPublish = useApi<unknown[]>(module.url('/to-publish'));
   const [params, setParams] = useSearchParams();
-  const [query, setQuery] = useState('');
   const selected = Number(params.get('track')) || tracks.data?.[0]?.id || null;
-  const visible = (tracks.data ?? []).filter((t) =>
-    `${t.title} ${t.artist}`.toLowerCase().includes(query.trim().toLowerCase()),
-  );
   const { reload: reloadTracks } = tracks;
   const { reload: reloadToPublish } = toPublish;
   const onChange = useCallback(() => {
@@ -680,44 +677,18 @@ export function PackPage() {
         </EmptyState>
       )}
       {tracks.data && tracks.data.length > 0 && (
-        <div className="iv-layout">
-          <aside className="iv-tracks">
-            <input
-              className="input"
-              placeholder="Rechercher…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-            <ul>
-              {visible.map((track) => (
-                <li key={track.id}>
-                  <button
-                    type="button"
-                    className={`iv-tracks__item${track.id === selected ? ' iv-tracks__item--active' : ''}`}
-                    onClick={() => setParams({ track: String(track.id) })}
-                  >
-                    {track.coverUrl ? (
-                      <img src={track.coverUrl} alt="" />
-                    ) : (
-                      <span className="iv-tracks__placeholder">♪</span>
-                    )}
-                    <span>
-                      <strong>{track.title}</strong>
-                      <span className="muted small">
-                        {track.pack
-                          ? `Pack : ${track.pack.published}/${track.pack.total} publiés`
-                          : formatDuration(track.durationSec)}
-                      </span>
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </aside>
-          <div className="iv-panel">
-            {selected && <TrackPanel key={selected} trackId={selected} onChange={onChange} />}
-          </div>
-        </div>
+        <TrackList
+          tracks={tracks.data}
+          selected={selected}
+          onSelect={(id) => setParams({ track: String(id) })}
+          detail={(track) =>
+            track.pack
+              ? `Pack : ${track.pack.published}/${track.pack.total} publiés`
+              : formatDuration(track.durationSec)
+          }
+        >
+          {selected && <TrackPanel key={selected} trackId={selected} onChange={onChange} />}
+        </TrackList>
       )}
     </Page>
   );

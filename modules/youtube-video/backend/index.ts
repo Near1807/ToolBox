@@ -1,7 +1,7 @@
 // youtube-video: a 16:9 video of a whole track, plus a ready-to-copy description.
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { defineBackendModule, HttpError, type ModuleContext } from '@hub/sdk/backend';
+import { defineBackendModule, HttpError, requestBody, type ModuleContext } from '@hub/sdk/backend';
 import type { MusicLibraryService, Track } from '../../music-library/contract';
 import type { VideoEngineService } from '../../video-engine/contract';
 import { fillTemplate, parseTags, toTemplate } from '@hub/sdk/texts';
@@ -321,7 +321,7 @@ export default defineBackendModule({
     // Texts edited under the video (title, description, tags).
     ctx.routes.patch('/tracks/:id/texts', (request) => {
       const track = requireTrack(request.params);
-      const body = (request.body ?? {}) as Record<string, unknown>;
+      const body = requestBody(request);
       const text = (key: string, max: number) => {
         const value = body[key];
         if (value === undefined) return undefined;
