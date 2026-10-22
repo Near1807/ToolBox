@@ -685,3 +685,67 @@ export function TextFields(props: {
     </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Track list
+// ---------------------------------------------------------------------------
+
+export interface TrackListEntry {
+  id: number;
+  title: string;
+  artist: string;
+  coverUrl: string | null;
+}
+
+/**
+ * Page laid out around the tracks: searchable list on the left (cover, title,
+ * `detail` line), the selected track's panel (`children`) on the right. The
+ * selection is the module's (usually `?track=` in the URL).
+ */
+export function TrackList<T extends TrackListEntry>(props: {
+  tracks: T[];
+  selected: number | null;
+  onSelect: (id: number) => void;
+  /** Second line under the title (duration, publication state…). */
+  detail: (track: T) => ReactNode;
+  children: ReactNode;
+}) {
+  const [query, setQuery] = useState('');
+  const visible = props.tracks.filter((t) =>
+    `${t.title} ${t.artist}`.toLowerCase().includes(query.trim().toLowerCase()),
+  );
+  return (
+    <div className="ui-tracks-layout">
+      <aside className="ui-tracks">
+        <input
+          className="input"
+          placeholder="Rechercher…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        <ul>
+          {visible.map((track) => (
+            <li key={track.id}>
+              <button
+                type="button"
+                className={`ui-tracks__item${track.id === props.selected ? ' ui-tracks__item--active' : ''}`}
+                onClick={() => props.onSelect(track.id)}
+              >
+                {track.coverUrl ? (
+                  <img src={track.coverUrl} alt="" />
+                ) : (
+                  <span className="ui-tracks__placeholder">♪</span>
+                )}
+                <span>
+                  <strong>{track.title}</strong>
+                  <span className="muted small">{props.detail(track)}</span>
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </aside>
+      <div className="ui-tracks-layout__main">{props.children}</div>
+    </div>
+  );
+}

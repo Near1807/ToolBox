@@ -22,6 +22,7 @@ import {
   useJobs,
   useModule,
   useSelection,
+  TrackList,
 } from '@hub/sdk/frontend';
 
 interface TrackSummary {
@@ -342,11 +343,7 @@ export function YouTubePage() {
   const module = useModule();
   const tracks = useApi<TrackSummary[]>(module.url('/tracks'));
   const [params, setParams] = useSearchParams();
-  const [query, setQuery] = useState('');
   const selected = Number(params.get('track')) || tracks.data?.[0]?.id || null;
-  const visible = (tracks.data ?? []).filter((t) =>
-    `${t.title} ${t.artist}`.toLowerCase().includes(query.trim().toLowerCase()),
-  );
 
   return (
     <Page
@@ -360,40 +357,14 @@ export function YouTubePage() {
         </EmptyState>
       )}
       {tracks.data && tracks.data.length > 0 && (
-        <div className="yv-layout">
-          <aside className="yv-tracks">
-            <input
-              className="input"
-              placeholder="Rechercher…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-            <ul>
-              {visible.map((track) => (
-                <li key={track.id}>
-                  <button
-                    type="button"
-                    className={`yv-tracks__item${track.id === selected ? ' yv-tracks__item--active' : ''}`}
-                    onClick={() => setParams({ track: String(track.id) })}
-                  >
-                    {track.coverUrl ? (
-                      <img src={track.coverUrl} alt="" />
-                    ) : (
-                      <span className="yv-tracks__placeholder">♪</span>
-                    )}
-                    <span>
-                      <strong>{track.title}</strong>
-                      <span className="muted small">{formatDuration(track.durationSec)}</span>
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </aside>
-          <div className="yv-main">
-            {selected && <TrackPanel key={selected} trackId={selected} />}
-          </div>
-        </div>
+        <TrackList
+          tracks={tracks.data}
+          selected={selected}
+          onSelect={(id) => setParams({ track: String(id) })}
+          detail={(track) => formatDuration(track.durationSec)}
+        >
+          {selected && <TrackPanel key={selected} trackId={selected} />}
+        </TrackList>
       )}
     </Page>
   );
