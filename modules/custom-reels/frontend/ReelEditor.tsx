@@ -266,7 +266,7 @@ export function ReelEditor(props: {
                     {!match
                       ? 'pas encore cherché'
                       : match.reliable
-                        ? `morceau retrouvé (à ${formatDuration(passage.start + match.offset)} dans le morceau, décalage ${match.offset.toFixed(3)} s)`
+                        ? `morceau retrouvé (à ${formatDuration(passage.start + match.offset)} dans le morceau, décalage ${match.offset.toFixed(3).replace('.', ',')} s)`
                         : 'morceau pas retrouvé de façon fiable dans ce passage (prise de son trop faible, ou le morceau n’y est pas). Choisis « Son de la vidéo », ou un autre passage.'}
                   </p>
                 );

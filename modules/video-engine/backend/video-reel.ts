@@ -457,7 +457,9 @@ async function renderPiecesSoundtrack(
         : null,
       `aresample=${TRUE_PEAK_RATE}`,
       `alimiter=limit=${dbToLinear(ceiling)}:attack=1:release=50:level=0`,
-      'aresample=48000[aout]',
+      // Padded with silence to the exact duration: the encoder stops at the
+      // shortest stream, a sound a few ms short would cost the last frame.
+      `aresample=48000,apad=whole_dur=${round(d)}[aout]`,
     ]
       .filter(Boolean)
       .join(',');
@@ -634,6 +636,7 @@ export async function renderVideoReel(
         encoding: preview ? null : FORMATS.instagram.encoding,
         audio: 'soundtrack.m4a',
         output: partial,
+        exact: true,
       }),
       feed: async (stdin) => {
         let last: Buffer | null = null;

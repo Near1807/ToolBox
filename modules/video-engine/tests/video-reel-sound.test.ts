@@ -71,15 +71,16 @@ describe('sound of the video Reels (real renders)', () => {
       outputPath: path.join(dir, `${name}.mp4`),
       ...options,
     });
+  /** Frames of the video stream: exactly the Reel's duration × 30. */
   const durationOf = (file: string) =>
     Number(
       execFileSync(ffprobeStatic!, [
-        ...['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=duration'],
-        ...['-of', 'csv=p=0', file],
+        ...['-v', 'error', '-select_streams', 'v:0', '-count_frames'],
+        ...['-show_entries', 'stream=nb_read_frames', '-of', 'csv=p=0', file],
       ])
         .toString()
         .trim(),
-    );
+    ) / 30;
   const loudness = (file: string) => {
     const { stderr } = spawnSync(ffmpeg, [
       ...['-hide_banner', '-nostats', '-i', file, '-af', 'ebur128=peak=true', '-f', 'null', '-'],
@@ -96,7 +97,7 @@ describe('sound of the video Reels (real renders)', () => {
       audioMode: 'video',
       segments: [{ source: ownSound, start: 3, end: 9 }],
     });
-    expect(durationOf(result.file)).toBeCloseTo(6, 1);
+    expect(durationOf(result.file)).toBe(6);
     const { integrated, truePeak } = loudness(result.file);
     expect(truePeak).toBeLessThanOrEqual(-1.1);
     // A tone at -26 dBFS brought to about -14 LUFS.
@@ -109,7 +110,7 @@ describe('sound of the video Reels (real renders)', () => {
       audioMode: 'synced',
       segments: [{ source: withTrack, start: 5, end: 11, syncOffset: 11.5 }],
     });
-    expect(durationOf(result.file)).toBeCloseTo(6, 1);
+    expect(durationOf(result.file)).toBe(6);
     expect(loudness(result.file).truePeak).toBeLessThanOrEqual(-1.1);
     const track = await decodeExcerpt(ffmpeg, master, 0, 40, 8000);
     const sound = await decodeExcerpt(ffmpeg, result.file, 0.5, 5, 8000); // inside the fades
@@ -123,7 +124,7 @@ describe('sound of the video Reels (real renders)', () => {
       audioMode: 'track',
       segments: [{ source: ownSound, start: 0, end: 6 }],
     });
-    expect(durationOf(result.file)).toBeCloseTo(6, 1);
+    expect(durationOf(result.file)).toBe(6);
     expect(loudness(result.file).truePeak).toBeLessThanOrEqual(-1.1);
   }, 120_000);
 });
