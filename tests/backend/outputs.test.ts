@@ -14,6 +14,7 @@ afterEach(async () => {
 async function start() {
   const contexts: Record<string, ModuleContext> = {};
   const removed: { module: string; refs: string[]; reason: string }[] = [];
+  const reattached: { module: string; refs: string[]; subject: string }[] = [];
   const trashed: string[] = [];
   const module = (id: string) =>
     fakeModule(id, {
@@ -23,11 +24,24 @@ async function start() {
           ctx.outputs.onRemoved((records, reason) =>
             removed.push({ module: id, refs: records.map((r) => r.ref), reason }),
           );
+          if (id === 'gamma') return; // declares no onReattach
+          ctx.outputs.onReattach((records, subject) => {
+            if (subject === 'lib:track:refuse') throw new Error('Place déjà prise');
+            reattached.push({ module: id, refs: records.map((r) => r.ref), subject });
+            // Like a real module: its own data, in the same transaction.
+            ctx.outputs.register({
+              path: records[0]!.path,
+              ref: records[0]!.ref,
+              parent: `track:${subject.split(':').at(-1)}`,
+              label: records[0]!.label,
+              subject,
+            });
+          });
         },
       },
     });
   const hub = await createTestHub({
-    modules: [module('alpha'), module('beta')],
+    modules: [module('alpha'), module('beta'), module('gamma')],
     host: createTestHost({
       trashItem: async (file) => {
         trashed.push(file);
@@ -42,7 +56,7 @@ async function start() {
     writeFileSync(file, 'x');
     return file;
   };
-  return { hub, contexts, removed, trashed, write };
+  return { hub, contexts, removed, reattached, trashed, write };
 }
 
 describe('ctx.outputs (generated files)', () => {
@@ -196,6 +210,42 @@ describe('ctx.outputs (generated files)', () => {
     // The module registers it again at startup: the project chosen by the user stays.
     alpha.outputs.register({ path: file, ref: 'video:9', label: 'x', subject: 'lib:track:1' });
     expect(alpha.outputs.bySubject('lib:track:2').map((r) => r.id)).toEqual([record.id]);
+    await hub.close();
+  });
+
+  it('lets each owner module follow a reattachment, all or nothing', async () => {
+    const { hub, contexts, reattached, write } = await start();
+    const make = (id: string, name: string) =>
+      contexts[id]!.outputs.register({
+        path: write(contexts[id]!, name),
+        ref: `video:${name}`,
+        parent: 'track:1',
+        label: name,
+        subject: 'lib:track:1',
+      });
+    const a = make('alpha', 'a');
+    const b = make('beta', 'b');
+    expect(contexts.alpha!.outputs.attach([a.id, b.id], 'lib:track:2')).toBe(2);
+    expect(reattached.map((r) => [r.module, r.refs, r.subject]).sort()).toEqual([
+      ['alpha', ['video:a'], 'lib:track:2'],
+      ['beta', ['video:b'], 'lib:track:2'],
+    ]);
+    // The module's own update (parent) went through.
+    expect(contexts.alpha!.outputs.list({ ids: [a.id] })[0]).toMatchObject({
+      subject: 'lib:track:2',
+      parent: 'track:2',
+    });
+    // Refused by a module: nothing changes, for anyone.
+    expect(() => contexts.alpha!.outputs.attach([a.id, b.id], 'lib:track:refuse')).toThrow(
+      /Place déjà prise/,
+    );
+    expect(contexts.beta!.outputs.list({ ids: [b.id] })[0]?.subject).toBe('lib:track:2');
+    // A module without onReattach (or absent): refused, said clearly.
+    const c = make('gamma', 'c');
+    expect(() => contexts.alpha!.outputs.attach([a.id, c.id], 'lib:track:3')).toThrow(
+      /« gamma » est absent ou ne sait pas suivre/,
+    );
+    expect(contexts.alpha!.outputs.list({ ids: [a.id] })[0]?.subject).toBe('lib:track:2');
     await hub.close();
   });
 });

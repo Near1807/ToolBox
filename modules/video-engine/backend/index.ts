@@ -11,8 +11,9 @@ import {
   type VideoFormatInfo,
 } from '../contract';
 import { FORMATS, THUMBNAIL_SPEC } from './commands';
-import { EFFECTS } from './effects';
+import { EFFECTS, EXPERIMENTAL_EFFECTS } from './effects';
 import { filmstrip, probeVideo, waveform } from './media-tools';
+import { findTrackInVideo } from './sync';
 import { renderVideoReel } from './video-reel';
 import {
   FONT_FILE,
@@ -113,11 +114,9 @@ export default defineBackendModule({
       renderPost: (request) => renderPostImage(env(), request),
       renderThumbnail: (request) => renderPostImage(env(), request, THUMBNAIL_SPEC),
       probeDuration: (audioPath) => probeDuration(ctx.binaries.ffprobe, audioPath),
-      videoEffects: Object.values(EFFECTS).map(({ id, label, description }) => ({
-        id,
-        label,
-        description,
-      })),
+      videoEffects: [...Object.values(EFFECTS), ...Object.values(EXPERIMENTAL_EFFECTS)].map(
+        ({ id, label, description }) => ({ id, label, description }),
+      ),
       renderVideoReel: (request, handlers = {}) =>
         queue.run(async () => {
           ctx.logger.info(
@@ -144,6 +143,8 @@ export default defineBackendModule({
         return result;
       },
       probeVideo: (videoPath) => probeVideo(ctx.binaries.ffprobe, videoPath),
+      findTrackInVideo: (trackPath, videoPath) =>
+        findTrackInVideo(ctx.binaries.ffmpeg, trackPath, videoPath),
       filmstrip: (videoPath, count, outputDir) =>
         filmstrip(ctx.binaries.ffmpeg, ctx.binaries.ffprobe, videoPath, count, outputDir),
       waveform: async (audioPath, bars) => {

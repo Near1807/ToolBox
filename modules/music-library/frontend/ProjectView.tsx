@@ -43,8 +43,14 @@ const GROUPS: { title: string; match: (e: ProjectElement) => boolean; aspect: Me
     match: (e) => e.moduleId === 'instagram-video' && e.kind === 'reel',
     aspect: 'vertical',
   },
-  { title: 'Reels perso', match: (e) => e.moduleId === 'custom-reels', aspect: 'vertical' },
+  {
+    title: 'Reels perso',
+    match: (e) => e.moduleId === 'custom-reels' && e.kind !== 'source',
+    aspect: 'vertical',
+  },
   { title: 'Miniatures', match: (e) => e.moduleId === 'release-planner', aspect: 'landscape' },
+  // Imported material (kind « source », MODULES.md §5.13): listed, never part of the release.
+  { title: 'Vidéos importées', match: (e) => e.kind === 'source', aspect: 'landscape' },
 ];
 
 const isVideo = (element: OutputRecord) => /\.(mp4|mov|webm)$/i.test(element.fileName);
@@ -92,13 +98,14 @@ export function ProjectView(props: { trackId: number; onChange?: () => void }) {
   if (others.length)
     groups.push({ title: 'Autres fichiers', match: () => true, aspect: 'landscape', list: others });
 
-  const included = elements.filter((e) => e.included).length;
+  const deliverables = elements.filter((e) => e.kind !== 'source');
+  const included = deliverables.filter((e) => e.included).length;
 
   return (
     <div className="ml-project">
       {error && <ErrorMessage>{error}</ErrorMessage>}
       <p className="muted small">
-        {included}/{elements.length} élément(s) inclus dans la sortie. Le Planning de sortie ne
+        {included}/{deliverables.length} élément(s) inclus dans la sortie. Le Planning de sortie ne
         propose que les éléments cochés « Inclure dans la sortie ».
       </p>
       {groups
@@ -113,7 +120,7 @@ export function ProjectView(props: { trackId: number; onChange?: () => void }) {
                 <OutputCard
                   key={element.id}
                   title={element.label}
-                  dimmed={!element.included}
+                  dimmed={element.kind !== 'source' && !element.included}
                   badge={
                     <StateBadge
                       tone={STATUS[element.status].tone}
@@ -154,22 +161,24 @@ export function ProjectView(props: { trackId: number; onChange?: () => void }) {
                     )
                   }
                 >
-                  <label className="ml-include">
-                    <input
-                      type="checkbox"
-                      checked={element.included}
-                      onChange={(e) =>
-                        void run(() =>
-                          module.api.put(`/tracks/${props.trackId}/project/included`, {
-                            moduleId: element.moduleId,
-                            ref: element.ref,
-                            included: e.target.checked,
-                          }),
-                        )
-                      }
-                    />
-                    Inclure dans la sortie
-                  </label>
+                  {element.kind !== 'source' && (
+                    <label className="ml-include">
+                      <input
+                        type="checkbox"
+                        checked={element.included}
+                        onChange={(e) =>
+                          void run(() =>
+                            module.api.put(`/tracks/${props.trackId}/project/included`, {
+                              moduleId: element.moduleId,
+                              ref: element.ref,
+                              included: e.target.checked,
+                            }),
+                          )
+                        }
+                      />
+                      Inclure dans la sortie
+                    </label>
+                  )}
                 </OutputCard>
               ))}
             </div>

@@ -13,6 +13,7 @@ import {
   useModule,
 } from '@hub/sdk/frontend';
 import { Calendar, calendarRange, type CalendarView } from './Calendar';
+import { AddCustomReelDialog } from './AddCustomReelDialog';
 import { addDays, addMonths, longDate, monthTitle, startOfWeek } from './dates';
 import { GoogleAccount } from './GoogleAccount';
 import { ItemPanel } from './ItemPanel';
@@ -21,7 +22,12 @@ import { PlanDialog } from './PlanDialog';
 import { TodayView } from './TodayView';
 import type { PlannerItem, Release, Summary } from './types';
 
-function ReleaseRow(props: { release: Release; onChanged: (message?: string) => void }) {
+function ReleaseRow(props: {
+  release: Release;
+  /** « Ajouter un Reel perso »: only when « Reels depuis mes vidéos » is present. */
+  onAddCustomReel: (() => void) | null;
+  onChanged: (message?: string) => void;
+}) {
   const module = useModule();
   const { release } = props;
   const [removing, setRemoving] = useState(false);
@@ -135,6 +141,11 @@ function ReleaseRow(props: { release: Release; onChanged: (message?: string) => 
             Envoyer sur YouTube ({toSend.length})
           </Button>
         )}
+        {props.onAddCustomReel && (
+          <Button small variant="secondary" onClick={props.onAddCustomReel}>
+            Ajouter un Reel perso
+          </Button>
+        )}
         <Button
           small
           variant="danger"
@@ -200,6 +211,7 @@ export function PlannerPage() {
   const releases = useApi<Release[]>(module.url('/releases'));
   const { jobs } = useJobs(module.id);
   const [planning, setPlanning] = useState(false);
+  const [addingTo, setAddingTo] = useState<Release | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -456,13 +468,30 @@ export function PlannerPage() {
             )}
             <ul className="list">
               {releases.data?.map((release) => (
-                <ReleaseRow key={release.id} release={release} onChanged={changed} />
+                <ReleaseRow
+                  key={release.id}
+                  release={release}
+                  onAddCustomReel={
+                    summary.data?.features.customReels ? () => setAddingTo(release) : null
+                  }
+                  onChanged={changed}
+                />
               ))}
             </ul>
           </Card>
         </>
       )}
 
+      {addingTo && (
+        <AddCustomReelDialog
+          release={addingTo}
+          onClose={() => setAddingTo(null)}
+          onAdded={(message) => {
+            setAddingTo(null);
+            changed(message);
+          }}
+        />
+      )}
       {planning && today && (
         <PlanDialog
           today={today}

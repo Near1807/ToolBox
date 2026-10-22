@@ -537,6 +537,10 @@
   margin: 12px 0;
 }
 
+.rp-dialog__hint {
+  grid-column: 1 / -1;
+}
+
 .rp-plan {
   width: 100%;
   border-collapse: collapse;

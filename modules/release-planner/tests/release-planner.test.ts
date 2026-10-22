@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import ffmpegPath from 'ffmpeg-static';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { ModuleContext } from '@hub/sdk/backend';
+import type { ModuleContext, OutputRecord } from '@hub/sdk/backend';
 import {
   createTestHost,
   createTestHub,
@@ -20,6 +20,7 @@ import {
 import type { CustomReel, CustomReelsService } from '../../custom-reels/contract';
 import type { InstagramPackService, PackItem } from '../../instagram-video/contract';
 import type { YouTubeVideoService } from '../../youtube-video/contract';
+import { addDays } from '../backend/time';
 import { MockGoogle } from './mock-google';
 
 const MODULES = path.resolve(import.meta.dirname, '../..');
@@ -712,6 +713,63 @@ describe('release-planner (mock YouTube)', () => {
     expect(notifications.every((n) => n.target?.startsWith('/m/release-planner'))).toBe(true);
   });
 
+  it('« Ajouter un Reel perso » to a planned release: Reel and/or Short, on an allowed day', async () => {
+    await hub.request('PUT', '/api/core/settings/release-planner', { allowedDays: '1,2,3,4,5' });
+    type Options = {
+      allowedDays: number[];
+      options: {
+        customReelId: number;
+        planned: { 'insta-reel': boolean; short: boolean };
+        date: string;
+      }[];
+    };
+    const options = async () =>
+      (await hub.request<Options>('GET', `${API}/releases/${first.id}/custom-reels`)).body;
+    const current = await options();
+    expect(current.allowedDays).toEqual([0, 1, 2, 3, 4]);
+    const [option] = current.options;
+    expect(option).toMatchObject({
+      customReelId: 500 + trackIds[0]!,
+      planned: { 'insta-reel': false, short: false },
+    });
+    // Proposed on an allowed day, after the last element of the plan.
+    const last = (await release(first.id)).items
+      .map((i) => i.date)
+      .sort()
+      .at(-1)!;
+    expect(option!.date > last).toBe(true);
+    expect([1, 2, 3, 4, 5]).toContain(new Date(`${option!.date}T00:00:00Z`).getUTCDay());
+
+    const add = (kinds: string[], date: string) =>
+      hub.request<{ release: Release; warnings: string[]; error?: string }>(
+        'POST',
+        `${API}/releases/${first.id}/items`,
+        { customReelId: option!.customReelId, kinds, date, time: '19:00' },
+      );
+    // A Saturday: refused, with the allowed days.
+    const saturday = addDays(
+      option!.date,
+      (6 - new Date(`${option!.date}T00:00:00Z`).getUTCDay() + 7) % 7,
+    );
+    const refused = await add(['short'], saturday);
+    expect(refused.status).toBe(400);
+    expect(refused.body.error).toMatch(
+      /samedi : jour non autorisé.*lundi, mardi, mercredi, jeudi, vendredi/,
+    );
+
+    const added = await add(['short'], option!.date);
+    expect(added.status).toBe(200);
+    const short = added.body.release.items.find((i) => i.label === 'Short perso 1')!;
+    expect(short).toMatchObject({ date: option!.date, time: '19:00', state: 'planned' });
+    expect((await options()).options[0]!.planned).toEqual({ 'insta-reel': false, short: true });
+    expect((await add(['short'], option!.date)).status).toBe(409);
+    expect((await add([], option!.date)).status).toBe(400);
+    expect((await add(['insta-reel'], option!.date)).status).toBe(200);
+    // Both planned: not offered any more.
+    expect((await options()).options).toEqual([]);
+    await hub.request('PUT', '/api/core/settings/release-planner', { allowedDays: null });
+  });
+
   it('removes a whole release, keeping what is online when asked', async () => {
     const refused = await hub.request('DELETE', `${API}/releases/${second.id}`);
     expect(refused.status).toBe(409);
@@ -909,4 +967,132 @@ describe('release-planner (mock YouTube)', () => {
       uploadsPerDay: null,
     });
   });
+
+  it('« Sans projet » > Rattacher: the thumbnail leaves its old release for the chosen track’s', async () => {
+    const thumbnails = async () =>
+      (await hub.request<OutputRecord[]>('GET', '/api/core/outputs?module=release-planner')).body;
+    const old = await hub.request<Release & { trackId: number; thumbnailUrl: string | null }>(
+      'GET',
+      `${API}/releases/${third.id}`,
+    );
+    const record = (await thumbnails()).find((r) => r.ref === `thumbnail:${third.id}`)!;
+    expect(record.exists).toBe(true);
+    const { body: track } = await hub.request<{ id: number }>(
+      'POST',
+      '/api/modules/music-library/tracks',
+      { audioPath: path.join(dir, 'song.wav') },
+    );
+    const planned = await hub.request<{ release: Release }>('POST', `${API}/releases`, {
+      trackId: track.id,
+      date: '2031-06-02',
+    });
+    await hub.request('DELETE', `/api/modules/music-library/tracks/${old.body.trackId}`);
+    const attached = await hub.request('POST', '/api/modules/music-library/orphans/attach', {
+      ids: [record.id],
+      trackId: track.id,
+    });
+    expect(attached.status).toBe(200);
+    const moved = (await thumbnails()).find((r) => r.id === record.id)!;
+    expect(moved).toMatchObject({
+      ref: `thumbnail:${planned.body.release.id}`,
+      parent: `release:${planned.body.release.id}`,
+      subject: `music-library:track:${track.id}`,
+    });
+    const adopted = await hub.request<{ thumbnailUrl: string | null }>(
+      'GET',
+      `${API}/releases/${planned.body.release.id}`,
+    );
+    expect(adopted.body.thumbnailUrl).not.toBeNull();
+    const left = await hub.request<{ thumbnailUrl: string | null }>(
+      'GET',
+      `${API}/releases/${third.id}`,
+    );
+    expect(left.body.thumbnailUrl).toBeNull();
+  });
+});
+
+describe('release-planner without the optional generators', () => {
+  it('loads with the library only, and plans what the present modules provide', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'toolbox-rp-alone-'));
+    const ffmpeg = (args: string[]) => execFileSync(ffmpegPath!, ['-v', 'error', '-y', ...args]);
+    ffmpeg(['-f', 'lavfi', '-i', 'sine=frequency=220:duration=10', path.join(dir, 'song.wav')]);
+    const calls = { uploaded: [], published: new Map(), captions: new Map() };
+    const [youtubeVideo] = fakeProviders(dir, calls);
+    const library = await loadModuleFolder(path.join(MODULES, 'music-library'));
+    const planner = await loadModuleFolder(path.join(MODULES, 'release-planner'));
+    const host = () => createTestHost({ getDefaultOutputRoot: () => path.join(dir, 'out') });
+    const status = async (hub: TestHub) =>
+      (await hub.request<{ id: string; status: string }[]>('GET', '/api/core/modules')).body.find(
+        (m) => m.id === 'release-planner',
+      )?.status;
+    const newTrack = async (hub: TestHub) => {
+      const { body } = await hub.request<{ id: number }>(
+        'POST',
+        '/api/modules/music-library/tracks',
+        {
+          audioPath: path.join(dir, 'song.wav'),
+        },
+      );
+      return body.id;
+    };
+
+    // Library only: loaded, nothing to plan, said clearly.
+    const alone = await createTestHub({ modules: [library, planner], host: host() });
+    try {
+      expect(await status(alone)).toBe('loaded');
+      const summary = await alone.request<{ features: Record<string, boolean> }>(
+        'GET',
+        `${API}/summary`,
+      );
+      expect(summary.body.features).toEqual({
+        youtubeVideo: false,
+        instagramPack: false,
+        customReels: false,
+      });
+      const trackId = await newTrack(alone);
+      const plan = await alone.request<{
+        items: unknown[];
+        customReels: unknown[];
+        warnings: string[];
+      }>('POST', `${API}/plan`, { trackId, date: '2030-03-04' });
+      expect(plan.body.items).toEqual([]);
+      expect(plan.body.customReels).toEqual([]);
+      expect(plan.body.warnings.join('\n')).toMatch(/« Vidéo YouTube » absent/);
+      expect(plan.body.warnings.join('\n')).toMatch(/« Pack Instagram » absent/);
+      expect(
+        (await alone.request('POST', `${API}/releases`, { trackId, date: '2030-03-04' })).status,
+      ).toBe(400);
+    } finally {
+      await alone.close();
+    }
+
+    // With the YouTube video only (no pack, no Reels perso, no engine).
+    const partial = await createTestHub({
+      modules: [library, youtubeVideo!, planner],
+      host: host(),
+    });
+    try {
+      expect(await status(partial)).toBe('loaded');
+      const trackId = await newTrack(partial);
+      const created = await partial.request<{ release: Release }>('POST', `${API}/releases`, {
+        trackId,
+        date: '2030-03-04',
+      });
+      expect(created.status).toBe(200);
+      expect(created.body.release.items.map((i) => i.kind)).toEqual(['youtube']);
+      const added = await partial.request(
+        'POST',
+        `${API}/releases/${created.body.release.id}/items`,
+        {
+          customReelId: 501,
+          kinds: ['insta-reel'],
+          date: '2030-03-05',
+        },
+      );
+      expect(added.status).toBe(400);
+    } finally {
+      await partial.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
 });

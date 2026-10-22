@@ -106,11 +106,47 @@ export default defineBackendModule({
   ],
 
   register(ctx: ModuleContext) {
+    // Only the library is required (a release is a track's). The generators are
+    // optional: without one, its elements are simply never proposed.
     const library = ctx.services.get<MusicLibraryService>('musicLibrary');
-    const engine = ctx.services.get<VideoEngineService>('videoEngine');
-    const youtubeVideos = ctx.services.get<YouTubeVideoService>('youtubeVideo');
-    const packs = ctx.services.get<InstagramPackService>('instagramPack');
-    const customReels = ctx.services.get<CustomReelsService>('customReels');
+    const optional = {
+      engine: ctx.services.optional<VideoEngineService>('videoEngine'),
+      youtubeVideos: ctx.services.optional<YouTubeVideoService>('youtubeVideo'),
+      packs: ctx.services.optional<InstagramPackService>('instagramPack'),
+      customReels: ctx.services.optional<CustomReelsService>('customReels'),
+    };
+    const features = {
+      youtubeVideo: Boolean(optional.youtubeVideos),
+      instagramPack: Boolean(optional.packs),
+      customReels: Boolean(optional.customReels),
+    };
+    const absent = (name: string) => () => {
+      throw new HttpError(409, `Module « ${name} » absent ou désactivé`);
+    };
+    const youtubeVideos: YouTubeVideoService = optional.youtubeVideos ?? {
+      listVideos: () => [],
+      getVideo: () => null,
+      texts: () => null,
+      setTexts: absent('Vidéo YouTube'),
+      render: absent('Vidéo YouTube'),
+      setUploaded: () => {},
+    };
+    const packs: InstagramPackService = optional.packs ?? {
+      getPack: () => null,
+      getItem: () => null,
+      setPublished: absent('Pack Instagram'),
+      setCaption: absent('Pack Instagram'),
+      renderItem: absent('Pack Instagram'),
+    };
+    const customReels: CustomReelsService = optional.customReels ?? {
+      listReels: () => [],
+      getReel: () => null,
+      setPublished: absent('Reels depuis mes vidéos'),
+      setCaption: absent('Reels depuis mes vidéos'),
+      renderReel: absent('Reels depuis mes vidéos'),
+    };
+    if (!features.customReels)
+      ctx.logger.info('Sans « Reels depuis mes vidéos » : pas de Reels perso');
     const store = new PlannerStore(ctx);
     const youtube = (url: string, init?: RequestInit) => ctx.accounts.fetch(GOOGLE, url, init);
     let stopping = false;
@@ -606,9 +642,13 @@ export default defineBackendModule({
           `Exclus de la sortie (page du morceau) : ${[...new Set(excluded)].join(', ')}.`,
         );
       }
-      if (!video)
+      if (!features.youtubeVideo)
+        warnings.push('Module « Vidéo YouTube » absent : pas de vidéo YouTube dans le plan.');
+      else if (!video)
         warnings.push('Aucune vidéo YouTube générée pour ce morceau : elle est absente du plan.');
-      if (!pack)
+      if (!features.instagramPack)
+        warnings.push('Module « Pack Instagram » absent : ni post, ni Reels, ni Shorts du pack.');
+      else if (!pack)
         warnings.push('Pas de pack Instagram pour ce morceau : ni post, ni Reels, ni Shorts.');
       const notRendered = items.filter((item) =>
         item.kind === 'youtube' ? !video?.exists : !packItemFor(item)?.filePath,
@@ -778,7 +818,8 @@ export default defineBackendModule({
     const ensureThumbnail = async (release: ReleaseRow, track: Track): Promise<string | null> => {
       if (release.thumbnail_path && existsSync(release.thumbnail_path))
         return release.thumbnail_path;
-      if (!track.coverPath) return null;
+      if (!track.coverPath || !optional.engine) return null;
+      const engine = optional.engine;
       const file = path.join(
         ctx.files.outputDir(),
         `${track.artist} - ${track.title} - Miniature YouTube.jpg`.replace(/[<>:"/\\|?*]/g, '_'),
@@ -804,6 +845,34 @@ export default defineBackendModule({
       for (const record of records) {
         const [kind, id] = record.ref.split(':');
         if (kind === 'thumbnail') store.updateRelease(Number(id), { thumbnail_path: null });
+      }
+    });
+
+    // « Sans projet » > Rattacher a thumbnail: it leaves its old release (whose
+    // track is gone); the chosen track's release adopts it if it has none.
+    ctx.outputs.onReattach((records, newSubject) => {
+      const trackId = library.trackIdOf(newSubject);
+      if (trackId === null) throw new HttpError(409, 'Une miniature se rattache à un morceau');
+      for (const record of records) {
+        const [kind, rawId] = record.ref.split(':');
+        if (kind !== 'thumbnail') continue;
+        const old = store.release(Number(rawId));
+        if (old && old.track_id === trackId) continue;
+        if (old?.thumbnail_path === record.path) {
+          store.updateRelease(old.id, { thumbnail_path: null });
+        }
+        const target = store.releaseByTrack(trackId);
+        if (target && !(target.thumbnail_path && existsSync(target.thumbnail_path))) {
+          store.updateRelease(target.id, { thumbnail_path: record.path });
+          ctx.outputs.register({
+            path: record.path,
+            ref: `thumbnail:${target.id}`,
+            parent: `release:${target.id}`,
+            subject: subject(trackId),
+            label: 'Miniature YouTube',
+            kind: 'thumbnail',
+          });
+        }
       }
     });
 
@@ -1294,6 +1363,7 @@ export default defineBackendModule({
         quotaMessage: quotaMessage(slots, now, formatInstant),
         alerts: preAlerts(now).map(({ items: _items, ...alert }) => alert),
         autoUpload: { enabled: autoUploadOn(), days: autoUploadDays() },
+        features,
         templateErrors: parseTemplate(ctx.settings.get<string>('planTemplate') ?? DEFAULT_TEMPLATE)
           .errors,
       };
@@ -1373,27 +1443,107 @@ export default defineBackendModule({
       });
     };
 
-    // A Reel perso added to a release already planned: { customReelId, kind, date, time? }.
+    // A Reel perso added to a release already planned (« Ajouter un Reel perso »).
+    const DAY_NAMES = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
+    const CUSTOM_KINDS = ['insta-reel', 'short'] as const;
+    const customOptionsOf = (release: ReleaseRow) => {
+      const days = allowedDays();
+      const items = store.itemsOf(release.id);
+      const today = local(new Date().toISOString()).date;
+      let date = items.reduce(
+        (last, item) => {
+          const day = local(item.scheduled_at).date;
+          return day > last ? day : last;
+        },
+        release.release_date > today ? release.release_date : today,
+      );
+      const all = customReels.listReels(release.track_id);
+      const included = all.filter((reel) => library.isIncluded('custom-reels', `reel:${reel.id}`));
+      return {
+        allowedDays: days,
+        time: release.release_time,
+        excluded: all.length - included.length,
+        options: included.flatMap((reel) => {
+          const planned = Object.fromEntries(
+            CUSTOM_KINDS.map((kind) => [
+              kind,
+              items.some((i) => i.kind === kind && i.custom_reel_id === reel.id),
+            ]),
+          ) as Record<(typeof CUSTOM_KINDS)[number], boolean>;
+          if (planned['insta-reel'] && planned.short) return [];
+          date = nextAllowed(date, days);
+          return [
+            {
+              customReelId: reel.id,
+              label: reel.label,
+              rendered: reel.exists,
+              planned,
+              date,
+            },
+          ];
+        }),
+      };
+    };
+
+    ctx.routes.get('/releases/:id/custom-reels', (request) =>
+      customOptionsOf(store.requireRelease(idParam(request.params))),
+    );
+
+    /** { customReelId, kinds: ['insta-reel', 'short'], date, time? } — the date on an allowed day. */
     ctx.routes.post('/releases/:id/items', (request) => {
       const release = store.requireRelease(idParam(request.params));
       const input = body(request);
       const reel = customReels.getReel(Number(input.customReelId));
       if (!reel || reel.trackId !== release.track_id)
         throw new HttpError(400, 'Reel perso inconnu');
-      const kind = input.kind === 'short' ? 'short' : 'insta-reel';
+      if (!library.isIncluded('custom-reels', `reel:${reel.id}`)) {
+        throw new HttpError(400, 'Ce Reel perso est exclu de la sortie (page du morceau)');
+      }
+      const raw = Array.isArray(input.kinds) ? input.kinds : [input.kind ?? 'insta-reel'];
+      const kinds = CUSTOM_KINDS.filter((kind) => raw.includes(kind));
+      if (kinds.length === 0) throw new HttpError(400, 'Choisis Reel Insta et/ou Short');
       if (!isDate(input.date)) throw new HttpError(400, 'Date invalide');
+      const days = allowedDays();
+      if (!days.includes(weekday(input.date))) {
+        throw new HttpError(
+          400,
+          `Le ${shortDate(input.date)} est un ${DAY_NAMES[weekday(input.date)]} : jour non autorisé (Réglages › Jours de publication autorisés : ${days.map((d) => DAY_NAMES[d]).join(', ')})`,
+        );
+      }
       const time = isTime(input.time) ? input.time : release.release_time;
       const position = CUSTOM_OFFSET + reel.position;
-      if (store.itemsOf(release.id).some((i) => i.kind === kind && i.position === position)) {
-        throw new HttpError(409, 'Déjà dans le planning');
+      const items = store.itemsOf(release.id);
+      const already = kinds.filter((kind) =>
+        items.some((i) => i.kind === kind && i.custom_reel_id === reel.id),
+      );
+      if (already.length > 0) {
+        throw new HttpError(
+          409,
+          `Déjà dans le planning : ${already.map((kind) => itemLabel(kind, position)).join(', ')}`,
+        );
       }
-      store.addItem(release.id, {
-        kind,
-        position,
-        scheduledAt: zonedToUtc(input.date, time, timeZone()).toISOString(),
-        customReelId: reel.id,
-      });
-      return releaseDto(store.requireRelease(release.id));
+      const scheduledAt = zonedToUtc(input.date, time, timeZone()).toISOString();
+      const warnings: string[] = [];
+      for (const kind of kinds) {
+        const taken = store
+          .allItems()
+          .filter(
+            (other) =>
+              PLATFORM[other.kind] === PLATFORM[kind] &&
+              local(other.scheduled_at).date === input.date,
+          ).length;
+        if (taken >= maxPerDay()) {
+          warnings.push(
+            `Déjà ${taken} publication(s) ${PLATFORM[kind] === 'youtube' ? 'YouTube' : 'Instagram'} le ${shortDate(input.date)}.`,
+          );
+        }
+        store.addItem(release.id, { kind, position, scheduledAt, customReelId: reel.id });
+      }
+      if (Date.parse(scheduledAt) < Date.now()) warnings.push('Cette date est passée.');
+      if (!reel.exists) {
+        warnings.push(`${reel.label} n’est pas encore généré : fais-le avant la date.`);
+      }
+      return { release: releaseDto(store.requireRelease(release.id)), warnings };
     });
 
     ctx.routes.post('/releases', (request) => {

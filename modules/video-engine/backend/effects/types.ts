@@ -4,13 +4,27 @@
 // attack), never by detected events; no effect may hide the video's content.
 import type { SKRSContext2D } from '@napi-rs/canvas';
 
-export type VideoEffectId = 'raw' | 'calm' | 'rhythm' | 'cine';
+export type VideoEffectId = 'raw' | 'calm' | 'rhythm' | 'cine' | 'camera';
+
+/** « Intensité » of the energetic effects (Rythme, Caméra embarquée). EXPERIMENTAL. */
+export type EffectIntensity = 'light' | 'medium' | 'max';
+export const INTENSITY_FACTOR: Record<EffectIntensity, number> = {
+  light: 0.55,
+  medium: 1,
+  max: 1.6,
+};
 
 export interface EffectFrameInput {
   frame: number;
   frames: number;
   /** Bass envelope 0..1 at this frame (instant attack, soft release). */
   envelope: number;
+  /** Percussion / highs envelope 0..1 (instant attack, fast release). EXPERIMENTAL. */
+  high?: number;
+  /** +1 / −1, flipped on each bass attack of the final sound (the sway changes side). */
+  side?: number;
+  /** Factor of the « Intensité » setting (1 = Moyen). */
+  intensity?: number;
 }
 
 export interface EffectFrame {
@@ -18,6 +32,8 @@ export interface EffectFrame {
   zoom: number;
   /** Light flash 0..1 (white, added on top of the picture). */
   flash: number;
+  /** « Caméra embarquée » (EXPERIMENTAL): rotation (rad), shake (fraction of the width), keystone, motion blur 0..1. */
+  camera?: { rotation: number; shiftX: number; shiftY: number; keystone: number; blur: number };
 }
 
 export interface VideoEffect {

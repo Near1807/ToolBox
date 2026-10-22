@@ -16,5 +16,5 @@ Vidéos, Reels, posts, miniatures et bientôt Reels perso sont générés par de
 
 ## Conséquences
 
-- Rattacher un élément sans projet ne change que son projet dans le registre : les données propres du module (ex. la ligne d'une vidéo) gardent leur morceau d'origine, qui n'existe plus.
+- ~~Rattacher un élément sans projet ne change que son projet dans le registre : les données propres du module (ex. la ligne d'une vidéo) gardent leur morceau d'origine, qui n'existe plus.~~ Corrigé en v0.13 par l'ADR 0025 : chaque module suit le rattachement (`ctx.outputs.onReattach`).
 - Aucune donnée n'est supprimée par les migrations : elles ajoutent une colonne ou une table.

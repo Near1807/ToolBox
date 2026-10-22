@@ -42,3 +42,5 @@ Modèle :
 | 0021 | [Interface : thèmes par variables CSS, composants partagés, navigation à catégories](0021-interface-themes-composants-navigation.md) |
 | 0022 | [Tout élément généré appartient à un projet (le morceau)](0022-projets.md)                                                           |
 | 0023 | [Reels depuis les vidéos de l'utilisateur : module séparé, banque d'effets](0023-reels-depuis-mes-videos.md)                         |
+| 0024 | [Services facultatifs : un module n'exige que ce sans quoi il n'a aucun sens](0024-services-facultatifs.md)                          |
+| 0025 | [Rattachement complet : chaque module suit (`ctx.outputs.onReattach`)](0025-rattachement-complet.md)                                 |

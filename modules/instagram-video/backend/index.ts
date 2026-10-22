@@ -272,6 +272,88 @@ export default defineBackendModule({
         }
       }
     });
+    // « Sans projet » > Rattacher (one pack per track). The chosen track has no
+    // pack: the whole pack follows (its other items too). It has one: each file
+    // takes the same place in it (post, Reel n), refused if that place already
+    // has a file. All inside the core's transaction: all or nothing.
+    ctx.outputs.onReattach((records, newSubject) => {
+      const trackId = library.trackIdOf(newSubject);
+      if (trackId === null)
+        throw new HttpError(409, 'Un élément Instagram se rattache à un morceau');
+      const itemsTable = ctx.db.table('pack_items');
+      for (const record of records) {
+        const [kind, rawId] = record.ref.split(':');
+        const id = Number(rawId);
+        if (kind === 'legacy-reel') {
+          const row = ctx.db.prepare(`SELECT * FROM ${legacyReels} WHERE id = ?`).get(id) as
+            LegacyReelRow | undefined;
+          if (!row) continue;
+          ctx.db.prepare(`UPDATE ${legacyReels} SET track_id = ? WHERE id = ?`).run(trackId, id);
+          registerLegacy({ ...row, track_id: trackId });
+          continue;
+        }
+        if (kind !== 'item') continue;
+        const item = store.item(id);
+        const from = item ? store.pack(item.pack_id) : null;
+        if (!item || !from || from.track_id === trackId) continue;
+        const target = store.byTrack(trackId);
+        if (!target) {
+          ctx.db
+            .prepare(
+              `UPDATE ${ctx.db.table('packs')} SET track_id = ?, updated_at = ? WHERE id = ?`,
+            )
+            .run(trackId, new Date().toISOString(), from.id);
+          const moved = store.requirePack(from.id);
+          for (const sibling of store.listItems(from.id)) registerItem(moved, sibling);
+          continue;
+        }
+        const slot = store.listItems(target.id).find((i) => i.position === item.position);
+        if (slot?.file_path) {
+          throw new HttpError(
+            409,
+            `Le pack de ce morceau a déjà un fichier pour « ${item.kind === 'post' ? 'Post' : itemLabel(item.position)} » : supprime-le d’abord`,
+          );
+        }
+        const slotId =
+          slot?.id ??
+          Number(
+            ctx.db
+              .prepare(
+                `INSERT INTO ${itemsTable} (pack_id, kind, position, start_sec, duration_sec) VALUES (?, ?, ?, ?, ?)`,
+              )
+              .run(target.id, item.kind, item.position, item.start_sec, item.duration_sec)
+              .lastInsertRowid,
+          );
+        const carried = {
+          start_sec: item.start_sec,
+          duration_sec: item.duration_sec,
+          caption: item.caption,
+          file_path: item.file_path,
+          thumbnail_path: item.thumbnail_path,
+          rendered_start_sec: item.rendered_start_sec,
+          rendered_duration_sec: item.rendered_duration_sec,
+          rendered_at: item.rendered_at,
+          published_at: item.published_at,
+          render_version: item.render_version,
+          error: null,
+          job_id: null,
+        };
+        store.updateItem(slotId, carried);
+        // The old place goes back to « À générer » (the file now belongs to the new one).
+        store.updateItem(item.id, {
+          file_path: null,
+          thumbnail_path: null,
+          job_id: null,
+          error: null,
+          rendered_start_sec: null,
+          rendered_duration_sec: null,
+          render_version: null,
+          rendered_at: null,
+          published_at: null,
+        });
+        registerItem(target, store.requireItem(slotId));
+      }
+    });
     const outputsByRef = (pack: PackRow) =>
       new Map(ctx.outputs.list({ parent: `pack:${pack.id}` }).map((r) => [r.ref, r]));
 

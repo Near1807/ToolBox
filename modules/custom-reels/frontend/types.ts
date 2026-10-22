@@ -1,7 +1,10 @@
 // Shapes returned by the custom-reels backend.
 
 export type ReelState = 'draft' | 'rendering' | 'ready' | 'outdated' | 'failed' | 'missing';
-export type EffectId = 'raw' | 'calm' | 'rhythm' | 'cine';
+export type EffectId = 'raw' | 'calm' | 'rhythm' | 'cine' | 'camera';
+/** EXPERIMENTAL options of a Reel. */
+export type AudioMode = 'track' | 'video' | 'synced';
+export type Intensity = 'light' | 'medium' | 'max';
 
 export interface Source {
   id: number;
@@ -11,6 +14,26 @@ export interface Source {
   height: number;
   exists: boolean;
   url: string | null;
+  /** Size of the copy in ToolBox (kept after it is deleted). */
+  sizeBytes: number | null;
+  /** The copy was deleted to free disk space (« Réimporter » to change its Reels). */
+  removedAt: string | null;
+  usedBy: string[];
+  /** Every Reel using it is generated. */
+  allReady: boolean;
+  /** « Supprimer la copie ? » offered after the render (setting), until « Garder ». */
+  cleanupOffered: boolean;
+  /** EXPERIMENTAL: where the track plays in the video's sound. */
+  sync: { offset: number; score: number | null; ratio: number | null; reliable: boolean } | null;
+}
+
+/** Disk space of the imported copies. */
+export interface Storage {
+  bytes: number;
+  count: number;
+  freedBytes: number;
+  freedCount: number;
+  folder: string;
 }
 
 export interface Segment {
@@ -43,6 +66,9 @@ export interface Reel {
   renderedAt: string | null;
   publishedAt: string | null;
   included: boolean;
+  audioMode: AudioMode;
+  intensity: Intensity;
+  overlayText: string;
 }
 
 export interface TrackSummary {
@@ -63,6 +89,7 @@ export interface TrackDetail {
   audioUrl: string | null;
   defaultClip: number;
   sources: Source[];
+  storage: { track: Storage; all: Storage };
   reels: Reel[];
 }
 

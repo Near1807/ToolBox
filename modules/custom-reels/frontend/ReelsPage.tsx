@@ -8,6 +8,7 @@ import {
   errorMessage,
   ExcerptChip,
   ExcerptWaveform,
+  formatBytes,
   formatDuration,
   getFilePath,
   Page,
@@ -17,7 +18,7 @@ import {
   useModule,
 } from '@hub/sdk/frontend';
 import { ReelEditor } from './ReelEditor';
-import type { EffectInfo, TrackDetail, TrackSummary } from './types';
+import type { EffectInfo, Source, TrackDetail, TrackSummary } from './types';
 
 const VIDEO_EXTENSIONS = ['mp4', 'mov', 'm4v', 'webm', 'mkv', 'avi'];
 const CLIPS = [15, 20, 25, 28, 30, 35, 40, 45, 50, 55, 60];
@@ -54,17 +55,63 @@ function Sources(props: { track: TrackDetail; onChanged: () => void }) {
       .filter((p): p is string => p !== null);
     void add(paths);
   };
-  const remove = async (id: number) => {
+  const act = async (action: () => Promise<unknown>) => {
+    setMessages([]);
     try {
-      await module.api.delete(`/sources/${id}`);
+      const result = (await action()) as { warnings?: string[] } | undefined;
+      setMessages(result?.warnings ?? []);
       props.onChanged();
     } catch (err) {
       setMessages([errorMessage(err)]);
     }
   };
+  const remove = (id: number) => act(() => module.api.delete(`/sources/${id}`));
+  const deleteCopy = (source: Source) => {
+    if (
+      window.confirm(
+        `Envoyer la copie de « ${source.name} » (${formatBytes(source.sizeBytes)}) à la Corbeille ? ` +
+          'Les Reels déjà générés restent ; pour les modifier ou les régénérer, il faudra réimporter la vidéo. L’original n’est pas touché.',
+      )
+    ) {
+      void act(() => module.api.post(`/sources/${source.id}/delete-copy`));
+    }
+  };
+  const reimport = (source: Source) =>
+    void pickFiles({
+      title: `Réimporter « ${source.name} »`,
+      multiple: false,
+      filters: [{ name: 'Vidéo', extensions: VIDEO_EXTENSIONS }],
+    }).then(async (paths) => {
+      const [file] = paths;
+      if (file) await act(() => module.api.post(`/sources/${source.id}/reimport`, { path: file }));
+    });
+  const { storage } = props.track;
+  const offers = props.track.sources.filter((source) => source.cleanupOffered);
 
   return (
     <Card title="Tes vidéos">
+      {offers.map((source) => (
+        <div key={source.id} className="cr-cleanup" role="status">
+          <span>
+            <strong>{source.name}</strong> n’est plus nécessaire : {source.usedBy.join(', ')}{' '}
+            {source.usedBy.length > 1 ? 'sont générés' : 'est généré'}. Supprimer sa copie pour
+            libérer {formatBytes(source.sizeBytes)} ? Elle part à la Corbeille, l’original n’est pas
+            touché.
+          </span>
+          <span className="inline-form">
+            <Button small onClick={() => deleteCopy(source)}>
+              Supprimer la copie
+            </Button>
+            <Button
+              small
+              variant="secondary"
+              onClick={() => void act(() => module.api.post(`/sources/${source.id}/keep`))}
+            >
+              Garder
+            </Button>
+          </span>
+        </div>
+      ))}
       <div
         className={`cr-drop${over ? ' cr-drop--over' : ''}`}
         onDragOver={(e) => {
@@ -98,6 +145,13 @@ function Sources(props: { track: TrackDetail; onChanged: () => void }) {
           jamais utilisé.
         </p>
       </div>
+      <p className="cr-storage small muted num">
+        Place occupée par les vidéos importées : <strong>{formatBytes(storage.track.bytes)}</strong>{' '}
+        pour ce morceau ({storage.track.count}) · {formatBytes(storage.all.bytes)} au total (
+        {storage.all.count})
+        {storage.all.freedCount > 0 &&
+          ` · ${formatBytes(storage.all.freedBytes)} déjà libérés (${storage.all.freedCount} copie(s) supprimée(s))`}
+      </p>
       {messages.map((message) => (
         <ErrorMessage key={message}>{message}</ErrorMessage>
       ))}
@@ -108,25 +162,62 @@ function Sources(props: { track: TrackDetail; onChanged: () => void }) {
               <span>
                 <strong>{source.name}</strong>{' '}
                 <span className="muted small num">
-                  {formatDuration(source.durationSec)} · {source.width}×{source.height}
+                  {formatDuration(source.durationSec)} · {source.width}×{source.height} ·{' '}
+                  {formatBytes(source.sizeBytes)}
+                  {source.usedBy.length > 0 && ` · ${source.usedBy.join(', ')}`}
                 </span>
-                {!source.exists && <span className="badge badge--warning">Introuvable</span>}
+                {source.removedAt ? (
+                  <span
+                    className="badge"
+                    title="Copie envoyée à la Corbeille pour libérer de la place. Les Reels déjà générés restent ; réimporte la vidéo pour les modifier ou les régénérer."
+                  >
+                    Copie supprimée
+                  </span>
+                ) : (
+                  !source.exists && <span className="badge badge--warning">Introuvable</span>
+                )}
               </span>
-              <Button
-                variant="secondary"
-                small
-                onClick={() => {
-                  if (
-                    window.confirm(
-                      `Retirer « ${source.name} » de ToolBox ? L’original n’est pas touché.`,
-                    )
-                  ) {
-                    void remove(source.id);
-                  }
-                }}
-              >
-                Retirer
-              </Button>
+              <span className="inline-form">
+                {source.removedAt ? (
+                  <Button variant="secondary" small onClick={() => reimport(source)}>
+                    Réimporter
+                  </Button>
+                ) : (
+                  source.exists &&
+                  source.usedBy.length > 0 && (
+                    <Button
+                      variant="secondary"
+                      small
+                      disabled={!source.allReady}
+                      title={
+                        source.allReady
+                          ? 'Libère la place : les Reels déjà générés restent'
+                          : 'Possible quand tous ses Reels sont générés et à jour'
+                      }
+                      onClick={() => deleteCopy(source)}
+                    >
+                      Supprimer la copie
+                    </Button>
+                  )
+                )}
+                {source.usedBy.length === 0 && (
+                  <Button
+                    variant="secondary"
+                    small
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          `Retirer « ${source.name} » de ToolBox ? Sa copie part à la Corbeille, l’original n’est pas touché.`,
+                        )
+                      ) {
+                        void remove(source.id);
+                      }
+                    }}
+                  >
+                    Retirer
+                  </Button>
+                )}
+              </span>
             </li>
           ))}
         </ul>

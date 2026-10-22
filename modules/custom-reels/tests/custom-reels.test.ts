@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import ffprobePath from '@derhuerst/ffprobe-static';
@@ -54,8 +54,28 @@ interface Reel {
   fileName: string | null;
   publishedAt: string | null;
 }
+interface Source {
+  id: number;
+  name: string;
+  durationSec: number;
+  width: number;
+  height: number;
+  exists: boolean;
+  sizeBytes: number | null;
+  removedAt: string | null;
+  usedBy: string[];
+  allReady: boolean;
+  cleanupOffered: boolean;
+}
+interface Storage {
+  bytes: number;
+  count: number;
+  freedBytes: number;
+  freedCount: number;
+}
 interface Track {
-  sources: { id: number; name: string; durationSec: number; width: number; height: number }[];
+  sources: Source[];
+  storage: { track: Storage; all: Storage };
   reels: Reel[];
 }
 
@@ -132,6 +152,21 @@ describe('custom-reels (Reels from my videos)', () => {
     const { sources } = await track();
     expect(sources[0]).toMatchObject({ name: 'clip.mp4', width: 640, height: 360 });
     expect(sources[0]!.durationSec).toBeCloseTo(6, 0);
+    // Its size is counted; the copy is in ctx.outputs (kind « source »).
+    const { storage } = await track();
+    expect(sources[0]!.sizeBytes).toBe(statSync(video).size);
+    expect(storage.track).toMatchObject({ bytes: statSync(video).size, count: 1, freedBytes: 0 });
+    const records = await hub.request<{ ref: string; kind: string; subject: string }[]>(
+      'GET',
+      '/api/core/outputs?module=custom-reels',
+    );
+    expect(records.body).toEqual([
+      expect.objectContaining({
+        ref: `source:${sources[0]!.id}`,
+        kind: 'source',
+        subject: `music-library:track:${trackId}`,
+      }),
+    ]);
   });
 
   it('creates 1 to 4 Reels on the loud passage, with a video each', async () => {
@@ -178,6 +213,15 @@ describe('custom-reels (Reels from my videos)', () => {
     expect(
       (await hub.request('PATCH', `${API}/reels/${reel!.id}`, { effect: 'disco' })).status,
     ).toBe(400);
+    // Not generated yet: the copy is still needed.
+    const [src] = (await track()).sources;
+    expect(src).toMatchObject({ allReady: false, cleanupOffered: false });
+    const needed = await hub.request<{ error: string }>(
+      'POST',
+      `${API}/sources/${src!.id}/delete-copy`,
+    );
+    expect(needed.status).toBe(409);
+    expect(needed.body.error).toMatch(/Encore nécessaire : Reel perso 1/);
   });
 
   it('renders a 1080×1920 Reel whose only sound is the track excerpt', async () => {
@@ -220,11 +264,56 @@ describe('custom-reels (Reels from my videos)', () => {
       'GET',
       `/api/core/outputs?module=custom-reels`,
     );
-    expect(outputs.body[0]).toMatchObject({
-      ref: `reel:${rendered.id}`,
+    expect(outputs.body.find((r) => r.ref === `reel:${rendered.id}`)).toMatchObject({
       subject: `music-library:track:${trackId}`,
     });
   }, 480_000);
+
+  it('offers to delete the imported copy once its Reels are generated (Recycle Bin), then re-imports it', async () => {
+    let [src] = (await track()).sources;
+    const size = src!.sizeBytes!;
+    expect(src).toMatchObject({ usedBy: ['Reel perso 1'], allReady: true, cleanupOffered: true });
+    const copy = (
+      await hub.request<{ ref: string; path: string }[]>(
+        'GET',
+        '/api/core/outputs?module=custom-reels',
+      )
+    ).body.find((r) => r.ref === `source:${src!.id}`)!;
+    expect(existsSync(copy.path)).toBe(true);
+
+    const after = await hub.request<Track>('POST', `${API}/sources/${src!.id}/delete-copy`);
+    expect(after.status).toBe(200);
+    src = after.body.sources[0];
+    expect(src).toMatchObject({ exists: false, cleanupOffered: false });
+    expect(src!.removedAt).not.toBeNull();
+    expect(existsSync(copy.path)).toBe(false);
+    expect(existsSync(video)).toBe(true); // the original is never touched
+    expect(after.body.storage.track).toMatchObject({
+      bytes: 0,
+      count: 0,
+      freedBytes: size,
+      freedCount: 1,
+    });
+    // The Reel made with it stays, and can be published; it cannot be rendered again.
+    const [reel] = after.body.reels;
+    expect(reel!.state).toBe('ready');
+    const refused = await hub.request<{ error: string }>('POST', `${API}/reels/${reel!.id}/render`);
+    expect(refused.status).toBe(400);
+    expect(refused.body.error).toMatch(/copie de « clip\.mp4 » a été supprimée.*réimporte/);
+
+    // « Réimporter »: the same video, its Reels can change again.
+    const back = await hub.request<{ track: Track; warnings: string[] }>(
+      'POST',
+      `${API}/sources/${src!.id}/reimport`,
+      { path: video },
+    );
+    expect(back.status).toBe(200);
+    expect(back.body.warnings).toEqual([]);
+    expect(back.body.track.sources[0]).toMatchObject({ exists: true, removedAt: null });
+    // « Garder »: not offered any more.
+    const kept = await hub.request<Track>('POST', `${API}/sources/${src!.id}/keep`);
+    expect(kept.body.sources[0]).toMatchObject({ allReady: true, cleanupOffered: false });
+  });
 
   it('marks a changed Reel « À régénérer », tracks publication, then deletes it', async () => {
     const [reel] = (await track()).reels;

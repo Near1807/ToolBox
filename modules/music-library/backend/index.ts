@@ -166,6 +166,10 @@ export default defineBackendModule({
     const service: MusicLibraryService = {
       listTracks: () => library.list(),
       getTrack: (id) => library.get(id),
+      trackIdOf: (subject) => {
+        const match = /^music-library:track:(\d+)$/.exec(subject);
+        return match && library.get(Number(match[1])) ? Number(match[1]) : null;
+      },
       recordOutput: (trackId, output) => library.recordOutput(trackId, output),
       listOutputs: (trackId) => library.listOutputs(trackId),
       registerTrackInfo: (provider) => {
@@ -234,7 +238,22 @@ export default defineBackendModule({
         ? input.ids.map(Number).filter((id) => orphanIds.has(id))
         : [];
       if (ids.length === 0) throw new HttpError(400, 'Aucun élément sans projet sélectionné');
-      return { attached: ctx.outputs.attach(ids, trackSubject(track.id)) };
+      // Each owner module moves its own rows too (onReattach), all or nothing.
+      let attached: number;
+      try {
+        attached = ctx.outputs.attach(ids, trackSubject(track.id));
+      } catch (error) {
+        if (error instanceof HttpError) throw error;
+        throw new HttpError(409, error instanceof Error ? error.message : String(error));
+      }
+      // « Inclure dans la sortie » follows the element to its new project.
+      const move = ctx.db.prepare(
+        `UPDATE ${projectItems} SET track_id = ? WHERE module_id = ? AND ref = ?`,
+      );
+      for (const record of ctx.outputs.bySubject(trackSubject(track.id))) {
+        if (ids.includes(record.id)) move.run(track.id, record.moduleId, record.ref);
+      }
+      return { attached };
     });
 
     ctx.routes.post('/tracks', async (request) => {

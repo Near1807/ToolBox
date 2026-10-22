@@ -108,6 +108,8 @@ export interface Summary {
     level: 'J-3' | 'J-1';
   }[];
   autoUpload: { enabled: boolean; days: number };
+  /** Optional modules present (the planner works without them). */
+  features: { youtubeVideo: boolean; instagramPack: boolean; customReels: boolean };
 }
 
 export interface TrackChoice {
@@ -165,3 +167,20 @@ export const STATUS_LABELS: Record<ItemStatus, string> = {
 
 /** One colour per track (colorIndex 0..7): the theme's series tokens (docs/THEMES.md). */
 export const TRACK_COLORS = Array.from({ length: 8 }, (_, i) => `var(--series-${i + 1})`);
+
+/** « Ajouter un Reel perso » on a release already planned. */
+export interface CustomReelOptions {
+  /** Allowed weekdays, 0 = Monday. */
+  allowedDays: number[];
+  time: string;
+  /** Reels perso unticked « Inclure dans la sortie » (not offered). */
+  excluded: number;
+  options: {
+    customReelId: number;
+    label: string;
+    rendered: boolean;
+    planned: { 'insta-reel': boolean; short: boolean };
+    /** Suggested: the next allowed day after the release's last element. */
+    date: string;
+  }[];
+}

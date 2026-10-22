@@ -54,4 +54,34 @@ describe('planModuleLoading', () => {
     ]);
     expect(plan.blocked.get('a')).toMatch(/circulaire/);
   });
+
+  it('loads providers of optional services first, and never blocks without them', () => {
+    const plan = planModuleLoading(
+      [
+        manifest('planner', {
+          dependsOn: { services: ['library'], optionalServices: ['reels', 'stats'] },
+        }),
+        manifest('reels', { provides: { services: ['reels'] } }),
+        manifest('library', { provides: { services: ['library'] } }),
+        manifest('stats', { provides: { services: ['stats'] } }),
+      ],
+      new Map([['stats', 'désactivé']]),
+    );
+    expect(plan.blocked.size).toBe(0);
+    expect(plan.order.indexOf('reels')).toBeLessThan(plan.order.indexOf('planner'));
+    expect(plan.order).not.toContain('stats');
+    // Absent provider: still loaded.
+    expect(
+      planModuleLoading([manifest('a', { dependsOn: { optionalServices: ['x'] } })]).order,
+    ).toEqual(['a']);
+  });
+
+  it('breaks a cycle made only of optional links', () => {
+    const plan = planModuleLoading([
+      manifest('a', { provides: { services: ['sa'] }, dependsOn: { optionalServices: ['sb'] } }),
+      manifest('b', { provides: { services: ['sb'] }, dependsOn: { optionalServices: ['sa'] } }),
+    ]);
+    expect(plan.blocked.size).toBe(0);
+    expect(plan.order).toHaveLength(2);
+  });
 });

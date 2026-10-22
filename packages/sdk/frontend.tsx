@@ -235,6 +235,20 @@ export function formatDuration(seconds: number | null | undefined): string {
   return `${minutes}:${String(total % 60).padStart(2, '0')}`;
 }
 
+/** 1_234_567_890 → "1,1 Go" (French units, powers of 1024). */
+export function formatBytes(bytes: number | null | undefined): string {
+  if (bytes === null || bytes === undefined || !Number.isFinite(bytes)) return '—';
+  const units = ['o', 'Ko', 'Mo', 'Go', 'To'];
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit++;
+  }
+  const digits = unit === 0 || value >= 100 ? 0 : 1;
+  return `${value.toFixed(digits).replace('.', ',')} ${units[unit]}`;
+}
+
 // ---------------------------------------------------------------------------
 // Hooks
 // ---------------------------------------------------------------------------

@@ -67,6 +67,23 @@ describe('template module', () => {
     );
   });
 
+  it('follows when its exports are attached to another project (onReattach)', async () => {
+    const created = await hub.request<{ id: number }>('POST', '/api/modules/template/notes', {
+      text: 'À rattacher',
+    });
+    const exported = await hub.request<{ id: number }>(
+      'POST',
+      `/api/modules/template/notes/${created.body.id}/export`,
+    );
+    // Without onReattach, the core would refuse (MODULES.md §5.13).
+    expect(hub.hub.outputs.attach([exported.body.id], 'autre:projet:1')).toBe(1);
+    const list = await hub.request<{ subject: string }[]>(
+      'GET',
+      '/api/core/outputs?module=template',
+    );
+    expect(list.body[0]?.subject).toBe('autre:projet:1');
+  });
+
   it('returns its default setting', async () => {
     const { body } = await hub.request<{ greeting: string }>(
       'GET',

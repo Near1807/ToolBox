@@ -58,8 +58,13 @@ export interface ModuleManifest {
   dependsOn?: {
     /** Modules that must be present and loaded. */
     modules?: string[];
-    /** Services (provided by any loaded module) this module consumes. */
+    /** Services (provided by any loaded module) this module cannot work without. */
     services?: string[];
+    /**
+     * Services used when present (ctx.services.optional()): the module works
+     * without them. Their providers, if any, are loaded first.
+     */
+    optionalServices?: string[];
   };
   provides?: {
     /** Services this module registers with ctx.services.provide(). */

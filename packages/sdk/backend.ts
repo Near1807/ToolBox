@@ -150,6 +150,15 @@ export type OutputRemovedHandler = (
   reason: 'deleted' | 'forgotten',
 ) => void;
 
+/**
+ * Called when the user attaches records of this module to another project
+ * (« Sans projet » > Rattacher), with the new `subject`. The core record is
+ * already updated; the module moves its OWN row (track_id…), then re-registers
+ * the file if `parent` depends on it. Runs inside the same transaction:
+ * synchronous only; throw (e.g. HttpError 409) to refuse, nothing changes.
+ */
+export type OutputReattachHandler = (records: OutputRecord[], subject: string) => void;
+
 export interface ModuleOutputs {
   /** Records (or updates, same path) a generated file. Call it after every render. */
   register(output: {
@@ -183,8 +192,14 @@ export interface ModuleOutputs {
    * `isKnown` returns false (e.g. a deleted track). For the « Sans projet » list.
    */
   orphans(isKnown: (subject: string) => boolean): OutputRecord[];
-  /** Attaches records of any module to a project chosen by the user (kept from then on). */
+  /**
+   * Attaches records of any module to a project chosen by the user (kept from
+   * then on). Each owner module follows through its onReattach handler, in one
+   * transaction; refused when an owner declares none (absent or too old).
+   */
   attach(ids: number[], subject: string): number;
+  /** Declares how the module moves its own rows when records change project. */
+  onReattach(handler: OutputReattachHandler): void;
 }
 
 /** Executables embedded in the app, usable by any module (child_process.execFile/spawn). */
@@ -316,6 +331,11 @@ export interface ModuleServices {
   provide<T extends object>(name: string, implementation: T): void;
   /** Returns a service declared in manifest.dependsOn.services. */
   get<T extends object>(name: string): T;
+  /**
+   * Returns a service declared in manifest.dependsOn.optionalServices, or
+   * undefined when no loaded module provides it (the module must work without).
+   */
+  optional<T extends object>(name: string): T | undefined;
 }
 
 /** State of a connected account (OAuth), as seen by modules and the Settings page. */

@@ -51,7 +51,11 @@ export interface RenderResult {
 }
 
 /** Effects of the Reels made from the user's videos (docs/DIRECTION-ARTISTIQUE.md). */
-export type VideoEffectId = 'raw' | 'calm' | 'rhythm' | 'cine';
+export type VideoEffectId = 'raw' | 'calm' | 'rhythm' | 'cine' | 'camera';
+/** « Intensité » of Rythme and Caméra embarquée (EXPERIMENTAL). */
+export type EffectIntensity = 'light' | 'medium' | 'max';
+/** Sound of a video Reel (EXPERIMENTAL except « track »). */
+export type ReelAudioMode = 'track' | 'video' | 'synced';
 
 export interface VideoEffectInfo {
   id: VideoEffectId;
@@ -76,6 +80,30 @@ export interface VideoReelRequest {
   artist: string;
   /** Default 0.5 s. */
   fadeSeconds?: number;
+  /**
+   * EXPERIMENTAL. « track » (default): the track excerpt. « video »: the videos'
+   * own sound for the chosen passages (normalised, limited). « synced »: the
+   * master of the track placed exactly where it plays in the video (`syncOffsets`).
+   * Outside « track », the Reel lasts as long as the passages (no loop).
+   */
+  audioMode?: ReelAudioMode;
+  /** « synced »: per video file, track time = video time + offset (s). */
+  syncOffsets?: Record<string, number>;
+  /** EXPERIMENTAL: Rythme and Caméra embarquée (default « medium »). */
+  intensity?: EffectIntensity;
+  /** EXPERIMENTAL: free text shown discreetly at the top (safe zone). */
+  overlayText?: string;
+}
+
+/** Where the track plays in a video's sound (EXPERIMENTAL, cross-correlation). */
+export interface TrackSync {
+  /** Track time = video time + offset (s). */
+  offset: number;
+  /** Normalised correlation of the best match (0..1). */
+  score: number;
+  /** Best match / best other match (far from it). */
+  ratio: number;
+  reliable: boolean;
 }
 
 export interface VideoInfo {
@@ -127,6 +155,8 @@ export interface VideoEngineService {
   ): Promise<RenderResult & { looped: boolean }>;
   /** Duration and displayed size of a video file. */
   probeVideo(videoPath: string): Promise<VideoInfo>;
+  /** EXPERIMENTAL: finds where the track plays in the video's sound. */
+  findTrackInVideo(trackPath: string, videoPath: string): Promise<TrackSync>;
   /** `count` small JPEG frames evenly spread over the video (timeline), written to `outputDir`. */
   filmstrip(videoPath: string, count: number, outputDir: string): Promise<string[]>;
   /** Peaks (0..1, `bars` values) of a whole audio file, for the excerpt waveform. */

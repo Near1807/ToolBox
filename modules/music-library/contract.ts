@@ -72,6 +72,11 @@ export interface MusicLibraryService {
   listTracks(): Track[];
   getTrack(id: number): Track | null;
   /**
+   * The track of a project subject (`music-library:track:<id>`), or null when
+   * the subject is not a track or the track does not exist. For onReattach.
+   */
+  trackIdOf(subject: string): number | null;
+  /**
    * @deprecated Since v0.7 generated files go through ctx.outputs with the subject
    * `music-library:track:<id>`: the track page lists them from there. Kept for compatibility.
    */

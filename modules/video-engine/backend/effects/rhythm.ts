@@ -16,9 +16,9 @@ export const rhythm: VideoEffect = {
   grade: 'eq=contrast=1.04:saturation=1.05',
   grain: 3,
   releaseSec: 0.2,
-  frame: ({ envelope }) => ({
-    zoom: 1 + RHYTHM_ZOOM * envelope,
+  frame: ({ envelope, intensity = 1 }) => ({
+    zoom: 1 + RHYTHM_ZOOM * intensity * envelope,
     // Squared: only the real hits flash, the small bass movements do not.
-    flash: RHYTHM_FLASH * envelope * envelope,
+    flash: Math.min(0.3, RHYTHM_FLASH * intensity * envelope * envelope),
   }),
 };
