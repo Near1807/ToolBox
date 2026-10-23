@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { Outlet, useNavigate } from 'react-router';
+import { ModuleBackgrounds } from '../modules/ModuleExtras';
 import { NavigationProvider } from './NavigationContext';
 import { Sidebar } from './Sidebar';
 import { useFullscreen, WindowButtons } from './WindowControls';
@@ -18,6 +19,7 @@ export function Layout() {
           <Outlet />
         </main>
         <WindowButtons fullscreen={fullscreen} />
+        <ModuleBackgrounds />
       </div>
     </NavigationProvider>
   );

@@ -2,8 +2,13 @@
 // Shared by the backend loader, the frontend shell and modules themselves.
 // The authoritative description lives in docs/MODULES.md — keep both in sync.
 
-/** A setting declared by a module; the Settings page renders a form from it. */
-export type SettingField =
+/**
+ * A setting declared by a module; the Settings page renders a form from it.
+ * `hidden: true` keeps it off the Settings page (the module edits it on its own page).
+ */
+export type SettingField = SettingFieldBase & { hidden?: boolean };
+
+type SettingFieldBase =
   | {
       key: string;
       type: 'string' | 'text';
@@ -73,6 +78,10 @@ export interface ModuleManifest {
   permissions?: {
     /** Account providers this module needs through ctx.accounts (e.g. "google"). */
     accounts?: string[];
+    /** Lists and runs the assistant actions of every module (ctx.assistant.actions/run/undo). */
+    assistant?: boolean;
+    /** Listens to keys system-wide, even without focus (ctx.hotkeys): push-to-talk. */
+    globalKeys?: boolean;
   };
   settings?: SettingField[];
 }

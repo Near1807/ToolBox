@@ -2,7 +2,8 @@
 // (ELECTRON_RUN_AS_NODE), not only in the system Node used by Vitest.
 // better-sqlite3 >= 13 ships N-API prebuilds, so one binary serves both
 // (see docs/decisions/0003-sqlite-better-sqlite3.md); so does @napi-rs/canvas
-// (docs/decisions/0017-rendu-image-par-image.md). This guards against regressions.
+// (docs/decisions/0017-rendu-image-par-image.md) and uiohook-napi (global
+// push-to-talk key, docs/decisions/0028). This guards against regressions.
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 
@@ -22,6 +23,9 @@ const probe = `
   const pixel = Array.from(canvas.data().subarray(0, 3)).join(',');
   if (pixel !== '200,100,50') throw new Error('@napi-rs/canvas draws wrong pixels: ' + pixel);
   console.log('@napi-rs/canvas OK in Electron (Skia, N-API)');
+  const { UiohookKey } = require('uiohook-napi');
+  if (UiohookKey.F23 !== 106) throw new Error('uiohook-napi: unexpected key codes');
+  console.log('uiohook-napi OK in Electron (global keys, N-API)');
 `;
 
 const result = spawnSync(electronPath, ['-e', probe], {

@@ -36,6 +36,18 @@ export interface FrontendModule {
   nav?: { label?: string; hidden?: boolean };
   /** Small component shown in the module's card on the home page. */
   HomeWidget?: ComponentType;
+  /**
+   * Invisible component mounted once for the whole session in the main window
+   * (even when the module's page is closed, the window minimised or in the
+   * tray): microphone, playback, live streams. Keep it light.
+   */
+  Background?: ComponentType;
+  /**
+   * Content of the floating indicator (small always-on-top window, transparent
+   * background), shown while the module's backend asks for it with
+   * ctx.ui.setOverlay(true). Return null when there is nothing to show.
+   */
+  Overlay?: ComponentType;
 }
 
 /** Identity helper giving type inference to `frontend/index.tsx`. */
@@ -455,7 +467,8 @@ export function ProgressBar(props: { value: number | null }) {
 
 /** Catches rendering errors of a module so the rest of the shell keeps working. */
 export class ErrorBoundary extends Component<
-  { label: string; children: ReactNode },
+  /** `silent`: render nothing on error (invisible components: Background, Overlay). */
+  { label: string; silent?: boolean; children: ReactNode },
   { error: Error | null }
 > {
   override state: { error: Error | null } = { error: null };
@@ -470,6 +483,7 @@ export class ErrorBoundary extends Component<
 
   override render() {
     if (this.state.error) {
+      if (this.props.silent) return null;
       return (
         <div className="card card--error">
           <strong>« {this.props.label} » a rencontré une erreur d’affichage.</strong>

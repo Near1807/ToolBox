@@ -19,6 +19,7 @@ describe('settings', () => {
               { key: 'duration', type: 'number', label: 'Durée', min: 15, max: 90, default: 30 },
               { key: 'apiKey', type: 'secret', label: 'Clé' },
               { key: 'days', type: 'weekdays', label: 'Jours', default: '1,2,3,4,5' },
+              { key: 'key', type: 'string', label: 'Touche', default: '106', hidden: true },
             ],
           },
           backend: {
@@ -34,6 +35,13 @@ describe('settings', () => {
 
   afterEach(async () => {
     await hub.close();
+  });
+
+  it('keeps hidden settings off the Settings page, but readable', async () => {
+    const { body } = await hub.request<SettingsSection[]>('GET', '/api/core/settings');
+    const keys = body.find((s) => s.scope === 'conf')!.fields.map((f) => f.field.key);
+    expect(keys).not.toContain('key');
+    expect(settings.get('key')).toBe('106');
   });
 
   it('returns declared defaults', () => {

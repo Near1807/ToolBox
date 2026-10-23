@@ -37,6 +37,23 @@ describe('template module', () => {
     expect(removed.status).toBe(200);
   });
 
+  it('offers its actions to the assistant', async () => {
+    const actions = hub.hub.assistant.list().filter((a) => a.moduleId === 'template');
+    expect(actions.map((a) => [a.name, a.risk])).toEqual([
+      ['count-notes', 'read'],
+      ['add-note', 'change'],
+    ]);
+    const added = await hub.hub.assistant.run('template.add-note', { text: 'Dictée' });
+    expect(added).toMatchObject({ status: 'done', message: 'J’ai ajouté la note « Dictée ».' });
+    expect(await hub.hub.assistant.run('template.count-notes', {})).toMatchObject({
+      data: { count: 1 },
+    });
+    await hub.hub.assistant.undo((added as { undoId: string }).undoId);
+    expect(await hub.hub.assistant.run('template.count-notes', {})).toMatchObject({
+      data: { count: 0 },
+    });
+  });
+
   it('rejects an empty note with a clear message', async () => {
     const response = await hub.request<{ error: string }>('POST', '/api/modules/template/notes', {
       text: '  ',

@@ -31,6 +31,7 @@ L'id (`mon-outil`) est en kebab-case, unique, et **identique au nom du dossier**
 3. **Fichiers générés** (vidéo, image, export…) : écrits dans `ctx.files.outputDir()` et **toujours** enregistrés avec `ctx.outputs.register(...)` — avec leur **projet** (`subject`, obligatoire : en Musique `music-library:track:<id>`, le morceau source) — plus un `ctx.outputs.onRemoved(...)` qui efface les données liées du module et un `ctx.outputs.onReattach(...)` qui déplace ses lignes quand l'utilisateur rattache un fichier « Sans projet » à un autre projet. C'est obligatoire (MODULES.md §5.13) : sans cela, l'utilisateur ne peut ni les supprimer ni voir qu'ils ont disparu. Exemple : la route `/notes/:id/export` du modèle.
 4. Erreurs utilisateur → `throw new HttpError(400, 'message en français')`.
 5. Si le module fournit un service : décrire son interface dans `contract.ts` (types uniquement).
+6. **Actions pour l'assistant vocal** (obligatoire, MODULES.md §5.15) : `ctx.assistant.define(...)` pour ce que l'assistant doit pouvoir faire avec l'outil. Au minimum une action de lecture (« où en est… ? »). Choisir le niveau de risque : `read`, `change` (avec `undo`), `destructive` (avec `confirmation`), `sensitive` (jamais exécutée, avec `page`). Exemples : `count-notes` et `add-note` du modèle, `todo` pour un module complet.
 
 Supprimer tout ce qui ne sert pas (route de démo, tâche planifiée…).
 

@@ -19,6 +19,7 @@ Modules actuels (section Musique) : `music-library` (bibliothèque, service `mus
 - **SQLite** via `better-sqlite3` (N-API, aucun rebuild pour Electron), base unique `hub.db` dans `app.getPath('userData')`.
 - **FFmpeg/FFprobe** embarqués : `ffmpeg-static` + `@derhuerst/ffprobe-static` (même build ; FFmpeg **6.1** sous Windows, 7.0 sous Linux : rester compatible 6.1), dépaquetés de l'asar.
 - **Canvas** `@napi-rs/canvas` (Skia, N-API précompilé, dépaqueté de l'asar) : rendu des Reels image par image (ADR 0017).
+- **Touche globale** `uiohook-napi` (N-API précompilé, dépaqueté de l'asar) : touche maintenue « parler » de l'assistant, même sans le focus (ADR 0028).
 - Secrets et jetons OAuth chiffrés avec `safeStorage` via l'interface `HostAdapter` (`backend/core/host.ts`). Comptes connectés (`ctx.accounts`, OAuth Google installé : boucle locale + PKCE, ADR 0018) ; notifications Windows et zone de notification (ADR 0019).
 - Qualité : ESLint 10 + Prettier, Vitest 5, TypeScript 6 (pas 7 : non supporté par typescript-eslint). zod (manifests), yazl (export .zip).
 
@@ -33,7 +34,7 @@ Modules actuels (section Musique) : `music-library` (bibliothèque, service `mus
 | `npm run test:full`                        | Suite complète, dont les rendus complets (`fullRenderTests`) ; toujours lancée par la CI Windows                                              |
 | `npm run lint` / `npm run format`          | ESLint (dont la règle des frontières de modules) + Prettier + aucune couleur en dur dans l'interface (`check:ui-colors`)                      |
 | `npm run typecheck`                        | `tsc --noEmit`                                                                                                                                |
-| `npm run check:native`                     | Vérifie que better-sqlite3 et @napi-rs/canvas se chargent dans le Node d'Electron                                                             |
+| `npm run check:native`                     | Vérifie que better-sqlite3, @napi-rs/canvas et uiohook-napi se chargent dans le Node d'Electron (sous Linux : `xvfb-run -a`)                  |
 | `npm run dist:win`                         | Installateur NSIS + portable dans `dist/` (sous Windows, ou via la CI)                                                                        |
 | `node scripts/smoke-test.mjs <exe> [args]` | Auto-test d'un build (API, SQLite, FFmpeg, canvas, module modèle, UI)                                                                         |
 
@@ -78,6 +79,7 @@ site/            site public statique (accueil + confidentialité, exigés par G
 - **Thèmes** : couleurs, arrondis, ombres et polices de l'interface = variables CSS des thèmes (`frontend/src/themes/`, `docs/THEMES.md`). Aucune couleur en dur dans le shell ni dans les modules (`npm run lint` le vérifie). Les thèmes concernent l'interface ; les visuels générés suivent la direction artistique.
 - Visuels : respecter `docs/DIRECTION-ARTISTIQUE.md` (sobre ; cover toujours entière, jamais recadrée ni étirée ; seuls mouvements lents de l'image entière ; couleurs de la cover). Vidéos de l'utilisateur (`custom-reels`) : banque d'effets permise (un fichier par effet), sans jamais masquer le contenu. Pixels carrés (`setsar=1`) en fin de chaîne, son ≤ -1 dBTP (≤ -1,1 dBTP pour les Reels perso). **Tout mouvement est piloté directement par le son, jamais par des événements détectés** (synchro mesurée, ≤ 1 image).
 - **Données : une migration publiée ne se modifie jamais ; aucune suppression de données hors migration explicite** (ou demande explicite de l'utilisateur dans l'interface, avec confirmation). Le socle sauvegarde `hub.db` avant chaque migration et restaure en cas d'échec (`docs/MODULES.md` §6).
+- **Assistant** : chaque module expose ses actions (`ctx.assistant.define`, niveau de risque `read` / `change` / `destructive` / `sensitive`, appliqué par le socle). `docs/MODULES.md` §5.15, ADR 0028.
 - **Dépendances** : un module n'exige (`dependsOn`) que ce sans quoi il n'a aucun sens ; le reste en `dependsOn.optionalServices` + `ctx.services.optional()`, et le module fonctionne sans. ADR 0024.
 - Toute modification du contrat de module ou de l'architecture met à jour la doc **dans le même commit**. Nouvelle décision structurante → nouvel ADR.
 - **Tests** : pendant une session, lancer les tests rapides (`npm test`). La suite complète (`npm run test:full`) tourne en CI à chaque push ; en local, seulement si un rendu (moteur, effets, générateurs) a été modifié. Un nouveau test de rendu complet se marque `describe.runIf(fullRenderTests)` (`docs/MODULES.md` §8).

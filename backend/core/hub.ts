@@ -15,6 +15,8 @@ import {
   ACCOUNTS_SCOPE,
   type OAuthProvider,
 } from './accounts';
+import { AssistantRegistry } from './assistant';
+import { registerCoreActions } from './assistant-core';
 import { createAutomaticBackup, restoreBackup } from './backups';
 import { coreMigrations } from './core-migrations';
 import { DatabaseHandle } from './database';
@@ -22,6 +24,7 @@ import { EventBus } from './events';
 import { getFfmpegPath, getFfprobePath } from './ffmpeg-binaries';
 import { createModuleFiles } from './files';
 import type { HostAdapter } from './host';
+import { HotkeyManager } from './hotkeys';
 import { JobManager } from './jobs';
 import { LogStore } from './logger';
 import { MediaSigner } from './media';
@@ -117,6 +120,10 @@ export class Hub {
   readonly media: MediaSigner;
   readonly outputs: OutputStore;
   readonly accounts: AccountManager;
+  readonly assistant = new AssistantRegistry();
+  readonly hotkeys: HotkeyManager;
+  /** Modules currently asking for the floating indicator. */
+  private readonly overlayRequests = new Set<string>();
   private readonly records = new Map<string, ModuleRecord>();
 
   private constructor(readonly options: HubOptions) {
@@ -145,6 +152,7 @@ export class Hub {
       this.logs.logger(ACCOUNTS_SCOPE),
       options.accountProviders,
     );
+    this.hotkeys = new HotkeyManager(options.host, this.logger);
   }
 
   static async create(options: HubOptions): Promise<Hub> {
@@ -199,6 +207,7 @@ export class Hub {
       if (scope === CORE_SCOPE && key === 'launchAtStartup') this.applyLaunchAtStartup();
     });
     this.jobs.recover();
+    registerCoreActions(this);
 
     this.discover();
     await this.loadModules();
@@ -422,6 +431,17 @@ export class Hub {
       services: this.services.forModule(manifest, pendingServices),
       accounts: this.accounts.forModule(manifest),
       notifications: createModuleNotifications(id, this.host, logger),
+      assistant: this.assistant.forModule(manifest, logger, (off) => disposers.push(off)),
+      hotkeys: this.hotkeys.forModule(id, manifest.permissions?.globalKeys === true, (off) =>
+        disposers.push(off),
+      ),
+      ui: {
+        open: (route) => {
+          if (!route.startsWith('/')) throw new Error(`Route invalide « ${route} »`);
+          this.host.showWindow(route);
+        },
+        setOverlay: (visible) => this.setOverlay(id, visible),
+      },
       binaries: {
         get ffmpeg() {
           return getFfmpegPath();
@@ -453,12 +473,21 @@ export class Hub {
       this.scheduler.forget(id);
       this.outputs.forgetModule(id);
       this.settings.unregister(id);
+      this.setOverlay(id, false);
       record.shutdownHandlers = [];
       record.status = 'failed';
       record.error = `Erreur au démarrage du module : ${errorMessage(error)}`;
       logger.error(record.error, error);
       return false;
     }
+  }
+
+  private setOverlay(moduleId: string, visible: boolean): void {
+    const before = this.overlayRequests.size > 0;
+    if (visible) this.overlayRequests.add(moduleId);
+    else this.overlayRequests.delete(moduleId);
+    const after = this.overlayRequests.size > 0;
+    if (before !== after) this.host.setOverlayVisible(after);
   }
 
   /** Routes of loaded modules, under /api/modules/<id>/. */
@@ -517,6 +546,7 @@ export class Hub {
 
   async stop(): Promise<void> {
     this.scheduler.stop();
+    this.hotkeys.stop();
     this.accounts.stop();
     this.jobs.stop();
     for (const record of this.records.values()) {

@@ -196,6 +196,15 @@ La disposition est un JSON dans le réglage caché `ui.navigation` (`{ categorie
 
 Fermer la fenêtre alors que des tâches tournent (envoi YouTube, rendu) — zone de notification désactivée — ouvre une confirmation qui les liste (`electron/desktop.ts`) : elles s'arrêtent avec l'app ; un envoi YouTube reprend au lancement suivant là où il s'était arrêté, les autres tâches (rendus) sont marquées « interrompues » et sont à relancer.
 
+### Assistant : actions des modules, touche globale, indicateur flottant
+
+ADR 0028. Trois briques génériques du socle, utilisées par le module `assistant` (le socle ne connaît pas l'assistant) :
+
+- **Registre d'actions** (`backend/core/assistant.ts`, `ctx.assistant`, MODULES.md §5.15). Chaque module déclare ses actions (nom, description, paramètres, niveau de risque). Le socle vérifie les paramètres et applique les règles : `destructive` jamais sans `confirmed`, `sensitive` jamais exécutée. Il garde les « Annuler » en mémoire. Le catalogue n'est lisible qu'avec `permissions.assistant`. Actions du socle : `core.list-jobs`, `core.list-modules`, `core.open` (`backend/core/assistant-core.ts`).
+- **Touche globale** (`backend/core/hotkeys.ts`, `ctx.hotkeys`, `permissions.globalKeys`). `HostAdapter.globalKeys` est implémenté dans `electron/global-keys.ts` avec `uiohook-napi` (libuiohook, N-API précompilé, dépaqueté de l'asar). Il voit l'appui **et le relâchement** même sans le focus, ce que `globalShortcut` d'Electron ne sait pas faire. Le crochet ne tourne que pendant qu'un module écoute ; seul le code de la touche choisie est regardé.
+- **Fenêtre et indicateur** (`ctx.ui`). `HostAdapter.showWindow(route)` montre la fenêtre sur une page. `HostAdapter.setOverlayVisible` montre `electron/overlay.ts` : une petite fenêtre transparente, toujours au premier plan, qui ne prend ni le focus ni la souris et affiche la route `#/overlay` de l'interface (composants `Overlay` des modules). Les composants `Background` des modules sont montés une fois dans la fenêtre principale (`frontend/src/modules/ModuleExtras.tsx`), qui ne ralentit pas en arrière-plan (`backgroundThrottling: false`).
+- **Permissions de l'interface** (`electron/main.ts`) : seulement pour les pages de l'app ; parmi les périphériques, le **micro** uniquement (ni caméra ni écran).
+
 ### Comptes connectés (`ctx.accounts`)
 
 `backend/core/accounts.ts` (ADR 0018). Le socle gère des **fournisseurs OAuth** (aujourd'hui `google`), jamais ce qu'un module en fait.

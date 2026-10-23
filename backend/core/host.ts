@@ -2,6 +2,13 @@ import { rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
+/** A key going down or up, from the system-wide keyboard hook. */
+export interface HostKeyEvent {
+  type: 'down' | 'up';
+  /** libuiohook key code. */
+  code: number;
+}
+
 /**
  * Everything the backend needs from the desktop shell (Electron), behind an
  * interface so the backend stays testable in plain Node and never imports
@@ -41,6 +48,20 @@ export interface HostAdapter {
   notify(notification: { title: string; body: string; target?: string }): void;
   /** Starts the app with Windows (minimised to the notification area), or not. */
   setLaunchAtStartup(enabled: boolean): void;
+  /** Shows the main window (restored, focused) and opens a UI route. */
+  showWindow(target?: string): void;
+  /** Shows or hides the floating indicator window (always on top, never takes the focus). */
+  setOverlayVisible(visible: boolean): void;
+  /**
+   * System-wide keyboard hook (push-to-talk), absent outside the desktop app.
+   * start() throws when the hook cannot run.
+   */
+  globalKeys?: {
+    start(listener: (event: HostKeyEvent) => void): void;
+    stop(): void;
+    /** French label of a key code (« Touche Copilot (F23) », « Ctrl droit »). */
+    label(code: number): string;
+  };
   /** True when OS-level encryption (Electron safeStorage / DPAPI) is usable. */
   isEncryptionAvailable(): boolean;
   encryptString(plainText: string): Buffer;
@@ -65,6 +86,8 @@ export function createNullHost(overrides: Partial<HostAdapter> = {}): HostAdapte
     openExternal: async () => {},
     notify: () => {},
     setLaunchAtStartup: () => {},
+    showWindow: () => {},
+    setOverlayVisible: () => {},
     isEncryptionAvailable: () => false,
     encryptString: unavailable,
     decryptString: unavailable,

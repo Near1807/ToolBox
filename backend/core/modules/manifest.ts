@@ -16,7 +16,12 @@ export const RESERVED_IDS = new Set([
 
 const id = z.string().regex(MODULE_ID, 'identifiant en kebab-case attendu (ex. « music-library »)');
 const key = z.string().regex(/^[a-zA-Z][a-zA-Z0-9_]*$/, 'clé de réglage invalide');
-const base = { key, label: z.string().min(1), description: z.string().optional() };
+const base = {
+  key,
+  label: z.string().min(1),
+  description: z.string().optional(),
+  hidden: z.boolean().optional(),
+};
 
 const settingField = z.discriminatedUnion('type', [
   z.object({
@@ -76,6 +81,8 @@ const manifestSchema = z.strictObject({
           z.enum(['google'], { message: 'fournisseur de compte inconnu (« google » attendu)' }),
         )
         .optional(),
+      assistant: z.boolean().optional(),
+      globalKeys: z.boolean().optional(),
     })
     .optional(),
   settings: z.array(settingField).optional(),

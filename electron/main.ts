@@ -1,12 +1,13 @@
 import path from 'node:path';
 import { existsSync } from 'node:fs';
-import { app, BrowserWindow, dialog, ipcMain, nativeImage, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, nativeImage, session, shell } from 'electron';
 import discoveredModules from 'virtual:toolbox-modules';
 import { toUnpackedPath } from '../backend/core/ffmpeg-binaries';
 import { mediaTokenFromUrl } from '../backend/core/media';
 import { generateToken } from '../backend/core/security';
 import { startServer, type RunningServer } from '../backend/server';
 import { attachDesktop, showWindow, startedHidden } from './desktop';
+import { closeOverlay, initOverlay } from './overlay';
 import { createElectronHost } from './host';
 import { runSmokeTest } from './smoke-test';
 import {
@@ -78,6 +79,8 @@ function createWindow(appUrl: string): BrowserWindow {
       contextIsolation: true,
       sandbox: true,
       nodeIntegration: false,
+      // The assistant records and speaks while the window is minimised or in the tray.
+      backgroundThrottling: false,
     },
   });
 
@@ -104,6 +107,30 @@ function createWindow(appUrl: string): BrowserWindow {
   return window;
 }
 
+/**
+ * Permissions only for the app's own pages; from the media devices, only the
+ * microphone (assistant), never the camera or the screen.
+ */
+function allowOnlyMicrophone(appUrl: string): void {
+  const origin = new URL(appUrl).origin;
+  const fromApp = (url: string) => {
+    try {
+      return new URL(url).origin === origin;
+    } catch {
+      return false;
+    }
+  };
+  session.defaultSession.setPermissionRequestHandler((_contents, permission, callback, details) => {
+    if (!fromApp(details.requestingUrl)) return callback(false);
+    if (permission !== 'media') return callback(true);
+    const types = 'mediaTypes' in details ? (details.mediaTypes ?? []) : [];
+    callback(types.length > 0 && types.every((type) => type === 'audio'));
+  });
+  session.defaultSession.setPermissionCheckHandler((_contents, _permission, requestingOrigin) =>
+    fromApp(requestingOrigin),
+  );
+}
+
 async function bootstrap(): Promise<void> {
   applyWindowChrome();
   server = await startServer({
@@ -123,7 +150,9 @@ async function bootstrap(): Promise<void> {
   });
 
   const appUrl = isDev && devServerUrl ? devServerUrl : `${server.url}/`;
+  allowOnlyMicrophone(appUrl);
   mainWindow = createWindow(appUrl);
+  initOverlay(appUrl);
 
   if (smokeTestFile) {
     const window = mainWindow;
@@ -158,6 +187,7 @@ if (!app.requestSingleInstanceLock()) {
     event.preventDefault();
     const closing = server;
     server = null;
+    closeOverlay();
     // Never hang on exit: give the hub 5 s to stop cleanly.
     const timeout = new Promise((resolve) => setTimeout(resolve, 5000));
     // app.quit() is ignored once will-quit was prevented: exit explicitly.
