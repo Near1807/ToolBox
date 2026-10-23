@@ -2,7 +2,7 @@
   "id": "youtube-stats",
   "name": "Stats YouTube",
   "description": "Toutes les statistiques de ta chaîne au même endroit, croisées avec tes morceaux, Shorts, extraits et effets : vue d'ensemble, morceaux, vidéos, Labo et théories avec leur niveau de confiance.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "section": "Musique",
   "icon": "📊",
   "order": 50,

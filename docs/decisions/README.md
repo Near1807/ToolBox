@@ -47,3 +47,4 @@ Modèle :
 | 0026 | [Reels perso : passage = départ + durée du Reel, son au choix, morceau synchronisé](0026-son-et-passages-des-reels-perso.md)         |
 | 0027 | [Stats YouTube : données locales, niveaux de confiance, démo, CSV en repli](0027-stats-youtube.md)                                   |
 | 0028 | [Actions des modules pour l'assistant, touche globale, indicateur flottant](0028-actions-des-modules-pour-l-assistant.md)            |
+| 0029 | [Assistant vocal local : whisper.cpp, Ollama, Piper](0029-assistant-vocal-local.md)                                                  |

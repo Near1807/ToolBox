@@ -59,9 +59,13 @@ export interface BrainDeps {
   now?: () => Date;
   /** Read results spoken as they are (faster: no second pass of the model). */
   directReads?: () => boolean;
+  /** False when the model cannot call tools: it then only answers, and says it cannot act. */
+  toolsAvailable?: () => boolean;
 }
 
 const MAX_ROUNDS = 4;
+/** A turn never takes longer than this (a slow PC, a model that rambles). */
+const TURN_TIMEOUT_MS = 120_000;
 const MAX_TURNS_KEPT = 8;
 
 /** Tool names accepted by every model: letters, digits, underscores. */
@@ -122,17 +126,18 @@ export function yesNo(text: string): 'yes' | 'no' | null {
 const CLAIM =
   /\b(j ai (ajoute|supprime|coche|cree|note|mis|enregistre|programme|envoye|publie|fait)|c est (fait|note|coche|ajoute)|voila c est)\b/;
 
-function systemPrompt(now: Date): string {
+function systemPrompt(now: Date, tools: boolean): string {
   const date = new Intl.DateTimeFormat('fr-FR', {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
     year: 'numeric',
   }).format(now);
-  const time = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' }).format(now);
   return [
     'Tu es l’assistant vocal de ToolBox, l’application de bureau de Thomas, musicien : bibliothèque de morceaux, vidéos YouTube, Reels Instagram, planning de sortie, statistiques YouTube, to-do.',
-    `Nous sommes le ${date}, il est ${time}.`,
+    // The hour, not the minute: the instructions stay identical for an hour, so
+    // Ollama reuses its cache of them (re-reading them costs seconds on a CPU).
+    `Nous sommes le ${date}, il est environ ${now.getHours()} h.`,
     'Règles :',
     '- Réponds en français, en une à trois phrases courtes et naturelles à l’oral : pas de listes, pas de markdown, pas d’émojis.',
     '- Pour lire ou modifier les données de ToolBox, utilise les outils. N’invente jamais un résultat : ne dis qu’une chose est faite que si un outil l’a confirmé.',
@@ -141,6 +146,11 @@ function systemPrompt(now: Date): string {
     '- Ne fais jamais les actions sensibles (envoyer sur YouTube, publier, supprimer des fichiers, changer une date programmée) : dis-le et propose d’ouvrir la page.',
     '- Après un outil, appuie-toi uniquement sur son résultat ; reprends les chiffres tels quels.',
     '- Culture générale : réponds brièvement avec tes connaissances ; si tu n’es pas sûr, dis-le. Tu n’as pas accès à internet.',
+    ...(tools
+      ? []
+      : [
+          '- Le modèle choisi ne sait pas utiliser les outils : si on te demande de lire ou de modifier ToolBox, dis que tu ne peux pas avec ce modèle.',
+        ]),
   ].join('\n');
 }
 
@@ -182,6 +192,27 @@ export class Brain {
 
   get waitingFor(): Pending | null {
     return this.pending;
+  }
+
+  /**
+   * Has the model read the instructions and the tools once (1 token answered),
+   * so Ollama keeps them in its cache: the first real question is then faster.
+   */
+  async warmup(): Promise<void> {
+    const canUseTools = this.deps.toolsAvailable?.() !== false;
+    await this.deps.model().chat(
+      {
+        model: this.deps.modelName(),
+        messages: [
+          { role: 'system', content: systemPrompt(this.deps.now?.() ?? new Date(), canUseTools) },
+          { role: 'user', content: 'Bonjour' },
+        ],
+        tools: canUseTools ? toolSchemas(this.deps.actions()) : [],
+        think: this.deps.think(),
+        maxTokens: 1,
+      },
+      () => {},
+    );
   }
 
   /** The user answered a pending question with a click (Oui / Non). */
@@ -245,36 +276,43 @@ export class Brain {
       }
     }
 
+    const canUseTools = this.deps.toolsAvailable?.() !== false;
     const messages: ChatMessage[] = [
-      { role: 'system', content: systemPrompt(this.deps.now?.() ?? new Date()) },
+      { role: 'system', content: systemPrompt(this.deps.now?.() ?? new Date(), canUseTools) },
       ...this.history,
       { role: 'user', content: text },
     ];
     const turnMessages: ChatMessage[] = [{ role: 'user', content: text }];
-    const tools = toolSchemas(catalog);
+    const tools = canUseTools ? toolSchemas(catalog) : [];
     let anyToolResult = false;
 
+    const deadline = AbortSignal.timeout(TURN_TIMEOUT_MS);
+    const turnSignal = signal ? AbortSignal.any([signal, deadline]) : deadline;
     try {
       for (let round = 1; round <= MAX_ROUNDS; round++) {
         result.timings.rounds = round;
         const splitter = new SentenceSplitter();
         const held: string[] = [];
         let spoken = false;
-        const chat = await this.deps
-          .model()
-          .chat(
-            { model: this.deps.modelName(), messages, tools, think: this.deps.think(), signal },
-            (token) => {
-              for (const sentence of splitter.push(token)) {
-                // A claim of action before any result is held until we know.
-                if (!anyToolResult && CLAIM.test(normalise(sentence))) held.push(sentence);
-                else if (held.length === 0) {
-                  say(sentence);
-                  spoken = true;
-                } else held.push(sentence);
-              }
-            },
-          );
+        const chat = await this.deps.model().chat(
+          {
+            model: this.deps.modelName(),
+            messages,
+            tools,
+            think: this.deps.think(),
+            signal: turnSignal,
+          },
+          (token) => {
+            for (const sentence of splitter.push(token)) {
+              // A claim of action before any result is held until we know.
+              if (!anyToolResult && CLAIM.test(normalise(sentence))) held.push(sentence);
+              else if (held.length === 0) {
+                say(sentence);
+                spoken = true;
+              } else held.push(sentence);
+            }
+          },
+        );
         result.timings.promptTokens += chat.promptEvalCount;
         result.timings.outputTokens += chat.evalCount;
 
@@ -385,6 +423,11 @@ export class Brain {
       if (signal?.aborted) {
         result.error = 'Interrompu';
         return finish('');
+      }
+      if (deadline.aborted) {
+        result.error =
+          'Le modèle a mis plus de 2 minutes à répondre : essaie un modèle plus petit.';
+        return finish(result.error);
       }
       const message =
         error instanceof OllamaError && error.kind === 'offline'

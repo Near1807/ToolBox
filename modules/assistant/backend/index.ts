@@ -172,6 +172,7 @@ export default defineBackendModule({
       run: (id, params, options) => ctx.assistant.run(id, params, options),
       open: (route) => ctx.ui.open(route),
       directReads: () => setting<boolean>('directReads') === true,
+      toolsAvailable: () => capabilities.get(modelName())?.includes('tools') ?? true,
     });
 
     // --- Live state (SSE) and history (memory only: gone when the app closes) -----
@@ -386,7 +387,7 @@ export default defineBackendModule({
               `Le modèle ${model} ne déclare pas l’appel d’outils : il ne pourra pas agir sur ToolBox.`,
             );
           }
-          void ollama.preload(model).catch(() => {});
+          if (model === modelName()) void brain.warmup().catch(() => {});
           return { ok: true };
         }
         if (target === 'whisper-engine' || target === 'piper-engine') {
@@ -697,7 +698,11 @@ export default defineBackendModule({
       const installed = await ollama.models().catch(() => []);
       if (installed.some((m) => m.name === modelName() || m.name === `${modelName()}:latest`)) {
         await capabilitiesOf(modelName());
-        await ollama.preload(modelName()).catch(() => {});
+        const started = Date.now();
+        await brain.warmup().catch(() => {});
+        ctx.logger.info(
+          `Modèle ${modelName()} prêt (instructions et outils lus en ${Math.round((Date.now() - started) / 1000)} s)`,
+        );
       }
     })();
 

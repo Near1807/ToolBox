@@ -35,6 +35,8 @@ export interface ChatRequest {
   tools: ToolSchema[];
   /** Only for models with the « thinking » capability: false = answer directly. */
   think?: boolean;
+  /** Longest answer, in tokens (400 by default). */
+  maxTokens?: number;
   signal?: AbortSignal;
 }
 
@@ -59,6 +61,23 @@ export class OllamaError extends Error {
   ) {
     super(message);
   }
+}
+
+/** Ollama's errors are in English: the usual ones said in French, the original kept. */
+export function explain(message: string): string {
+  if (/does not support tools/i.test(message)) {
+    return 'Ce modèle ne sait pas utiliser d’outils : choisis-en un autre (Ministral 3, Qwen 3.5…) pour agir sur ToolBox.';
+  }
+  if (/file does not exist|manifest unknown/i.test(message)) {
+    return `Ce modèle n’existe pas sur ollama.com : vérifie son nom (${message}).`;
+  }
+  if (
+    /forbidden|dial tcp|no such host|connection refused|timeout|EOF/i.test(message) &&
+    /registry|manifest|pull|https?:/i.test(message)
+  ) {
+    return `Téléchargement impossible : le registre d’Ollama ne répond pas (connexion Internet ?). Détail : ${message}`;
+  }
+  return `Ollama : ${message}`;
 }
 
 async function* ndjson(response: Response): AsyncGenerator<Record<string, unknown>> {
@@ -114,8 +133,8 @@ export class OllamaClient implements ChatModel {
       } catch {
         // Plain text error.
       }
-      const missing = response.status === 404 || /not found|does not exist|pull/i.test(message);
-      throw new OllamaError(`Ollama : ${message}`, missing ? 'missing-model' : 'other');
+      const missing = response.status === 404 || /not found|does not exist/i.test(message);
+      throw new OllamaError(explain(message), missing ? 'missing-model' : 'other');
     }
     return response;
   }
@@ -163,21 +182,11 @@ export class OllamaClient implements ChatModel {
       signal,
     });
     for await (const event of ndjson(response)) {
-      if (typeof event.error === 'string')
-        throw new OllamaError(`Ollama : ${event.error}`, 'other');
+      if (typeof event.error === 'string') throw new OllamaError(explain(event.error), 'other');
       const total = Number(event.total ?? 0);
       const completed = Number(event.completed ?? 0);
       onProgress(total > 0 ? completed / total : null, String(event.status ?? ''));
     }
-  }
-
-  /** Loads the model in memory (an empty chat), so the first answer is quick. */
-  async preload(model: string): Promise<void> {
-    await this.request('/api/chat', {
-      method: 'POST',
-      body: JSON.stringify({ model, messages: [], keep_alive: '30m' }),
-      timeoutMs: 120_000,
-    });
   }
 
   async chat(request: ChatRequest, onToken: (text: string) => void): Promise<ChatResult> {
@@ -190,7 +199,8 @@ export class OllamaClient implements ChatModel {
         stream: true,
         keep_alive: '30m',
         ...(request.think === undefined ? {} : { think: request.think }),
-        options: { temperature: 0.3 },
+        // A spoken answer is short: a model that rambles is cut (and never loops for minutes).
+        options: { temperature: 0.3, num_predict: request.maxTokens ?? 400 },
       }),
       signal: request.signal,
     });
@@ -198,8 +208,7 @@ export class OllamaClient implements ChatModel {
     const toolCalls: ToolCall[] = [];
     let last: Record<string, unknown> = {};
     for await (const event of ndjson(response)) {
-      if (typeof event.error === 'string')
-        throw new OllamaError(`Ollama : ${event.error}`, 'other');
+      if (typeof event.error === 'string') throw new OllamaError(explain(event.error), 'other');
       const message = event.message as { content?: string; tool_calls?: ToolCall[] } | undefined;
       if (message?.content) {
         content += message.content;
