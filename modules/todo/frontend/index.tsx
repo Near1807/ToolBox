@@ -15,7 +15,15 @@ import {
   useApi,
   useModule,
 } from '@hub/sdk/frontend';
-import { daysBetween, formatDue, localToday, parseDue, shortDate, splitQuickAdd } from '../dates';
+import {
+  daysBetween,
+  formatDue,
+  localToday,
+  parseDue,
+  shortDate,
+  slashDate,
+  splitQuickAdd,
+} from '../dates';
 import { cleanTags, type TaskDto, type TasksResponse } from '../shared';
 import './todo.css';
 
@@ -188,7 +196,7 @@ function TaskRow(props: {
   const [editing, setEditing] = useState<null | 'title' | 'details'>(null);
   const [title, setTitle] = useState(task.title);
   const [tags, setTags] = useState(task.tags.join(', '));
-  const [due, setDue] = useState(task.due ? formatDue(task.due, data.today) : '');
+  const [due, setDue] = useState(task.due ? slashDate(task.due) : '');
   const [trackId, setTrackId] = useState(task.track ? String(task.track.id) : '');
   const [error, setError] = useState<string | null>(null);
   const dueValue = due.trim() ? parseDue(due, data.today) : null;
@@ -206,7 +214,7 @@ function TaskRow(props: {
 
   const startDetails = () => {
     setTags(task.tags.join(', '));
-    setDue(task.due ? formatDue(task.due, data.today) : '');
+    setDue(task.due ? slashDate(task.due) : '');
     setTrackId(task.track ? String(task.track.id) : '');
     setEditing('details');
   };

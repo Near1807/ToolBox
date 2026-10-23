@@ -7,7 +7,7 @@ Tes tâches, simples : titre, tags, échéance facultative en langage naturel, c
 - **Ajout rapide au clavier** : une ligne, puis Entrée. « finir le mix #mix vendredi » donne la tâche « finir le mix », le tag `mix` et l'échéance vendredi. Un aperçu montre ce qui sera ajouté avant de valider ; « ce n'est pas une date » garde la fin dans le titre. Les tags existants sont proposés sous le champ (clic = ajouté). Le morceau se choisit à côté, si la Bibliothèque est là.
 - **Échéances comprises** (code testé, `dates.ts`) :
   - « aujourd'hui », « ce soir », « demain (matin) », « après-demain » ;
-  - « vendredi » (le prochain, aujourd'hui si on est vendredi), « vendredi prochain » (celui de la semaine prochaine), « lundi en huit » ;
+  - « vendredi » (le prochain : dit un vendredi, c'est celui de la semaine suivante), « vendredi prochain » (celui de la semaine prochaine), « lundi en huit » ;
   - « dans 3 jours », « dans une semaine », « dans quinze jours » (14 jours), « dans un mois » ;
   - « la semaine prochaine » (lundi), « cette semaine » / « d'ici la fin de la semaine » (vendredi), « ce week-end » (samedi), « fin du mois », « le mois prochain » (le 1er) ;
   - « le 12 », « le 12 novembre », « le premier décembre », « vendredi 30 », « 12/11 », « 12/11/2026 », « 2026-11-12 ».

@@ -13,7 +13,7 @@ describe('parseDue', () => {
     ['demain matin', '2026-10-24'],
     ['après-demain', '2026-10-25'],
     ['jeudi', '2026-10-29'],
-    ['vendredi', '2026-10-23'],
+    ['vendredi', '2026-10-30'],
     ['pour samedi', '2026-10-24'],
     ['lundi', '2026-10-26'],
     ['Mercredi', '2026-10-28'],
@@ -63,6 +63,7 @@ describe('parseDue', () => {
   it('handles the end of the year and Sundays', () => {
     expect(parseDue('demain', '2026-12-31')).toBe('2027-01-01');
     expect(parseDue('lundi', '2026-10-25')).toBe('2026-10-26');
+    expect(parseDue('dimanche', '2026-10-25')).toBe('2026-11-01');
     expect(parseDue('semaine prochaine', '2026-10-25')).toBe('2026-10-26');
     expect(parseDue('le mois prochain', '2026-12-10')).toBe('2027-01-01');
   });

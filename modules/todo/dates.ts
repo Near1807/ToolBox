@@ -176,7 +176,8 @@ export function parseDue(input: string, today: string): string | null {
   // « vendredi de la semaine prochaine ».
   if ((m = text.match(new RegExp(`^${WEEKDAY_PATTERN}$`)))) {
     const target = WEEKDAYS.indexOf(m[1]!);
-    return addDays(today, (target - todayIndex + 7) % 7);
+    // « vendredi » said on a Friday means next Friday (today would be « aujourd'hui »).
+    return addDays(today, (target - todayIndex + 7) % 7 || 7);
   }
   if (
     (m = text.match(
@@ -276,6 +277,11 @@ export function formatDue(due: string, today: string): string {
   if (diff === -1) return 'hier';
   if (diff > 1 && diff < 7) return WEEKDAYS[weekdayIndex(due)]!;
   return shortDate(due, today);
+}
+
+/** "2026-10-23" → « 23/10/2026 » (typed back into a field, understood by parseDue). */
+export function slashDate(day: string): string {
+  return `${day.slice(8, 10)}/${day.slice(5, 7)}/${day.slice(0, 4)}`;
 }
 
 /** « ven. 24 oct. » (+ year when not this year). */
