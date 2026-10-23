@@ -366,7 +366,14 @@ export function PlannerPage() {
                 : 'Clique « Envoyer sur YouTube » dans la liste des sorties ci-dessous.'}
             </p>
           ))}
-          {summary.data?.quotaMessage && <p className="rp-note">{summary.data.quotaMessage}</p>}
+          {summary.data?.quotaMessage && (
+            <p className="rp-note">
+              {summary.data.quotaMessage} {summary.data.quotaOrigin}
+            </p>
+          )}
+          {!summary.data?.quotaMessage && summary.data?.quota.exhausted && (
+            <p className="rp-note">Quota YouTube du jour épuisé. {summary.data.quotaOrigin}</p>
+          )}
           {summary.data?.templateErrors.map((text) => (
             <p key={text} className="rp-note rp-note--warning">
               Modèle de plan (Réglages) : {text}

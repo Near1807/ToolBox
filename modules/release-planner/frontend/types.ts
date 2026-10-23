@@ -98,6 +98,7 @@ export interface Summary {
   };
   queue: number;
   quotaMessage: string | null;
+  quotaOrigin: string;
   templateErrors: string[];
   /** J-3 / J-1: YouTube elements not sent yet, close to their date. */
   alerts: {

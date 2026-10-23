@@ -16,6 +16,11 @@ export interface SyncOptions {
   refreshDays: number;
   /** Retention and breakdowns are refreshed after this many days. */
   detailsEveryDays: number;
+  /**
+   * Strict minimum (uploads due soon): the channel, the list of the videos and
+   * the channel days only; the per-video statistics wait for the next sync.
+   */
+  minimal?: boolean;
   progress: (fraction: number, message: string) => void;
   signal: AbortSignal;
   log: (message: string) => void;
@@ -228,6 +233,15 @@ export async function syncChannel(
         views -= num(r.views);
       }
     }
+  }
+
+  if (options.minimal) {
+    summary.calls = client.calls;
+    summary.warnings.push(
+      'Synchronisation minimale : des envois YouTube sont prévus dans les 24 h (le Planning passe en premier). Le détail par vidéo suivra.',
+    );
+    options.progress(1, 'Synchronisation minimale terminée');
+    return summary;
   }
 
   // 4. Every video: kind, days, retention, breakdowns.

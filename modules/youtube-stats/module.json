@@ -2,7 +2,7 @@
   "id": "youtube-stats",
   "name": "Stats YouTube",
   "description": "Toutes les statistiques de ta chaîne au même endroit, croisées avec tes morceaux, Shorts, extraits et effets : vue d'ensemble, morceaux, vidéos, Labo et théories avec leur niveau de confiance.",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "section": "Musique",
   "icon": "📊",
   "order": 50,
@@ -17,8 +17,12 @@
       "videoEngine"
     ]
   },
-  "provides": { "services": [] },
-  "permissions": { "accounts": ["google"] },
+  "provides": {
+    "services": []
+  },
+  "permissions": {
+    "accounts": ["google"]
+  },
   "settings": [
     {
       "key": "demoMode",
@@ -46,6 +50,16 @@
       "max": 30,
       "step": 1,
       "default": 7
+    },
+    {
+      "key": "quotaReserve",
+      "type": "number",
+      "label": "Réserve de quota pour les envois (unités)",
+      "description": "Unités du quota YouTube du jour que la synchronisation ne consomme jamais : elles restent aux envois du Planning (miniature, playlist…). Les envois passent toujours avant les stats.",
+      "min": 0,
+      "max": 9000,
+      "step": 100,
+      "default": 1000
     },
     {
       "key": "timeZone",

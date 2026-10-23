@@ -40,6 +40,8 @@ export interface StateData {
     ok: boolean;
     message: string | null;
     summary: { videos: number; calls: number } | null;
+    /** Waiting for the uploads of the Planning (tried again at the next tick). */
+    postponed?: boolean;
   } | null;
   syncing: { id: string; progress: number | null; message: string | null } | null;
   reach: string | null;

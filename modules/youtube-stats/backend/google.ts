@@ -78,6 +78,26 @@ async function readError(response: Response): Promise<GoogleApiError> {
 
 export type Fetch = (url: string, init?: RequestInit) => Promise<Response>;
 
+/**
+ * The YouTube Data API quota is shared with the uploads of the Planning (same
+ * Google project; the Analytics API has its own). Each Data call costs 1 unit
+ * here: `before` may refuse it (reserve kept for the uploads), `after` counts
+ * it, `exhausted` tells that Google answered « quota exceeded ».
+ */
+export interface DataQuotaHooks {
+  before?: () => void;
+  after?: (units: number) => void;
+  exhausted?: () => void;
+}
+
+/** The sync stopped itself to leave the rest of the quota to the uploads. */
+export class QuotaReserveError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'QuotaReserveError';
+  }
+}
+
 export interface AnalyticsQuery {
   startDate: string;
   endDate: string;
@@ -93,13 +113,25 @@ export type ReportRow = Record<string, string | number>;
 export class GoogleClient {
   /** Requests made during this client's life (shown after a sync). */
   calls = 0;
+  /** YouTube Data API units spent (1 per list call). */
+  dataUnits = 0;
 
-  constructor(private readonly fetchFn: Fetch) {}
+  constructor(
+    private readonly fetchFn: Fetch,
+    private readonly quota: DataQuotaHooks = {},
+  ) {}
 
   async data<T>(path: string, params: Record<string, string>): Promise<T> {
+    this.quota.before?.();
     this.calls++;
+    this.dataUnits++;
     const response = await this.fetchFn(`/youtube/v3/${path}?${new URLSearchParams(params)}`);
-    if (!response.ok) throw await readError(response);
+    this.quota.after?.(1);
+    if (!response.ok) {
+      const error = await readError(response);
+      if (error.kind === 'quota') this.quota.exhausted?.();
+      throw error;
+    }
     return (await response.json()) as T;
   }
 
