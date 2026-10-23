@@ -350,6 +350,29 @@ describe('youtube-stats with a fake Google', () => {
     ).toHaveLength(3);
   });
 
+  it('answers the assistant from the stored statistics, demo announced as such', async () => {
+    const summary = await hub.hub.assistant.run('youtube-stats.channel-summary', { days: '28' });
+    expect(summary).toMatchObject({
+      status: 'done',
+      message: expect.stringMatching(/^sur les 28 derniers jours, \d/),
+    });
+    expect(await hub.hub.assistant.run('youtube-stats.highlights', {})).toMatchObject({
+      status: 'done',
+    });
+    await hub.request('PUT', '/api/core/settings/youtube-stats', { demoMode: true });
+    const demo = await hub.hub.assistant.run('youtube-stats.channel-summary', {});
+    expect(demo).toMatchObject({
+      message: expect.stringMatching(/^Données de démo : /),
+      data: { demo: true },
+    });
+    const track = await hub.hub.assistant.run('youtube-stats.track-stats', { track: 'aube' });
+    expect(track).toMatchObject({
+      status: 'done',
+      message: expect.stringMatching(/^Données de démo : Aube : [\d ]+ vues en tout/),
+    });
+    await hub.request('PUT', '/api/core/settings/youtube-stats', { demoMode: false });
+  });
+
   it('the demo is separate from the real data', async () => {
     await hub.request('PUT', '/api/core/settings/youtube-stats', { demoMode: true });
     const demo = (await hub.request<{ mode: string; videos: unknown[] }>('GET', `${API}/videos`))

@@ -5,6 +5,7 @@ import {
   defineBackendModule,
   HttpError,
   idParam,
+  listPhrase,
   matchByName,
   requestBody,
   type AssistantParams,
@@ -33,12 +34,6 @@ function tagsPhrase(tags: string[]): string {
   if (tags.length === 0) return '';
   if (tags.length === 1) return ` avec le tag ${tags[0]}`;
   return ` avec les tags ${tags.slice(0, -1).join(', ')} et ${tags.at(-1)}`;
-}
-
-/** « a, b et c ». */
-function listPhrase(items: string[]): string {
-  if (items.length <= 1) return items.join('');
-  return `${items.slice(0, -1).join(', ')} et ${items.at(-1)}`;
 }
 
 export default defineBackendModule({

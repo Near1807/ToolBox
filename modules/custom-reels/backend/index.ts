@@ -9,8 +9,11 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import {
   defineBackendModule,
+  ELEMENT_STATES,
   HttpError,
   idParam,
+  listPhrase,
+  matchByName,
   requestBody,
   type ModuleContext,
 } from '@hub/sdk/backend';
@@ -1226,6 +1229,58 @@ export default defineBackendModule({
         return list.length
           ? `${list.filter((r) => r.published_at).length}/${list.length} publiés`
           : null;
+      },
+    });
+
+    // Assistant (MODULES.md §5.15): read only.
+    ctx.assistant.define({
+      name: 'reels-status',
+      description:
+        'État des Reels perso (faits avec tes vidéos) d’un morceau : générés, à régénérer, publiés. Sans morceau : les morceaux qui ont des Reels perso pas encore publiés.',
+      parameters: {
+        track: { type: 'string', description: 'Nom du morceau, même approximatif (facultatif)' },
+      },
+      risk: 'read',
+      run: (params) => {
+        const describe = (trackId: number) =>
+          reelsOf(trackId)
+            .map(toReel)
+            .map((r) => ({
+              label: r.label,
+              state: ELEMENT_STATES[r.state] ?? r.state,
+              published: Boolean(r.publishedAt),
+            }));
+        if (params.track) {
+          const match = matchByName(library.listTracks(), String(params.track), (t) => t.title);
+          if (match.kind === 'none')
+            throw new HttpError(404, `Aucun morceau ne s’appelle « ${String(params.track)} ».`);
+          if (match.kind === 'ambiguous') {
+            throw new HttpError(
+              409,
+              `Plusieurs morceaux correspondent : ${listPhrase(match.items.slice(0, 4).map((t) => t.title))}. Lequel ?`,
+            );
+          }
+          const list = describe(match.item.id);
+          if (list.length === 0)
+            return {
+              message: `${match.item.title} n’a pas de Reel perso.`,
+              data: { track: match.item.title, reels: [] },
+            };
+          return {
+            message: `Reels perso de ${match.item.title} : ${listPhrase(list.map((r) => `${r.label} ${r.published ? 'publié' : r.state}`))}.`,
+            data: { track: match.item.title, reels: list },
+          };
+        }
+        const pending = library
+          .listTracks()
+          .map((t) => ({ track: t.title, reels: describe(t.id) }))
+          .filter((t) => t.reels.some((r) => !r.published));
+        return {
+          message: pending.length
+            ? `Reels perso pas encore publiés : ${listPhrase(pending.slice(0, 6).map((t) => `${t.track} (${t.reels.filter((r) => !r.published).length})`))}.`
+            : 'Aucun Reel perso en attente de publication.',
+          data: { tracks: pending.slice(0, 20) },
+        };
       },
     });
 

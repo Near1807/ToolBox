@@ -6,8 +6,11 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import {
   defineBackendModule,
+  ELEMENT_STATES,
   HttpError,
   idParam,
+  listPhrase,
+  matchByName,
   requestBody,
   type ModuleContext,
 } from '@hub/sdk/backend';
@@ -805,6 +808,64 @@ export default defineBackendModule({
       durationSec: item.duration_sec,
       publishedAt: item.published_at,
     });
+    // Assistant (MODULES.md §5.15): read only.
+    ctx.assistant.define({
+      name: 'pack-status',
+      description:
+        'État du pack Instagram d’un morceau (post et Reels : générés, à régénérer, publiés). Sans morceau : les packs pas encore entièrement publiés.',
+      parameters: {
+        track: { type: 'string', description: 'Nom du morceau, même approximatif (facultatif)' },
+      },
+      risk: 'read',
+      run: (params) => {
+        const describe = (trackId: number) => {
+          const pack = store.byTrack(trackId);
+          if (!pack) return null;
+          const items = store.listItems(pack.id).map((item) => toPackItem(pack, item));
+          return {
+            items: items.map((i) => ({
+              label: i.label,
+              state: ELEMENT_STATES[i.state] ?? i.state,
+              published: Boolean(i.publishedAt),
+            })),
+            published: items.filter((i) => i.publishedAt).length,
+            total: items.length,
+          };
+        };
+        if (params.track) {
+          const match = matchByName(library.listTracks(), String(params.track), (t) => t.title);
+          if (match.kind === 'none')
+            throw new HttpError(404, `Aucun morceau ne s’appelle « ${String(params.track)} ».`);
+          if (match.kind === 'ambiguous') {
+            throw new HttpError(
+              409,
+              `Plusieurs morceaux correspondent : ${listPhrase(match.items.slice(0, 4).map((t) => t.title))}. Lequel ?`,
+            );
+          }
+          const pack = describe(match.item.id);
+          if (!pack)
+            return {
+              message: `${match.item.title} n’a pas encore de pack Instagram.`,
+              data: { track: match.item.title, pack: null },
+            };
+          return {
+            message: `Pack Instagram de ${match.item.title} : ${pack.published} publié(s) sur ${pack.total} ; ${listPhrase(pack.items.map((i) => `${i.label} ${i.published ? 'publié' : i.state}`))}.`,
+            data: { track: match.item.title, pack },
+          };
+        }
+        const open = library
+          .listTracks()
+          .map((t) => ({ track: t.title, pack: describe(t.id) }))
+          .filter((p) => p.pack && p.pack.published < p.pack.total);
+        return {
+          message: open.length
+            ? `${open.length} pack(s) pas entièrement publié(s) : ${listPhrase(open.slice(0, 6).map((p) => `${p.track} (${p.pack!.published}/${p.pack!.total})`))}.`
+            : 'Tous les packs Instagram sont publiés.',
+          data: { packs: open.slice(0, 20) },
+        };
+      },
+    });
+
     const service: InstagramPackService = {
       getPack: (trackId) => {
         const pack = store.byTrack(trackId);

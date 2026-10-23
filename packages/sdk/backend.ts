@@ -6,6 +6,7 @@ import type { ModuleManifest, SettingValue } from './manifest';
 export type { FastifyReply, FastifyRequest } from 'fastify';
 export type * from './manifest';
 export { matchByName, nameScore, normaliseName, type NameMatch } from './match';
+export { ELEMENT_STATES, listPhrase } from './assistant-texts';
 
 // ---------------------------------------------------------------------------
 // What a module exports

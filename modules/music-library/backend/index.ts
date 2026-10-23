@@ -1,6 +1,12 @@
 // music-library: the shared track library of the Music section.
 // Provides the "musicLibrary" service used by the video generators.
-import { defineBackendModule, HttpError, idParam, type ModuleContext } from '@hub/sdk/backend';
+import {
+  defineBackendModule,
+  HttpError,
+  idParam,
+  matchByName,
+  type ModuleContext,
+} from '@hub/sdk/backend';
 import {
   MUSIC_LIBRARY_SERVICE,
   type MusicLibraryService,
@@ -175,6 +181,105 @@ export default defineBackendModule({
       isIncluded,
     };
     ctx.services.provide(MUSIC_LIBRARY_SERVICE, service);
+
+    // Assistant actions (MODULES.md §5.15): read only, plus opening a track page.
+    const findTrack = (name: string) => {
+      const match = matchByName(library.list(), name, (t) => t.title);
+      if (match.kind === 'none')
+        throw new HttpError(404, `Aucun morceau ne s’appelle « ${name} ».`);
+      if (match.kind === 'ambiguous') {
+        throw new HttpError(
+          409,
+          `Plusieurs morceaux correspondent : ${match.items
+            .slice(0, 4)
+            .map((t) => t.title)
+            .join(', ')}. Lequel ?`,
+        );
+      }
+      return match.item;
+    };
+    const STATUS_WORDS: Record<string, string> = {
+      published: 'publié',
+      scheduled: 'programmé',
+      planned: 'planifié',
+      generated: 'généré',
+      missing: 'fichier introuvable',
+    };
+    ctx.assistant.define({
+      name: 'list-tracks',
+      description:
+        'Liste les morceaux de la Bibliothèque (les plus récents d’abord), avec leur date de sortie.',
+      risk: 'read',
+      run: () => {
+        const tracks = [...library.list()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+        return {
+          message: `${tracks.length} morceau(x) dans la Bibliothèque${
+            tracks.length
+              ? ` : ${tracks
+                  .slice(0, 8)
+                  .map((t) => t.title)
+                  .join(', ')}${tracks.length > 8 ? ', etc.' : ''}`
+              : ''
+          }.`,
+          data: {
+            tracks: tracks
+              .slice(0, 50)
+              .map((t) => ({ title: t.title, artist: t.artist, releaseDate: t.releaseDate })),
+          },
+        };
+      },
+    });
+    ctx.assistant.define({
+      name: 'track-project',
+      description:
+        'État du projet d’un morceau : ce qui a été généré (vidéo, Reels, post…), planifié, programmé, publié, et les infos des autres outils (To-do, Reels perso…).',
+      parameters: { track: { type: 'string', description: 'Nom du morceau, même approximatif' } },
+      required: ['track'],
+      risk: 'read',
+      run: (params) => {
+        const track = findTrack(String(params.track));
+        const items = projectOf(track.id);
+        const counts = new Map<string, number>();
+        for (const item of items) counts.set(item.status, (counts.get(item.status) ?? 0) + 1);
+        const parts = ['published', 'scheduled', 'planned', 'generated', 'missing']
+          .filter((s) => counts.get(s))
+          .map(
+            (s) =>
+              `${counts.get(s)} ${STATUS_WORDS[s]}${counts.get(s)! > 1 && s !== 'missing' ? 's' : ''}`,
+          );
+        const infos = trackInfos(track.id);
+        return {
+          message:
+            `${track.title} : ${items.length} élément(s)${parts.length ? ` (${parts.join(', ')})` : ''}.` +
+            (infos.length ? ` ${infos.map((i) => `${i.label} : ${i.value}`).join('. ')}.` : ''),
+          data: {
+            track: track.title,
+            releaseDate: track.releaseDate,
+            elements: items.map((i) => ({
+              label: i.label,
+              module: i.moduleId,
+              status: STATUS_WORDS[i.status] ?? i.status,
+              detail: i.statusDetail,
+            })),
+            infos: infos.map((i) => ({ label: i.label, value: i.value })),
+          },
+        };
+      },
+    });
+    ctx.assistant.define({
+      name: 'open-track',
+      description: 'Ouvre la fiche d’un morceau dans la Bibliothèque.',
+      parameters: { track: { type: 'string', description: 'Nom du morceau, même approximatif' } },
+      required: ['track'],
+      risk: 'read',
+      run: (params) => {
+        const track = findTrack(String(params.track));
+        return {
+          message: `J’ouvre la fiche de ${track.title}.`,
+          open: `/m/${ctx.id}/tracks/${track.id}`,
+        };
+      },
+    });
 
     ctx.routes.get('/tracks', () => library.list().map((track) => toDto(ctx, track)));
 

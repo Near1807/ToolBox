@@ -187,6 +187,15 @@ describe('custom-reels (Reels from my videos)', () => {
     expect(reel!.caption).toBe('Drop — Thomas\n\nNouveau son 🎧 lien en bio\n\n#lofi');
   });
 
+  it('tells the assistant where the Reels stand', async () => {
+    expect(
+      await hub.hub.assistant.run('custom-reels.reels-status', { track: 'Drop' }),
+    ).toMatchObject({
+      status: 'done',
+      message: 'Reels perso de Drop : Reel perso 1 à générer.',
+    });
+  });
+
   it('edits excerpt, passages, framing, effect and caption', async () => {
     const [reel] = (await track()).reels;
     const sourceId = (await track()).sources[0]!.id;

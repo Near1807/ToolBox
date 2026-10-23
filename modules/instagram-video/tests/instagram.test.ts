@@ -184,6 +184,19 @@ describe('instagram-video', () => {
     expect((await hub.request('POST', `${API}/tracks/${trackId}/pack`, {})).status).toBe(409);
   });
 
+  it('tells the assistant where the pack stands', async () => {
+    expect(
+      await hub.hub.assistant.run('instagram-video.pack-status', { track: 'drop' }),
+    ).toMatchObject({
+      status: 'done',
+      message:
+        'Pack Instagram de Drop : 0 publié(s) sur 3 ; Post à générer, Reel 1 à générer et Reel 2 à générer.',
+    });
+    expect(await hub.hub.assistant.run('instagram-video.pack-status', {})).toMatchObject({
+      message: '1 pack(s) pas entièrement publié(s) : Drop (0/3).',
+    });
+  });
+
   it('edits the excerpt and the captions', async () => {
     const reel = pack.items[2]!;
     const moved = await hub.request<Item>('PATCH', `${API}/items/${reel.id}`, { startSec: 200 });

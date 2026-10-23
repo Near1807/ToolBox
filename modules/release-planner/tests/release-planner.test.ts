@@ -413,6 +413,25 @@ describe('release-planner (mock YouTube)', () => {
     expect(again.status).toBe(409);
   });
 
+  it('answers the assistant: agenda, a release, and never uploads', async () => {
+    const run = (id: string, params: object = {}) =>
+      hub.hub.assistant.run(`release-planner.${id}`, params);
+    expect(await run('release', { track: 'drop' })).toMatchObject({
+      status: 'done',
+      message: 'Sortie de Drop : lundi 14 janvier. 0 élément(s) publié(s) sur 10.',
+    });
+    const agenda = await run('agenda', { period: 'week' });
+    expect(agenda).toMatchObject({
+      status: 'done',
+      message: expect.stringMatching(/^Rien à publier dans les 7 prochains jours/),
+    });
+    expect(await run('upload', {})).toMatchObject({
+      status: 'refused',
+      open: '/m/release-planner',
+    });
+    expect(await run('move', {})).toMatchObject({ status: 'refused' });
+  });
+
   it('spreads an overlapping second track and reports it', async () => {
     const plan = await hub.request<{
       items: { label: string; date: string }[];

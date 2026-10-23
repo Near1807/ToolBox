@@ -14,6 +14,7 @@ import type { InstagramPackService } from '../../instagram-video/contract';
 import type { MusicLibraryService } from '../../music-library/contract';
 import type { ReleasePlannerService } from '../../release-planner/contract';
 import type { VideoEngineService } from '../../video-engine/contract';
+import { registerAssistantActions } from './assistant';
 import { readExport, reachRows } from './csv';
 import type { Dataset } from './dataset';
 import { demoDataset } from './demo';
@@ -324,6 +325,7 @@ export default defineBackendModule({
         },
       };
     };
+    registerAssistantActions(ctx, analysis);
     ctx.routes.get('/state', () => state());
 
     const visitKey = () => (demoMode() ? 'visit:demo' : 'visit:real');

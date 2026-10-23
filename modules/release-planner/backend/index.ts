@@ -14,6 +14,7 @@ import {
   type OutputRecord,
 } from '@hub/sdk/backend';
 import { parseTags, toTemplate } from '@hub/sdk/texts';
+import { registerAssistantActions } from './assistant';
 import {
   RELEASE_PLANNER_SERVICE,
   type PlannedYouTubeItem,
@@ -1364,6 +1365,18 @@ export default defineBackendModule({
         store.updateRelease(release.id, { video_id: newest.id });
         ctx.logger.info(`Nouvelle vidéo attachée à la sortie de « ${trackId} »`);
       }
+    });
+
+    registerAssistantActions(ctx, {
+      items: () => itemsDto(store.allItems()),
+      today: () => local(new Date().toISOString()).date,
+      tracks: () => library.listTracks(),
+      releaseOf: (trackId) => {
+        const release = store.releaseByTrack(trackId);
+        return release
+          ? { date: release.release_date, items: itemsDto(store.itemsOf(release.id)) }
+          : null;
+      },
     });
 
     // Routes ----------------------------------------------------------------
