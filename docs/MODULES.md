@@ -12,6 +12,28 @@
 6. **Retrait sans casse.** Supprimer le dossier d'un module (puis rebuild) ne casse ni le socle ni les modules qui n'en dépendent pas. Ceux qui en dépendent sont automatiquement marqués « dépendance manquante ».
 7. **Un module qui plante ne fait pas planter le hub** (voir §9).
 
+## 1 bis. Contrôle et sécurité (prioritaire sur toute autre règle)
+
+- **La solidité et le contrôle de Thomas passent AVANT l'autonomie et le côté spectaculaire.** En cas de doute : demander, ou ne pas faire.
+- **Jamais sans confirmation explicite de Thomas** :
+  - supprimer des données ou des fichiers ;
+  - publier ou envoyer quoi que ce soit en ligne ;
+  - modifier quelque chose déjà en ligne ou programmé ;
+  - écraser une donnée existante ;
+  - lancer une mise à jour de l'app ou d'un modèle.
+- **Toute action qui modifie quelque chose est visible** (confirmation à l'écran ou à voix haute) et, quand c'est possible, **annulable**.
+- **Droits ajoutés un par un.** L'assistant vocal et toute automatisation future (envoi automatique, tâches planifiées…) n'obtiennent de nouveaux droits qu'un par un, sur décision explicite de Thomas, après une période de test. Par défaut, toute nouvelle capacité est **désactivée ou en lecture seule**.
+- **Livré désactivé.** Toute nouvelle fonctionnalité qui agit seule est d'abord livrée **désactivée par défaut**, avec un réglage clair pour l'activer.
+- **Vue d'ensemble dans chaque rapport.** Chaque rapport de fin de session a une section qui liste toute action pouvant modifier, supprimer ou publier sans clic de Thomas (même avec confirmation vocale).
+
+Pour un module, concrètement :
+
+- Toute suppression, publication, modification d'un élément en ligne ou programmé, ou tout écrasement d'une donnée passe par une **confirmation dans l'interface** (`confirmDelete` ou équivalent). Aucune route ne le fait seule.
+- Toute modification est visible et, si possible, annulable (`UndoToast`, `undo` des actions de l'assistant).
+- Tout ce qui agit sans clic (tâche planifiée qui envoie, publie, supprime ou modifie ; envoi automatique ; synchronisation qui écrase) est **désactivé par défaut**, derrière un réglage clair qui dit ce qu'il fait. Une tâche planifiée qui ne fait que lire, ou que préparer sans rien publier, est permise ; son README dit ce qu'elle fait.
+- Actions de l'assistant (§5.15) : un nouveau module déclare des actions de **lecture**. Une action qui modifie (`change`, `destructive`) n'est ajoutée que sur décision explicite de Thomas, une à la fois. Une action `sensitive` n'est jamais exécutable.
+- Téléchargements et mises à jour (app, modèles, moteurs) : seulement sur un clic de Thomas.
+
 ## 2. Structure d'un module
 
 ```
@@ -289,7 +311,7 @@ ctx.outputs.onReattach((records, subject) => {
 
 ### 5.15 `ctx.assistant` — actions pour l'assistant vocal (règle du contrat)
 
-**Chaque module expose ce que l'assistant peut faire avec lui.** L'assistant (module `assistant`) découvre les actions automatiquement ; il n'a pas de code propre aux autres modules. ADR 0028.
+**Chaque module expose ce que l'assistant peut faire avec lui.** L'assistant (module `assistant`) découvre les actions automatiquement ; il n'a pas de code propre aux autres modules. ADR 0028. Par défaut, un module n'expose que des actions de **lecture** ; une action qui modifie n'arrive que sur décision explicite de Thomas (§1 bis).
 
 ```ts
 ctx.assistant.define({
@@ -485,7 +507,8 @@ L'état de chaque module est visible dans **Réglages > Modules** (avec bouton D
 - [ ] Chaque fichier généré enregistré dans `ctx.outputs` (avec `onRemoved` pour nettoyer ses données et `onReattach` pour suivre un rattachement) ; dans l'interface : « Supprimer » avec confirmation, sélection multiple, « Fichier introuvable », « Nettoyer les éléments introuvables »
 - [ ] Dépendances et services déclarés dans le manifest ; types publics dans `contract.ts`
 - [ ] Comptes externes déclarés dans `permissions.accounts`, autorisations minimales
-- [ ] Actions pour l'assistant déclarées (`ctx.assistant.define`, §5.15) avec le bon niveau de risque : lecture de l'essentiel, modifications annulables, suppressions confirmées, rien de sensible exécutable
+- [ ] Actions pour l'assistant déclarées (`ctx.assistant.define`, §5.15) : lecture de l'essentiel ; une action qui modifie seulement sur décision de Thomas, annulable, et confirmée si elle supprime ; rien de sensible exécutable
+- [ ] Contrôle et sécurité (§1 bis) : rien n'est supprimé, publié, modifié en ligne ou écrasé sans confirmation ; tout ce qui agit seul est désactivé par défaut avec un réglage clair
 - [ ] Éléments générés affichés avec les composants partagés du SDK (§7.1), aucune couleur en dur (§7.2)
 - [ ] Textes en français, code en anglais
 - [ ] `README.md` du module à jour (rôle, données, réglages, événements, services, API)

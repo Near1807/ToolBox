@@ -286,6 +286,15 @@ export function PlannerPage() {
   const move = async (itemId: number, date: string) => {
     const item = all.get(itemId);
     if (!item || item.date === date) return;
+    // Contrôle et sécurité: moving something already on YouTube changes it online: ask first.
+    if (
+      item.youtube &&
+      !window.confirm(
+        `${item.label} — ${item.trackTitle} est déjà sur YouTube. Déplacer sa publication au ${longDate(date)} (changé tout de suite sur YouTube) ?`,
+      )
+    ) {
+      return;
+    }
     try {
       const result = await module.api.patch<{ warnings: string[] }>(`/items/${itemId}`, { date });
       changed(

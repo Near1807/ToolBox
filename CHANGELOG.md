@@ -4,6 +4,22 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.16.1] — 2026-10-23
+
+### Ajouté
+
+- Règle permanente **« Contrôle et sécurité »** (CLAUDE.md, MODULES.md §1 bis, AJOUTER-UN-MODULE) :
+  - le contrôle de Thomas avant l'autonomie ;
+  - jamais de suppression, publication, modification en ligne, écrasement ou mise à jour sans confirmation ;
+  - tout changement visible et, si possible, annulable ;
+  - droits de l'assistant et des automatisations ajoutés un par un ;
+  - nouvelles fonctions qui agissent seules livrées désactivées ;
+  - section « Actions sans clic de Thomas » dans chaque rapport.
+
+### Modifié
+
+- Planning : déplacer un élément **déjà sur YouTube** (glisser dans le calendrier ou modifier sa date) demande maintenant confirmation, car la date change aussi en ligne.
+
 ## [0.16.0] — 2026-10-23
 
 Deux nouveaux modules dans la section **Outils** : To-do et Assistant vocal (V1), 100 % gratuits et locaux.
