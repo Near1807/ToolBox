@@ -1,0 +1,58 @@
+{
+  "id": "youtube-stats",
+  "name": "Stats YouTube",
+  "description": "Toutes les statistiques de ta chaîne au même endroit, croisées avec tes morceaux, Shorts, extraits et effets : vue d'ensemble, morceaux, vidéos, Labo et théories avec leur niveau de confiance.",
+  "version": "1.0.0",
+  "section": "Musique",
+  "icon": "📊",
+  "order": 50,
+  "dependsOn": {
+    "modules": [],
+    "services": [],
+    "optionalServices": [
+      "musicLibrary",
+      "releasePlanner",
+      "instagramPack",
+      "customReels",
+      "videoEngine"
+    ]
+  },
+  "provides": { "services": [] },
+  "permissions": { "accounts": ["google"] },
+  "settings": [
+    {
+      "key": "demoMode",
+      "type": "boolean",
+      "label": "Mode démo",
+      "description": "Affiche une chaîne simulée réaliste (« DONNÉES DE DÉMO ») pour voir l'outil rempli. Tes vraies statistiques ne sont ni touchées ni mélangées.",
+      "default": false
+    },
+    {
+      "key": "syncHours",
+      "type": "number",
+      "label": "Synchroniser toutes les … heures",
+      "description": "Au démarrage puis à cet intervalle, si le compte Google est connecté. YouTube publie ses statistiques avec 2 à 3 jours de retard.",
+      "min": 1,
+      "max": 48,
+      "step": 1,
+      "default": 6
+    },
+    {
+      "key": "detailsEveryDays",
+      "type": "number",
+      "label": "Rétention et répartitions : rafraîchir tous les … jours",
+      "description": "Courbes de rétention, sources de trafic, pays, appareils, âge et genre de chaque vidéo (plus de requêtes Google).",
+      "min": 1,
+      "max": 30,
+      "step": 1,
+      "default": 7
+    },
+    {
+      "key": "timeZone",
+      "type": "string",
+      "label": "Fuseau horaire des heures de publication",
+      "description": "Pour la carte jour × heure du Labo (nom IANA).",
+      "default": "Europe/Brussels"
+    }
+  ]
+}

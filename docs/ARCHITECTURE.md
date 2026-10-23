@@ -221,7 +221,7 @@ sequenceDiagram
 - **Jetons** : chiffrés par `safeStorage` (DPAPI), jamais renvoyés à l'interface. Le jeton d'accès est rafraîchi automatiquement (une minute avant expiration, un seul rafraîchissement à la fois).
   - Autorisation révoquée ou expirée (`invalid_grant`) : compte « À reconnecter », message clair aux modules (`AccountError`, réponse 409 avec `account: "reauth-required"`).
 - **`ctx.accounts.fetch(provider, url, init)`** : requête authentifiée (`/chemin` résolu sur l'API du fournisseur). Un 401 rafraîchit le jeton et renvoie la requête une fois.
-- **Périmètre** : un module n'accède qu'aux fournisseurs déclarés dans `permissions.accounts`. Les autorisations (scopes) sont demandées par le module et cumulées (`include_granted_scopes`) : `youtube-stats` pourra réutiliser le même compte.
+- **Périmètre** : un module n'accède qu'aux fournisseurs déclarés dans `permissions.accounts`. Les autorisations (scopes) sont demandées par le module et cumulées (`include_granted_scopes`) : `youtube-stats` réutilise le compte du Planning en ajoutant seulement la lecture des statistiques (`yt-analytics.readonly`, `youtube.readonly`), sans reconnexion complète. Une URL absolue est envoyée telle quelle, avec le jeton (ex. `https://youtubeanalytics.googleapis.com/v2/reports`).
 - **Déconnexion** : révocation chez le fournisseur, puis oubli des jetons.
 
 ### Fichiers multimédias : URL signées

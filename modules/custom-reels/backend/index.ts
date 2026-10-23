@@ -357,6 +357,8 @@ export default defineBackendModule({
         startSec: row.start_sec,
         durationSec: row.duration_sec,
         effect: row.effect,
+        intensity: row.intensity,
+        audioMode: row.audio_mode,
         state: stateOf(row, track),
         filePath: row.file_path,
         exists: Boolean(row.file_path && existsSync(row.file_path)),

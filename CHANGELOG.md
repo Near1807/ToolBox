@@ -4,6 +4,23 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.15.0] — 2026-10-23
+
+Nouveau module **Stats YouTube** (`youtube-stats`, section Musique).
+
+### Ajouté
+
+- **Stats YouTube** : toutes les statistiques de la chaîne, stockées en local et croisées avec les morceaux, Shorts, extraits, effets et dates de publication.
+  - Synchro au démarrage puis toutes les X heures (réglage), avec rattrapage de l'historique et relevé quotidien ; « Synchroniser maintenant » ; quota et jeton expiré gérés.
+  - Autorisations en lecture seule ajoutées au compte Google existant (sans tout reconnecter).
+  - Impressions et taux de clics : via l'API si Google les fournit, sinon import de l'export CSV de YouTube Studio (colonnes reconnues automatiquement, FR/EN, .csv ou .zip).
+  - Liaison vidéo ↔ morceau automatique par le Planning ; manuelle avec suggestion par titre.
+  - Quatre niveaux : Vue d'ensemble, Morceaux, Vidéos (fiche complète), Labo (rétention × musique, J+1/3/7/30, effet des Shorts sur la vidéo, extraits, styles, jour × heure, conversion, cycle de vie, anomalies).
+  - Théories : hypothèses avec effectif, test et niveau de confiance (Intuition / Piste / Solide), suggestions d'expérience, journal confirmé / infirmé / en attente.
+  - Mode démo clairement signalé « DONNÉES DE DÉMO ».
+- Planning de sortie : service `releasePlanner` (`listYouTubeItems`) ; Pack Insta : `startSec` des Reels ; Reels perso : `intensity` et `audioMode` dans le service.
+- ADR 0027.
+
 ## [0.14.2] — 2026-10-22
 
 Suite de l'audit : décisions de Thomas sur les propositions de la v0.14.1.

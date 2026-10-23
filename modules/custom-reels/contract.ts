@@ -16,6 +16,10 @@ export interface CustomReel {
   startSec: number;
   durationSec: number;
   effect: 'raw' | 'calm' | 'rhythm' | 'cine' | 'camera';
+  /** Strength of the movement (Rythme, Caméra embarquée). */
+  intensity: 'light' | 'medium' | 'max';
+  /** Sound of the Reel: the track excerpt, the videos' own sound, or the track synced to them. */
+  audioMode: 'track' | 'video' | 'synced';
   state: CustomReelState;
   /** Rendered file, null until rendered. */
   filePath: string | null;
