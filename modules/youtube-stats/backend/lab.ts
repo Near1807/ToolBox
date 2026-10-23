@@ -237,7 +237,7 @@ export interface AnomalyDay {
   expected: number;
   z: number;
   kind: 'spike' | 'dip';
-  /** Known events of that day or the day before (publications). */
+  /** Publications of that day and of the 3 days before. */
   events: string[];
 }
 
@@ -694,15 +694,15 @@ export function runLab(data: Dataset): LabResult {
   }
   const anomalies: AnomalyDay[] = findAnomalies(channelSeries.values).map((a) => {
     const day = channelSeries.days[a.index]!;
-    const before = channelSeries.days[a.index - 1];
-    return {
-      day,
-      value: a.value,
-      expected: a.expected,
-      z: a.z,
-      kind: a.kind,
-      events: [...(published.get(day) ?? []), ...(before ? (published.get(before) ?? []) : [])],
-    };
+    // Publications of the day and of the 3 days before (a release lifts the following days).
+    const events: string[] = [];
+    for (let back = 0; back <= 3; back++) {
+      const other = channelSeries.days[a.index - back];
+      if (!other) continue;
+      for (const text of published.get(other) ?? [])
+        events.push(back === 0 ? text : `${text} (J-${back})`);
+    }
+    return { day, value: a.value, expected: a.expected, z: a.z, kind: a.kind, events };
   });
 
   // Retention by section of the music, over the videos with a known track.

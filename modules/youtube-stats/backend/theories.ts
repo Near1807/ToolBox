@@ -134,7 +134,9 @@ export function generateTheories(lab: LabResult): Theory[] {
     const better = g.ratio! >= 1;
     const subject =
       familyResult.family === 'source'
-        ? `les Shorts faits d’un ${g.label.toLowerCase()}`
+        ? g.key === 'custom-reel'
+          ? 'les Shorts faits de tes vidéos (Reels perso)'
+          : 'les Shorts faits du Reel de la cover (pack)'
         : familyResult.family === 'effect'
           ? `les Reels perso en « ${EFFECT_LABELS[g.key] ?? g.key} »`
           : familyResult.family === 'intensity'

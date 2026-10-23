@@ -356,11 +356,13 @@ export function overview(
       videoId: star.id,
     });
   }
-  const spike = lab.anomalies.filter((a) => dayDiff(a.day, last) <= 21 && a.kind === 'spike').pop();
+  // A spike far from any release says more than the release itself.
+  const spikes = lab.anomalies.filter((a) => dayDiff(a.day, last) <= 21 && a.kind === 'spike');
+  const spike = spikes.filter((a) => a.events.length === 0).pop() ?? null;
   if (spike) {
     highlights.push({
       title: 'Pic inhabituel',
-      text: `Le ${spike.day.split('-').reverse().join('/')} : ${Math.round(spike.value)} vues au lieu de ~${Math.round(spike.expected)}${spike.events.length ? ` (${spike.events[0]})` : ' — sans publication ce jour-là'}.`,
+      text: `Le ${spike.day.split('-').reverse().join('/')} : ${Math.round(spike.value)} vues au lieu de ~${Math.round(spike.expected)}, sans publication ce jour-là ni les 3 jours avant (partage externe ? suggestion ?).`,
       tone: 'accent',
       videoId: null,
     });

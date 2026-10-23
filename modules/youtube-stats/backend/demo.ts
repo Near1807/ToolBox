@@ -380,7 +380,7 @@ export function demoDataset(today = new Date()): Dataset {
       },
       total: lognormal(random, 380, 0.4),
       decay: 0.16,
-      tail: t === 1 ? 0.012 : 0.0025, // « Aube » keeps living (evergreen).
+      tail: t === 1 ? 0.03 : 0.0025, // « Aube » keeps living (evergreen).
       pct: 34 + random() * 12,
       subsRate: 0.012,
       energy: segmentEnergy(track.peaks!, track.durationSec!, 0, track.durationSec!, 100),

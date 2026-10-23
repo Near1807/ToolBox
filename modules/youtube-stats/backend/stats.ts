@@ -211,7 +211,7 @@ export function holm(pValues: number[]): number[] {
 export const MIN_GROUP = 4;
 export const SOLID_GROUP = 8;
 
-const fmtP = (p: number) => (p < 0.001 ? '< 0,001' : p.toFixed(3).replace('.', ','));
+const fmtP = (p: number) => (p < 0.001 ? 'p < 0,001' : `p = ${p.toFixed(3).replace('.', ',')}`);
 
 /**
  * The three tiers, from the sizes of the groups, the (corrected) p-value and the
@@ -245,7 +245,7 @@ export function confidence(input: {
   if (p < 0.05 && (ci === null || excludes) && smallest >= SOLID_GROUP && input.strong) {
     return tier(
       'solide',
-      `p = ${fmtP(p)} sur ${sizes}${ci ? ', et l’intervalle de confiance exclut l’absence d’effet' : ''}.`,
+      `${fmtP(p)} sur ${sizes}${ci ? ', et l’intervalle de confiance exclut l’absence d’effet' : ''}.`,
     );
   }
   if (p < 0.2) {
@@ -254,12 +254,14 @@ export function confidence(input: {
         ? `encore peu de données (${smallest}${n.length > 1 ? ' d’un côté' : ''})`
         : !input.strong
           ? 'effet petit'
-          : 'pas encore assez net';
-    return tier('piste', `p = ${fmtP(p)} : tendance qui se dessine, mais ${why}.`);
+          : ci && !excludes
+            ? 'l’intervalle de confiance inclut encore l’absence d’effet'
+            : 'pas encore assez net';
+    return tier('piste', `${fmtP(p)} : tendance qui se dessine, mais ${why}.`);
   }
   return tier(
     'intuition',
-    `p = ${fmtP(p)} : l’écart observé est tout à fait compatible avec le hasard.`,
+    `${fmtP(p)} : l’écart observé est tout à fait compatible avec le hasard.`,
   );
 }
 
