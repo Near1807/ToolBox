@@ -7,6 +7,7 @@
 // - a destructive action waits for a « oui » recognised by this code;
 // - a sentence claiming an action before any tool result is held back.
 import type { AssistantActionInfo, AssistantOutcome, AssistantRisk } from '@hub/sdk/backend';
+import type { MatchResult } from './matcher';
 import type { ChatMessage, ChatModel, ToolCall, ToolSchema } from './ollama';
 import { OllamaError } from './ollama';
 import { SentenceSplitter, splitSentences } from './sentences';
@@ -26,7 +27,25 @@ export type Pending =
   | { kind: 'confirm'; actionId: string; params: unknown; question: string; moduleName: string }
   | { kind: 'open'; route: string; label: string };
 
+/** How a turn was answered. */
+export type TurnMode = 'command' | 'ai' | 'not-understood' | 'answer';
+
+export interface CommandSummary {
+  verdict: MatchResult['verdict'];
+  actionId: string | null;
+  score: number | null;
+  gap: number;
+  second: string | null;
+  semantic: boolean;
+  suggestion: string | null;
+}
+
 export interface BrainResult {
+  mode: TurnMode;
+  /** What the standardised commands found (null: not tried, e.g. an answer to a question). */
+  command: CommandSummary | null;
+  /** Questions the assistant asked in this turn. */
+  questions: number;
   reply: string;
   actions: TurnAction[];
   /** What a « oui » will do next (shown as buttons too). */
@@ -41,6 +60,10 @@ export interface BrainResult {
     rounds: number;
     promptTokens: number;
     outputTokens: number;
+    /** Recognition of the commands (ms). */
+    matchMs: number | null;
+    /** Time spent waiting for the model (ms). */
+    modelMs: number | null;
   };
 }
 
@@ -61,11 +84,38 @@ export interface BrainDeps {
   directReads?: () => boolean;
   /** False when the model cannot call tools: it then only answers, and says it cannot act. */
   toolsAvailable?: () => boolean;
+  /** Standardised commands (no generative AI); null when unavailable. */
+  recognise?: (text: string) => Promise<MatchResult | null>;
+  /** The « IA » switch: off, a request that is not a command is not understood. */
+  ai?: () => boolean;
+  /** Thomas's instructions for the model ('' or null: the original ones). */
+  prompt?: () => string | null;
+  /** keep_alive sent to Ollama. */
+  keepAlive?: () => string;
 }
+
+export const NOT_UNDERSTOOD = 'Je n’ai pas compris ta demande.';
+
+function summarise(match: MatchResult): CommandSummary {
+  return {
+    verdict: match.verdict,
+    actionId: match.best?.actionId ?? null,
+    score: match.best?.score ?? null,
+    gap: match.gap,
+    second: match.second?.actionId ?? null,
+    semantic: match.semantic,
+    suggestion: match.suggestion?.phrase ?? null,
+  };
+}
+
+const countQuestions = (reply: string) =>
+  splitSentences(reply).filter((s) => /\?\s*$/.test(s)).length;
 
 const MAX_ROUNDS = 4;
 /** A turn never takes longer than this (a slow PC, a model that rambles). */
 const TURN_TIMEOUT_MS = 120_000;
+export const TIMEOUT_MESSAGE =
+  'Le modèle met trop de temps à répondre (plus de 2 minutes) : essaie un modèle plus petit, ou une commande standardisée.';
 const MAX_TURNS_KEPT = 8;
 
 /** Tool names accepted by every model: letters, digits, underscores. */
@@ -126,7 +176,24 @@ export function yesNo(text: string): 'yes' | 'no' | null {
 const CLAIM =
   /\b(j ai (ajoute|supprime|coche|cree|note|mis|enregistre|programme|envoye|publie|fait)|c est (fait|note|coche|ajoute)|voila c est)\b/;
 
-function systemPrompt(now: Date, tools: boolean): string {
+/**
+ * The instructions of the model, editable by Thomas (advanced settings).
+ * Short and stable: Ollama keeps them in its cache, re-reading them costs
+ * seconds on a CPU. Safety never depends on them: confirmations, rights and
+ * refusals are applied by the code, whatever the instructions say.
+ */
+export const DEFAULT_PROMPT = [
+  'Tu es l’assistant vocal de ToolBox, l’application de Thomas, musicien.',
+  'Réponds en français, en une phrase courte, deux au plus : sans formule de politesse, sans répéter la demande, sans liste ni markdown.',
+  'Pour lire ou modifier ToolBox, appelle directement l’outil. Ne demande jamais de confirmation : l’application s’en charge.',
+  'Ne demande jamais un paramètre facultatif. Pose au plus une question, seulement s’il manque un paramètre obligatoire.',
+  'Passe les dates aux outils telles que dites (« vendredi », « demain »).',
+  'N’invente jamais un résultat : dis seulement ce que l’outil a renvoyé.',
+  'Culture générale : réponds brièvement ; si tu n’es pas sûr, dis-le.',
+].join('\n');
+
+/** What the app adds after the instructions (shown read only): the date, the tools note. */
+export function autoPromptLines(now: Date, tools: boolean): string[] {
   const date = new Intl.DateTimeFormat('fr-FR', {
     weekday: 'long',
     day: 'numeric',
@@ -134,24 +201,41 @@ function systemPrompt(now: Date, tools: boolean): string {
     year: 'numeric',
   }).format(now);
   return [
-    'Tu es l’assistant vocal de ToolBox, l’application de bureau de Thomas, musicien : bibliothèque de morceaux, vidéos YouTube, Reels Instagram, planning de sortie, statistiques YouTube, to-do.',
-    // The hour, not the minute: the instructions stay identical for an hour, so
-    // Ollama reuses its cache of them (re-reading them costs seconds on a CPU).
+    // The hour, not the minute, and at the end: the start stays identical, so
+    // Ollama reuses its cache of it.
     `Nous sommes le ${date}, il est environ ${now.getHours()} h.`,
-    'Règles :',
-    '- Réponds en français, en une à trois phrases courtes et naturelles à l’oral : pas de listes, pas de markdown, pas d’émojis.',
-    '- Pour lire ou modifier les données de ToolBox, utilise les outils. N’invente jamais un résultat : ne dis qu’une chose est faite que si un outil l’a confirmé.',
-    '- Si la demande est ambiguë (date, tag, morceau, tâche), pose une seule question courte au lieu de deviner.',
-    '- Passe les dates aux outils telles que dites (« vendredi », « demain ») : ne les convertis pas.',
-    '- Ne fais jamais les actions sensibles (envoyer sur YouTube, publier, supprimer des fichiers, changer une date programmée) : dis-le et propose d’ouvrir la page.',
-    '- Après un outil, appuie-toi uniquement sur son résultat ; reprends les chiffres tels quels.',
-    '- Culture générale : réponds brièvement avec tes connaissances ; si tu n’es pas sûr, dis-le. Tu n’as pas accès à internet.',
     ...(tools
       ? []
       : [
-          '- Le modèle choisi ne sait pas utiliser les outils : si on te demande de lire ou de modifier ToolBox, dis que tu ne peux pas avec ce modèle.',
+          'Le modèle choisi ne sait pas utiliser les outils : si on te demande de lire ou de modifier ToolBox, dis que tu ne peux pas avec ce modèle.',
         ]),
-  ].join('\n');
+  ];
+}
+
+export function systemPrompt(now: Date, tools: boolean, custom?: string | null): string {
+  const instructions = custom?.trim() || DEFAULT_PROMPT;
+  return [instructions, ...autoPromptLines(now, tools)].join('\n');
+}
+
+/**
+ * Fewer tools sent to the model (a shorter prompt to read): the actions of the
+ * modules the commands found close, plus the hub's own. Unsure → every tool.
+ */
+export function preselectTools(
+  catalog: AssistantActionInfo[],
+  match: MatchResult | null,
+): AssistantActionInfo[] {
+  const best = match?.best;
+  if (!best || best.score < 0.4) return catalog;
+  const modules = new Set(
+    match.ranking
+      .filter((c) => c.score >= best.score - 0.15)
+      .map((c) => catalog.find((a) => a.id === c.actionId)?.moduleId)
+      .filter((id): id is string => Boolean(id)),
+  );
+  if (modules.size === 0) return catalog;
+  modules.add('core');
+  return catalog.filter((a) => modules.has(a.moduleId));
 }
 
 function parseArguments(call: ToolCall): unknown {
@@ -164,6 +248,14 @@ function parseArguments(call: ToolCall): unknown {
   }
 }
 
+/** Where Thomas turns the assistant's rights on (also in Réglages). */
+export const RIGHTS_ROUTE = '/m/assistant/commands';
+
+/** One sentence, then the offer to open the rights (the pending « open » takes the « oui »). */
+export function forbiddenReply(label: string): string {
+  return `Je n’ai pas ce droit : « ${label} » est désactivé. J’ouvre les droits de l’assistant ?`;
+}
+
 /** What the model gets back from a tool (small). */
 function toolContent(outcome: AssistantOutcome): string {
   switch (outcome.status) {
@@ -173,6 +265,8 @@ function toolContent(outcome: AssistantOutcome): string {
       return JSON.stringify({ status: 'confirmation demandée', question: outcome.question });
     case 'refused':
       return JSON.stringify({ status: 'refusé (action sensible)', message: outcome.message });
+    case 'forbidden':
+      return JSON.stringify({ status: 'refusé (droit désactivé)', message: outcome.message });
     default:
       return JSON.stringify({ status: 'erreur', message: outcome.message });
   }
@@ -190,6 +284,11 @@ export class Brain {
     this.pending = null;
   }
 
+  /** The system message: Thomas's (or the original) instructions, then the app's lines. */
+  instructions(canUseTools = this.deps.toolsAvailable?.() !== false): string {
+    return systemPrompt(this.deps.now?.() ?? new Date(), canUseTools, this.deps.prompt?.());
+  }
+
   get waitingFor(): Pending | null {
     return this.pending;
   }
@@ -204,12 +303,13 @@ export class Brain {
       {
         model: this.deps.modelName(),
         messages: [
-          { role: 'system', content: systemPrompt(this.deps.now?.() ?? new Date(), canUseTools) },
+          { role: 'system', content: this.instructions(canUseTools) },
           { role: 'user', content: 'Bonjour' },
         ],
         tools: canUseTools ? toolSchemas(this.deps.actions()) : [],
         think: this.deps.think(),
         maxTokens: 1,
+        keepAlive: this.deps.keepAlive?.(),
       },
       () => {},
     );
@@ -227,12 +327,23 @@ export class Brain {
   ): Promise<BrainResult> {
     const started = Date.now();
     const result: BrainResult = {
+      mode: 'ai',
+      command: null,
+      questions: 0,
       reply: '',
       actions: [],
       pending: null,
       error: null,
       opened: null,
-      timings: { thinkMs: 0, firstSentenceMs: null, rounds: 0, promptTokens: 0, outputTokens: 0 },
+      timings: {
+        thinkMs: 0,
+        firstSentenceMs: null,
+        rounds: 0,
+        promptTokens: 0,
+        outputTokens: 0,
+        matchMs: null,
+        modelMs: null,
+      },
     };
     const say = (sentence: string) => {
       result.timings.firstSentenceMs ??= Date.now() - started;
@@ -243,6 +354,7 @@ export class Brain {
       if (!spoken) for (const sentence of splitSentences(result.reply)) say(sentence);
       result.timings.thinkMs = Date.now() - started;
       result.pending = this.pending;
+      result.questions = countQuestions(result.reply);
       return result;
     };
     const catalog = this.deps.actions();
@@ -254,6 +366,7 @@ export class Brain {
       const answer = yesNo(text);
       this.pending = null;
       if (answer) {
+        result.mode = 'answer';
         this.remember(text, '');
         if (answer === 'no')
           return this.closeTurn(
@@ -276,14 +389,37 @@ export class Brain {
       }
     }
 
+    // Standardised commands first: recognised → run without the model, AI on or off.
+    const match = this.deps.recognise ? await this.deps.recognise(text) : null;
+    if (match) {
+      result.command = summarise(match);
+      result.timings.matchMs = match.ms;
+      if (match.verdict === 'recognised' && match.best?.params) {
+        result.mode = 'command';
+        const actionId = match.best.actionId;
+        const info = catalog.find((a) => a.id === actionId);
+        const params = match.best.params;
+        const outcome = await this.deps.run(actionId, params);
+        result.actions.push(this.record(info, actionId, outcome));
+        const reply = this.react(outcome, info, params) ?? this.doneReply(outcome, result);
+        return this.closeTurn(finish(reply), text);
+      }
+    }
+    if (this.deps.ai && !this.deps.ai()) {
+      // AI off: Ollama is never called. A close command is suggested, never run.
+      result.mode = 'not-understood';
+      const hint = match?.suggestion ? ` Tu voulais dire : « ${match.suggestion.phrase} » ?` : '';
+      return finish(`${NOT_UNDERSTOOD}${hint}`);
+    }
+
     const canUseTools = this.deps.toolsAvailable?.() !== false;
     const messages: ChatMessage[] = [
-      { role: 'system', content: systemPrompt(this.deps.now?.() ?? new Date(), canUseTools) },
+      { role: 'system', content: this.instructions(canUseTools) },
       ...this.history,
       { role: 'user', content: text },
     ];
     const turnMessages: ChatMessage[] = [{ role: 'user', content: text }];
-    const tools = canUseTools ? toolSchemas(catalog) : [];
+    const tools = canUseTools ? toolSchemas(preselectTools(catalog, match)) : [];
     let anyToolResult = false;
 
     const deadline = AbortSignal.timeout(TURN_TIMEOUT_MS);
@@ -294,12 +430,14 @@ export class Brain {
         const splitter = new SentenceSplitter();
         const held: string[] = [];
         let spoken = false;
+        const modelStarted = Date.now();
         const chat = await this.deps.model().chat(
           {
             model: this.deps.modelName(),
             messages,
             tools,
             think: this.deps.think(),
+            keepAlive: this.deps.keepAlive?.(),
             signal: turnSignal,
           },
           (token) => {
@@ -313,6 +451,7 @@ export class Brain {
             }
           },
         );
+        result.timings.modelMs = (result.timings.modelMs ?? 0) + Date.now() - modelStarted;
         result.timings.promptTokens += chat.promptEvalCount;
         result.timings.outputTokens += chat.evalCount;
 
@@ -369,26 +508,8 @@ export class Brain {
           messages.push(toolMessage);
           turnMessages.push(toolMessage);
 
-          if (outcome.status === 'confirm') {
-            this.pending = {
-              kind: 'confirm',
-              actionId: outcome.id,
-              params,
-              question: outcome.question,
-              moduleName: info?.moduleName ?? '',
-            };
-            return this.closeTurn(finish(outcome.question), text, turnMessages);
-          }
-          if (outcome.status === 'refused') {
-            if (outcome.open)
-              this.pending = {
-                kind: 'open',
-                route: outcome.open,
-                label: info?.moduleName ?? 'la page',
-              };
-            const reply = `${info?.description.replace(/\.$/, '') ?? 'Ça'} : je ne le fais pas moi-même, c’est une action sensible.${outcome.open ? ` Je peux ouvrir ${info?.moduleName ?? 'la page'} pour que tu le fasses. Je l’ouvre ?` : ''}`;
-            return this.closeTurn(finish(reply), text, turnMessages);
-          }
+          const stop = this.react(outcome, info, params);
+          if (stop !== null) return this.closeTurn(finish(stop), text, turnMessages);
           if (outcome.status === 'done' && outcome.open) {
             this.deps.open(outcome.open);
             result.opened = outcome.open;
@@ -425,8 +546,7 @@ export class Brain {
         return finish('');
       }
       if (deadline.aborted) {
-        result.error =
-          'Le modèle a mis plus de 2 minutes à répondre : essaie un modèle plus petit.';
+        result.error = TIMEOUT_MESSAGE;
         return finish(result.error);
       }
       const message =
@@ -439,6 +559,49 @@ export class Brain {
       return finish(message);
     }
     return finish('Je n’y arrive pas, désolé.');
+  }
+
+  /**
+   * A confirmation to ask, a refusal (sensitive), a missing right: the reply,
+   * with what a « oui » will do next. null when the outcome needs no question.
+   */
+  private react(
+    outcome: AssistantOutcome,
+    info: AssistantActionInfo | undefined,
+    params: unknown,
+  ): string | null {
+    if (outcome.status === 'confirm') {
+      this.pending = {
+        kind: 'confirm',
+        actionId: outcome.id,
+        params,
+        question: outcome.question,
+        moduleName: info?.moduleName ?? '',
+      };
+      return outcome.question;
+    }
+    if (outcome.status === 'refused') {
+      if (outcome.open)
+        this.pending = { kind: 'open', route: outcome.open, label: info?.moduleName ?? 'la page' };
+      return `${info?.description.replace(/\.$/, '') ?? 'Ça'} : je ne le fais pas moi-même, c’est une action sensible.${outcome.open ? ` Je peux ouvrir ${info?.moduleName ?? 'la page'} pour que tu le fasses. Je l’ouvre ?` : ''}`;
+    }
+    if (outcome.status === 'forbidden') {
+      this.pending = { kind: 'open', route: RIGHTS_ROUTE, label: 'les droits de l’assistant' };
+      return forbiddenReply(outcome.right.label);
+    }
+    return null;
+  }
+
+  /** A command done (its own message, the page opened) or its error, said as is. */
+  private doneReply(outcome: AssistantOutcome, result: BrainResult): string {
+    if (outcome.status === 'done') {
+      if (outcome.open) {
+        this.deps.open(outcome.open);
+        result.opened = outcome.open;
+      }
+      return outcome.message;
+    }
+    return 'message' in outcome ? outcome.message : NOT_UNDERSTOOD;
   }
 
   private record(

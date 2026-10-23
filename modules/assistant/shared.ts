@@ -7,7 +7,7 @@ export interface TurnActionDto {
   moduleName: string;
   description: string;
   risk: 'read' | 'change' | 'destructive' | 'sensitive';
-  status: 'done' | 'confirm' | 'refused' | 'invalid' | 'error';
+  status: 'done' | 'confirm' | 'refused' | 'forbidden' | 'invalid' | 'error';
   message: string;
   undoId: string | null;
   open: string | null;
@@ -20,6 +20,20 @@ export interface TurnDto {
   source: 'voice' | 'text';
   /** What was understood (transcript), or typed. */
   heard: string;
+  /** « commande standardisée », « IA », not understood, or an answer (oui / non). */
+  mode: 'command' | 'ai' | 'not-understood' | 'answer' | null;
+  /** What the standardised commands found. */
+  command: {
+    verdict: 'recognised' | 'low-score' | 'ambiguous' | 'missing-params' | 'empty';
+    actionId: string | null;
+    score: number | null;
+    gap: number;
+    second: string | null;
+    semantic: boolean;
+    suggestion: string | null;
+  } | null;
+  /** Questions asked by the assistant in this turn. */
+  questions: number;
   reply: string;
   actions: TurnActionDto[];
   /** A pending question (« Je supprime la tâche … ? ») answered by Oui / Non. */
@@ -28,6 +42,10 @@ export interface TurnDto {
   latency: {
     /** Speech to text (ms). */
     transcribeMs: number | null;
+    /** Recognition of the commands (ms). */
+    matchMs: number | null;
+    /** Waiting for the model (ms), AI only. */
+    modelMs: number | null;
     /** Text to the end of the answer (ms). */
     thinkMs: number | null;
     /** Text to the first sentence ready (ms). */
@@ -46,6 +64,8 @@ export interface StateEvent {
   text: string | null;
   /** Recording in « tap to start, tap to stop » mode. */
   toggle: boolean;
+  /** The « IA » switch (recalled in the floating indicator). */
+  ai: boolean;
 }
 
 export interface SpeechEvent {
@@ -78,7 +98,18 @@ export interface StatusDto {
     reason: string | null;
     key: { code: number; label: string } | null;
   };
-  settings: { speakReplies: boolean; speed: number; directReads: boolean };
+  settings: {
+    ai: boolean;
+    speakReplies: boolean;
+    speed: number;
+    /** Effective (setting resolved, « auto » included). */
+    directReads: boolean;
+    directReplies: 'auto' | 'on' | 'off';
+    keepAlive: string;
+    commandThreshold: number;
+    commandMargin: number;
+  };
+  commands: { count: number; semantic: boolean; modelInstalled: boolean; modelLabel: string };
   choices: {
     models: { tag: string; label: string; sizeGb: number; memoryGb: number; note: string }[];
     whisper: { id: string; label: string; note: string; size: number }[];
@@ -86,4 +117,75 @@ export interface StatusDto {
   };
   installing: { id: string; title: string; progress: number | null; message: string | null }[];
   ready: boolean;
+}
+
+// --- Commands page ------------------------------------------------------------
+
+export interface CommandPhraseDto {
+  /** Thomas's phrases only (module phrases have none). */
+  id: number | null;
+  text: string;
+  source: 'module' | 'user';
+  hidden: boolean;
+}
+
+export interface CommandDto {
+  id: string;
+  moduleId: string;
+  moduleName: string;
+  description: string;
+  risk: 'read' | 'change' | 'destructive' | 'sensitive';
+  parameters: { name: string; description: string; required: boolean }[];
+  right: { id: string; label: string; granted: boolean } | null;
+  phrases: CommandPhraseDto[];
+  /** Runs from a phrase (false: disabled for lack of the right). */
+  available: boolean;
+}
+
+export interface RightDto {
+  id: string;
+  label: string;
+  moduleName: string;
+  granted: boolean;
+  actions: string[];
+}
+
+export interface CommandsDto {
+  commands: CommandDto[];
+  rights: RightDto[];
+  semantic: boolean;
+  settings: { threshold: number; margin: number };
+}
+
+export interface ConflictDto {
+  actionId: string;
+  moduleName: string;
+  description: string;
+  score: number;
+  phrase: string;
+}
+
+export interface TestDto {
+  verdict: 'recognised' | 'low-score' | 'ambiguous' | 'missing-params' | 'empty';
+  best: ConflictDto | null;
+  second: ConflictDto | null;
+  gap: number;
+  params: Record<string, unknown> | null;
+  suggestion: ConflictDto | null;
+  semantic: boolean;
+  ms: number;
+  settings: { threshold: number; margin: number };
+  ranking: (ConflictDto | null)[];
+}
+
+export interface PromptDto {
+  original: string;
+  /** '' = the original. */
+  custom: string;
+  effective: string;
+  /** Lines the app adds after the instructions (date…). */
+  auto: string[];
+  /** Tools sent to the model (names). */
+  tools: string[];
+  length: { chars: number; tokens: number; autoTokens: number; toolsTokens: number };
 }

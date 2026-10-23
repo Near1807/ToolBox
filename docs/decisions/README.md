@@ -48,3 +48,5 @@ Modèle :
 | 0027 | [Stats YouTube : données locales, niveaux de confiance, démo, CSV en repli](0027-stats-youtube.md)                                   |
 | 0028 | [Actions des modules pour l'assistant, touche globale, indicateur flottant](0028-actions-des-modules-pour-l-assistant.md)            |
 | 0029 | [Assistant vocal local : whisper.cpp, Ollama, Piper](0029-assistant-vocal-local.md)                                                  |
+| 0030 | [Commandes standardisées de l'assistant, interrupteur « IA », droits un par un](0030-commandes-standardisees.md)                     |
+| 0031 | [Quota YouTube partagé : le Planning passe avant les Stats](0031-quota-youtube-planning-avant-stats.md)                              |

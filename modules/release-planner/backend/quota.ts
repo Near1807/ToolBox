@@ -28,9 +28,35 @@ export interface QuotaUsage {
   /** Quota day (YYYY-MM-DD, Pacific time). */
   day: string;
   uploads: number;
+  /** Every unit spent this day: the Planning's and the other modules' (same Google project). */
   units: number;
+  /** The Planning's own units (follow-ups of the uploads, updates, lists). */
+  ownUnits?: number;
+  /** Units of the other modules, by module id. */
+  others?: Record<string, number>;
   /** YouTube answered "quota exceeded" this day. */
   exhausted: boolean;
+  /** Who got that answer first. */
+  exhaustedBy?: string | null;
+}
+
+const MODULE_NAMES: Record<string, string> = {
+  'release-planner': 'le Planning',
+  'youtube-stats': 'Stats YouTube',
+};
+
+/** « Aujourd’hui : 3 envoi(s) du Planning et 300 unités, 12 unités pour Stats YouTube. » */
+export function quotaOrigin(usage: QuotaUsage): string {
+  const parts = [
+    `${usage.uploads} envoi(s) du Planning et ${usage.ownUnits ?? usage.units} unité(s) pour leurs suites`,
+    ...Object.entries(usage.others ?? {})
+      .filter(([, units]) => units > 0)
+      .map(([module, units]) => `${units} unité(s) pour ${MODULE_NAMES[module] ?? module}`),
+  ];
+  const by = usage.exhaustedBy
+    ? ` Quota épuisé lors d’un appel de ${MODULE_NAMES[usage.exhaustedBy] ?? usage.exhaustedBy}.`
+    : '';
+  return `Consommation du jour : ${parts.join(', ')}.${by}`;
 }
 
 export function canUpload(usage: QuotaUsage, limits: QuotaLimits): boolean {

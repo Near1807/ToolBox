@@ -323,7 +323,11 @@ ctx.assistant.define({
     due: { type: 'string', description: 'Échéance en langage naturel : « demain », « vendredi »' },
   },
   required: ['title'],
+  // Commande standardisée (reconnue sans IA générative) :
+  examples: ['ajoute une tâche finir le mix pour vendredi', 'rappelle-moi de payer le mastering'],
+  extract: (utterance) => extractAdd(utterance), // paramètres tirés de la phrase, par du code
   risk: 'change',
+  right: { id: 'edit-tasks', label: 'L’assistant peut ajouter et cocher des tâches' },
   run: (params) => ({
     message: 'J’ai ajouté « finir le mix » pour vendredi.', // ce qui a été fait, rien de plus
     data: { id: 12 }, // faits pour le modèle (petit, JSON)
@@ -332,12 +336,12 @@ ctx.assistant.define({
 });
 ```
 
-| `risk`        | Sens                                                                              | Ce que fait le socle                                                                                               |
-| ------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `read`        | lecture seule (lister, résumer, ouvrir une page)                                  | exécutée directement                                                                                               |
-| `change`      | modification sans conséquence (ajouter, cocher)                                   | exécutée directement ; `undo` (si fourni) devient le bouton « Annuler »                                            |
-| `destructive` | modification qui fait perdre quelque chose (supprimer une tâche)                  | **jamais sans confirmation** : renvoie la question de `confirmation(params)` ; exécutée seulement avec `confirmed` |
-| `sensitive`   | publier, envoyer sur YouTube, supprimer des fichiers, changer une date programmée | **jamais exécutée** (pas de `run`) : refus, avec la page `page` du module à ouvrir                                 |
+| `risk`        | Sens                                                                              | Ce que fait le socle                                                                                                                                                |
+| ------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `read`        | lecture seule (lister, résumer, ouvrir une page)                                  | exécutée directement                                                                                                                                                |
+| `change`      | modification sans conséquence (ajouter, cocher)                                   | refusée tant que son droit `right` est désactivé ; sinon exécutée directement ; `undo` (si fourni) devient « Annuler »                                              |
+| `destructive` | modification qui fait perdre quelque chose (supprimer une tâche)                  | refusée tant que son droit est désactivé ; sinon **jamais sans confirmation** : renvoie la question de `confirmation(params)` ; exécutée seulement avec `confirmed` |
+| `sensitive`   | publier, envoyer sur YouTube, supprimer des fichiers, changer une date programmée | **jamais exécutée** (pas de `run`) : refus, avec la page `page` du module à ouvrir                                                                                  |
 
 - Paramètres : types `string`, `number`, `integer`, `boolean`, `string[]`, `enum` possible. Le socle les vérifie (paramètre inconnu, manquant, mauvais type → refus expliqué) et corrige ce que les modèles envoient souvent (`"3"` → 3, `"a, b"` → `["a", "b"]`, `""` → absent).
 - `run` lève une `HttpError` avec un message français pour un refus attendu (« Tâche introuvable ») ; l'assistant le répète tel quel.
@@ -346,6 +350,16 @@ ctx.assistant.define({
 - Les dates en langage naturel, les noms approximatifs (« boumboum ») se résolvent **dans le module** (code testé), pas par le modèle.
 - Consommer le catalogue : `permissions.assistant: true`, puis `ctx.assistant.actions()`, `run(id, params, { confirmed })`, `undo(undoId)`. Les annulations vivent en mémoire (1 h, fin à la fermeture de l'app).
 - Le socle fournit ses propres actions (`core.list-jobs`, `core.list-modules`, `core.open`).
+
+**Droits : l'assistant est en lecture seule par défaut (règle du contrat).** Toute action `change` ou `destructive` déclare **son propre droit** `right: { id, label }` (id en kebab-case, complet `<module>.<id>` ; libellé en français, « L’assistant peut… »). Le socle refuse de charger le module sinon. Chaque droit est un interrupteur de la section de réglages « Droits de l’assistant vocal », **désactivé par défaut** ; Thomas l'active lui-même, un par un, après essai (§1 bis). Plusieurs actions d'un même module peuvent partager un droit quand elles vont ensemble (ajouter et cocher une tâche) ; une action qui fait perdre quelque chose a le sien (supprimer). Droit désactivé → `run` renvoie `{ status: 'forbidden', right }` sans rien exécuter, même avec `confirmed` ; l'assistant le dit en une phrase et propose d'ouvrir les droits. Droit activé → les règles ci-dessus s'appliquent toujours (la confirmation d'une action `destructive` reste obligatoire). Lecture et écriture : `ctx.assistant.rights()`, `setRight(id, granted)` (permission `assistant`).
+
+**Commandes standardisées (sans IA générative).** Chaque action peut déclarer :
+
+- `examples` : des phrases d'exemple en français, telles qu'on les dit (« ajoute une tâche finir le mix pour vendredi », « qu’est-ce que j’ai à faire aujourd’hui »). L'assistant reconnaît une demande par le sens (petit modèle d'embeddings local) et par les correspondances exactes ; Thomas peut ajouter ses propres phrases et masquer celles du module (page « Commandes » de l'assistant), jamais changer l'action, ses paramètres ni son niveau de risque.
+- `extract(utterance)` : une fonction **en code** qui tire les paramètres de la phrase (titre, tags, date, morceau, nombre). Elle renvoie les paramètres trouvés, ou `null` si un paramètre **obligatoire** manque (la commande n'est alors pas exécutée). Un paramètre facultatif absent reste absent : il n'est jamais demandé. Une action sans paramètre déclare `extract: () => ({})`. Le résultat passe par la même vérification que les paramètres du modèle.
+- Aides du SDK (`@hub/sdk/backend`) : `cleanUtterance` (retire « euh », « tu peux », « s’il te plaît »…), `stripCommand(texte, préfixes)`, `extractTags`, `extractTrailing(texte, parse)` (une valeur en fin de phrase, ex. une date), `extractAfter(texte, marqueur)` (« sur le morceau Aube »), `extractName(texte, préfixes)` (un nom après la commande, à résoudre ensuite avec `matchByName`), `extractNumber`, `normaliseUtterance`. Les dates se lisent avec le parseur du module (la To-do a le sien), les morceaux avec `matchByName` dans `run`.
+- Une action sans `examples` ni `extract` reste disponible pour l'IA seulement (interrupteur « IA » de l'assistant).
+- Tester l'extracteur sur des phrases réalistes, hésitations comprises (`modules/todo/tests/commands.test.ts`).
 
 ### 5.16 `ctx.hotkeys` et `ctx.ui` — touche globale, fenêtre, indicateur flottant
 
@@ -508,6 +522,8 @@ L'état de chaque module est visible dans **Réglages > Modules** (avec bouton D
 - [ ] Dépendances et services déclarés dans le manifest ; types publics dans `contract.ts`
 - [ ] Comptes externes déclarés dans `permissions.accounts`, autorisations minimales
 - [ ] Actions pour l'assistant déclarées (`ctx.assistant.define`, §5.15) : lecture de l'essentiel ; une action qui modifie seulement sur décision de Thomas, annulable, et confirmée si elle supprime ; rien de sensible exécutable
+- [ ] Chaque action qui modifie (`change`, `destructive`) a **son propre droit** `right`, désactivé par défaut
+- [ ] Commandes standardisées : `examples` (phrases en français) et `extract` (paramètres tirés par du code, `null` si un obligatoire manque), testés sur des phrases réalistes
 - [ ] Contrôle et sécurité (§1 bis) : rien n'est supprimé, publié, modifié en ligne ou écrasé sans confirmation ; tout ce qui agit seul est désactivé par défaut avec un réglage clair
 - [ ] Éléments générés affichés avec les composants partagés du SDK (§7.1), aucune couleur en dur (§7.2)
 - [ ] Textes en français, code en anglais

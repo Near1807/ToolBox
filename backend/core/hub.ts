@@ -15,7 +15,7 @@ import {
   ACCOUNTS_SCOPE,
   type OAuthProvider,
 } from './accounts';
-import { AssistantRegistry } from './assistant';
+import { AssistantRegistry, rightKey } from './assistant';
 import { registerCoreActions } from './assistant-core';
 import { createAutomaticBackup, restoreBackup } from './backups';
 import { coreMigrations } from './core-migrations';
@@ -88,6 +88,8 @@ interface ModuleRecord {
 }
 
 export const CORE_SCOPE = 'core';
+/** Settings section of the assistant's rights (one boolean per right). */
+export const ASSISTANT_RIGHTS_SCOPE = 'assistant-rights';
 
 /** Interface preferences (theme, sidebar layout): a hidden settings section, see /api/core/ui. */
 export const UI_SCOPE = 'ui';
@@ -211,12 +213,36 @@ export class Hub {
 
     this.discover();
     await this.loadModules();
+    this.registerAssistantRights();
 
     // Generated files deleted or moved outside the app since the last start.
     const missing = this.outputs.sync();
     if (missing > 0) {
       this.logger.warn(`${missing} fichier(s) généré(s) introuvable(s) sur le disque`);
     }
+  }
+
+  /**
+   * « Droits de l'assistant vocal »: one switch per right declared by the
+   * modules' actions, off by default (Contrôle et sécurité, MODULES.md §1 bis).
+   */
+  private registerAssistantRights(): void {
+    const rights = this.assistant.rights();
+    this.settings.register(
+      ASSISTANT_RIGHTS_SCOPE,
+      'Droits de l’assistant vocal',
+      rights.map((right) => ({
+        key: rightKey(right.id),
+        type: 'boolean' as const,
+        label: right.label,
+        description: `${right.moduleName} — désactivé par défaut. Sans ce droit, l’assistant le dit et propose d’ouvrir la page.`,
+        default: false,
+      })),
+    );
+    this.assistant.useRights({
+      get: (id) => this.settings.get(ASSISTANT_RIGHTS_SCOPE, rightKey(id)) === true,
+      set: (id, granted) => this.settings.set(ASSISTANT_RIGHTS_SCOPE, rightKey(id), granted),
+    });
   }
 
   /** Keeps the OS login item in line with the core setting. */

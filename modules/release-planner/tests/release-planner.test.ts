@@ -20,6 +20,7 @@ import {
 import type { CustomReel, CustomReelsService } from '../../custom-reels/contract';
 import type { InstagramPackService, PackItem } from '../../instagram-video/contract';
 import type { YouTubeVideoService } from '../../youtube-video/contract';
+import type { ReleasePlannerService } from '../contract';
 import { addDays } from '../backend/time';
 import { MockGoogle } from './mock-google';
 
@@ -226,6 +227,7 @@ describe('release-planner (mock YouTube)', () => {
     captions: new Map<number, string | null>(),
   };
   const trackIds: number[] = [];
+  let plannerService: ReleasePlannerService | null = null;
 
   const waitFor = async <T>(read: () => Promise<T>, done: (value: T) => boolean, ms = 30_000) => {
     const end = Date.now() + ms;
@@ -261,6 +263,25 @@ describe('release-planner (mock YouTube)', () => {
         await loadModuleFolder(path.join(MODULES, 'music-library')),
         ...fakeProviders(dir, calls),
         await loadModuleFolder(path.join(MODULES, 'release-planner')),
+        // Reads the planner's quota like youtube-stats does.
+        {
+          folder: 'quota-reader',
+          manifest: {
+            id: 'quota-reader',
+            name: 'quota-reader',
+            description: 'fake',
+            version: '1.0.0',
+            section: 'Tests',
+            icon: '🧪',
+            dependsOn: { optionalServices: ['releasePlanner'] },
+          },
+          backend: {
+            register(ctx: ModuleContext) {
+              plannerService =
+                ctx.services.optional<ReleasePlannerService>('releasePlanner') ?? null;
+            },
+          },
+        } as DiscoveredModule,
       ],
       host: createTestHost({
         getDefaultOutputRoot: () => path.join(dir, 'out'),
@@ -644,6 +665,22 @@ describe('release-planner (mock YouTube)', () => {
     expect(summary.body.quota.exhausted).toBe(true);
     expect(summary.body.queue).toBe(5);
     expect(summary.body.quotaMessage).toContain('5 envoi(s) reporté(s)');
+    // What another module (youtube-stats) sees: uploads waiting, quota exhausted by the Planning.
+    const outlook = plannerService!.youtubeQuota();
+    expect(outlook).toMatchObject({
+      exhausted: true,
+      exhaustedBy: 'release-planner',
+      uploadsActive: 5,
+      unitsPerDay: 10_000,
+    });
+    plannerService!.recordYouTubeQuota('youtube-stats', 7);
+    expect(plannerService!.youtubeQuota().used.byModule).toEqual({ 'youtube-stats': 7 });
+    expect(plannerService!.youtubeQuota().used.total).toBe(outlook.used.total + 7);
+    expect(plannerService!.quotaOrigin()).toMatch(
+      /^Consommation du jour : \d+ envoi\(s\) du Planning et \d+ unité\(s\) pour leurs suites, 7 unité\(s\) pour Stats YouTube\. Quota épuisé lors d’un appel de le Planning\.$/,
+    );
+    // The warning of the deferred upload says who consumed the quota.
+    expect(video.warning).toContain('Consommation du jour');
     google.quotaExceeded = false;
     // Cancelled while waiting: back to « planned », nothing on YouTube.
     await hub.request('POST', `${API}/items/${video.id}/cancel`);

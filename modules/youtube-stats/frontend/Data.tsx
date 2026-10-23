@@ -89,7 +89,7 @@ export function Data(props: { state: StateData | null; reload: () => void }) {
                 <dt>Dernière synchronisation</dt>
                 <dd>
                   {s.lastSync
-                    ? `${new Date(s.lastSync.at).toLocaleString('fr-FR')} — ${s.lastSync.ok ? 'réussie' : 'échec'}`
+                    ? `${new Date(s.lastSync.at).toLocaleString('fr-FR')} — ${s.lastSync.postponed ? 'reportée (envois du Planning d’abord)' : s.lastSync.ok ? 'réussie' : 'échec'}`
                     : 'jamais'}
                   {s.lastSync?.message && (
                     <div className={s.lastSync.ok ? 'small muted' : 'small error'}>

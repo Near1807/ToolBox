@@ -9,6 +9,19 @@ import { assertTransition, type ItemState } from './status';
  * v3: the user's own Reels (custom-reels) in a release, the J-3 / J-1 alerts
  * already sent, and the start of the automatic upload of a release.
  */
+/** YouTube quota spent by other modules (same Google project): the uploads come first. */
+export const migrationV4 = `
+  CREATE TABLE release_planner__quota_shared (
+    day TEXT NOT NULL,
+    module TEXT NOT NULL,
+    units INTEGER NOT NULL DEFAULT 0,
+    exhausted INTEGER NOT NULL DEFAULT 0,
+    exhausted_at TEXT,
+    PRIMARY KEY (day, module)
+  );
+  ALTER TABLE release_planner__quota ADD COLUMN exhausted_at TEXT;
+`;
+
 export const migrationV3 = `
   ALTER TABLE release_planner__items ADD COLUMN custom_reel_id INTEGER;
   ALTER TABLE release_planner__items ADD COLUMN alerted_j3 INTEGER NOT NULL DEFAULT 0;
@@ -140,11 +153,13 @@ export class PlannerStore {
   private readonly releases: string;
   private readonly items: string;
   private readonly quota: string;
+  private readonly quotaShared: string;
 
   constructor(private readonly ctx: ModuleContext) {
     this.releases = ctx.db.table('releases');
     this.items = ctx.db.table('items');
     this.quota = ctx.db.table('quota');
+    this.quotaShared = ctx.db.table('quota_shared');
   }
 
   release(id: number): ReleaseRow | null {
@@ -317,24 +332,78 @@ export class PlannerStore {
     });
   }
 
+  /** The day's usage: the Planning's own, plus what the other modules spent (counted in `units`). */
   quotaUsage(day: string): QuotaUsage {
     const row = this.ctx.db.prepare(`SELECT * FROM ${this.quota} WHERE day = ?`).get(day) as
-      { day: string; uploads: number; units: number; exhausted: number } | undefined;
+      | {
+          day: string;
+          uploads: number;
+          units: number;
+          exhausted: number;
+          exhausted_at: string | null;
+        }
+      | undefined;
+    const shared = this.ctx.db
+      .prepare(
+        `SELECT module, units, exhausted, exhausted_at FROM ${this.quotaShared} WHERE day = ?`,
+      )
+      .all(day) as {
+      module: string;
+      units: number;
+      exhausted: number;
+      exhausted_at: string | null;
+    }[];
+    const others = Object.fromEntries(shared.map((r) => [r.module, r.units]));
+    const exhaustions = [
+      ...(row?.exhausted ? [{ module: 'release-planner', at: row.exhausted_at ?? '' }] : []),
+      ...shared
+        .filter((r) => r.exhausted)
+        .map((r) => ({ module: r.module, at: r.exhausted_at ?? '' })),
+    ].sort((a, b) => a.at.localeCompare(b.at));
+    const ownUnits = row?.units ?? 0;
     return {
       day,
       uploads: row?.uploads ?? 0,
-      units: row?.units ?? 0,
-      exhausted: Boolean(row?.exhausted),
+      units: ownUnits + shared.reduce((sum, r) => sum + r.units, 0),
+      ownUnits,
+      others,
+      exhausted: exhaustions.length > 0,
+      exhaustedBy: exhaustions[0]?.module ?? null,
     };
   }
 
   addQuota(day: string, usage: { uploads?: number; units?: number; exhausted?: boolean }): void {
     this.ctx.db
       .prepare(
-        `INSERT INTO ${this.quota} (day, uploads, units, exhausted) VALUES (?, ?, ?, ?)
+        `INSERT INTO ${this.quota} (day, uploads, units, exhausted, exhausted_at) VALUES (?, ?, ?, ?, ?)
          ON CONFLICT (day) DO UPDATE SET uploads = uploads + excluded.uploads,
-           units = units + excluded.units, exhausted = MAX(exhausted, excluded.exhausted)`,
+           units = units + excluded.units, exhausted = MAX(exhausted, excluded.exhausted),
+           exhausted_at = COALESCE(exhausted_at, excluded.exhausted_at)`,
       )
-      .run(day, usage.uploads ?? 0, usage.units ?? 0, usage.exhausted ? 1 : 0);
+      .run(
+        day,
+        usage.uploads ?? 0,
+        usage.units ?? 0,
+        usage.exhausted ? 1 : 0,
+        usage.exhausted ? new Date().toISOString() : null,
+      );
+  }
+
+  /** Units another module spent on the YouTube Data API (same Google project). */
+  addSharedQuota(day: string, module: string, units: number, exhausted = false): void {
+    this.ctx.db
+      .prepare(
+        `INSERT INTO ${this.quotaShared} (day, module, units, exhausted, exhausted_at) VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT (day, module) DO UPDATE SET units = units + excluded.units,
+           exhausted = MAX(exhausted, excluded.exhausted),
+           exhausted_at = COALESCE(exhausted_at, excluded.exhausted_at)`,
+      )
+      .run(
+        day,
+        module,
+        Math.max(0, Math.round(units)),
+        exhausted ? 1 : 0,
+        exhausted ? new Date().toISOString() : null,
+      );
   }
 }

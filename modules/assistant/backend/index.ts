@@ -18,8 +18,26 @@ import {
   type SettingValue,
 } from '@hub/sdk/backend';
 import type { AssistantState, StatusDto, TurnDto } from '../shared';
-import { Brain, type BrainResult } from './brain';
-import { ENGINES, MODEL_CHOICES, VOICES, WHISPER_MODELS, DEFAULT_VOICE } from './catalog';
+import {
+  autoPromptLines,
+  Brain,
+  DEFAULT_PROMPT,
+  preselectTools,
+  toolSchemas,
+  type BrainResult,
+} from './brain';
+import {
+  EMBEDDING_MODEL,
+  ENGINES,
+  MODEL_CHOICES,
+  VOICES,
+  WHISPER_MODELS,
+  DEFAULT_VOICE,
+} from './catalog';
+import { CommandService } from './commands';
+import { DICTIONARY_MIGRATIONS } from './dictionary';
+import { OnnxEmbedder, embeddingsInstalled, EMBEDDING_FILES, type Embedder } from './embedder';
+import { DEFAULT_MATCH } from './matcher';
 import { download, extract, findExecutable } from './download';
 import { PiperVoice, WhisperServer, type Synthesizer, type Transcriber } from './engines';
 import { detectHardware, recommend, type Hardware, type Recommendation } from './hardware';
@@ -31,6 +49,8 @@ export interface AssistantTestHooks {
   transcriber?: Transcriber;
   synthesizer?: Synthesizer;
   hardware?: Hardware;
+  /** Embeddings for the commands (null: words only). */
+  embedder?: Embedder | null;
 }
 let testHooks: AssistantTestHooks = {};
 export function setAssistantTestHooks(hooks: AssistantTestHooks): void {
@@ -41,7 +61,16 @@ const MAX_RECORDING_MS = 30_000;
 const HOLD_MS = 350;
 const MAX_TURNS = 50;
 
-type InstallTarget = 'whisper-engine' | 'whisper-model' | 'piper-engine' | 'voice' | 'llm';
+type InstallTarget =
+  'whisper-engine' | 'whisper-model' | 'piper-engine' | 'voice' | 'llm' | 'embeddings';
+const INSTALL_TARGETS: InstallTarget[] = [
+  'whisper-engine',
+  'whisper-model',
+  'piper-engine',
+  'voice',
+  'llm',
+  'embeddings',
+];
 
 function onPath(name: string): string | null {
   for (const dir of (process.env.PATH ?? '').split(delimiter)) {
@@ -59,6 +88,7 @@ function parseKey(value: string | null): HotkeySpec | null {
 }
 
 export default defineBackendModule({
+  migrations: DICTIONARY_MIGRATIONS,
   register(ctx: ModuleContext) {
     const setting = <T extends SettingValue>(key: string) => ctx.settings.get<T>(key);
     const ollama = new OllamaClient(() => setting<string>('ollamaUrl') || 'http://127.0.0.1:11434');
@@ -164,6 +194,39 @@ export default defineBackendModule({
       return capabilities.get(model)!;
     };
 
+    // --- Standardised commands (no generative AI) ---------------------------------
+
+    const aiOn = () => setting<boolean>('ai') === true;
+    /** No dedicated graphics card: the model is slow, its second pass is skipped. */
+    const noDedicatedGpu = () =>
+      !(hardware?.gpus ?? []).some((g) => g.nvidia || (g.vramGb ?? 0) >= 4);
+    const directReplies = () => {
+      const choice = setting<string>('directReplies') || 'auto';
+      if (choice === 'on') return true;
+      if (choice === 'off') return false;
+      // The former switch, when Thomas had turned it on.
+      return setting<boolean>('directReads') === true || noDedicatedGpu();
+    };
+    const matchSettings = () => ({
+      threshold: setting<number>('commandThreshold') ?? DEFAULT_MATCH.threshold,
+      margin: setting<number>('commandMargin') ?? DEFAULT_MATCH.margin,
+    });
+    const commands = new CommandService(ctx, matchSettings);
+    const embeddingsDir = ctx.files.dataPath('embeddings', EMBEDDING_MODEL.id);
+    const loadEmbedder = () => {
+      if (testHooks.embedder !== undefined) commands.setEmbedder(testHooks.embedder);
+      else if (embeddingsInstalled(embeddingsDir))
+        commands.setEmbedder(new OnnxEmbedder(embeddingsDir));
+    };
+    loadEmbedder();
+    // Vectors of the phrases computed in the background (a few seconds at most).
+    setTimeout(() => {
+      void commands.ready().catch((error: unknown) => {
+        ctx.logger.warn('Modèle de commandes illisible : reconnaissance par les mots seuls', error);
+        commands.setEmbedder(null);
+      });
+    }, 0);
+
     const brain = new Brain({
       model: () => testHooks.chatModel ?? ollama,
       modelName,
@@ -171,8 +234,38 @@ export default defineBackendModule({
       actions: () => ctx.assistant.actions(),
       run: (id, params, options) => ctx.assistant.run(id, params, options),
       open: (route) => ctx.ui.open(route),
-      directReads: () => setting<boolean>('directReads') === true,
+      directReads: () => directReplies(),
       toolsAvailable: () => capabilities.get(modelName())?.includes('tools') ?? true,
+      recognise: async (text) => {
+        try {
+          return await commands.match(text);
+        } catch (error) {
+          ctx.logger.warn('Reconnaissance des commandes impossible', error);
+          return null;
+        }
+      },
+      ai: aiOn,
+      prompt: () => setting<string>('systemPrompt') || null,
+      keepAlive: () => setting<string>('keepAlive') || '30m',
+    });
+
+    // « Quelles sont les commandes ? »: opens the dictionary of the commands.
+    ctx.assistant.define({
+      name: 'list-commands',
+      description: 'Ouvre la liste des commandes que l’assistant comprend sans IA.',
+      examples: [
+        'quelles sont les commandes',
+        'qu’est-ce que je peux te demander',
+        'liste des commandes',
+        'montre-moi les commandes',
+        'aide',
+      ],
+      extract: () => ({}),
+      risk: 'read',
+      run: () => ({
+        message: 'J’ouvre la liste des commandes.',
+        open: `/m/${ctx.id}/commands`,
+      }),
     });
 
     // --- Live state (SSE) and history (memory only: gone when the app closes) -----
@@ -188,7 +281,7 @@ export default defineBackendModule({
     const setState = (next: AssistantState, text: string | null = stateText) => {
       state = next;
       stateText = text;
-      broadcast('state', { state, text, toggle: toggleMode });
+      broadcast('state', { state, text, toggle: toggleMode, ai: aiOn() });
       if (overlayTimer) clearTimeout(overlayTimer);
       if (next === 'idle') overlayTimer = setTimeout(() => ctx.ui.setOverlay(false), 2500);
       else ctx.ui.setOverlay(true);
@@ -249,6 +342,8 @@ export default defineBackendModule({
     ctx.settings.onChange((key) => {
       if (key === 'pushToTalkKey') bindKey();
       if (key === 'model') capabilities.clear();
+      // The AI switched on: the model is loaded now, not at the first question.
+      if ((key === 'ai' || key === 'systemPrompt') && aiOn()) void warmModel();
     });
 
     // --- A turn: text → brain → voice ------------------------------------------------
@@ -296,12 +391,17 @@ export default defineBackendModule({
           at: new Date().toISOString(),
           source,
           heard: text,
+          mode: null,
+          command: null,
+          questions: 0,
           reply: '',
           actions: [],
           pending: null,
           error: null,
           latency: {
             transcribeMs,
+            matchMs: null,
+            modelMs: null,
             thinkMs: null,
             firstSentenceMs: null,
             voiceMs: null,
@@ -313,7 +413,7 @@ export default defineBackendModule({
         turns.length = Math.min(turns.length, MAX_TURNS);
         setState('thinking', text);
         publish(turn);
-        if (!capabilities.has(modelName()) && !testHooks.chatModel)
+        if (aiOn() && !capabilities.has(modelName()) && !testHooks.chatModel)
           await capabilitiesOf(modelName());
         const speeches: Promise<unknown>[] = [];
         let index = 0;
@@ -323,6 +423,9 @@ export default defineBackendModule({
           if (p) speeches.push(p);
         });
         turn.reply = result.reply;
+        turn.mode = result.mode;
+        turn.command = result.command;
+        turn.questions = result.questions;
         turn.error = result.error;
         turn.actions = result.actions.map((a) => ({ ...a, undone: false }));
         turn.pending = result.pending
@@ -330,6 +433,8 @@ export default defineBackendModule({
           : null;
         turn.latency = {
           ...turn.latency,
+          matchMs: result.timings.matchMs,
+          modelMs: result.timings.modelMs,
           thinkMs: result.timings.thinkMs,
           firstSentenceMs: result.timings.firstSentenceMs,
           rounds: result.timings.rounds,
@@ -388,6 +493,29 @@ export default defineBackendModule({
             );
           }
           if (model === modelName()) void brain.warmup().catch(() => {});
+          return { ok: true };
+        }
+        if (target === 'embeddings') {
+          checkDisk(Object.values(EMBEDDING_MODEL.sizes).reduce((a, b) => a + b, 0));
+          const total = Object.values(EMBEDDING_MODEL.sizes).reduce((a, b) => a + b, 0);
+          let done = 0;
+          for (const file of EMBEDDING_FILES) {
+            const size = EMBEDDING_MODEL.sizes[file] ?? 0;
+            await download({
+              url: `${EMBEDDING_MODEL.base}/${file}`,
+              target: path.join(embeddingsDir, file),
+              expectedSize: size || undefined,
+              signal: job.signal,
+              onProgress: (fraction, received) =>
+                job.progress(
+                  Math.min(1, (done + (fraction ?? 0) * size) / total),
+                  `${Math.round((done + received) / 1e6)} Mo`,
+                ),
+            });
+            done += size;
+          }
+          loadEmbedder();
+          await commands.ready();
           return { ok: true };
         }
         if (target === 'whisper-engine' || target === 'piper-engine') {
@@ -450,6 +578,7 @@ export default defineBackendModule({
         'piper-engine': 'Assistant : moteur de voix',
         voice: `Assistant : voix « ${VOICES.find((v) => v.id === (id ?? voiceInfo().id))?.label ?? id} »`,
         llm: `Assistant : modèle « ${id ?? modelName()} » (Ollama)`,
+        embeddings: `Assistant : ${EMBEDDING_MODEL.label}`,
       };
       return ctx.jobs.enqueue('install', { target, id }, { title: titles[target] });
     };
@@ -458,7 +587,8 @@ export default defineBackendModule({
 
     const status = async (): Promise<StatusDto> => {
       await hardwareReady;
-      const version = await ollama.version();
+      // AI off: Ollama is not even asked.
+      const version = aiOn() ? await ollama.version() : null;
       const installed = version ? await ollama.models().catch(() => []) : [];
       const model = modelName();
       const modelInstalled = installed.some(
@@ -490,9 +620,20 @@ export default defineBackendModule({
         piper: { engine: piperExe(), voice: voice.id, voiceInstalled },
         hotkey: { ...hotkey, key: parseKey(setting<string>('pushToTalkKey')) },
         settings: {
+          ai: aiOn(),
           speakReplies: setting<boolean>('speakReplies') !== false,
           speed: setting<number>('speed') ?? 1,
-          directReads: setting<boolean>('directReads') === true,
+          directReads: directReplies(),
+          directReplies: (setting<string>('directReplies') || 'auto') as 'auto' | 'on' | 'off',
+          keepAlive: setting<string>('keepAlive') || '30m',
+          commandThreshold: matchSettings().threshold,
+          commandMargin: matchSettings().margin,
+        },
+        commands: {
+          count: commands.list().length,
+          semantic: commands.semantic,
+          modelInstalled: embeddingsInstalled(embeddingsDir),
+          modelLabel: EMBEDDING_MODEL.label,
         },
         choices: {
           models: MODEL_CHOICES,
@@ -503,7 +644,9 @@ export default defineBackendModule({
           .list()
           .filter((j) => j.type === 'install' && (j.status === 'queued' || j.status === 'running'))
           .map((j) => ({ id: j.id, title: j.title, progress: j.progress, message: j.message })),
-        ready: Boolean(version && modelInstalled && whisperExe() && whisperInstalled),
+        ready: Boolean(
+          (aiOn() ? version && modelInstalled : true) && whisperExe() && whisperInstalled,
+        ),
       };
     };
 
@@ -526,7 +669,7 @@ export default defineBackendModule({
         const stream = openEventStream(request, reply);
         streams.add(stream);
         stream.onClose(() => streams.delete(stream));
-        stream.send('state', { state, text: stateText, toggle: toggleMode });
+        stream.send('state', { state, text: stateText, toggle: toggleMode, ai: aiOn() });
       },
       { streamTicket: true },
     );
@@ -617,7 +760,7 @@ export default defineBackendModule({
     ctx.routes.post('/install', (request) => {
       const body = requestBody(request);
       const target = String(body.target) as InstallTarget;
-      if (!['whisper-engine', 'whisper-model', 'piper-engine', 'voice', 'llm'].includes(target)) {
+      if (!INSTALL_TARGETS.includes(target)) {
         throw new HttpError(400, 'Installation inconnue');
       }
       return install(target, typeof body.id === 'string' ? body.id : undefined);
@@ -631,7 +774,8 @@ export default defineBackendModule({
       if (!s.whisper.modelInstalled) jobs.push(install('whisper-model'));
       if (!s.piper.engine) jobs.push(install('piper-engine'));
       if (!s.piper.voiceInstalled) jobs.push(install('voice'));
-      if (s.ollama.version && !s.ollama.modelInstalled) jobs.push(install('llm'));
+      if (!s.commands.modelInstalled) jobs.push(install('embeddings'));
+      if (s.settings.ai && s.ollama.version && !s.ollama.modelInstalled) jobs.push(install('llm'));
       return { jobs: jobs.length };
     });
 
@@ -652,6 +796,19 @@ export default defineBackendModule({
       if (typeof body.speakReplies === 'boolean')
         ctx.settings.set('speakReplies', body.speakReplies);
       if (typeof body.directReads === 'boolean') ctx.settings.set('directReads', body.directReads);
+      if (
+        body.directReplies === 'auto' ||
+        body.directReplies === 'on' ||
+        body.directReplies === 'off'
+      )
+        ctx.settings.set('directReplies', body.directReplies);
+      if (typeof body.keepAlive === 'string' && ['10m', '30m', '2h', '-1'].includes(body.keepAlive))
+        ctx.settings.set('keepAlive', body.keepAlive);
+      if (typeof body.ai === 'boolean') ctx.settings.set('ai', body.ai);
+      if (typeof body.commandThreshold === 'number')
+        ctx.settings.set('commandThreshold', Math.min(0.95, Math.max(0.5, body.commandThreshold)));
+      if (typeof body.commandMargin === 'number')
+        ctx.settings.set('commandMargin', Math.min(0.3, Math.max(0, body.commandMargin)));
       return status();
     });
 
@@ -689,10 +846,10 @@ export default defineBackendModule({
       return { url: 'https://ollama.com/download' };
     });
 
-    // Loads the model in memory at start, so the first answer is not the slowest.
-    void (async () => {
+    // Loads the model in memory at start (AI on only), so the first answer is not the slowest.
+    const warmModel = async () => {
       await hardwareReady;
-      if (testHooks.chatModel) return;
+      if (testHooks.chatModel || !aiOn()) return;
       const version = await ollama.version();
       if (!version) return;
       const installed = await ollama.models().catch(() => []);
@@ -704,7 +861,119 @@ export default defineBackendModule({
           `Modèle ${modelName()} prêt (instructions et outils lus en ${Math.round((Date.now() - started) / 1000)} s)`,
         );
       }
-    })();
+    };
+    void warmModel();
+
+    // --- Instructions of the model (advanced) --------------------------------------
+
+    const MAX_PROMPT = 4000;
+    const promptState = () => {
+      const custom = setting<string>('systemPrompt') || '';
+      const effective = custom.trim() || DEFAULT_PROMPT;
+      const auto = autoPromptLines(new Date(), true);
+      const tools = toolSchemas(preselectTools(ctx.assistant.actions(), null));
+      const toolsChars = JSON.stringify(tools).length;
+      return {
+        original: DEFAULT_PROMPT,
+        custom,
+        effective,
+        auto,
+        tools: tools.map((t) => t.function.name),
+        // About 4 characters per token in French: enough to compare.
+        length: {
+          chars: effective.length,
+          tokens: Math.round(effective.length / 4),
+          autoTokens: Math.round(auto.join('\n').length / 4),
+          toolsTokens: Math.round(toolsChars / 4),
+        },
+      };
+    };
+    ctx.routes.get('/prompt', () => promptState());
+    ctx.routes.put('/prompt', (request) => {
+      const text = String(requestBody(request).text ?? '');
+      if (text.length > MAX_PROMPT)
+        throw new HttpError(400, `Instructions trop longues (${MAX_PROMPT} caractères au plus)`);
+      // The original text saved as is = back to the original (follows future versions).
+      ctx.settings.set('systemPrompt', text.trim() === DEFAULT_PROMPT ? '' : text);
+      return promptState();
+    });
+
+    // --- Commands: dictionary, test, rights ----------------------------------------
+
+    const fail = (error: unknown): never => {
+      throw error instanceof HttpError ? error : new HttpError(400, (error as Error).message);
+    };
+    const commandId = (request: { params: unknown }) =>
+      decodeURIComponent((request.params as { actionId: string }).actionId);
+
+    ctx.routes.get('/commands', async () => {
+      await commands.ready().catch(() => {});
+      return {
+        commands: commands.list(),
+        rights: ctx.assistant.rights(),
+        semantic: commands.semantic,
+        settings: matchSettings(),
+      };
+    });
+
+    /** « Tester une phrase »: the command, its score, the gap, the parameters. Nothing runs. */
+    ctx.routes.post('/commands/test', async (request) => {
+      const text = String(requestBody(request).text ?? '').trim();
+      if (!text) throw new HttpError(400, 'Écris une phrase');
+      const match = await commands.match(text);
+      return {
+        verdict: match.verdict,
+        best: commands.describe(match.best),
+        second: commands.describe(match.second),
+        gap: match.gap,
+        params: match.best?.params ?? null,
+        suggestion: commands.describe(match.suggestion),
+        semantic: match.semantic,
+        ms: match.ms,
+        settings: matchSettings(),
+        ranking: match.ranking.slice(0, 5).map((c) => commands.describe(c)),
+      };
+    });
+
+    ctx.routes.post('/commands/:actionId/phrases', async (request) => {
+      const body = requestBody(request);
+      return commands.addPhrase(commandId(request), body.text, body.force === true).catch(fail);
+    });
+    ctx.routes.put('/commands/phrases/:id', async (request) => {
+      const body = requestBody(request);
+      return commands
+        .updatePhrase(idParam(request.params), body.text, body.force === true)
+        .catch(fail);
+    });
+    ctx.routes.delete('/commands/phrases/:id', async (request) => {
+      await commands.removePhrase(idParam(request.params)).catch(fail);
+      return { ok: true };
+    });
+    ctx.routes.put('/commands/:actionId/hidden', async (request) => {
+      const body = requestBody(request);
+      await commands
+        .setHidden(commandId(request), String(body.text ?? ''), body.hidden === true)
+        .catch(fail);
+      return { ok: true };
+    });
+    ctx.routes.post('/commands/:actionId/restore', async (request) =>
+      commands.restore(commandId(request)).catch(fail),
+    );
+    ctx.routes.post('/commands/restore', async () => commands.restore().catch(fail));
+    ctx.routes.get('/commands/export', () => commands.dictionary.export());
+    ctx.routes.post(
+      '/commands/import',
+      async (request) => commands.import(requestBody(request).file).catch(fail),
+      { bodyLimit: 2 * 1024 * 1024 },
+    );
+
+    ctx.routes.put('/rights/:rightId', (request) => {
+      const id = decodeURIComponent((request.params as { rightId: string }).rightId);
+      if (!ctx.assistant.rights().some((r) => r.id === id))
+        throw new HttpError(404, 'Droit inconnu');
+      ctx.assistant.setRight(id, requestBody(request).granted === true);
+      return { rights: ctx.assistant.rights() };
+    });
 
     ctx.onShutdown(() => {
       whisper?.stop();

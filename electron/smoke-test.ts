@@ -55,6 +55,26 @@ export async function runSmokeTest(
       check('canvas', false, String(error));
     }
 
+    // onnxruntime-web (model of the voice commands): its WebAssembly is found
+    // in the packaged app. A tiny Identity model, no download needed.
+    try {
+      const ort = await import('onnxruntime-web');
+      ort.env.wasm.numThreads = 1;
+      const session = await ort.InferenceSession.create(
+        Buffer.from(
+          'CAg6RgoQCgF4EgF5IghJZGVudGl0eRIIaWRlbnRpdHlaEwoBeBIOCgwIARIICgIIAQoCCAJiEwoBeRIOCgwIARIICgIIAQoCCAJCBAoAEA0=',
+          'base64',
+        ),
+      );
+      const out = await session.run({
+        x: new ort.Tensor('float32', Float32Array.from([1, 2]), [1, 2]),
+      });
+      const values = Array.from(out.y!.data as Float32Array).join(',');
+      check('onnxruntime', values === '1,2', `sortie=${values}`);
+    } catch (error) {
+      check('onnxruntime', false, String(error));
+    }
+
     // Module system end to end with the example module (migration, routes, settings).
     const authed = { [TOKEN_HEADER]: token, 'content-type': 'application/json' };
     const modules = (await (

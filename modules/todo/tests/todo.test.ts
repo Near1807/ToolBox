@@ -143,77 +143,107 @@ describe('To-do', () => {
     const run = (id: string, params: object, confirmed = false) =>
       hub.hub.assistant.run(`todo.${id}`, params, { confirmed });
 
-    it('adds a task with tags, a natural due date and a track, then undoes it', async () => {
-      const outcome = await run('add-task', {
-        title: 'finir le mix',
-        tags: ['mix'],
-        due: 'demain',
-        track: 'boumboum',
+    it('is read-only until Thomas turns the rights on', async () => {
+      expect(await run('add-task', { title: 'x' })).toMatchObject({
+        status: 'forbidden',
+        right: { id: 'todo.edit-tasks' },
       });
-      expect(outcome).toMatchObject({
-        status: 'done',
-        message: expect.stringMatching(
-          /^J’ai ajouté « finir le mix » avec le tag mix pour demain, sur le morceau Boum Boum\.$/,
-        ),
-        data: { newTags: ['mix'] },
-      });
-      expect((await list()).tasks).toHaveLength(1);
-      await hub.hub.assistant.undo((outcome as { undoId: string }).undoId);
-      expect((await list()).tasks).toHaveLength(0);
+      expect(await run('list-tasks', {})).toMatchObject({ status: 'done' });
+      hub.hub.assistant.setRight('todo.edit-tasks', true);
+      expect(await run('add-task', { title: 'x' })).toMatchObject({ status: 'done' });
+      // Deleting has its own switch.
+      expect(await run('delete-task', { task: 'x' }, true)).toMatchObject({ status: 'forbidden' });
+      const rights = hub.hub.assistant.rights().map((r) => [r.id, r.granted, r.actions]);
+      expect(rights).toEqual([
+        ['todo.edit-tasks', true, ['todo.add-task', 'todo.complete-task']],
+        ['todo.delete-tasks', false, ['todo.delete-task']],
+      ]);
     });
 
-    it('asks instead of guessing an unclear date or track', async () => {
-      expect(await run('add-task', { title: 'x', due: 'un de ces jours' })).toMatchObject({
-        status: 'error',
-        message: 'Je n’ai pas compris l’échéance « un de ces jours ». Pour quand ?',
+    describe('with the rights on', () => {
+      beforeEach(() => {
+        hub.hub.assistant.setRight('todo.edit-tasks', true);
+        hub.hub.assistant.setRight('todo.delete-tasks', true);
       });
-      expect(await run('add-task', { title: 'x', track: 'zèbre' })).toMatchObject({
-        status: 'error',
-        message: 'Aucun morceau ne s’appelle « zèbre ».',
+
+      it('adds a task with tags, a natural due date and a track, then undoes it', async () => {
+        const outcome = await run('add-task', {
+          title: 'finir le mix',
+          tags: ['mix'],
+          due: 'demain',
+          track: 'boumboum',
+        });
+        expect(outcome).toMatchObject({
+          status: 'done',
+          message: expect.stringMatching(
+            /^J’ai ajouté « finir le mix » avec le tag mix pour demain, sur le morceau Boum Boum\.$/,
+          ),
+          data: { newTags: ['mix'] },
+        });
+        expect((await list()).tasks).toHaveLength(1);
+        await hub.hub.assistant.undo((outcome as { undoId: string }).undoId);
+        expect((await list()).tasks).toHaveLength(0);
       });
-      expect((await list()).tasks).toHaveLength(0);
-    });
 
-    it('lists by filter and tag, ticks, and deletes only after confirmation', async () => {
-      await add({ title: 'Appeler le studio', due: addDays(today, -1), tags: ['studio'] });
-      await add({ title: 'Finir le mix', due: 'aujourd’hui', tags: ['mix'] });
-      await add({ title: 'Écrire la bio', due: 'dans 20 jours' });
-
-      expect(await run('list-tasks', { filter: 'today' })).toMatchObject({
-        message: '2 tâches pour aujourd’hui : Appeler le studio (en retard) et Finir le mix.',
+      it('asks instead of guessing an unclear date or track', async () => {
+        expect(await run('add-task', { title: 'x', due: 'un de ces jours' })).toMatchObject({
+          status: 'error',
+          message: 'Je n’ai pas compris l’échéance « un de ces jours ». Pour quand ?',
+        });
+        expect(await run('add-task', { title: 'x', track: 'zèbre' })).toMatchObject({
+          status: 'error',
+          message: 'Aucun morceau ne s’appelle « zèbre ».',
+        });
+        expect((await list()).tasks).toHaveLength(0);
       });
-      expect(await run('list-tasks', { filter: 'overdue' })).toMatchObject({ data: { count: 1 } });
-      expect(await run('list-tasks', { tag: 'mix' })).toMatchObject({ data: { count: 1 } });
 
-      const ticked = await run('complete-task', { task: 'le mix' });
-      expect(ticked).toMatchObject({ status: 'done', message: 'C’est coché : « Finir le mix ».' });
-      expect(await run('list-tasks', { filter: 'done' })).toMatchObject({ data: { count: 1 } });
-      await hub.hub.assistant.undo((ticked as { undoId: string }).undoId);
-      expect(await run('list-tasks', { filter: 'done' })).toMatchObject({ data: { count: 0 } });
+      it('lists by filter and tag, ticks, and deletes only after confirmation', async () => {
+        await add({ title: 'Appeler le studio', due: addDays(today, -1), tags: ['studio'] });
+        await add({ title: 'Finir le mix', due: 'aujourd’hui', tags: ['mix'] });
+        await add({ title: 'Écrire la bio', due: 'dans 20 jours' });
 
-      const asked = await run('delete-task', { task: 'bio' });
-      expect(asked).toEqual({
-        status: 'confirm',
-        id: 'todo.delete-task',
-        question: 'Je supprime la tâche « Écrire la bio » ?',
+        expect(await run('list-tasks', { filter: 'today' })).toMatchObject({
+          message: '2 tâches pour aujourd’hui : Appeler le studio (en retard) et Finir le mix.',
+        });
+        expect(await run('list-tasks', { filter: 'overdue' })).toMatchObject({
+          data: { count: 1 },
+        });
+        expect(await run('list-tasks', { tag: 'mix' })).toMatchObject({ data: { count: 1 } });
+
+        const ticked = await run('complete-task', { task: 'le mix' });
+        expect(ticked).toMatchObject({
+          status: 'done',
+          message: 'C’est coché : « Finir le mix ».',
+        });
+        expect(await run('list-tasks', { filter: 'done' })).toMatchObject({ data: { count: 1 } });
+        await hub.hub.assistant.undo((ticked as { undoId: string }).undoId);
+        expect(await run('list-tasks', { filter: 'done' })).toMatchObject({ data: { count: 0 } });
+
+        const asked = await run('delete-task', { task: 'bio' });
+        expect(asked).toEqual({
+          status: 'confirm',
+          id: 'todo.delete-task',
+          question: 'Je supprime la tâche « Écrire la bio » ?',
+        });
+        expect((await list()).tasks).toHaveLength(3);
+        const removed = await run('delete-task', { task: 'bio' }, true);
+        expect(removed).toMatchObject({
+          status: 'done',
+          message: 'J’ai supprimé la tâche « Écrire la bio ».',
+        });
+        expect((await list()).tasks).toHaveLength(2);
+        await hub.hub.assistant.undo((removed as { undoId: string }).undoId);
+        expect((await list()).tasks.map((t) => t.title)).toContain('Écrire la bio');
       });
-      expect((await list()).tasks).toHaveLength(3);
-      const removed = await run('delete-task', { task: 'bio' }, true);
-      expect(removed).toMatchObject({
-        status: 'done',
-        message: 'J’ai supprimé la tâche « Écrire la bio ».',
-      });
-      expect((await list()).tasks).toHaveLength(2);
-      await hub.hub.assistant.undo((removed as { undoId: string }).undoId);
-      expect((await list()).tasks.map((t) => t.title)).toContain('Écrire la bio');
-    });
 
-    it('reports an ambiguous task', async () => {
-      await add({ title: 'Mix de Aube' });
-      await add({ title: 'Mix de Nuit' });
-      expect(await run('complete-task', { task: 'mix' })).toMatchObject({
-        status: 'error',
-        message: 'Plusieurs tâches correspondent : « Mix de Aube » et « Mix de Nuit ». Laquelle ?',
+      it('reports an ambiguous task', async () => {
+        await add({ title: 'Mix de Aube' });
+        await add({ title: 'Mix de Nuit' });
+        expect(await run('complete-task', { task: 'mix' })).toMatchObject({
+          status: 'error',
+          message:
+            'Plusieurs tâches correspondent : « Mix de Aube » et « Mix de Nuit ». Laquelle ?',
+        });
       });
     });
   });
@@ -222,6 +252,7 @@ describe('To-do', () => {
 describe('To-do without the library', () => {
   it('works, and says it cannot link a track', async () => {
     const hub = await createTestHub({ modules: [await loadModuleFolder(MODULE_DIR)] });
+    hub.hub.assistant.setRight('todo.edit-tasks', true);
     try {
       const { body } = await hub.request<TasksResponse>('GET', `${API}/tasks`);
       expect(body).toMatchObject({ library: false, tracks: [] });

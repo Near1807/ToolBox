@@ -18,7 +18,13 @@ import { registerAssistantActions } from './assistant';
 import { readExport, reachRows } from './csv';
 import type { Dataset } from './dataset';
 import { demoDataset } from './demo';
-import { GoogleApiError, GoogleClient, hasStatsScopes, STATS_SCOPES } from './google';
+import {
+  GoogleApiError,
+  GoogleClient,
+  hasStatsScopes,
+  QuotaReserveError,
+  STATS_SCOPES,
+} from './google';
 import { runLab, type LabResult } from './lab';
 import { suggestTrack } from './linking';
 import { addDay } from './stats';
@@ -211,12 +217,53 @@ export default defineBackendModule({
       ok: boolean;
       message: string | null;
       summary: SyncSummary | null;
+      /** Waiting for the uploads of the Planning: tried again at the next tick. */
+      postponed?: boolean;
     }) => store.setMeta('lastSync', value);
 
     ctx.jobs.define<Record<string, never>, SyncSummary>('sync', async (job) => {
-      const client = new GoogleClient((url, init) => ctx.accounts.fetch(GOOGLE, url, init));
+      // Planning first: the uploads have the YouTube quota before the statistics.
+      const planner = services.planner;
+      const outlook = planner?.youtubeQuota() ?? null;
+      if (outlook && outlook.uploadsActive > 0) {
+        const message = `Synchronisation reportée : ${outlook.uploadsActive} envoi(s) YouTube en cours (le Planning passe en premier). Nouvel essai dans 30 minutes.`;
+        setLastSync({
+          at: new Date().toISOString(),
+          ok: true,
+          message,
+          summary: null,
+          postponed: true,
+        });
+        ctx.logger.info(message);
+        return {
+          calls: 0,
+          videos: 0,
+          dayRows: 0,
+          retention: 0,
+          breakdowns: 0,
+          warnings: [message],
+        };
+      }
+      const reserve = ctx.settings.get<number>('quotaReserve') ?? 1000;
+      // Units this sync may spend: never the reserve kept for the uploads.
+      const budget = outlook ? outlook.unitsPerDay - outlook.used.total - reserve : Infinity;
+      let spent = 0;
+      const client = new GoogleClient((url, init) => ctx.accounts.fetch(GOOGLE, url, init), {
+        before: () => {
+          if (spent + 1 > budget)
+            throw new QuotaReserveError(
+              `Synchronisation arrêtée pour garder la réserve de quota des envois YouTube (${reserve} unités). ${planner?.quotaOrigin() ?? ''} Elle reprendra après la remise à zéro du quota (minuit, heure de Californie).`,
+            );
+        },
+        after: (units) => {
+          spent += units;
+          planner?.recordYouTubeQuota(ctx.id, units);
+        },
+        exhausted: () => planner?.recordYouTubeQuota(ctx.id, 0, true),
+      });
       try {
         const summary = await syncChannel(client, store, {
+          minimal: Boolean(outlook && outlook.uploadsSoon > 0),
           lastDay: addDay(new Date().toISOString().slice(0, 10), -1),
           refreshDays: 5,
           detailsEveryDays: ctx.settings.get<number>('detailsEveryDays') ?? 7,
@@ -238,10 +285,15 @@ export default defineBackendModule({
         );
         return summary;
       } catch (error) {
+        const quotaError = error instanceof GoogleApiError && error.kind === 'quota';
         const message =
-          error instanceof GoogleApiError || error instanceof AccountError
+          error instanceof QuotaReserveError
             ? error.message
-            : `Synchronisation impossible : ${error instanceof Error ? error.message : String(error)}`;
+            : quotaError && services.planner
+              ? `${error.message} ${services.planner.quotaOrigin()}`
+              : error instanceof GoogleApiError || error instanceof AccountError
+                ? error.message
+                : `Synchronisation impossible : ${error instanceof Error ? error.message : String(error)}`;
         setLastSync({ at: new Date().toISOString(), ok: false, message, summary: null });
         invalidate();
         throw new Error(message, { cause: error });
@@ -276,7 +328,7 @@ export default defineBackendModule({
       );
     };
 
-    ctx.routes.post('/sync', () => {
+    const checkAccount = () => {
       const account = accountState();
       if (!account.connected)
         throw new HttpError(
@@ -290,14 +342,18 @@ export default defineBackendModule({
           409,
           'Autorise d’abord l’accès aux statistiques (bouton « Autoriser les statistiques »).',
         );
+    };
+    ctx.routes.post('/sync', () => {
+      checkAccount();
       return enqueueSync();
     });
 
     // At start-up, then every 30 minutes: a sync when the last one is older than the setting.
     ctx.scheduler.schedule('auto-sync', { everyMinutes: 30 }, async () => {
-      const last = store.meta<{ at: string }>('lastSync');
+      const last = store.meta<{ at: string; postponed?: boolean }>('lastSync');
       const hours = ctx.settings.get<number>('syncHours') ?? 6;
-      if (last && Date.now() - Date.parse(last.at) < hours * 3_600_000) return;
+      // A sync postponed for the uploads is tried again at the next tick.
+      if (last && !last.postponed && Date.now() - Date.parse(last.at) < hours * 3_600_000) return;
       enqueueSync();
     });
 
@@ -325,7 +381,13 @@ export default defineBackendModule({
         },
       };
     };
-    registerAssistantActions(ctx, analysis);
+    registerAssistantActions(ctx, analysis, () => {
+      checkAccount();
+      const running = runningSync();
+      const job = running ?? enqueueSync();
+      if (!job) throw new HttpError(409, 'Le compte Google n’est pas prêt.');
+      return { jobId: job.id, alreadyRunning: Boolean(running) };
+    });
     ctx.routes.get('/state', () => state());
 
     const visitKey = () => (demoMode() ? 'visit:demo' : 'visit:real');

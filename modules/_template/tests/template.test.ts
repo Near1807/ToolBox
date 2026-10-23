@@ -43,6 +43,11 @@ describe('template module', () => {
       ['count-notes', 'read'],
       ['add-note', 'change'],
     ]);
+    // A change is forbidden until its right is turned on (off by default).
+    expect(await hub.hub.assistant.run('template.add-note', { text: 'Dictée' })).toMatchObject({
+      status: 'forbidden',
+    });
+    hub.hub.assistant.setRight('template.edit-notes', true);
     const added = await hub.hub.assistant.run('template.add-note', { text: 'Dictée' });
     expect(added).toMatchObject({ status: 'done', message: 'J’ai ajouté la note « Dictée ».' });
     expect(await hub.hub.assistant.run('template.count-notes', {})).toMatchObject({
@@ -52,6 +57,15 @@ describe('template module', () => {
     expect(await hub.hub.assistant.run('template.count-notes', {})).toMatchObject({
       data: { count: 0 },
     });
+  });
+
+  it('takes the note out of a spoken phrase (standardised command)', async () => {
+    expect(
+      await hub.hub.assistant.extract('template.add-note', 'euh, ajoute une note appeler Paul'),
+    ).toEqual({
+      text: 'appeler Paul',
+    });
+    expect(await hub.hub.assistant.extract('template.add-note', 'ajoute une note')).toBeNull();
   });
 
   it('rejects an empty note with a clear message', async () => {

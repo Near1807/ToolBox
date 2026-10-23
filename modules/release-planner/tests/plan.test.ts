@@ -12,7 +12,13 @@ import {
   sanitizeMetadata,
   spreadPlan,
 } from '../backend/plan';
-import { canUpload, planUploads, quotaMessage, UNITS_PER_UPLOAD } from '../backend/quota';
+import {
+  canUpload,
+  planUploads,
+  quotaMessage,
+  quotaOrigin,
+  UNITS_PER_UPLOAD,
+} from '../backend/quota';
 import { canTransition, displayStatus, stateFromYouTube } from '../backend/status';
 import {
   addDays,
@@ -323,6 +329,22 @@ describe('quota queue', () => {
     expect(canUpload({ ...empty, uploads: 6 }, limits)).toBe(false);
     expect(canUpload(empty, limits)).toBe(true);
     expect(quotaMessage(planUploads(queue(2), empty, limits, now), now, String)).toBeNull();
+  });
+
+  it('counts the units of the other modules (same Google project), and says who used what', () => {
+    // 9,950 units spent today, 9,900 of them by the statistics: no room for an upload's follow-ups.
+    const shared = {
+      ...empty,
+      uploads: 1,
+      units: 9_950,
+      ownUnits: 50,
+      others: { 'youtube-stats': 9_900 },
+    };
+    expect(canUpload(shared, limits)).toBe(false);
+    expect(planUploads(queue(1), shared, limits, now)[0]!.day).toBe('2026-10-21');
+    expect(quotaOrigin({ ...shared, exhausted: true, exhaustedBy: 'youtube-stats' })).toBe(
+      'Consommation du jour : 1 envoi(s) du Planning et 50 unité(s) pour leurs suites, 9900 unité(s) pour Stats YouTube. Quota épuisé lors d’un appel de Stats YouTube.',
+    );
   });
 
   it('flags uploads that would start after their publication date', () => {

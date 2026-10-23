@@ -14,6 +14,16 @@ import {
 import type { MusicLibraryService } from '../../music-library/contract';
 import { formatDue, localToday, parseDue, spokenDue, daysBetween, addDays } from '../dates';
 import { cleanTags, type TaskDto, type TasksResponse } from '../shared';
+import {
+  ADD_EXAMPLES,
+  COMPLETE_EXAMPLES,
+  DELETE_EXAMPLES,
+  extractAdd,
+  extractComplete,
+  extractDelete,
+  extractList,
+  LIST_EXAMPLES,
+} from './commands';
 
 interface TaskRow {
   id: number;
@@ -349,6 +359,9 @@ export default defineBackendModule({
 
     ctx.assistant.define({
       name: 'add-task',
+      examples: ADD_EXAMPLES,
+      extract: (utterance) => extractAdd(utterance, localToday()),
+      right: { id: 'edit-tasks', label: 'L’assistant peut ajouter et cocher des tâches' },
       description:
         'Ajoute une tâche à la To-do. L’échéance se donne en français tel que dit (« demain », « vendredi », « dans 3 jours », « le 12 novembre ») : ne la convertis pas toi-même.',
       parameters: {
@@ -396,6 +409,8 @@ export default defineBackendModule({
 
     ctx.assistant.define({
       name: 'list-tasks',
+      examples: LIST_EXAMPLES,
+      extract: extractList,
       description:
         'Liste les tâches de la To-do. filter : « open » (à faire, défaut), « today » (à faire aujourd’hui, retards compris), « overdue » (en retard), « week » (7 prochains jours), « done » (faites), « all ».',
       parameters: {
@@ -462,6 +477,9 @@ export default defineBackendModule({
 
     ctx.assistant.define({
       name: 'complete-task',
+      examples: COMPLETE_EXAMPLES,
+      extract: extractComplete,
+      right: { id: 'edit-tasks', label: 'L’assistant peut ajouter et cocher des tâches' },
       description: 'Coche une tâche comme faite (par son titre approximatif ou son numéro).',
       parameters: {
         task: { type: 'string', description: 'Titre (même approximatif) ou numéro de la tâche' },
@@ -481,6 +499,12 @@ export default defineBackendModule({
 
     ctx.assistant.define({
       name: 'delete-task',
+      examples: DELETE_EXAMPLES,
+      extract: extractDelete,
+      right: {
+        id: 'delete-tasks',
+        label: 'L’assistant peut supprimer des tâches (toujours après un « oui »)',
+      },
       description: 'Supprime une tâche (demande confirmation avant).',
       parameters: {
         task: { type: 'string', description: 'Titre (même approximatif) ou numéro de la tâche' },

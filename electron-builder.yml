@@ -12,6 +12,9 @@ files:
   - '!build/**/*.map'
   - package.json
   - '!node_modules/better-sqlite3/{src,deps,binding.gyp}'
+  # onnxruntime-web: only the Node build and its WebAssembly (14 Mo instead of 140).
+  - '!node_modules/onnxruntime-web/lib/**'
+  - '!node_modules/onnxruntime-web/dist/!(ort.node.min.js|ort.node.min.mjs|ort-wasm-simd-threaded.wasm|ort-wasm-simd-threaded.mjs)'
 
 # Executables and native addons cannot run from inside app.asar.
 # Tray and notification icon, read at runtime (electron/desktop.ts).
@@ -26,6 +29,7 @@ asarUnpack:
   - node_modules/better-sqlite3/**
   - node_modules/@napi-rs/**
   - node_modules/uiohook-napi/**
+  - node_modules/onnxruntime-web/dist/**
 
 # better-sqlite3 ships N-API prebuilds that work in Electron as-is: no rebuild
 # (docs/decisions/0003-sqlite-better-sqlite3.md). `npm run check:native` guards it.

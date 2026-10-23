@@ -3,7 +3,7 @@
 // a module never imports another module or the hub core.
 import { writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { defineBackendModule, HttpError } from '@hub/sdk/backend';
+import { defineBackendModule, HttpError, stripCommand } from '@hub/sdk/backend';
 
 interface NoteRow {
   id: number;
@@ -133,9 +133,15 @@ export default defineBackendModule({
     // this module. The hub enforces the risk level: `read` and `change` run
     // directly (a change returns `undo` for « Annuler »), `destructive` only
     // after the user confirmed (`confirmation`), `sensitive` never (`page`).
+    // Standardised commands: `examples` (French phrases, recognised without AI)
+    // and `extract` (the parameters taken from the phrase by code; null when a
+    // required one is missing). Every `change` or `destructive` action declares
+    // its own `right`: a switch, off by default, that Thomas turns on.
     ctx.assistant.define({
       name: 'count-notes',
       description: 'Donne le nombre de notes du module modèle.',
+      examples: ['combien de notes', 'combien j’ai de notes dans le modèle'],
+      extract: () => ({}),
       risk: 'read',
       run: () => {
         const { count } = ctx.db.prepare(`SELECT COUNT(*) AS count FROM ${notes}`).get() as {
@@ -151,7 +157,15 @@ export default defineBackendModule({
         text: { type: 'string', description: 'Texte de la note, ex. « appeler Paul »' },
       },
       required: ['text'],
+      examples: ['ajoute une note appeler Paul', 'nouvelle note acheter des cordes'],
+      extract: (utterance) => {
+        const text = stripCommand(utterance, [
+          /(?:ajoute|ajouter|nouvelle|crée|cree)(?![\p{L}])(?:\s+une)?\s+note\s*(?::|,)?\s*/iu,
+        ]);
+        return text ? { text } : null;
+      },
       risk: 'change',
+      right: { id: 'edit-notes', label: 'L’assistant peut ajouter des notes au module modèle' },
       run: (params) => {
         const result = ctx.db
           .prepare(`INSERT INTO ${notes} (text, created_at) VALUES (?, ?)`)

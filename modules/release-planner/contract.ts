@@ -31,7 +31,34 @@ export interface PlannedYouTubeItem {
   source: PlannedSource;
 }
 
+/**
+ * The YouTube quota of the day, shared by the modules that call the YouTube
+ * Data API with the same Google project. The uploads of the Planning come
+ * first: another module (youtube-stats) checks this before spending units.
+ */
+export interface YouTubeQuotaOutlook {
+  /** Quota day (YYYY-MM-DD, Pacific time: reset at midnight in California). */
+  day: string;
+  unitsPerDay: number;
+  /** Units used today: by the Planning (uploads and their follow-ups), by each other module. */
+  used: { planner: number; uploads: number; byModule: Record<string, number>; total: number };
+  /** YouTube answered « quota exceeded » today (to the Planning or another module). */
+  exhausted: boolean;
+  /** Who got the « quota exceeded » answer first, when known (« release-planner », « youtube-stats »). */
+  exhaustedBy: string | null;
+  /** Uploads queued or running now. */
+  uploadsActive: number;
+  /** Elements to upload within 24 h: planned that soon, or picked by the automatic upload. */
+  uploadsSoon: number;
+}
+
 export interface ReleasePlannerService {
   /** Every YouTube element of every release, by planned date. */
   listYouTubeItems(): PlannedYouTubeItem[];
+  /** Today's YouTube quota and what the uploads need (Planning before Stats). */
+  youtubeQuota(): YouTubeQuotaOutlook;
+  /** Records units spent by another module on the YouTube Data API (and a « quota exceeded » answer). */
+  recordYouTubeQuota(moduleId: string, units: number, exhausted?: boolean): void;
+  /** « Aujourd'hui : 3 envois du Planning (300 unités), 12 unités pour Stats YouTube. » */
+  quotaOrigin(): string;
 }

@@ -19,6 +19,7 @@ import {
   RELEASE_PLANNER_SERVICE,
   type PlannedYouTubeItem,
   type ReleasePlannerService,
+  type YouTubeQuotaOutlook,
 } from '../contract';
 import type { CustomReelsService } from '../../custom-reels/contract';
 import type { InstagramPackService, PackItem } from '../../instagram-video/contract';
@@ -40,12 +41,20 @@ import {
   type ItemKind,
   type ProposedItem,
 } from './plan';
-import { canUpload, planUploads, quotaMessage, UNIT_COST, type QuotaLimits } from './quota';
+import {
+  canUpload,
+  planUploads,
+  quotaMessage,
+  quotaOrigin,
+  UNIT_COST,
+  type QuotaLimits,
+} from './quota';
 import { displayStatus, isOnline, stateFromYouTube, type ItemState } from './status';
 import {
   migrationV1,
   migrationV2,
   migrationV3,
+  migrationV4,
   PlannerStore,
   VISIBILITIES,
   type ItemRow,
@@ -100,6 +109,11 @@ export default defineBackendModule({
       version: 3,
       description: 'Reels perso, J-3 / J-1 alerts, automatic upload',
       up: migrationV3,
+    },
+    {
+      version: 4,
+      description: 'YouTube quota spent by other modules (uploads first)',
+      up: migrationV4,
     },
   ],
 
@@ -181,6 +195,11 @@ export default defineBackendModule({
               },
             ];
           }),
+      // YouTube quota shared with the other modules: the uploads come first.
+      youtubeQuota: () => quotaOutlook(),
+      recordYouTubeQuota: (moduleId, units, exhausted = false) =>
+        store.addSharedQuota(quotaDay(new Date()), moduleId, units, exhausted),
+      quotaOrigin: () => quotaOrigin(store.quotaUsage(quotaDay(new Date()))),
     };
     ctx.services.provide(RELEASE_PLANNER_SERVICE, plannerService);
 
@@ -211,6 +230,35 @@ export default defineBackendModule({
       return `${date.split('-').reverse().join('/')} à ${time}`;
     };
     const spendUnits = (units: number) => store.addQuota(quotaDay(new Date()), { units });
+
+    /** Today's quota and what the uploads need soon (other modules wait for them). */
+    const quotaOutlook = (now = new Date()): YouTubeQuotaOutlook => {
+      const usage = store.quotaUsage(quotaDay(now));
+      const youtubeItems = store.allItems().filter((item) => PLATFORM[item.kind] === 'youtube');
+      const day = 86_400_000;
+      const soonLimit = now.getTime() + day + (autoUploadOn() ? autoUploadDays() * day : 0);
+      return {
+        day: usage.day,
+        unitsPerDay: limits().unitsPerDay,
+        used: {
+          planner: usage.ownUnits ?? usage.units,
+          uploads: usage.uploads,
+          byModule: usage.others ?? {},
+          total: usage.units,
+        },
+        exhausted: usage.exhausted,
+        exhaustedBy: usage.exhaustedBy ?? null,
+        uploadsActive: youtubeItems.filter((i) => i.state === 'queued' || i.state === 'uploading')
+          .length,
+        // Planned within 24 h; with the automatic upload, also what it will pick within 24 h.
+        uploadsSoon: youtubeItems.filter(
+          (i) =>
+            i.state === 'planned' &&
+            Date.parse(i.scheduled_at) > now.getTime() &&
+            Date.parse(i.scheduled_at) <= soonLimit,
+        ).length,
+      };
+    };
 
     // Tracks and generated files (through services and ctx.outputs) --------
 
@@ -1085,7 +1133,7 @@ export default defineBackendModule({
               state: 'queued',
               job_id: null,
               not_before: nextQuotaReset(new Date()).toISOString(),
-              warning: `${error.message} : envoi reporté au ${formatInstant(nextQuotaReset(new Date()))}.`,
+              warning: `${error.message} : envoi reporté au ${formatInstant(nextQuotaReset(new Date()))}. ${quotaOrigin(store.quotaUsage(today))}`,
             });
             return { deferred: true };
           }
@@ -1395,6 +1443,8 @@ export default defineBackendModule({
         quota: { ...usage, ...limits(), nextReset: nextQuotaReset(now).toISOString() },
         queue: slots.length,
         quotaMessage: quotaMessage(slots, now, formatInstant),
+        // Who used the quota (shown when it is exhausted or uploads wait).
+        quotaOrigin: quotaOrigin(usage),
         alerts: preAlerts(now).map(({ items: _items, ...alert }) => alert),
         autoUpload: { enabled: autoUploadOn(), days: autoUploadDays() },
         features,

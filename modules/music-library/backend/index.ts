@@ -2,6 +2,7 @@
 // Provides the "musicLibrary" service used by the video generators.
 import {
   defineBackendModule,
+  extractName,
   HttpError,
   idParam,
   matchByName,
@@ -18,6 +19,13 @@ import {
   type ProjectStatusProvider,
 } from '../contract';
 import { Library } from './library';
+
+const PROJECT_PREFIXES = [
+  /(?:où en est|ou en est|l’état de|l'état de|état de|etat de|état du|etat du|l’état du|l'état du|le point sur|fais le point sur)(?![\p{L}])/iu,
+];
+const OPEN_TRACK_PREFIXES = [
+  /(?:ouvre|ouvrir|affiche|montre)(?:[- ]moi)?\s+(?:la fiche (?:du |de |d’|d')?(?:morceau )?|le morceau |le titre )/iu,
+];
 
 function toDto(ctx: ModuleContext, track: Track): TrackDto {
   const { audioPath, coverPath, ...rest } = track;
@@ -209,6 +217,8 @@ export default defineBackendModule({
       name: 'list-tracks',
       description:
         'Liste les morceaux de la Bibliothèque (les plus récents d’abord), avec leur date de sortie.',
+      examples: ['quels sont mes morceaux', 'liste mes morceaux', 'combien de morceaux j’ai'],
+      extract: () => ({}),
       risk: 'read',
       run: () => {
         const tracks = [...library.list()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -235,6 +245,11 @@ export default defineBackendModule({
         'État du projet d’un morceau : ce qui a été généré (vidéo, Reels, post…), planifié, programmé, publié, et les infos des autres outils (To-do, Reels perso…).',
       parameters: { track: { type: 'string', description: 'Nom du morceau, même approximatif' } },
       required: ['track'],
+      examples: ['où en est Aube', 'où en est le morceau Aube', 'l’état du morceau Aube'],
+      extract: (utterance) => {
+        const track = extractName(utterance, PROJECT_PREFIXES);
+        return track ? { track } : null;
+      },
       risk: 'read',
       run: (params) => {
         const track = findTrack(String(params.track));
@@ -271,6 +286,11 @@ export default defineBackendModule({
       description: 'Ouvre la fiche d’un morceau dans la Bibliothèque.',
       parameters: { track: { type: 'string', description: 'Nom du morceau, même approximatif' } },
       required: ['track'],
+      examples: ['ouvre le morceau Aube', 'ouvre la fiche de Aube'],
+      extract: (utterance) => {
+        const track = extractName(utterance, OPEN_TRACK_PREFIXES);
+        return track ? { track } : null;
+      },
       risk: 'read',
       run: (params) => {
         const track = findTrack(String(params.track));

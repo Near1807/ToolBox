@@ -52,6 +52,9 @@ describe('youtube-stats with a fake Google', () => {
   let hub: TestHub;
   let dir: string;
   const opened: string[] = [];
+  /** The quota as the fake Planning sees it (uploads first). */
+  const quota = { uploadsActive: 0, uploadsSoon: 0, used: 0, exhausted: false };
+  const recorded: { units: number; exhausted: boolean }[] = [];
 
   const waitJob = async () => {
     for (let i = 0; i < 300; i++) {
@@ -147,6 +150,26 @@ describe('youtube-stats with a fake Google', () => {
             source: { type: 'cover-reel', packItemId: 11 },
           },
         ],
+        youtubeQuota: () => ({
+          day: '2026-10-23',
+          unitsPerDay: 10_000,
+          used: {
+            planner: quota.used,
+            uploads: 2,
+            byModule: { 'youtube-stats': recorded.reduce((s, r) => s + r.units, 0) },
+            total: quota.used + recorded.reduce((s, r) => s + r.units, 0),
+          },
+          exhausted: quota.exhausted,
+          exhaustedBy: null,
+          uploadsActive: quota.uploadsActive,
+          uploadsSoon: quota.uploadsSoon,
+        }),
+        recordYouTubeQuota: (moduleId, units, exhausted = false) => {
+          expect(moduleId).toBe('youtube-stats');
+          recorded.push({ units, exhausted });
+        },
+        quotaOrigin: () =>
+          'Consommation du jour : 2 envoi(s) du Planning et 9500 unité(s) pour leurs suites, 3 unité(s) pour Stats YouTube.',
       }),
     );
     const packs = fakeModule('instagram-video', ['instagramPack'], (ctx) =>
@@ -272,6 +295,60 @@ describe('youtube-stats with a fake Google', () => {
     ).toBe(false);
   });
 
+  it('Planning first: waits while uploads run, does the minimum when some are due soon', async () => {
+    const lastSync = async () =>
+      (
+        await hub.request<{ lastSync: { ok: boolean; message: string; postponed?: boolean } }>(
+          'GET',
+          `${API}/state`,
+        )
+      ).body.lastSync;
+    // Uploads running: no call to Google at all, tried again at the next tick.
+    quota.uploadsActive = 1;
+    const calls = google.reports.length;
+    recorded.length = 0;
+    await sync();
+    expect(await lastSync()).toMatchObject({ ok: true, postponed: true });
+    expect((await lastSync()).message).toMatch(
+      /^Synchronisation reportée : 1 envoi\(s\) YouTube en cours/,
+    );
+    expect(google.reports.length).toBe(calls);
+    expect(recorded).toEqual([]);
+    quota.uploadsActive = 0;
+
+    // Uploads due within 24 h: channel and list only, no per-video statistics.
+    quota.uploadsSoon = 2;
+    await sync();
+    expect((await lastSync()).message).toMatch(/^Synchronisation minimale/);
+    expect(
+      google.reports.slice(calls).some((p) => (p.get('filters') ?? '').startsWith('video==')),
+    ).toBe(false);
+    quota.uploadsSoon = 0;
+    // Every YouTube Data call is counted in the shared quota (1 unit each).
+    expect(recorded.length).toBeGreaterThan(0);
+    expect(recorded.every((r) => r.units === 1 && !r.exhausted)).toBe(true);
+  });
+
+  it('never spends the reserve kept for the uploads, and says who used the quota', async () => {
+    // 9,500 units used by the Planning, reserve 1,000: nothing left for the stats.
+    quota.used = 9_500;
+    recorded.length = 0;
+    const job = await sync();
+    expect(job.status).toBe('failed');
+    const state = (
+      await hub.request<{ lastSync: { ok: boolean; message: string } }>('GET', `${API}/state`)
+    ).body;
+    expect(state.lastSync.message).toMatch(
+      /^Synchronisation arrêtée pour garder la réserve de quota des envois YouTube \(1000 unités\)\. Consommation du jour : 2 envoi\(s\) du Planning/,
+    );
+    expect(recorded).toEqual([]);
+    // A smaller reserve lets it run.
+    await hub.request('PUT', '/api/core/settings/youtube-stats', { quotaReserve: 0 });
+    expect((await sync()).status).toBe('succeeded');
+    await hub.request('PUT', '/api/core/settings/youtube-stats', { quotaReserve: 1000 });
+    quota.used = 0;
+  });
+
   it('imports impressions and click-through rate from a Studio export', async () => {
     const file = path.join(dir, 'Table data.csv');
     writeFileSync(
@@ -333,6 +410,9 @@ describe('youtube-stats with a fake Google', () => {
     ).body;
     expect(state.lastSync).toMatchObject({ ok: false });
     expect(state.lastSync.message).toContain('Quota');
+    // Who consumed the quota, and the Planning told it is exhausted.
+    expect(state.lastSync.message).toContain('Consommation du jour : 2 envoi(s) du Planning');
+    expect(recorded.at(-1)).toEqual({ units: 0, exhausted: true });
     google.quotaExceeded = false;
 
     google.refreshInvalid = true;
@@ -371,6 +451,24 @@ describe('youtube-stats with a fake Google', () => {
       message: expect.stringMatching(/^Données de démo : Aube : [\d ]+ vues en tout/),
     });
     await hub.request('PUT', '/api/core/settings/youtube-stats', { demoMode: false });
+  });
+
+  it('starts the sync by voice only with its own right (off by default)', async () => {
+    expect(await hub.hub.assistant.run('youtube-stats.sync', {})).toMatchObject({
+      status: 'forbidden',
+      right: { id: 'youtube-stats.sync' },
+    });
+    hub.hub.assistant.setRight('youtube-stats.sync', true);
+    try {
+      // The account needs reconnecting after the previous test: said plainly.
+      expect(await hub.hub.assistant.run('youtube-stats.sync', {})).toEqual({
+        status: 'error',
+        id: 'youtube-stats.sync',
+        message: 'L’autorisation Google a expiré : reconnecte le compte.',
+      });
+    } finally {
+      hub.hub.assistant.setRight('youtube-stats.sync', false);
+    }
   });
 
   it('the demo is separate from the real data', async () => {
