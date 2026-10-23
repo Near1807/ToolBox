@@ -4,13 +4,13 @@
 
 ## Le projet
 
-Application de bureau Windows personnelle de Thomas : un **hub** (page d'accueil + navigation) qui donne accès à des **modules** (outils). V1 : espace « Musique » (bibliothèque de morceaux, générateurs de vidéos YouTube/Instagram, statistiques YouTube). Thomas pilote, Claude code. État d'avancement : `docs/ROADMAP.md`.
+Application de bureau Windows personnelle de Thomas : un **hub** (page d'accueil + navigation) qui donne accès à des **modules** (outils). V1 : espace « Musique » (bibliothèque de morceaux, générateurs de vidéos YouTube/Instagram, statistiques YouTube : `youtube-stats`). Thomas pilote, Claude code. État d'avancement : `docs/ROADMAP.md`.
 
 **Règle d'or : le socle reste générique, les modules s'adaptent au socle.** Le socle ne connaît aucun module en particulier (ni la musique, ni YouTube). Une ancienne app intégrée plus tard s'adapte au contrat de module ; on ne modifie jamais le socle pour elle.
 
 **Pour ajouter ou modifier un module : lire `docs/MODULES.md` (le contrat) puis `docs/AJOUTER-UN-MODULE.md`.** Point de départ : copier `modules/_template/`.
 
-Modules actuels (section Musique) : `music-library` (bibliothèque, service `musicLibrary`), `video-engine` (moteur FFmpeg partagé, Reels dessinés image par image, service `videoEngine`, sans page), `youtube-video` (générateur 16:9), `instagram-video` (pack Insta : 4 Reels 9:16 au même style sobre, post 4:5, légende, suivi de publication, service `instagramPack`), `custom-reels` (Reels 9:16 faits avec les vidéos de l'utilisateur, banque d'effets Brut/Calme/Rythme/Ciné/Caméra embarquée, son au choix : morceau, vidéo ou morceau synchronisé, service `customReels`), `release-planner` (planning de sortie : calendrier, upload et programmation YouTube via `ctx.accounts`, rappels Instagram). `youtube-video` fournit le service `youtubeVideo`. Chaque module a son `README.md`.
+Modules actuels (section Musique) : `music-library` (bibliothèque, service `musicLibrary`), `video-engine` (moteur FFmpeg partagé, Reels dessinés image par image, service `videoEngine`, sans page), `youtube-video` (générateur 16:9), `instagram-video` (pack Insta : 4 Reels 9:16 au même style sobre, post 4:5, légende, suivi de publication, service `instagramPack`), `custom-reels` (Reels 9:16 faits avec les vidéos de l'utilisateur, banque d'effets Brut/Calme/Rythme/Ciné/Caméra embarquée, son au choix : morceau, vidéo ou morceau synchronisé, service `customReels`), `release-planner` (planning de sortie : calendrier, upload et programmation YouTube via `ctx.accounts`, rappels Instagram, service `releasePlanner`), `youtube-stats` (stats YouTube stockées en local, croisées avec les morceaux ; Labo, théories avec niveau de confiance, mode démo ; aucun service). `youtube-video` fournit le service `youtubeVideo`. Chaque module a son `README.md`.
 
 ## Stack
 

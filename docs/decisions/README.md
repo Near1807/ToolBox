@@ -45,3 +45,4 @@ Modèle :
 | 0024 | [Services facultatifs : un module n'exige que ce sans quoi il n'a aucun sens](0024-services-facultatifs.md)                          |
 | 0025 | [Rattachement complet : chaque module suit (`ctx.outputs.onReattach`)](0025-rattachement-complet.md)                                 |
 | 0026 | [Reels perso : passage = départ + durée du Reel, son au choix, morceau synchronisé](0026-son-et-passages-des-reels-perso.md)         |
+| 0027 | [Stats YouTube : données locales, niveaux de confiance, démo, CSV en repli](0027-stats-youtube.md)                                   |
