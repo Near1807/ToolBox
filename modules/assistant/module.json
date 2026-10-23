@@ -1,0 +1,65 @@
+{
+  "id": "assistant",
+  "name": "Assistant vocal",
+  "description": "Parle à ToolBox en maintenant une touche : tâches de la To-do, ce qu'il faut publier, stats, état des morceaux. 100 % local et gratuit (Whisper, Ollama, Piper).",
+  "version": "1.0.0",
+  "section": "Outils",
+  "icon": "🎙️",
+  "order": 20,
+  "permissions": { "assistant": true, "globalKeys": true },
+  "settings": [
+    {
+      "key": "speakReplies",
+      "type": "boolean",
+      "label": "Répondre à voix haute",
+      "description": "La réponse (ou la confirmation de l'action faite) est lue, dès la première phrase prête.",
+      "default": true
+    },
+    {
+      "key": "speed",
+      "type": "number",
+      "label": "Vitesse de la voix",
+      "description": "1 = normale ; 1,2 = 20 % plus rapide.",
+      "min": 0.7,
+      "max": 1.5,
+      "step": 0.05,
+      "default": 1
+    },
+    {
+      "key": "directReads",
+      "type": "boolean",
+      "label": "Réponses directes (plus rapide)",
+      "description": "Lit tel quel le résultat des outils (« 3 tâches à faire… ») au lieu de le faire reformuler par le modèle : une étape de réflexion en moins.",
+      "default": false
+    },
+    {
+      "key": "ollamaUrl",
+      "type": "string",
+      "label": "Adresse d'Ollama",
+      "description": "Ollama tourne sur ce PC ; ne change que si tu l'as configuré autrement.",
+      "default": "http://127.0.0.1:11434"
+    },
+    { "key": "model", "type": "string", "label": "Modèle", "default": "", "hidden": true },
+    {
+      "key": "whisperModel",
+      "type": "string",
+      "label": "Reconnaissance vocale",
+      "default": "",
+      "hidden": true
+    },
+    {
+      "key": "voice",
+      "type": "string",
+      "label": "Voix",
+      "default": "fr_FR-siwis-medium",
+      "hidden": true
+    },
+    {
+      "key": "pushToTalkKey",
+      "type": "string",
+      "label": "Touche « parler »",
+      "default": "106|Touche Copilot (Win+Maj+F23)",
+      "hidden": true
+    }
+  ]
+}

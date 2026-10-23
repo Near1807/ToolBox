@@ -11,6 +11,7 @@ import type { OAuthProvider } from '../../backend/core/accounts';
 import type { DiscoveredModule, Hub } from '../../backend/core/hub';
 
 export type { DiscoveredModule } from '../../backend/core/hub';
+export type { HostKeyEvent } from '../../backend/core/host';
 import { TOKEN_HEADER } from '../../backend/core/security';
 import { buildServer } from '../../backend/server';
 import type { FastifyInstance } from 'fastify';
