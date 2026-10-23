@@ -4,6 +4,35 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.17.0] — 2026-10-23
+
+L'assistant vocal devient rapide et contrôlé : les demandes courantes sont des **commandes reconnues sans IA**, l'IA est facultative (désactivée par défaut) et l'assistant est **en lecture seule** tant que Thomas n'active pas ses droits un par un.
+
+### Ajouté
+
+- **Commandes standardisées** (contrat des modules, MODULES.md §5.15) :
+  - chaque action peut déclarer des phrases d'exemple en français (`examples`) et un extracteur de paramètres en code (`extract`) ; aides partagées dans le SDK (`cleanUtterance`, `stripCommand`, `extractTags`, `extractTrailing`, `extractAfter`, `extractName`, `extractNumber`) ;
+  - To-do (ajouter avec titre, tags, date et morceau ; lister aujourd'hui, semaine, en retard, par tag ; cocher ; supprimer), Planning (à publier aujourd'hui, cette semaine, en retard ; sortie d'un morceau), Stats YouTube (résumé, morceau, faits marquants), Bibliothèque (état d'un morceau, ouvrir sa fiche), Tâches (rendus en cours), navigation (« ouvre … »), « quelles sont les commandes ? » ;
+  - reconnaissance stricte : par le sens (modèle d'embeddings multilingue local, ~120 Mo, téléchargé sur un clic) et par les mots ; exécutée seulement si le score est haut, nettement devant la 2e commande et les paramètres obligatoires trouvés ; seuil et écart réglables.
+- **Interrupteur « IA »** (désactivé par défaut), sur la page et dans l'indicateur flottant : commande reconnue → exécutée sans IA ; sinon le modèle choisi (IA activée) ou « Je n'ai pas compris ta demande. » avec « Tu voulais dire : … ? » (jamais exécuté). IA désactivée : Ollama n'est ni appelé ni nécessaire.
+- **Page « Commandes »** : par module, phrases, paramètres, risque, état ; recherche ; ajouter, modifier, supprimer ses phrases, masquer celles du module, rétablir ; avertissement de conflit ; « Tester une phrase » ; export / import du dictionnaire.
+- **« C'était… »** dans l'historique sur une demande non comprise.
+- **Droits de l'assistant**, désactivés par défaut : « ajouter et cocher des tâches », « supprimer des tâches » (le « oui » reste obligatoire), « lancer la synchronisation des stats YouTube » (nouvelle action). Sans le droit, rien n'est exécuté et l'assistant propose d'ouvrir les droits.
+- Historique : mode (commande standardisée, IA, pas compris), commande et score, nombre de questions, temps des commandes et du modèle.
+- **Instructions du modèle modifiables** (réglages avancés) : rétablir l'original, longueur affichée, parties ajoutées par l'app en lecture seule.
+- **Quota YouTube : le Planning passe avant les Stats** : synchro reportée pendant les envois, minimale si des envois sont prévus dans les 24 h, réserve réglable jamais consommée, messages qui disent qui a consommé le quota.
+
+### Modifié
+
+- **L'assistant est en lecture seule par défaut** : ajouter, cocher et supprimer une tâche demandent d'activer le droit correspondant (avant : actifs d'office).
+- **IA simplifiée** : instructions plus courtes et stables (le modèle ne demande jamais de confirmation ni de paramètre facultatif, au plus une question, une phrase courte), réponse coupée à 120 jetons (400 avant), outils présélectionnés, modèle gardé en mémoire (réglable), « Réponses directes » automatiques sans carte graphique dédiée, message clair quand le modèle est trop lent.
+- Contrat : toute action `change` ou `destructive` déclare son propre droit (`right`).
+
+### Données
+
+- Migration 1 du module `assistant` (dictionnaire des commandes : phrases de Thomas, phrases masquées).
+- Migration 4 du module `release-planner` (quota consommé par les autres modules).
+
 ## [0.16.1] — 2026-10-23
 
 ### Ajouté
