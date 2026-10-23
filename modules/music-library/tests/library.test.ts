@@ -250,6 +250,23 @@ describe('project page and elements without project', () => {
       expect(byRef('reel:2').included).toBe(false);
       expect(library.isIncluded('consumer', 'reel:2')).toBe(false);
       expect(library.isIncluded('consumer', 'reel:1')).toBe(true);
+
+      // The assistant reads the same project (and opens the track page on request).
+      const title = track.title;
+      expect(
+        await hub.hub.assistant.run('music-library.track-project', { track: title }),
+      ).toMatchObject({
+        status: 'done',
+        message: `${title} : 2 élément(s) (1 publié, 1 généré).`,
+      });
+      expect(
+        await hub.hub.assistant.run('music-library.open-track', { track: title }),
+      ).toMatchObject({
+        open: `/m/music-library/tracks/${track.id}`,
+      });
+      expect(await hub.hub.assistant.run('music-library.list-tracks', {})).toMatchObject({
+        message: `1 morceau(x) dans la Bibliothèque : ${title}.`,
+      });
     } finally {
       await hub.close();
     }

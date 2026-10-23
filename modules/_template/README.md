@@ -17,6 +17,7 @@ Une liste de notes, l'export d'une note en fichier .txt (enregistré dans `ctx.o
 | Réglages         | `greeting` (texte), `demoSeconds` (nombre)                                                                                        |
 | Événements émis  | `template:note.created` `{ id }`                                                                                                  |
 | Services fournis | aucun                                                                                                                             |
+| Assistant        | `count-notes` (lecture), `add-note` (modification, annulable)                                                                     |
 
 ## Dépendances
 

@@ -1,7 +1,9 @@
 import { app, BrowserWindow, dialog, safeStorage, shell } from 'electron';
 import path from 'node:path';
 import type { HostAdapter } from '../backend/core/host';
-import { notify, setLaunchAtStartup } from './desktop';
+import { notify, setLaunchAtStartup, showWindow } from './desktop';
+import { createGlobalKeys } from './global-keys';
+import { setOverlayVisible } from './overlay';
 
 /** Electron implementation of the backend's HostAdapter. */
 export function createElectronHost(): HostAdapter {
@@ -57,6 +59,9 @@ export function createElectronHost(): HostAdapter {
     },
     notify,
     setLaunchAtStartup,
+    showWindow,
+    setOverlayVisible,
+    globalKeys: createGlobalKeys(),
     isEncryptionAvailable: () => safeStorage.isEncryptionAvailable(),
     encryptString: (plainText) => safeStorage.encryptString(plainText),
     decryptString: (encrypted) => safeStorage.decryptString(encrypted),

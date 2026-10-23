@@ -4,13 +4,29 @@
 
 ## Le projet
 
-Application de bureau Windows personnelle de Thomas : un **hub** (page d'accueil + navigation) qui donne accès à des **modules** (outils). V1 : espace « Musique » (bibliothèque de morceaux, générateurs de vidéos YouTube/Instagram, statistiques YouTube : `youtube-stats`). Thomas pilote, Claude code. État d'avancement : `docs/ROADMAP.md`.
+Application de bureau Windows personnelle de Thomas : un **hub** (page d'accueil + navigation) qui donne accès à des **modules** (outils). V1 : espace « Musique » (bibliothèque de morceaux, générateurs de vidéos YouTube/Instagram, statistiques YouTube : `youtube-stats`) et section « Outils » (To-do, Assistant vocal local). Thomas pilote, Claude code. État d'avancement : `docs/ROADMAP.md`.
 
 **Règle d'or : le socle reste générique, les modules s'adaptent au socle.** Le socle ne connaît aucun module en particulier (ni la musique, ni YouTube). Une ancienne app intégrée plus tard s'adapte au contrat de module ; on ne modifie jamais le socle pour elle.
 
 **Pour ajouter ou modifier un module : lire `docs/MODULES.md` (le contrat) puis `docs/AJOUTER-UN-MODULE.md`.** Point de départ : copier `modules/_template/`.
 
-Modules actuels (section Musique) : `music-library` (bibliothèque, service `musicLibrary`), `video-engine` (moteur FFmpeg partagé, Reels dessinés image par image, service `videoEngine`, sans page), `youtube-video` (générateur 16:9), `instagram-video` (pack Insta : 4 Reels 9:16 au même style sobre, post 4:5, légende, suivi de publication, service `instagramPack`), `custom-reels` (Reels 9:16 faits avec les vidéos de l'utilisateur, banque d'effets Brut/Calme/Rythme/Ciné/Caméra embarquée, son au choix : morceau, vidéo ou morceau synchronisé, service `customReels`), `release-planner` (planning de sortie : calendrier, upload et programmation YouTube via `ctx.accounts`, rappels Instagram, service `releasePlanner`), `youtube-stats` (stats YouTube stockées en local, croisées avec les morceaux ; Labo, théories avec niveau de confiance, mode démo ; aucun service). `youtube-video` fournit le service `youtubeVideo`. Chaque module a son `README.md`.
+Modules actuels (section Musique) : `music-library` (bibliothèque, service `musicLibrary`), `video-engine` (moteur FFmpeg partagé, Reels dessinés image par image, service `videoEngine`, sans page), `youtube-video` (générateur 16:9), `instagram-video` (pack Insta : 4 Reels 9:16 au même style sobre, post 4:5, légende, suivi de publication, service `instagramPack`), `custom-reels` (Reels 9:16 faits avec les vidéos de l'utilisateur, banque d'effets Brut/Calme/Rythme/Ciné/Caméra embarquée, son au choix : morceau, vidéo ou morceau synchronisé, service `customReels`), `release-planner` (planning de sortie : calendrier, upload et programmation YouTube via `ctx.accounts`, rappels Instagram, service `releasePlanner`), `youtube-stats` (stats YouTube stockées en local, croisées avec les morceaux ; Labo, théories avec niveau de confiance, mode démo ; aucun service). `youtube-video` fournit le service `youtubeVideo`. Section Outils : `todo` (tâches, tags, échéances en langage naturel, morceau facultatif) et `assistant` (assistant vocal 100 % local : whisper.cpp, Ollama, Piper ; talkie-walkie, indicateur flottant ; utilise les actions de tous les modules, ADR 0029). Chaque module a son `README.md`.
+
+## Contrôle et sécurité (prioritaire sur toute autre considération)
+
+- **La solidité et le contrôle de Thomas passent AVANT l'autonomie et le côté spectaculaire.** En cas de doute : demander, ou ne pas faire.
+- **Jamais sans confirmation explicite de Thomas** :
+  - supprimer des données ou des fichiers ;
+  - publier ou envoyer quoi que ce soit en ligne ;
+  - modifier quelque chose déjà en ligne ou programmé ;
+  - écraser une donnée existante ;
+  - lancer une mise à jour de l'app ou d'un modèle.
+- **Toute action qui modifie quelque chose est visible** (confirmation à l'écran ou à voix haute) et, quand c'est possible, **annulable**.
+- **Droits ajoutés un par un.** L'assistant vocal et toute automatisation future (envoi automatique, tâches planifiées…) n'obtiennent de nouveaux droits qu'un par un, sur décision explicite de Thomas, après une période de test. Par défaut, toute nouvelle capacité est **désactivée ou en lecture seule**.
+- **Livré désactivé.** Toute nouvelle fonctionnalité qui agit seule est d'abord livrée **désactivée par défaut**, avec un réglage clair pour l'activer.
+- **Vue d'ensemble dans chaque rapport.** Chaque rapport de fin de session a une section qui liste toute action pouvant modifier, supprimer ou publier sans clic de Thomas (même avec confirmation vocale).
+
+Détail pour les modules : `docs/MODULES.md` §1 bis.
 
 ## Stack
 
@@ -19,6 +35,7 @@ Modules actuels (section Musique) : `music-library` (bibliothèque, service `mus
 - **SQLite** via `better-sqlite3` (N-API, aucun rebuild pour Electron), base unique `hub.db` dans `app.getPath('userData')`.
 - **FFmpeg/FFprobe** embarqués : `ffmpeg-static` + `@derhuerst/ffprobe-static` (même build ; FFmpeg **6.1** sous Windows, 7.0 sous Linux : rester compatible 6.1), dépaquetés de l'asar.
 - **Canvas** `@napi-rs/canvas` (Skia, N-API précompilé, dépaqueté de l'asar) : rendu des Reels image par image (ADR 0017).
+- **Touche globale** `uiohook-napi` (N-API précompilé, dépaqueté de l'asar) : touche maintenue « parler » de l'assistant, même sans le focus (ADR 0028).
 - Secrets et jetons OAuth chiffrés avec `safeStorage` via l'interface `HostAdapter` (`backend/core/host.ts`). Comptes connectés (`ctx.accounts`, OAuth Google installé : boucle locale + PKCE, ADR 0018) ; notifications Windows et zone de notification (ADR 0019).
 - Qualité : ESLint 10 + Prettier, Vitest 5, TypeScript 6 (pas 7 : non supporté par typescript-eslint). zod (manifests), yazl (export .zip).
 
@@ -33,7 +50,7 @@ Modules actuels (section Musique) : `music-library` (bibliothèque, service `mus
 | `npm run test:full`                        | Suite complète, dont les rendus complets (`fullRenderTests`) ; toujours lancée par la CI Windows                                              |
 | `npm run lint` / `npm run format`          | ESLint (dont la règle des frontières de modules) + Prettier + aucune couleur en dur dans l'interface (`check:ui-colors`)                      |
 | `npm run typecheck`                        | `tsc --noEmit`                                                                                                                                |
-| `npm run check:native`                     | Vérifie que better-sqlite3 et @napi-rs/canvas se chargent dans le Node d'Electron                                                             |
+| `npm run check:native`                     | Vérifie que better-sqlite3, @napi-rs/canvas et uiohook-napi se chargent dans le Node d'Electron (sous Linux : `xvfb-run -a`)                  |
 | `npm run dist:win`                         | Installateur NSIS + portable dans `dist/` (sous Windows, ou via la CI)                                                                        |
 | `node scripts/smoke-test.mjs <exe> [args]` | Auto-test d'un build (API, SQLite, FFmpeg, canvas, module modèle, UI)                                                                         |
 
@@ -78,6 +95,7 @@ site/            site public statique (accueil + confidentialité, exigés par G
 - **Thèmes** : couleurs, arrondis, ombres et polices de l'interface = variables CSS des thèmes (`frontend/src/themes/`, `docs/THEMES.md`). Aucune couleur en dur dans le shell ni dans les modules (`npm run lint` le vérifie). Les thèmes concernent l'interface ; les visuels générés suivent la direction artistique.
 - Visuels : respecter `docs/DIRECTION-ARTISTIQUE.md` (sobre ; cover toujours entière, jamais recadrée ni étirée ; seuls mouvements lents de l'image entière ; couleurs de la cover). Vidéos de l'utilisateur (`custom-reels`) : banque d'effets permise (un fichier par effet), sans jamais masquer le contenu. Pixels carrés (`setsar=1`) en fin de chaîne, son ≤ -1 dBTP (≤ -1,1 dBTP pour les Reels perso). **Tout mouvement est piloté directement par le son, jamais par des événements détectés** (synchro mesurée, ≤ 1 image).
 - **Données : une migration publiée ne se modifie jamais ; aucune suppression de données hors migration explicite** (ou demande explicite de l'utilisateur dans l'interface, avec confirmation). Le socle sauvegarde `hub.db` avant chaque migration et restaure en cas d'échec (`docs/MODULES.md` §6).
+- **Assistant** : chaque module expose ses actions (`ctx.assistant.define`, niveau de risque `read` / `change` / `destructive` / `sensitive`, appliqué par le socle). Une nouvelle action qui modifie (`change`, `destructive`) n'est ajoutée que sur décision explicite de Thomas (« Contrôle et sécurité »). `docs/MODULES.md` §5.15, ADR 0028.
 - **Dépendances** : un module n'exige (`dependsOn`) que ce sans quoi il n'a aucun sens ; le reste en `dependsOn.optionalServices` + `ctx.services.optional()`, et le module fonctionne sans. ADR 0024.
 - Toute modification du contrat de module ou de l'architecture met à jour la doc **dans le même commit**. Nouvelle décision structurante → nouvel ADR.
 - **Tests** : pendant une session, lancer les tests rapides (`npm test`). La suite complète (`npm run test:full`) tourne en CI à chaque push ; en local, seulement si un rendu (moteur, effets, générateurs) a été modifié. Un nouveau test de rendu complet se marque `describe.runIf(fullRenderTests)` (`docs/MODULES.md` §8).
@@ -105,9 +123,10 @@ site/            site public statique (accueil + confidentialité, exigés par G
 7. **Vérifications** : tests (nombre, résultats), lint, typecheck, CI Windows (lien du run), mesures (ffprobe, ebur128, synchro, temps de rendu), captures et planches contact.
 8. **À tester sur le PC de Thomas** : liste numérotée, pas à pas, avec le résultat attendu.
 9. **Risques et points à surveiller** : limites connues, dette technique, choses fragiles.
-10. **Données et migrations** : migrations exécutées, impact sur les données existantes, sauvegardes créées.
-11. **Commits** : commits poussés (hash + message) et version de l'app.
-12. **Prochaines étapes suggérées** : 3 au maximum, par ordre de priorité.
+10. **Actions sans clic de Thomas** : liste complète et à jour de tout ce qui peut modifier, supprimer ou publier sans un clic de Thomas (même avec une confirmation vocale), avec son état (activé ou non par défaut) et ce qui a changé dans la session.
+11. **Données et migrations** : migrations exécutées, impact sur les données existantes, sauvegardes créées.
+12. **Commits** : commits poussés (hash + message) et version de l'app.
+13. **Prochaines étapes suggérées** : 3 au maximum, par ordre de priorité.
 
 Modèle : le dernier rapport de `docs/rapports/`.
 

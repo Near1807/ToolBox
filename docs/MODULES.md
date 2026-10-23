@@ -12,6 +12,28 @@
 6. **Retrait sans casse.** Supprimer le dossier d'un module (puis rebuild) ne casse ni le socle ni les modules qui n'en dépendent pas. Ceux qui en dépendent sont automatiquement marqués « dépendance manquante ».
 7. **Un module qui plante ne fait pas planter le hub** (voir §9).
 
+## 1 bis. Contrôle et sécurité (prioritaire sur toute autre règle)
+
+- **La solidité et le contrôle de Thomas passent AVANT l'autonomie et le côté spectaculaire.** En cas de doute : demander, ou ne pas faire.
+- **Jamais sans confirmation explicite de Thomas** :
+  - supprimer des données ou des fichiers ;
+  - publier ou envoyer quoi que ce soit en ligne ;
+  - modifier quelque chose déjà en ligne ou programmé ;
+  - écraser une donnée existante ;
+  - lancer une mise à jour de l'app ou d'un modèle.
+- **Toute action qui modifie quelque chose est visible** (confirmation à l'écran ou à voix haute) et, quand c'est possible, **annulable**.
+- **Droits ajoutés un par un.** L'assistant vocal et toute automatisation future (envoi automatique, tâches planifiées…) n'obtiennent de nouveaux droits qu'un par un, sur décision explicite de Thomas, après une période de test. Par défaut, toute nouvelle capacité est **désactivée ou en lecture seule**.
+- **Livré désactivé.** Toute nouvelle fonctionnalité qui agit seule est d'abord livrée **désactivée par défaut**, avec un réglage clair pour l'activer.
+- **Vue d'ensemble dans chaque rapport.** Chaque rapport de fin de session a une section qui liste toute action pouvant modifier, supprimer ou publier sans clic de Thomas (même avec confirmation vocale).
+
+Pour un module, concrètement :
+
+- Toute suppression, publication, modification d'un élément en ligne ou programmé, ou tout écrasement d'une donnée passe par une **confirmation dans l'interface** (`confirmDelete` ou équivalent). Aucune route ne le fait seule.
+- Toute modification est visible et, si possible, annulable (`UndoToast`, `undo` des actions de l'assistant).
+- Tout ce qui agit sans clic (tâche planifiée qui envoie, publie, supprime ou modifie ; envoi automatique ; synchronisation qui écrase) est **désactivé par défaut**, derrière un réglage clair qui dit ce qu'il fait. Une tâche planifiée qui ne fait que lire, ou que préparer sans rien publier, est permise ; son README dit ce qu'elle fait.
+- Actions de l'assistant (§5.15) : un nouveau module déclare des actions de **lecture**. Une action qui modifie (`change`, `destructive`) n'est ajoutée que sur décision explicite de Thomas, une à la fois. Une action `sensitive` n'est jamais exécutable.
+- Téléchargements et mises à jour (app, modèles, moteurs) : seulement sur un clic de Thomas.
+
 ## 2. Structure d'un module
 
 ```
@@ -59,6 +81,8 @@ modules/<id>/
 | `dependsOn.optionalServices` | non         | Services utilisés **s'ils sont là**, via `ctx.services.optional()` ; le module fonctionne sans (§5.8)                        |
 | `provides.services`          | non         | Services que le module **doit** fournir via `ctx.services.provide()`                                                         |
 | `permissions.accounts`       | non         | Comptes externes utilisés via `ctx.accounts` : `"google"` (seul fournisseur aujourd'hui)                                     |
+| `permissions.assistant`      | non         | `true` : le module **lit et exécute les actions des autres modules** (`ctx.assistant.actions/run/undo`, §5.15)               |
+| `permissions.globalKeys`     | non         | `true` : le module écoute une touche **dans tout Windows**, même sans le focus (`ctx.hotkeys`, §5.16)                        |
 | `settings`                   | non         | Réglages du module, affichés automatiquement dans la page Réglages (§5.3)                                                    |
 
 Le manifest est validé au démarrage (`backend/core/modules/manifest.ts`) : un champ inconnu ou invalide rend le module « en erreur » avec un message précis, sans empêcher les autres de démarrer.
@@ -133,7 +157,7 @@ Les réglages sont déclarés dans `module.json > settings` ; la page Réglages 
 | `weekdays`        | jours de la semaine, cases Lun…Dim ; valeur `"1,2,3,4,5"` (1 = lundi) | `default`                       |
 | `secret`          | texte **chiffré** (safeStorage), jamais renvoyé à l'interface         | —                               |
 
-Tous acceptent `label` (obligatoire) et `description`. API : `get(key)` (valeur ou défaut, secrets déchiffrés), `set(key, value)`, `onChange(handler)`.
+Tous acceptent `label` (obligatoire), `description` et `hidden` (`true` : absent de la page Réglages, le module le modifie depuis sa propre page, ex. la touche de l'assistant capturée au clavier). API : `get(key)` (valeur ou défaut, secrets déchiffrés), `set(key, value)`, `onChange(handler)`.
 
 ### 5.4 `ctx.routes` — API HTTP
 
@@ -285,6 +309,50 @@ ctx.outputs.onReattach((records, subject) => {
 
 `ctx.notifications.notify({ title, body, path })` : notification Windows (si l'app tourne). Un clic ouvre la page `path` du module (`''` = page principale, `'?item=3'`, `'tracks/3'`…). Elle est aussi écrite dans les journaux du module. Pour les rappels, l'utilisateur peut faire tourner l'app en arrière-plan : réglage du socle « Lancer ToolBox au démarrage de Windows » (zone de notification).
 
+### 5.15 `ctx.assistant` — actions pour l'assistant vocal (règle du contrat)
+
+**Chaque module expose ce que l'assistant peut faire avec lui.** L'assistant (module `assistant`) découvre les actions automatiquement ; il n'a pas de code propre aux autres modules. ADR 0028. Par défaut, un module n'expose que des actions de **lecture** ; une action qui modifie n'arrive que sur décision explicite de Thomas (§1 bis).
+
+```ts
+ctx.assistant.define({
+  name: 'add-task', // kebab-case ; id complet « todo.add-task »
+  description: 'Ajoute une tâche à la To-do.', // en français, pour le modèle
+  parameters: {
+    title: { type: 'string', description: 'Titre, ex. « finir le mix »' },
+    tags: { type: 'string[]', description: 'Tags, ex. ["mix"]' },
+    due: { type: 'string', description: 'Échéance en langage naturel : « demain », « vendredi »' },
+  },
+  required: ['title'],
+  risk: 'change',
+  run: (params) => ({
+    message: 'J’ai ajouté « finir le mix » pour vendredi.', // ce qui a été fait, rien de plus
+    data: { id: 12 }, // faits pour le modèle (petit, JSON)
+    undo: () => removeTask(12), // « Annuler »
+  }),
+});
+```
+
+| `risk`        | Sens                                                                              | Ce que fait le socle                                                                                               |
+| ------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `read`        | lecture seule (lister, résumer, ouvrir une page)                                  | exécutée directement                                                                                               |
+| `change`      | modification sans conséquence (ajouter, cocher)                                   | exécutée directement ; `undo` (si fourni) devient le bouton « Annuler »                                            |
+| `destructive` | modification qui fait perdre quelque chose (supprimer une tâche)                  | **jamais sans confirmation** : renvoie la question de `confirmation(params)` ; exécutée seulement avec `confirmed` |
+| `sensitive`   | publier, envoyer sur YouTube, supprimer des fichiers, changer une date programmée | **jamais exécutée** (pas de `run`) : refus, avec la page `page` du module à ouvrir                                 |
+
+- Paramètres : types `string`, `number`, `integer`, `boolean`, `string[]`, `enum` possible. Le socle les vérifie (paramètre inconnu, manquant, mauvais type → refus expliqué) et corrige ce que les modèles envoient souvent (`"3"` → 3, `"a, b"` → `["a", "b"]`, `""` → absent).
+- `run` lève une `HttpError` avec un message français pour un refus attendu (« Tâche introuvable ») ; l'assistant le répète tel quel.
+- `message` dit exactement ce qui a été fait : l'assistant ne doit jamais affirmer plus que le résultat de l'action.
+- `open` (facultatif) : une route de l'interface à ouvrir (« ouvre la fiche du morceau »).
+- Les dates en langage naturel, les noms approximatifs (« boumboum ») se résolvent **dans le module** (code testé), pas par le modèle.
+- Consommer le catalogue : `permissions.assistant: true`, puis `ctx.assistant.actions()`, `run(id, params, { confirmed })`, `undo(undoId)`. Les annulations vivent en mémoire (1 h, fin à la fermeture de l'app).
+- Le socle fournit ses propres actions (`core.list-jobs`, `core.list-modules`, `core.open`).
+
+### 5.16 `ctx.hotkeys` et `ctx.ui` — touche globale, fenêtre, indicateur flottant
+
+- `ctx.hotkeys` (avec `permissions.globalKeys`) : `hold(key, { onPress, onRelease })` écoute une touche **maintenue** dans tout Windows (crochet clavier `uiohook-napi`, ADR 0028), `capture()` attend « la touche voulue », `status()` dit si c'est possible. Le crochet ne tourne que pendant qu'un module écoute ; seul le code de la touche choisie est regardé, rien n'est enregistré. Absent hors de l'app de bureau (le module propose alors un bouton).
+- `ctx.ui.open(route)` : montre la fenêtre (même réduite ou dans la zone de notification) sur une page (`/m/todo`, `/jobs`).
+- `ctx.ui.setOverlay(visible)` : montre ou cache l'**indicateur flottant** (petite fenêtre transparente, toujours au premier plan, sans focus ni clic), qui affiche le composant `Overlay` du module (§7).
+
 ## 6. Migrations et sécurité des données
 
 ```ts
@@ -347,8 +415,14 @@ export default defineFrontendModule({
   ],
   nav: { label: 'Bibliothèque' }, // défaut : manifest.name ; hidden: true pour masquer
   HomeWidget, // facultatif : contenu de la carte d'accueil
+  Background, // facultatif : composant invisible monté toute la session (micro, lecture audio)
+  Overlay, // facultatif : contenu de l'indicateur flottant (ctx.ui.setOverlay)
 });
 ```
+
+- `Background` est monté une seule fois dans la fenêtre principale, même page du module fermée, fenêtre réduite ou dans la zone de notification (la fenêtre ne ralentit pas en arrière-plan). Il ne rend rien ; une erreur n'affiche rien et ne touche pas le reste.
+- `Overlay` est rendu dans la fenêtre de l'indicateur (route `#/overlay`, fond transparent) : petit, couleurs du thème, `null` quand il n'y a rien à montrer.
+- Le micro : seule permission matérielle accordée à l'interface (`getUserMedia({ audio: true })`) ; caméra et écran sont refusés.
 
 - Le shell n'affiche un module que si le backend l'a chargé (`GET /api/core/modules` fait foi). Un module en erreur apparaît sur l'accueil avec son état et renvoie vers Réglages.
 - Chaque page et chaque widget est rendu dans une **ErrorBoundary** : une erreur d'affichage n'affecte que ce module.
@@ -433,6 +507,8 @@ L'état de chaque module est visible dans **Réglages > Modules** (avec bouton D
 - [ ] Chaque fichier généré enregistré dans `ctx.outputs` (avec `onRemoved` pour nettoyer ses données et `onReattach` pour suivre un rattachement) ; dans l'interface : « Supprimer » avec confirmation, sélection multiple, « Fichier introuvable », « Nettoyer les éléments introuvables »
 - [ ] Dépendances et services déclarés dans le manifest ; types publics dans `contract.ts`
 - [ ] Comptes externes déclarés dans `permissions.accounts`, autorisations minimales
+- [ ] Actions pour l'assistant déclarées (`ctx.assistant.define`, §5.15) : lecture de l'essentiel ; une action qui modifie seulement sur décision de Thomas, annulable, et confirmée si elle supprime ; rien de sensible exécutable
+- [ ] Contrôle et sécurité (§1 bis) : rien n'est supprimé, publié, modifié en ligne ou écrasé sans confirmation ; tout ce qui agit seul est désactivé par défaut avec un réglage clair
 - [ ] Éléments générés affichés avec les composants partagés du SDK (§7.1), aucune couleur en dur (§7.2)
 - [ ] Textes en français, code en anglais
 - [ ] `README.md` du module à jour (rôle, données, réglages, événements, services, API)

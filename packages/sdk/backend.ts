@@ -5,6 +5,8 @@ import type { ModuleManifest, SettingValue } from './manifest';
 
 export type { FastifyReply, FastifyRequest } from 'fastify';
 export type * from './manifest';
+export { matchByName, nameScore, normaliseName, type NameMatch } from './match';
+export { ELEMENT_STATES, listPhrase } from './assistant-texts';
 
 // ---------------------------------------------------------------------------
 // What a module exports
@@ -61,6 +63,12 @@ export interface ModuleContext {
   readonly accounts: ModuleAccounts;
   /** Desktop notifications (Windows), opening a page of the module when clicked. */
   readonly notifications: ModuleNotifications;
+  /** Actions the module offers to the voice assistant (and, with permissions.assistant, the catalog). */
+  readonly assistant: ModuleAssistant;
+  /** Push-to-talk style global keys (held / released), with permissions.globalKeys. */
+  readonly hotkeys: ModuleHotkeys;
+  /** The desktop window: open a page, show the floating indicator. */
+  readonly ui: ModuleUi;
   readonly binaries: ModuleBinaries;
   readonly logger: ModuleLogger;
   /** Called when the hub shuts down (close watchers, kill processes…). */
@@ -419,6 +427,133 @@ export interface ModuleNotifications {
    * module ("" = its main page, "items/3"…) opened when the notification is clicked.
    */
   notify(notification: { title: string; body: string; path?: string }): void;
+}
+
+// ---------------------------------------------------------------------------
+// Assistant actions (docs/MODULES.md §5.15, ADR 0028)
+// ---------------------------------------------------------------------------
+
+/**
+ * Risk level of an action, enforced by the hub:
+ * - `read`: reads only, run directly;
+ * - `change`: harmless change (add, tick), run directly, undoable;
+ * - `destructive`: change that loses something (delete), run only after the
+ *   user confirmed (`confirmation()` gives the question);
+ * - `sensitive`: publishes, uploads, deletes files, moves a scheduled date…
+ *   never run by the assistant: it says so and offers to open `page`.
+ */
+export type AssistantRisk = 'read' | 'change' | 'destructive' | 'sensitive';
+
+/** One parameter of an action (a small JSON Schema subset, sent to the model). */
+export interface AssistantParameter {
+  type: 'string' | 'number' | 'integer' | 'boolean' | 'string[]';
+  /** French: what to put there, with an example. */
+  description: string;
+  enum?: string[];
+}
+
+export type AssistantParams = Record<string, string | number | boolean | string[] | undefined>;
+
+export interface AssistantActionResult {
+  /** French sentence stating what was done or found (« J'ai ajouté … »): never more than what happened. */
+  message: string;
+  /** Facts for the model to answer from (small, JSON-serializable). */
+  data?: unknown;
+  /** Undoes a `change` / `destructive` action (« Annuler »). */
+  undo?: () => void | Promise<void>;
+  /** A UI route to open (« ouvre le Planning »): "/m/<module id>/…". */
+  open?: string;
+}
+
+export interface AssistantActionDefinition {
+  /** kebab-case, unique in the module; the full id is "<module id>.<name>". */
+  name: string;
+  /** French, for the model: what it does and when to use it. */
+  description: string;
+  parameters?: Record<string, AssistantParameter>;
+  required?: string[];
+  risk: AssistantRisk;
+  /** `destructive` only (required): the question asked before running (« Supprimer la tâche « … » ? »). */
+  confirmation?: (params: AssistantParams) => string | Promise<string>;
+  /** `sensitive` only: the page where the user does it himself (relative to the module: "" or "items/3"). */
+  page?: string;
+  /** Not called for `sensitive` actions. Throw an HttpError with a French message on bad input. */
+  run?: (params: AssistantParams) => AssistantActionResult | Promise<AssistantActionResult>;
+}
+
+/** An action as listed in the catalog. */
+export interface AssistantActionInfo {
+  /** "<module id>.<name>" */
+  id: string;
+  moduleId: string;
+  moduleName: string;
+  name: string;
+  description: string;
+  parameters: Record<string, AssistantParameter>;
+  required: string[];
+  risk: AssistantRisk;
+  /** Full UI route of a sensitive action's page. */
+  page: string | null;
+}
+
+export type AssistantOutcome =
+  | {
+      status: 'done';
+      id: string;
+      message: string;
+      data: unknown;
+      /** Pass to undo(); null when the action cannot be undone. */
+      undoId: string | null;
+      open: string | null;
+    }
+  /** Destructive action not confirmed yet: ask `question`, then run again with confirmed. */
+  | { status: 'confirm'; id: string; question: string }
+  /** Sensitive action: never run; `open` is the page where the user does it. */
+  | { status: 'refused'; id: string; message: string; open: string | null }
+  /** Unknown action or bad parameters (French message, for the model to fix or ask). */
+  | { status: 'invalid'; id: string; message: string }
+  | { status: 'error'; id: string; message: string };
+
+export interface ModuleAssistant {
+  /** Declares an action of this module. */
+  define(action: AssistantActionDefinition): void;
+  /** Every action of the loaded modules (requires permissions.assistant). */
+  actions(): AssistantActionInfo[];
+  /** Validates the parameters, applies the risk rules and runs (requires permissions.assistant). */
+  run(id: string, params: unknown, options?: { confirmed?: boolean }): Promise<AssistantOutcome>;
+  /** Undoes a done action (requires permissions.assistant). */
+  undo(undoId: string): Promise<{ ok: boolean; message: string }>;
+}
+
+// ---------------------------------------------------------------------------
+// Global keys, window (desktop only)
+// ---------------------------------------------------------------------------
+
+/** A key of the keyboard, as seen by the system-wide hook (libuiohook key code). */
+export interface HotkeySpec {
+  code: number;
+  /** French, for the UI (« Touche Copilot », « Ctrl droit », « F13 »). */
+  label: string;
+}
+
+export interface ModuleHotkeys {
+  /** False outside the desktop app or when the system hook could not start (`reason` says why). */
+  status(): { available: boolean; reason: string | null };
+  /**
+   * Calls onPress when `key` goes down and onRelease when it comes back up,
+   * even when ToolBox has no focus (auto-repeat is filtered). Replaces the
+   * previous binding of this module; `null` stops listening.
+   */
+  hold(key: HotkeySpec | null, handlers: { onPress: () => void; onRelease: () => void }): void;
+  /** Resolves with the next key pressed anywhere (« appuie sur la touche voulue »), or null after timeoutMs. */
+  capture(timeoutMs?: number): Promise<HotkeySpec | null>;
+}
+
+export interface ModuleUi {
+  /** Shows the main window (restored, focused) on a UI route ("/m/todo", "/jobs"…). */
+  open(route: string): void;
+  /** Shows or hides the floating indicator (the module's `Overlay` component, always on top). */
+  setOverlay(visible: boolean): void;
 }
 
 export interface ModuleLogger {

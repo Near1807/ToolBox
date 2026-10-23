@@ -25,6 +25,16 @@ describe('validateManifest', () => {
     expect(() => validateManifest({ ...valid, unknown: true })).toThrow(ManifestError);
   });
 
+  it('accepts the assistant and global keys permissions, and hidden settings', () => {
+    const manifest = validateManifest({
+      ...valid,
+      permissions: { assistant: true, globalKeys: true },
+      settings: [{ key: 'k', type: 'string', label: 'K', hidden: true }],
+    });
+    expect(manifest.permissions).toEqual({ assistant: true, globalKeys: true });
+    expect(() => validateManifest({ ...valid, permissions: { microphone: true } })).toThrow();
+  });
+
   it('rejects reserved ids', () => {
     expect(() => validateManifest({ ...valid, id: 'core' })).toThrow(/réservé/);
   });

@@ -25,6 +25,7 @@ asarUnpack:
   - node_modules/@derhuerst/ffprobe-static/**
   - node_modules/better-sqlite3/**
   - node_modules/@napi-rs/**
+  - node_modules/uiohook-napi/**
 
 # better-sqlite3 ships N-API prebuilds that work in Electron as-is: no rebuild
 # (docs/decisions/0003-sqlite-better-sqlite3.md). `npm run check:native` guards it.
@@ -36,6 +37,9 @@ win:
   files:
     - '!node_modules/better-sqlite3/prebuilds/{darwin,linux,linuxmusl}-*'
     - '!node_modules/better-sqlite3/prebuilds/win32-arm64.node'
+    - '!node_modules/uiohook-napi/prebuilds/{darwin,linux}-*'
+    - '!node_modules/uiohook-napi/prebuilds/win32-arm64/**'
+    - '!node_modules/uiohook-napi/{src,libuiohook}'
   target:
     - target: nsis
       arch: x64

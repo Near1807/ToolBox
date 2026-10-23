@@ -118,13 +118,15 @@ export class SettingsStore {
       .map(([scope, section]) => ({
         scope,
         title: section.title,
-        fields: section.fields.map((field) => {
-          if (field.type === 'secret') {
-            return { field, value: null, isSet: Boolean(this.row(scope, field.key)?.value) };
-          }
-          const isSet = this.row(scope, field.key) !== undefined;
-          return { field, value: this.get(scope, field.key), isSet };
-        }),
+        fields: section.fields
+          .filter((field) => !field.hidden)
+          .map((field) => {
+            if (field.type === 'secret') {
+              return { field, value: null, isSet: Boolean(this.row(scope, field.key)?.value) };
+            }
+            const isSet = this.row(scope, field.key) !== undefined;
+            return { field, value: this.get(scope, field.key), isSet };
+          }),
       }));
   }
 

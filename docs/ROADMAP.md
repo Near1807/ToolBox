@@ -21,6 +21,7 @@ Légende : ✅ fait · 🚧 en cours · ⏳ prévu
 | 4 nonies    | **Nettoyage et audit** : code mort retiré, doublons remontés dans le SDK, test instable stabilisé, dépendances à jour (correctifs), règle « Hygiène du code »                                                                                                                                                                                                                                                                                                                                                                                  | ✅ (v0.14.1) |
 | 4 decies    | **Suite de l'audit** : composant partagé `TrackList` (liste des morceaux de Vidéo YouTube, Pack Insta et Reels perso) ; tests en deux niveaux (`npm test` rapide, `npm run test:full` avec les rendus complets, toujours en CI)                                                                                                                                                                                                                                                                                                                | ✅ (v0.14.2) |
 | 5           | **Stats YouTube** (`youtube-stats`) : synchro locale (API YouTube Analytics + Data, autorisations en lecture ajoutées au compte existant), import CSV de Studio, liaison automatique par le Planning (service `releasePlanner`) ; 4 niveaux (vue d'ensemble, morceaux, vidéos, Labo) ; théories avec niveau de confiance et journal ; mode démo ; ADR 0027                                                                                                                                                                                     | ✅ (v0.15.0) |
+| 5 bis       | **Outils : To-do et Assistant vocal V1** (section Outils) : To-do (tags, échéances en langage naturel, morceau facultatif, « Annuler ») ; assistant 100 % local (whisper.cpp, Ollama, Piper), talkie-walkie (touche Copilot par défaut), indicateur flottant ; socle `ctx.assistant` (chaque module expose ses actions, niveaux de risque), `ctx.hotkeys`, `ctx.ui` ; actions de lecture dans les modules Musique ; ADR 0028–0029                                                                                                              | ✅ (v0.16.0) |
 | 6           | Finitions, test du `.exe` installé, doc complète, v1.0.0                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | ⏳           |
 
 ## Maintenance décidée (audit v0.14.1)
@@ -38,6 +39,14 @@ Légende : ✅ fait · 🚧 en cours · ⏳ prévu
 
 ## Plus tard (hors V1, la structure doit le permettre)
 
+- **Assistant vocal V2** :
+  - mot de réveil (« Hé ToolBox », détection locale, sans touche) ;
+  - recherche Internet (facultative, toujours annoncée comme telle) ;
+  - briefing du matin (tâches du jour, publications, stats de la veille, lu à l'ouverture) ;
+  - cerveau interchangeable (autre moteur local qu'Ollama, ex. llama.cpp embarqué).
+  - Aussi : actions de modification dans les autres modules (cocher « Publié »…), annuler pendant la réflexion, choix du micro.
+- **To-do** : répétition (chaque lundi…), rappels Windows à l'échéance, sous-tâches, priorité.
+
 - **Instagram — Stories** : format 9:16 dédié dans le pack (extrait court + autocollant de lien), à côté des Reels et du post.
 - **Instagram — publication directe** du pack via l'API Instagram de Meta (compte Créateur/Professionnel + app Meta développeur), avec programmation : le Planning de sortie l'utiliserait à la place des rappels ; la case « Publié » serait alors cochée automatiquement. Stats dans un futur module `instagram-stats`, compte géré par `ctx.accounts`.
 - **SoundCloud** : stats via l'API officielle (abonnement Artist Pro requis pour obtenir des identifiants). Futur module `soundcloud-stats`.
@@ -47,7 +56,7 @@ Légende : ✅ fait · 🚧 en cours · ⏳ prévu
 - Planning de sortie : choix de la playlist par morceau ; modification du titre/description d'une vidéo déjà envoyée (aujourd'hui : dans YouTube Studio).
 - Remplacement du son d'un morceau existant (aujourd'hui : supprimer et réimporter).
 - Reels perso : rendu plus rapide (Caméra embarquée surtout : fils de calcul parallèles), effets supplémentaires (un fichier chacun), transitions douces entre passages si la charte l'admet ; seuils de la synchro à confirmer sur de vraies vidéos de téléphone.
-- **Intégration des apps existantes** (outil mails, boîte à outils gamifiée to-do/timer/habitudes/XP) en tant que modules adaptés au contrat.
+- **Intégration des apps existantes** (outil mails, boîte à outils gamifiée timer/habitudes/XP ; la to-do existe désormais : module `todo`) en tant que modules adaptés au contrat.
 - **Mise à jour automatique** de l'app.
 - **Restauration d'une sauvegarde depuis l'interface** (aujourd'hui : procédure manuelle, voir `docs/WINDOWS.md`).
 - Reprise automatique des tâches interrompues par la fermeture de l'app (aujourd'hui : marquées « interrompues », à relancer).

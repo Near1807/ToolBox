@@ -129,6 +129,41 @@ export default defineBackendModule({
       ctx.logger.info(`Résumé quotidien : ${count} note(s)`);
     });
 
+    // Assistant actions (MODULES.md §5.15): what the voice assistant may do with
+    // this module. The hub enforces the risk level: `read` and `change` run
+    // directly (a change returns `undo` for « Annuler »), `destructive` only
+    // after the user confirmed (`confirmation`), `sensitive` never (`page`).
+    ctx.assistant.define({
+      name: 'count-notes',
+      description: 'Donne le nombre de notes du module modèle.',
+      risk: 'read',
+      run: () => {
+        const { count } = ctx.db.prepare(`SELECT COUNT(*) AS count FROM ${notes}`).get() as {
+          count: number;
+        };
+        return { message: `${count} note(s).`, data: { count } };
+      },
+    });
+    ctx.assistant.define({
+      name: 'add-note',
+      description: 'Ajoute une note au module modèle.',
+      parameters: {
+        text: { type: 'string', description: 'Texte de la note, ex. « appeler Paul »' },
+      },
+      required: ['text'],
+      risk: 'change',
+      run: (params) => {
+        const result = ctx.db
+          .prepare(`INSERT INTO ${notes} (text, created_at) VALUES (?, ?)`)
+          .run(String(params.text), new Date().toISOString());
+        return {
+          message: `J’ai ajouté la note « ${String(params.text)} ».`,
+          undo: () =>
+            void ctx.db.prepare(`DELETE FROM ${notes} WHERE id = ?`).run(result.lastInsertRowid),
+        };
+      },
+    });
+
     // Services: declare the name in module.json (provides.services), then
     //   ctx.services.provide('notes', { count: () => … });
     // Consumers declare it in dependsOn.services and call ctx.services.get('notes').

@@ -62,8 +62,18 @@ export function ItemPanel(props: {
     }
   };
 
-  const save = () =>
-    run(
+  const save = () => {
+    // Contrôle et sécurité: a date already on YouTube only changes after a yes.
+    if (
+      item.youtube &&
+      (date !== item.date || time !== item.time) &&
+      !window.confirm(
+        `« ${item.label} » est déjà sur YouTube. Changer aussi sa date de publication sur YouTube (${date.split('-').reverse().join('/')} à ${time}) ?`,
+      )
+    ) {
+      return;
+    }
+    return run(
       () =>
         module.api.patch(`/items/${item.id}`, {
           date,
@@ -72,6 +82,7 @@ export function ItemPanel(props: {
         }),
       (result) => (result as { warnings: string[] }).warnings.join(' ') || 'Enregistré.',
     );
+  };
 
   const remove = (online?: 'keep' | 'delete') => {
     if (
