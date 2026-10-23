@@ -2,6 +2,7 @@
 // declare example phrases and an extractor (MODULES.md §5.15), with Thomas's
 // dictionary on top. Keeps the index up to date (a new phrase counts at once).
 import type { AssistantActionInfo, ModuleContext } from '@hub/sdk/backend';
+import type { CommandDto, ConflictDto } from '../shared';
 import { Dictionary, cleanPhrase } from './dictionary';
 import type { Embedder } from './embedder';
 import {
@@ -12,35 +13,6 @@ import {
   type MatchResult,
   type MatchSettings,
 } from './matcher';
-
-export interface CommandPhraseDto {
-  /** Thomas's phrases only (module phrases have none). */
-  id: number | null;
-  text: string;
-  source: 'module' | 'user';
-  hidden: boolean;
-}
-
-export interface CommandDto {
-  id: string;
-  moduleId: string;
-  moduleName: string;
-  description: string;
-  risk: AssistantActionInfo['risk'];
-  parameters: { name: string; description: string; required: boolean }[];
-  right: { id: string; label: string; granted: boolean } | null;
-  phrases: CommandPhraseDto[];
-  /** Runs from a phrase (false: disabled for lack of the right). */
-  available: boolean;
-}
-
-export interface ConflictDto {
-  actionId: string;
-  moduleName: string;
-  description: string;
-  score: number;
-  phrase: string;
-}
 
 export class CommandService {
   readonly dictionary: Dictionary;

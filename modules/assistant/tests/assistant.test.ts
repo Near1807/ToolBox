@@ -193,7 +193,7 @@ describe('assistant', () => {
       expect(turn.actions).toMatchObject([{ status: 'forbidden' }]);
       expect(await tasks()).toHaveLength(before);
       await say('oui');
-      expect(opened.at(-1)).toBe('/settings');
+      expect(opened.at(-1)).toBe('/m/assistant/commands');
     } finally {
       hub.hub.assistant.setRight('todo.edit-tasks', true);
     }

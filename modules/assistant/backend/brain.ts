@@ -248,8 +248,8 @@ function parseArguments(call: ToolCall): unknown {
   }
 }
 
-/** Where Thomas turns the assistant's rights on. */
-export const RIGHTS_ROUTE = '/settings';
+/** Where Thomas turns the assistant's rights on (also in Réglages). */
+export const RIGHTS_ROUTE = '/m/assistant/commands';
 
 /** One sentence, then the offer to open the rights (the pending « open » takes the « oui »). */
 export function forbiddenReply(label: string): string {

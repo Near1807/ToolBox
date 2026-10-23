@@ -64,6 +64,8 @@ export interface StateEvent {
   text: string | null;
   /** Recording in « tap to start, tap to stop » mode. */
   toggle: boolean;
+  /** The « IA » switch (recalled in the floating indicator). */
+  ai: boolean;
 }
 
 export interface SpeechEvent {
@@ -115,4 +117,75 @@ export interface StatusDto {
   };
   installing: { id: string; title: string; progress: number | null; message: string | null }[];
   ready: boolean;
+}
+
+// --- Commands page ------------------------------------------------------------
+
+export interface CommandPhraseDto {
+  /** Thomas's phrases only (module phrases have none). */
+  id: number | null;
+  text: string;
+  source: 'module' | 'user';
+  hidden: boolean;
+}
+
+export interface CommandDto {
+  id: string;
+  moduleId: string;
+  moduleName: string;
+  description: string;
+  risk: 'read' | 'change' | 'destructive' | 'sensitive';
+  parameters: { name: string; description: string; required: boolean }[];
+  right: { id: string; label: string; granted: boolean } | null;
+  phrases: CommandPhraseDto[];
+  /** Runs from a phrase (false: disabled for lack of the right). */
+  available: boolean;
+}
+
+export interface RightDto {
+  id: string;
+  label: string;
+  moduleName: string;
+  granted: boolean;
+  actions: string[];
+}
+
+export interface CommandsDto {
+  commands: CommandDto[];
+  rights: RightDto[];
+  semantic: boolean;
+  settings: { threshold: number; margin: number };
+}
+
+export interface ConflictDto {
+  actionId: string;
+  moduleName: string;
+  description: string;
+  score: number;
+  phrase: string;
+}
+
+export interface TestDto {
+  verdict: 'recognised' | 'low-score' | 'ambiguous' | 'missing-params' | 'empty';
+  best: ConflictDto | null;
+  second: ConflictDto | null;
+  gap: number;
+  params: Record<string, unknown> | null;
+  suggestion: ConflictDto | null;
+  semantic: boolean;
+  ms: number;
+  settings: { threshold: number; margin: number };
+  ranking: (ConflictDto | null)[];
+}
+
+export interface PromptDto {
+  original: string;
+  /** '' = the original. */
+  custom: string;
+  effective: string;
+  /** Lines the app adds after the instructions (date…). */
+  auto: string[];
+  /** Tools sent to the model (names). */
+  tools: string[];
+  length: { chars: number; tokens: number; autoTokens: number; toolsTokens: number };
 }

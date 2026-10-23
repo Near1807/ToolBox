@@ -25,7 +25,12 @@ export function Overlay() {
     <div className={`as-hud as-hud--${state.state}`} role="status">
       <span className="as-hud__dot" aria-hidden />
       <div className="as-hud__text">
-        <strong>{idle ? 'Assistant' : LABELS[state.state]}</strong>
+        <strong>
+          {idle ? 'Assistant' : LABELS[state.state]}
+          <span className={`as-hud__ai${state.ai ? ' as-hud__ai--on' : ''}`}>
+            {state.ai ? 'IA' : 'sans IA'}
+          </span>
+        </strong>
         {state.state === 'listening' && state.toggle && <span>Appuie à nouveau pour finir</span>}
         {state.text && state.state !== 'listening' && <span>{state.text}</span>}
       </div>

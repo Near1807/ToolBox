@@ -281,7 +281,7 @@ export default defineBackendModule({
     const setState = (next: AssistantState, text: string | null = stateText) => {
       state = next;
       stateText = text;
-      broadcast('state', { state, text, toggle: toggleMode });
+      broadcast('state', { state, text, toggle: toggleMode, ai: aiOn() });
       if (overlayTimer) clearTimeout(overlayTimer);
       if (next === 'idle') overlayTimer = setTimeout(() => ctx.ui.setOverlay(false), 2500);
       else ctx.ui.setOverlay(true);
@@ -669,7 +669,7 @@ export default defineBackendModule({
         const stream = openEventStream(request, reply);
         streams.add(stream);
         stream.onClose(() => streams.delete(stream));
-        stream.send('state', { state, text: stateText, toggle: toggleMode });
+        stream.send('state', { state, text: stateText, toggle: toggleMode, ai: aiOn() });
       },
       { streamTicket: true },
     );

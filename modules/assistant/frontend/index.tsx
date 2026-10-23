@@ -3,11 +3,15 @@
 import { defineFrontendModule } from '@hub/sdk/frontend';
 import { AssistantPage } from './AssistantPage';
 import { Background } from './Background';
+import { CommandsPage } from './CommandsPage';
 import { Overlay } from './Overlay';
 import './assistant.css';
 
 export default defineFrontendModule({
-  pages: [{ path: '', component: AssistantPage }],
+  pages: [
+    { path: '', component: AssistantPage },
+    { path: 'commands', component: CommandsPage },
+  ],
   Background,
   Overlay,
 });
