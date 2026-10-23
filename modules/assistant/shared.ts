@@ -100,7 +100,10 @@ export interface StatusDto {
     ai: boolean;
     speakReplies: boolean;
     speed: number;
+    /** Effective (setting resolved, « auto » included). */
     directReads: boolean;
+    directReplies: 'auto' | 'on' | 'off';
+    keepAlive: string;
     commandThreshold: number;
     commandMargin: number;
   };

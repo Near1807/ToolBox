@@ -18,7 +18,14 @@ import {
   type SettingValue,
 } from '@hub/sdk/backend';
 import type { AssistantState, StatusDto, TurnDto } from '../shared';
-import { Brain, type BrainResult } from './brain';
+import {
+  autoPromptLines,
+  Brain,
+  DEFAULT_PROMPT,
+  preselectTools,
+  toolSchemas,
+  type BrainResult,
+} from './brain';
 import {
   EMBEDDING_MODEL,
   ENGINES,
@@ -190,6 +197,16 @@ export default defineBackendModule({
     // --- Standardised commands (no generative AI) ---------------------------------
 
     const aiOn = () => setting<boolean>('ai') === true;
+    /** No dedicated graphics card: the model is slow, its second pass is skipped. */
+    const noDedicatedGpu = () =>
+      !(hardware?.gpus ?? []).some((g) => g.nvidia || (g.vramGb ?? 0) >= 4);
+    const directReplies = () => {
+      const choice = setting<string>('directReplies') || 'auto';
+      if (choice === 'on') return true;
+      if (choice === 'off') return false;
+      // The former switch, when Thomas had turned it on.
+      return setting<boolean>('directReads') === true || noDedicatedGpu();
+    };
     const matchSettings = () => ({
       threshold: setting<number>('commandThreshold') ?? DEFAULT_MATCH.threshold,
       margin: setting<number>('commandMargin') ?? DEFAULT_MATCH.margin,
@@ -217,7 +234,7 @@ export default defineBackendModule({
       actions: () => ctx.assistant.actions(),
       run: (id, params, options) => ctx.assistant.run(id, params, options),
       open: (route) => ctx.ui.open(route),
-      directReads: () => setting<boolean>('directReads') === true,
+      directReads: () => directReplies(),
       toolsAvailable: () => capabilities.get(modelName())?.includes('tools') ?? true,
       recognise: async (text) => {
         try {
@@ -228,6 +245,8 @@ export default defineBackendModule({
         }
       },
       ai: aiOn,
+      prompt: () => setting<string>('systemPrompt') || null,
+      keepAlive: () => setting<string>('keepAlive') || '30m',
     });
 
     // « Quelles sont les commandes ? »: opens the dictionary of the commands.
@@ -324,7 +343,7 @@ export default defineBackendModule({
       if (key === 'pushToTalkKey') bindKey();
       if (key === 'model') capabilities.clear();
       // The AI switched on: the model is loaded now, not at the first question.
-      if (key === 'ai' && aiOn()) void warmModel();
+      if ((key === 'ai' || key === 'systemPrompt') && aiOn()) void warmModel();
     });
 
     // --- A turn: text → brain → voice ------------------------------------------------
@@ -604,7 +623,9 @@ export default defineBackendModule({
           ai: aiOn(),
           speakReplies: setting<boolean>('speakReplies') !== false,
           speed: setting<number>('speed') ?? 1,
-          directReads: setting<boolean>('directReads') === true,
+          directReads: directReplies(),
+          directReplies: (setting<string>('directReplies') || 'auto') as 'auto' | 'on' | 'off',
+          keepAlive: setting<string>('keepAlive') || '30m',
           commandThreshold: matchSettings().threshold,
           commandMargin: matchSettings().margin,
         },
@@ -775,6 +796,14 @@ export default defineBackendModule({
       if (typeof body.speakReplies === 'boolean')
         ctx.settings.set('speakReplies', body.speakReplies);
       if (typeof body.directReads === 'boolean') ctx.settings.set('directReads', body.directReads);
+      if (
+        body.directReplies === 'auto' ||
+        body.directReplies === 'on' ||
+        body.directReplies === 'off'
+      )
+        ctx.settings.set('directReplies', body.directReplies);
+      if (typeof body.keepAlive === 'string' && ['10m', '30m', '2h', '-1'].includes(body.keepAlive))
+        ctx.settings.set('keepAlive', body.keepAlive);
       if (typeof body.ai === 'boolean') ctx.settings.set('ai', body.ai);
       if (typeof body.commandThreshold === 'number')
         ctx.settings.set('commandThreshold', Math.min(0.95, Math.max(0.5, body.commandThreshold)));
@@ -834,6 +863,40 @@ export default defineBackendModule({
       }
     };
     void warmModel();
+
+    // --- Instructions of the model (advanced) --------------------------------------
+
+    const MAX_PROMPT = 4000;
+    const promptState = () => {
+      const custom = setting<string>('systemPrompt') || '';
+      const effective = custom.trim() || DEFAULT_PROMPT;
+      const auto = autoPromptLines(new Date(), true);
+      const tools = toolSchemas(preselectTools(ctx.assistant.actions(), null));
+      const toolsChars = JSON.stringify(tools).length;
+      return {
+        original: DEFAULT_PROMPT,
+        custom,
+        effective,
+        auto,
+        tools: tools.map((t) => t.function.name),
+        // About 4 characters per token in French: enough to compare.
+        length: {
+          chars: effective.length,
+          tokens: Math.round(effective.length / 4),
+          autoTokens: Math.round(auto.join('\n').length / 4),
+          toolsTokens: Math.round(toolsChars / 4),
+        },
+      };
+    };
+    ctx.routes.get('/prompt', () => promptState());
+    ctx.routes.put('/prompt', (request) => {
+      const text = String(requestBody(request).text ?? '');
+      if (text.length > MAX_PROMPT)
+        throw new HttpError(400, `Instructions trop longues (${MAX_PROMPT} caractères au plus)`);
+      // The original text saved as is = back to the original (follows future versions).
+      ctx.settings.set('systemPrompt', text.trim() === DEFAULT_PROMPT ? '' : text);
+      return promptState();
+    });
 
     // --- Commands: dictionary, test, rights ----------------------------------------
 

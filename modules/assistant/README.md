@@ -34,6 +34,16 @@ Une demande est d'abord comparée aux **commandes** (les actions des modules qui
 - **Conflit** : une phrase trop proche d'une autre commande affiche un avertissement qui nomme les deux ; enregistrée seulement après confirmation.
 - **« C'était… »** dans l'historique, sur une demande non comprise : choisir la commande voulue ajoute la phrase (avec la vérification des conflits).
 
+## IA simplifiée (quand elle est activée)
+
+- **La sécurité est appliquée par le code, jamais par le modèle** : confirmation d'une suppression, droits, refus des actions sensibles, message exact de l'action.
+- **Instructions courtes et stables** (lues une fois, gardées en cache par Ollama) : le modèle appelle l'outil directement, ne demande jamais de confirmation (l'app s'en charge), ne demande jamais un paramètre facultatif, pose au plus une question (paramètre obligatoire manquant), répond en une phrase courte (deux au plus), sans formule de politesse ni reformulation. Réponse coupée au-delà de 120 jetons.
+- **Moins d'outils envoyés** : ceux des modules que les commandes ont trouvés proches (et ceux du socle) ; la liste complète en cas de doute.
+- **Modèle préchargé** au démarrage (IA activée) et gardé en mémoire : réglage « Garder le modèle en mémoire » (10 min, 30 min, 2 h, toujours).
+- **Réponses directes** (résultat des outils lu tel quel, sans 2e passage du modèle) : « Automatique » par défaut = activées sur un PC sans carte graphique dédiée.
+- **Trop long** (plus de 2 minutes) : « Le modèle met trop de temps à répondre : essaie un modèle plus petit, ou une commande standardisée. »
+- **Instructions modifiables** (réglages avancés de la page) : zone de texte, « Rétablir l'original », longueur affichée (impact sur la vitesse), appliquées tout de suite. Les parties ajoutées par l'app (date et heure, liste des actions envoyées) sont affichées en lecture seule. Incluses dans « Exporter une sauvegarde » (réglage `systemPrompt`).
+
 ## Droits de l'assistant
 
 L'assistant est **en lecture seule par défaut**. Chaque modification a son propre interrupteur, désactivé par défaut (page de l'assistant, ou Réglages › Droits de l'assistant vocal) :
@@ -93,14 +103,14 @@ Chaque échange affiche : « commande standardisée » ou « IA » (ou « pas co
 
 ## Données
 
-| Élément     | Détail                                                                                                                                                                                                                                                       |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Tables      | `assistant__phrases` (phrases de Thomas : action, texte), `assistant__hidden_phrases` (phrases des modules masquées) — migration 1. Historique et contexte en mémoire seulement                                                                              |
-| Fichiers    | `<userData>/modules/assistant/` : `engines/whisper`, `engines/piper` (moteurs), `models/ggml-*.bin`, `voices/*.onnx(.json)`, `embeddings/<modèle>/` (modèle des commandes), `downloads/` (archives), `speech/` (phrases synthétisées, effacées après 10 min) |
-| Réglages    | `ai` (non), `commandThreshold` (0,7), `commandMargin` (0,08), `speakReplies` (oui), `speed` (1), `directReads` (non), `ollamaUrl` (`http://127.0.0.1:11434`) ; cachés, modifiés depuis la page : `model`, `whisperModel`, `voice`, `pushToTalkKey`           |
-| Tâche       | `install` (moteur, modèle de reconnaissance, voix, modèle Ollama, modèle des commandes) avec progression et reprise des téléchargements                                                                                                                      |
-| Permissions | `assistant` (catalogue des actions), `globalKeys` (touche globale)                                                                                                                                                                                           |
-| Service     | aucun                                                                                                                                                                                                                                                        |
+| Élément     | Détail                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tables      | `assistant__phrases` (phrases de Thomas : action, texte), `assistant__hidden_phrases` (phrases des modules masquées) — migration 1. Historique et contexte en mémoire seulement                                                                                                                                                                                                                          |
+| Fichiers    | `<userData>/modules/assistant/` : `engines/whisper`, `engines/piper` (moteurs), `models/ggml-*.bin`, `voices/*.onnx(.json)`, `embeddings/<modèle>/` (modèle des commandes), `downloads/` (archives), `speech/` (phrases synthétisées, effacées après 10 min)                                                                                                                                             |
+| Réglages    | `ai` (non), `commandThreshold` (0,7), `commandMargin` (0,08), `speakReplies` (oui), `speed` (1), `directReplies` (automatique), `keepAlive` (30 min), `ollamaUrl` (`http://127.0.0.1:11434`) ; ancien `directReads` (caché, encore lu par « Automatique ») ; `systemPrompt` (caché, vide = instructions d'origine) ; cachés, modifiés depuis la page : `model`, `whisperModel`, `voice`, `pushToTalkKey` |
+| Tâche       | `install` (moteur, modèle de reconnaissance, voix, modèle Ollama, modèle des commandes) avec progression et reprise des téléchargements                                                                                                                                                                                                                                                                  |
+| Permissions | `assistant` (catalogue des actions), `globalKeys` (touche globale)                                                                                                                                                                                                                                                                                                                                       |
+| Service     | aucun                                                                                                                                                                                                                                                                                                                                                                                                    |
 
 ## API
 
@@ -124,6 +134,7 @@ Chaque échange affiche : « commande standardisée » ou « IA » (ou « pas co
 | POST         | `/commands/:action/restore` · `/commands/restore`            | Rétablir les phrases d'origine (une commande · toutes)                                                                                 |
 | GET · POST   | `/commands/export` · `/commands/import` `{ file }`           | Exporter · importer le dictionnaire (ajoute, ne retire rien)                                                                           |
 | PUT          | `/rights/:id` `{ granted }`                                  | Activer / désactiver un droit de l'assistant                                                                                           |
+| GET · PUT    | `/prompt` · `{ text }`                                       | Instructions du modèle (d'origine, personnalisées, parties ajoutées par l'app, longueur) · les modifier (`''` = rétablir)              |
 
 Pour les tests : `TOOLBOX_WHISPER_SERVER`, `TOOLBOX_PIPER` (chemins des moteurs), `setAssistantTestHooks` (faux modèle et faux moteurs).
 

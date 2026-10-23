@@ -25,6 +25,8 @@ Sur le PC de Thomas (HP OmniBook 5, Core i5, pas de carte graphique), une demand
 - **Dictionnaire modifiable** (migration 1 du module `assistant`) : les phrases de Thomas (`assistant__phrases`) et les phrases des modules masquées (`assistant__hidden_phrases`, jamais supprimées). Seules les phrases changent, jamais l'action, ses paramètres ou son risque. Conflit avec une autre commande : avertissement, enregistrement seulement après confirmation. Export / import en fichier (l'import ajoute, ne retire rien). Inclus dans « Exporter une sauvegarde » (dans `hub.db`).
 - **Droits** : toute action `change` ou `destructive` déclare son propre droit, un interrupteur désactivé par défaut (section « Droits de l'assistant vocal »). Sans le droit, rien n'est exécuté, même confirmé ; l'assistant le dit en une phrase et propose d'ouvrir les droits.
 
+- **IA simplifiée** (quand elle est activée) : instructions courtes et stables (la date à la fin, pour que le début reste en cache), le modèle ne demande jamais de confirmation ni de paramètre facultatif, au plus une question, réponse coupée à 120 jetons ; outils présélectionnés par les commandes proches (liste complète en cas de doute) ; modèle préchargé et gardé en mémoire (`keep_alive` réglable) ; « Réponses directes » automatiques sans carte graphique dédiée. Instructions modifiables par Thomas ; la sécurité ne dépend jamais d'elles.
+
 ## Conséquences
 
 - Créer une tâche par une commande : zéro question, quelques millisecondes de reconnaissance, pas de modèle.

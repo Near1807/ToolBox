@@ -35,8 +35,10 @@ export interface ChatRequest {
   tools: ToolSchema[];
   /** Only for models with the « thinking » capability: false = answer directly. */
   think?: boolean;
-  /** Longest answer, in tokens (400 by default). */
+  /** Longest answer, in tokens (MAX_ANSWER_TOKENS by default). */
   maxTokens?: number;
+  /** How long Ollama keeps the model loaded after the request (« 30m », « -1 » = always). */
+  keepAlive?: string;
   signal?: AbortSignal;
 }
 
@@ -53,6 +55,9 @@ export interface ChatResult {
 export interface ChatModel {
   chat(request: ChatRequest, onToken: (text: string) => void): Promise<ChatResult>;
 }
+
+/** A spoken answer is one or two short sentences: the model is cut beyond (never rambles for minutes). */
+export const MAX_ANSWER_TOKENS = 120;
 
 export class OllamaError extends Error {
   constructor(
@@ -197,10 +202,9 @@ export class OllamaClient implements ChatModel {
         messages: request.messages,
         tools: request.tools,
         stream: true,
-        keep_alive: '30m',
+        keep_alive: request.keepAlive ?? '30m',
         ...(request.think === undefined ? {} : { think: request.think }),
-        // A spoken answer is short: a model that rambles is cut (and never loops for minutes).
-        options: { temperature: 0.3, num_predict: request.maxTokens ?? 400 },
+        options: { temperature: 0.3, num_predict: request.maxTokens ?? MAX_ANSWER_TOKENS },
       }),
       signal: request.signal,
     });

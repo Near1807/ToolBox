@@ -88,6 +88,10 @@ export interface BrainDeps {
   recognise?: (text: string) => Promise<MatchResult | null>;
   /** The « IA » switch: off, a request that is not a command is not understood. */
   ai?: () => boolean;
+  /** Thomas's instructions for the model ('' or null: the original ones). */
+  prompt?: () => string | null;
+  /** keep_alive sent to Ollama. */
+  keepAlive?: () => string;
 }
 
 export const NOT_UNDERSTOOD = 'Je n’ai pas compris ta demande.';
@@ -110,6 +114,8 @@ const countQuestions = (reply: string) =>
 const MAX_ROUNDS = 4;
 /** A turn never takes longer than this (a slow PC, a model that rambles). */
 const TURN_TIMEOUT_MS = 120_000;
+export const TIMEOUT_MESSAGE =
+  'Le modèle met trop de temps à répondre (plus de 2 minutes) : essaie un modèle plus petit, ou une commande standardisée.';
 const MAX_TURNS_KEPT = 8;
 
 /** Tool names accepted by every model: letters, digits, underscores. */
@@ -170,7 +176,24 @@ export function yesNo(text: string): 'yes' | 'no' | null {
 const CLAIM =
   /\b(j ai (ajoute|supprime|coche|cree|note|mis|enregistre|programme|envoye|publie|fait)|c est (fait|note|coche|ajoute)|voila c est)\b/;
 
-function systemPrompt(now: Date, tools: boolean): string {
+/**
+ * The instructions of the model, editable by Thomas (advanced settings).
+ * Short and stable: Ollama keeps them in its cache, re-reading them costs
+ * seconds on a CPU. Safety never depends on them: confirmations, rights and
+ * refusals are applied by the code, whatever the instructions say.
+ */
+export const DEFAULT_PROMPT = [
+  'Tu es l’assistant vocal de ToolBox, l’application de Thomas, musicien.',
+  'Réponds en français, en une phrase courte, deux au plus : sans formule de politesse, sans répéter la demande, sans liste ni markdown.',
+  'Pour lire ou modifier ToolBox, appelle directement l’outil. Ne demande jamais de confirmation : l’application s’en charge.',
+  'Ne demande jamais un paramètre facultatif. Pose au plus une question, seulement s’il manque un paramètre obligatoire.',
+  'Passe les dates aux outils telles que dites (« vendredi », « demain »).',
+  'N’invente jamais un résultat : dis seulement ce que l’outil a renvoyé.',
+  'Culture générale : réponds brièvement ; si tu n’es pas sûr, dis-le.',
+].join('\n');
+
+/** What the app adds after the instructions (shown read only): the date, the tools note. */
+export function autoPromptLines(now: Date, tools: boolean): string[] {
   const date = new Intl.DateTimeFormat('fr-FR', {
     weekday: 'long',
     day: 'numeric',
@@ -178,24 +201,41 @@ function systemPrompt(now: Date, tools: boolean): string {
     year: 'numeric',
   }).format(now);
   return [
-    'Tu es l’assistant vocal de ToolBox, l’application de bureau de Thomas, musicien : bibliothèque de morceaux, vidéos YouTube, Reels Instagram, planning de sortie, statistiques YouTube, to-do.',
-    // The hour, not the minute: the instructions stay identical for an hour, so
-    // Ollama reuses its cache of them (re-reading them costs seconds on a CPU).
+    // The hour, not the minute, and at the end: the start stays identical, so
+    // Ollama reuses its cache of it.
     `Nous sommes le ${date}, il est environ ${now.getHours()} h.`,
-    'Règles :',
-    '- Réponds en français, en une à trois phrases courtes et naturelles à l’oral : pas de listes, pas de markdown, pas d’émojis.',
-    '- Pour lire ou modifier les données de ToolBox, utilise les outils. N’invente jamais un résultat : ne dis qu’une chose est faite que si un outil l’a confirmé.',
-    '- Si la demande est ambiguë (date, tag, morceau, tâche), pose une seule question courte au lieu de deviner.',
-    '- Passe les dates aux outils telles que dites (« vendredi », « demain ») : ne les convertis pas.',
-    '- Ne fais jamais les actions sensibles (envoyer sur YouTube, publier, supprimer des fichiers, changer une date programmée) : dis-le et propose d’ouvrir la page.',
-    '- Après un outil, appuie-toi uniquement sur son résultat ; reprends les chiffres tels quels.',
-    '- Culture générale : réponds brièvement avec tes connaissances ; si tu n’es pas sûr, dis-le. Tu n’as pas accès à internet.',
     ...(tools
       ? []
       : [
-          '- Le modèle choisi ne sait pas utiliser les outils : si on te demande de lire ou de modifier ToolBox, dis que tu ne peux pas avec ce modèle.',
+          'Le modèle choisi ne sait pas utiliser les outils : si on te demande de lire ou de modifier ToolBox, dis que tu ne peux pas avec ce modèle.',
         ]),
-  ].join('\n');
+  ];
+}
+
+export function systemPrompt(now: Date, tools: boolean, custom?: string | null): string {
+  const instructions = custom?.trim() || DEFAULT_PROMPT;
+  return [instructions, ...autoPromptLines(now, tools)].join('\n');
+}
+
+/**
+ * Fewer tools sent to the model (a shorter prompt to read): the actions of the
+ * modules the commands found close, plus the hub's own. Unsure → every tool.
+ */
+export function preselectTools(
+  catalog: AssistantActionInfo[],
+  match: MatchResult | null,
+): AssistantActionInfo[] {
+  const best = match?.best;
+  if (!best || best.score < 0.4) return catalog;
+  const modules = new Set(
+    match.ranking
+      .filter((c) => c.score >= best.score - 0.15)
+      .map((c) => catalog.find((a) => a.id === c.actionId)?.moduleId)
+      .filter((id): id is string => Boolean(id)),
+  );
+  if (modules.size === 0) return catalog;
+  modules.add('core');
+  return catalog.filter((a) => modules.has(a.moduleId));
 }
 
 function parseArguments(call: ToolCall): unknown {
@@ -244,6 +284,11 @@ export class Brain {
     this.pending = null;
   }
 
+  /** The system message: Thomas's (or the original) instructions, then the app's lines. */
+  instructions(canUseTools = this.deps.toolsAvailable?.() !== false): string {
+    return systemPrompt(this.deps.now?.() ?? new Date(), canUseTools, this.deps.prompt?.());
+  }
+
   get waitingFor(): Pending | null {
     return this.pending;
   }
@@ -258,12 +303,13 @@ export class Brain {
       {
         model: this.deps.modelName(),
         messages: [
-          { role: 'system', content: systemPrompt(this.deps.now?.() ?? new Date(), canUseTools) },
+          { role: 'system', content: this.instructions(canUseTools) },
           { role: 'user', content: 'Bonjour' },
         ],
         tools: canUseTools ? toolSchemas(this.deps.actions()) : [],
         think: this.deps.think(),
         maxTokens: 1,
+        keepAlive: this.deps.keepAlive?.(),
       },
       () => {},
     );
@@ -368,12 +414,12 @@ export class Brain {
 
     const canUseTools = this.deps.toolsAvailable?.() !== false;
     const messages: ChatMessage[] = [
-      { role: 'system', content: systemPrompt(this.deps.now?.() ?? new Date(), canUseTools) },
+      { role: 'system', content: this.instructions(canUseTools) },
       ...this.history,
       { role: 'user', content: text },
     ];
     const turnMessages: ChatMessage[] = [{ role: 'user', content: text }];
-    const tools = canUseTools ? toolSchemas(catalog) : [];
+    const tools = canUseTools ? toolSchemas(preselectTools(catalog, match)) : [];
     let anyToolResult = false;
 
     const deadline = AbortSignal.timeout(TURN_TIMEOUT_MS);
@@ -391,6 +437,7 @@ export class Brain {
             messages,
             tools,
             think: this.deps.think(),
+            keepAlive: this.deps.keepAlive?.(),
             signal: turnSignal,
           },
           (token) => {
@@ -499,8 +546,7 @@ export class Brain {
         return finish('');
       }
       if (deadline.aborted) {
-        result.error =
-          'Le modèle a mis plus de 2 minutes à répondre : essaie un modèle plus petit.';
+        result.error = TIMEOUT_MESSAGE;
         return finish(result.error);
       }
       const message =

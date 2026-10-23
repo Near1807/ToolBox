@@ -56,11 +56,58 @@
       "default": 1
     },
     {
+      "key": "directReplies",
+      "type": "select",
+      "label": "Réponses directes (plus rapide)",
+      "description": "Lit tel quel le résultat des outils (« 3 tâches à faire… ») au lieu de le faire reformuler par le modèle : une étape de réflexion en moins. Automatique : activé sur un PC sans carte graphique dédiée.",
+      "options": [
+        {
+          "value": "auto",
+          "label": "Automatique"
+        },
+        {
+          "value": "on",
+          "label": "Activées"
+        },
+        {
+          "value": "off",
+          "label": "Désactivées"
+        }
+      ],
+      "default": "auto"
+    },
+    {
       "key": "directReads",
       "type": "boolean",
-      "label": "Réponses directes (plus rapide)",
+      "label": "Réponses directes (ancien réglage)",
       "description": "Lit tel quel le résultat des outils (« 3 tâches à faire… ») au lieu de le faire reformuler par le modèle : une étape de réflexion en moins.",
-      "default": false
+      "default": false,
+      "hidden": true
+    },
+    {
+      "key": "keepAlive",
+      "type": "select",
+      "label": "Garder le modèle en mémoire (IA)",
+      "description": "Durée pendant laquelle Ollama garde le modèle chargé après une demande : plus long = pas d'attente de chargement, mais la mémoire reste occupée.",
+      "options": [
+        {
+          "value": "10m",
+          "label": "10 minutes"
+        },
+        {
+          "value": "30m",
+          "label": "30 minutes"
+        },
+        {
+          "value": "2h",
+          "label": "2 heures"
+        },
+        {
+          "value": "-1",
+          "label": "Toujours (tant qu'Ollama tourne)"
+        }
+      ],
+      "default": "30m"
     },
     {
       "key": "ollamaUrl",
@@ -95,6 +142,13 @@
       "type": "string",
       "label": "Touche « parler »",
       "default": "106|Touche Copilot (Win+Maj+F23)",
+      "hidden": true
+    },
+    {
+      "key": "systemPrompt",
+      "type": "string",
+      "label": "Instructions du modèle",
+      "default": "",
       "hidden": true
     }
   ]

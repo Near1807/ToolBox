@@ -12,7 +12,9 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import yazl from 'yazl';
-import { Brain, toolName, toolSchemas, yesNo } from '../backend/brain';
+import type { AssistantActionInfo } from '@hub/sdk/backend';
+import { Brain, preselectTools, toolName, toolSchemas, yesNo } from '../backend/brain';
+import type { MatchResult } from '../backend/matcher';
 import { download, extract, findExecutable } from '../backend/download';
 import { cleanTranscript, PiperVoice, WhisperServer } from '../backend/engines';
 import { recommend } from '../backend/hardware';
@@ -136,7 +138,16 @@ describe('Ollama client (fake server, NDJSON streaming)', () => {
     const result = await client.chat({ model: 'm', messages: [], tools: [], think: false }, (t) =>
       tokens.push(t),
     );
-    expect(lastBody).toMatchObject({ model: 'm', stream: true, think: false, keep_alive: '30m' });
+    expect(lastBody).toMatchObject({
+      model: 'm',
+      stream: true,
+      think: false,
+      keep_alive: '30m',
+      // A spoken answer is short: the model is cut beyond 120 tokens.
+      options: { num_predict: 120 },
+    });
+    await client.chat({ model: 'm', messages: [], tools: [], keepAlive: '-1' }, () => {});
+    expect(lastBody).toMatchObject({ keep_alive: '-1' });
     expect(tokens).toEqual(['Bon', 'jour.']);
     expect(result).toMatchObject({
       content: 'Bonjour.',
@@ -315,5 +326,48 @@ describe('recommendation', () => {
     });
     expect(cpuOnly).toMatchObject({ model: 'ministral-3:3b', whisper: 'base' });
     expect(cpuOnly.reason).toMatch(/Pas de carte graphique NVIDIA/);
+  });
+});
+
+describe('tool preselection', () => {
+  const action = (id: string) =>
+    ({
+      id,
+      moduleId: id.split('.')[0]!,
+      moduleName: id,
+      name: id.split('.')[1]!,
+      description: '',
+      parameters: {},
+      required: [],
+      risk: 'read',
+      page: null,
+      examples: [],
+      extracts: true,
+      right: null,
+    }) as AssistantActionInfo;
+  const catalog = ['todo.add-task', 'todo.list-tasks', 'core.open', 'youtube-stats.sync'].map(
+    action,
+  );
+  const candidate = (actionId: string, score: number) => ({
+    actionId,
+    score,
+    phrase: '',
+    params: null,
+    complete: false,
+  });
+  const match = (ranking: ReturnType<typeof candidate>[]) =>
+    ({ best: ranking[0] ?? null, ranking }) as unknown as MatchResult;
+
+  it('sends the tools of the modules found close, plus the hub’s own', () => {
+    const tools = preselectTools(
+      catalog,
+      match([candidate('todo.list-tasks', 0.6), candidate('youtube-stats.sync', 0.2)]),
+    );
+    expect(tools.map((a) => a.id)).toEqual(['todo.add-task', 'todo.list-tasks', 'core.open']);
+  });
+
+  it('sends every tool when unsure', () => {
+    expect(preselectTools(catalog, match([candidate('todo.list-tasks', 0.3)]))).toHaveLength(4);
+    expect(preselectTools(catalog, null)).toHaveLength(4);
   });
 });
