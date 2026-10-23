@@ -2,7 +2,14 @@
 // module shows its generated files with these, so they look and behave the
 // same everywhere (docs/MODULES.md §8). Styles: `ui-*` classes of
 // frontend/src/styles.css, colours from the theme tokens only.
-import { useRef, useState, type DragEvent, type PointerEvent, type ReactNode } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type DragEvent,
+  type PointerEvent,
+  type ReactNode,
+} from 'react';
 import { Button, copyText, MissingFile, ProgressBar, startFileDrag } from './frontend';
 
 // ---------------------------------------------------------------------------
@@ -746,6 +753,46 @@ export function TrackList<T extends TrackListEntry>(props: {
         </ul>
       </aside>
       <div className="ui-tracks-layout__main">{props.children}</div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// « Annuler »
+// ---------------------------------------------------------------------------
+
+/**
+ * Bar shown after an addition or a deletion (« Tâche supprimée — Annuler »).
+ * Disappears by itself after `timeoutMs`; the assistant's history and the
+ * modules use the same one.
+ */
+export function UndoToast(props: {
+  message: ReactNode;
+  onUndo: () => void;
+  onDismiss: () => void;
+  timeoutMs?: number;
+}) {
+  const { onDismiss, timeoutMs = 8000 } = props;
+  useEffect(() => {
+    const timer = setTimeout(onDismiss, timeoutMs);
+    return () => clearTimeout(timer);
+  }, [onDismiss, timeoutMs]);
+  return (
+    <div className="ui-undo" role="status">
+      <span>{props.message}</span>
+      <Button
+        variant="secondary"
+        small
+        onClick={() => {
+          props.onUndo();
+          onDismiss();
+        }}
+      >
+        Annuler
+      </Button>
+      <button type="button" className="icon-button" aria-label="Fermer" onClick={onDismiss}>
+        ×
+      </button>
     </div>
   );
 }

@@ -5,6 +5,7 @@ import type { ModuleManifest, SettingValue } from './manifest';
 
 export type { FastifyReply, FastifyRequest } from 'fastify';
 export type * from './manifest';
+export { matchByName, nameScore, normaliseName, type NameMatch } from './match';
 
 // ---------------------------------------------------------------------------
 // What a module exports

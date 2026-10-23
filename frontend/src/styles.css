@@ -1574,3 +1574,22 @@ input[type='range'] {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* « Annuler » after an addition or a deletion (UndoToast). */
+.ui-undo {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transform: translateX(-50%);
+  max-width: min(640px, calc(100vw - 48px));
+  padding: 10px 12px 10px 16px;
+  background: var(--surface-solid);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  color: var(--text);
+}
