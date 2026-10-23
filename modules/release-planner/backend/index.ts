@@ -14,6 +14,11 @@ import {
   type OutputRecord,
 } from '@hub/sdk/backend';
 import { parseTags, toTemplate } from '@hub/sdk/texts';
+import {
+  RELEASE_PLANNER_SERVICE,
+  type PlannedYouTubeItem,
+  type ReleasePlannerService,
+} from '../contract';
 import type { CustomReelsService } from '../../custom-reels/contract';
 import type { InstagramPackService, PackItem } from '../../instagram-video/contract';
 import type { MusicLibraryService, ProjectStatus, Track } from '../../music-library/contract';
@@ -146,6 +151,38 @@ export default defineBackendModule({
       stopping = true;
     });
 
+    // What each YouTube element was made from (youtube-stats links its statistics to tracks).
+    const plannerService: ReleasePlannerService = {
+      listYouTubeItems: () =>
+        store
+          .allItems()
+          .filter((item) => item.kind === 'youtube' || item.kind === 'short')
+          .sort((a, b) => a.scheduled_at.localeCompare(b.scheduled_at))
+          .flatMap((item): PlannedYouTubeItem[] => {
+            const release = store.release(item.release_id);
+            if (!release) return [];
+            return [
+              {
+                itemId: item.id,
+                trackId: release.track_id,
+                kind: item.kind === 'youtube' ? 'video' : 'short',
+                position: item.position,
+                label: itemLabel(item.kind, item.position),
+                youtubeVideoId: item.yt_video_id,
+                scheduledAt: item.scheduled_at,
+                publishedAt: item.published_at,
+                source:
+                  item.kind === 'youtube'
+                    ? { type: 'video', videoId: release.video_id }
+                    : item.custom_reel_id !== null
+                      ? { type: 'custom-reel', customReelId: item.custom_reel_id }
+                      : { type: 'cover-reel', packItemId: item.pack_item_id },
+              },
+            ];
+          }),
+    };
+    ctx.services.provide(RELEASE_PLANNER_SERVICE, plannerService);
+
     // Settings -------------------------------------------------------------
 
     const timeZone = () => {
@@ -232,6 +269,7 @@ export default defineBackendModule({
                 thumbnailPath: reel.thumbnailPath,
                 caption: reel.caption,
                 state: reel.state,
+                startSec: reel.startSec,
                 durationSec: reel.durationSec,
                 publishedAt: reel.publishedAt,
               }

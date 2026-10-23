@@ -81,6 +81,7 @@ function fakeProviders(
     thumbnailPath: null,
     caption: `Légende ${position}`,
     state: 'ready',
+    startSec: position === 0 ? null : 20,
     durationSec: position === 0 ? null : 28,
     publishedAt: calls.published.get(trackId * 10 + position) ?? null,
   });
@@ -179,6 +180,8 @@ function fakeProviders(
     startSec: 30,
     durationSec: 28,
     effect: 'rhythm',
+    intensity: 'medium',
+    audioMode: 'track',
     state: 'ready',
     filePath: customFile,
     exists: true,

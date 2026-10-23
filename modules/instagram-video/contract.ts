@@ -18,7 +18,8 @@ export interface PackItem {
   /** Caption to publish with (the Reel's own one, or the pack's). */
   caption: string;
   state: PackItemState;
-  /** Excerpt of a Reel, in seconds. */
+  /** Excerpt of a Reel, in seconds: where it starts in the track, and how long. */
+  startSec: number | null;
   durationSec: number | null;
   /** The « Publié » box of the pack (single source of truth). */
   publishedAt: string | null;

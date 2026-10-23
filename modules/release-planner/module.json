@@ -11,6 +11,7 @@
     "services": ["musicLibrary"],
     "optionalServices": ["youtubeVideo", "instagramPack", "customReels", "videoEngine"]
   },
+  "provides": { "services": ["releasePlanner"] },
   "permissions": {
     "accounts": ["google"]
   },

@@ -801,6 +801,7 @@ export default defineBackendModule({
       thumbnailPath: item.thumbnail_path,
       caption: (pack.per_reel_captions && item.caption) || pack.caption,
       state: store.state(item),
+      startSec: item.kind === 'reel' ? item.start_sec : null,
       durationSec: item.duration_sec,
       publishedAt: item.published_at,
     });
