@@ -178,7 +178,8 @@ export function TrackPage() {
 
           <Card title="Statistiques">
             <p className="muted">
-              Les statistiques liées à ce morceau arriveront avec l’outil Statistiques YouTube.
+              Les statistiques YouTube de ce morceau sont dans l’outil Stats YouTube, onglet «
+              Morceaux » (ou demande à l’assistant : « stats de ce morceau »).
             </p>
           </Card>
         </div>
