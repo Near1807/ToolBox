@@ -179,3 +179,21 @@ export const MODEL_CHOICES: ModelChoice[] = [
     note: 'pour une grosse carte graphique (24 Go)',
   },
 ];
+
+/**
+ * Model of the standardised commands (sentence embeddings, 50+ languages
+ * including French), ONNX export by Xenova, quantized: light and fast on a CPU.
+ * Sizes approximate (not checked from here: Hugging Face is not reachable in
+ * the development container); the download takes the real size from the server.
+ */
+export const EMBEDDING_MODEL = {
+  id: 'paraphrase-multilingual-MiniLM-L12-v2',
+  label: 'Modèle de commandes (MiniLM multilingue, ~120 Mo)',
+  base: 'https://huggingface.co/Xenova/paraphrase-multilingual-MiniLM-L12-v2/resolve/main',
+  sizes: {
+    'onnx/model_quantized.onnx': 118_000_000,
+    'tokenizer.json': 17_100_000,
+    'tokenizer_config.json': 1_000,
+    'config.json': 1_000,
+  } as Record<string, number>,
+};

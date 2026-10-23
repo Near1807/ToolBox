@@ -2,12 +2,42 @@
   "id": "assistant",
   "name": "Assistant vocal",
   "description": "Parle à ToolBox en maintenant une touche : tâches de la To-do, ce qu'il faut publier, stats, état des morceaux. 100 % local et gratuit (Whisper, Ollama, Piper).",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "section": "Outils",
   "icon": "🎙️",
   "order": 20,
-  "permissions": { "assistant": true, "globalKeys": true },
+  "permissions": {
+    "assistant": true,
+    "globalKeys": true
+  },
   "settings": [
+    {
+      "key": "ai",
+      "type": "boolean",
+      "label": "IA (modèle de langage)",
+      "description": "Désactivée : seules les commandes standardisées sont comprises, Ollama n'est ni appelé ni nécessaire. Activée : une demande qui n'est pas une commande est confiée au modèle choisi.",
+      "default": false
+    },
+    {
+      "key": "commandThreshold",
+      "type": "number",
+      "label": "Commandes : seuil de reconnaissance (avancé)",
+      "description": "Score minimal (0 à 1) pour exécuter une commande sans IA. Plus haut = plus strict.",
+      "min": 0.5,
+      "max": 0.95,
+      "step": 0.01,
+      "default": 0.7
+    },
+    {
+      "key": "commandMargin",
+      "type": "number",
+      "label": "Commandes : écart minimal avec la 2e (avancé)",
+      "description": "Avance minimale sur la commande la plus proche : en dessous, la demande n'est pas reconnue.",
+      "min": 0,
+      "max": 0.3,
+      "step": 0.01,
+      "default": 0.08
+    },
     {
       "key": "speakReplies",
       "type": "boolean",
@@ -39,7 +69,13 @@
       "description": "Ollama tourne sur ce PC ; ne change que si tu l'as configuré autrement.",
       "default": "http://127.0.0.1:11434"
     },
-    { "key": "model", "type": "string", "label": "Modèle", "default": "", "hidden": true },
+    {
+      "key": "model",
+      "type": "string",
+      "label": "Modèle",
+      "default": "",
+      "hidden": true
+    },
     {
       "key": "whisperModel",
       "type": "string",

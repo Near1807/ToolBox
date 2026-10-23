@@ -17,7 +17,7 @@ export function normaliseUtterance(text: string): string {
 
 /** Words that carry nothing in a spoken request. */
 const FILLERS =
-  /^(?:(?:euh+|heu+|hum+|bon|bah|ben|alors|donc|ok|okay|dis|hey|toolbox|s(?:’|')il te pla[iî]t|stp|merci|vas[- ]y|allez)[\s,.!]*)+/i;
+  /^(?:(?:euh+|heu+|hum+|bon|bah|ben|alors|donc|ok|okay|dis|hey|toolbox|s(?:’|')il te pla[iî]t|stp|merci|vas[- ]y|allez)(?![\p{L}])[\s,.!]*)+/iu;
 const POLITE =
   /^(?:(?:est[- ]ce que )?(?:tu peux|tu pourrais|peux[- ]tu|pourrais[- ]tu)|je (?:voudrais|veux|aimerais) (?:que tu|bien)?|il faudrait)\s+/i;
 const TRAILING = /[\s,.!?]*(?:s(?:’|')il te pla[iî]t|stp|merci)?[\s,.!?]*$/i;

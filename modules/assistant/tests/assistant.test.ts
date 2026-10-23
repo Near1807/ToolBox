@@ -1,6 +1,8 @@
 // The assistant end to end with a fake model (keyword routing to the tools),
-// fake speech engines and the real To-do module: actions, confirmation, undo,
-// sensitive refusal, honesty guard, push-to-talk, Ollama absent.
+// fake speech engines and the real To-do module: standardised commands (no
+// model), the « IA » switch, actions, confirmation, undo, sensitive refusal,
+// honesty guard, push-to-talk, Ollama absent. Words-only recognition here (no
+// embeddings model in the tests).
 import path from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { ModuleContext } from '@hub/sdk/backend';
@@ -40,11 +42,10 @@ class FakeModel implements ChatModel {
     if (this.lie) return reply(this.lie);
     const call = (name: string, args: Record<string, unknown>) =>
       reply('', [{ function: { name, arguments: args } }]);
-    if (said.includes('ajoute'))
+    if (said.includes('rajoutes'))
       return call('todo__add_task', { title: 'finir le mix', tags: ['mix'], due: 'demain' });
-    if (said.includes('qu’est-ce que j’ai') || said.includes("qu'est-ce que j'ai"))
-      return call('todo__list_tasks', { filter: 'open' });
-    if (said.includes('supprime')) return call('todo__delete_task', { task: 'mix' });
+    if (said.includes('m’attend')) return call('todo__list_tasks', { filter: 'open' });
+    if (said.includes('débarrasse')) return call('todo__delete_task', { task: 'mix' });
     if (said.includes('publie')) return call('fake_planner__upload', {});
     if (said.includes('ouvre')) return call('core__open', { target: 'To-do' });
     return reply('Paris est la capitale de la France. Je suis sûr de celle-là.');
@@ -87,6 +88,7 @@ describe('assistant', () => {
     setAssistantTestHooks({
       chatModel: model,
       transcriber: { transcribe: async () => heard },
+      embedder: null,
       synthesizer: {
         speak: async (text) => {
           spoken.push(text);
@@ -113,6 +115,7 @@ describe('assistant', () => {
     });
     hub.hub.assistant.setRight('todo.edit-tasks', true);
     hub.hub.assistant.setRight('todo.delete-tasks', true);
+    await setAi(true);
   });
   afterAll(async () => {
     setAssistantTestHooks({});
@@ -124,14 +127,18 @@ describe('assistant', () => {
     model.lie = null;
   });
 
+  async function setAi(ai: boolean) {
+    await hub.request('PUT', '/api/core/settings/assistant', { ai });
+  }
   const say = async (text: string) =>
     (await hub.request<{ turn: TurnDto }>('POST', `${API}/turn/text`, { text })).body.turn;
   const tasks = async () =>
     (await hub.request<{ tasks: { title: string }[] }>('GET', '/api/modules/todo/tasks')).body
       .tasks;
 
-  it('adds a task and confirms aloud exactly what was done, with « Annuler »', async () => {
-    const turn = await say('ajoute finir le mix pour demain avec le tag mix');
+  it('AI: adds a task and confirms aloud exactly what was done, with « Annuler »', async () => {
+    const turn = await say('j’aimerais que tu me rajoutes le truc du mix pour demain, tag mix');
+    expect(turn).toMatchObject({ mode: 'ai', questions: 0 });
     expect(turn.reply).toBe('J’ai ajouté « finir le mix » avec le tag mix pour demain.');
     expect(spoken).toEqual(['J’ai ajouté « finir le mix » avec le tag mix pour demain.']);
     expect(turn.actions).toMatchObject([
@@ -157,13 +164,13 @@ describe('assistant', () => {
     expect((await hub.request('POST', `${API}/turns/${turn.id}/actions/0/undo`)).status).toBe(404);
   });
 
-  it('answers questions from the tool result (second pass), or directly when asked', async () => {
-    await say('ajoute finir le mix');
-    let turn = await say('qu’est-ce que j’ai à faire ?');
+  it('AI: answers from the tool result (second pass), or directly when asked', async () => {
+    await say('j’aimerais que tu me rajoutes le truc du mix');
+    let turn = await say('dis-moi un peu ce qui m’attend côté boulot');
     expect(turn.reply).toBe('D’après la To-do : 1 tâche à faire : finir le mix.');
     expect(turn.latency.rounds).toBe(2);
     await hub.request('PUT', '/api/core/settings/assistant', { directReads: true });
-    turn = await say('qu’est-ce que j’ai à faire ?');
+    turn = await say('dis-moi un peu ce qui m’attend côté boulot');
     expect(turn).toMatchObject({
       reply: '1 tâche à faire : finir le mix.',
       latency: { rounds: 1 },
@@ -191,8 +198,8 @@ describe('assistant', () => {
     }
   });
 
-  it('asks before deleting, and only a clear « oui » deletes', async () => {
-    let turn = await say('supprime la tâche du mix');
+  it('AI: asks before deleting, and only a clear « oui » deletes', async () => {
+    let turn = await say('débarrasse-moi du truc du mix');
     expect(turn.reply).toBe('Je supprime la tâche « finir le mix » ?');
     expect(turn.pending).toEqual({
       kind: 'confirm',
@@ -203,7 +210,7 @@ describe('assistant', () => {
     expect(turn.reply).toBe('D’accord, je ne fais rien.');
     expect(await tasks()).toHaveLength(1);
 
-    turn = await say('supprime la tâche du mix');
+    turn = await say('débarrasse-moi du truc du mix');
     const answered = await hub.request<{ turn: TurnDto }>(
       'POST',
       `${API}/turns/${turn.id}/answer`,
@@ -237,7 +244,7 @@ describe('assistant', () => {
 
   it('never says it did something no tool did', async () => {
     model.lie = 'J’ai ajouté la tâche pour toi. Autre chose ?';
-    const turn = await say('note de rappeler Paul');
+    const turn = await say('tu pourrais t’en souvenir pour moi');
     expect(turn.reply).toBe('Je n’ai rien fait : je n’ai pas trouvé l’outil pour ça.');
     expect(spoken).toEqual(['Je n’ai rien fait : je n’ai pas trouvé l’outil pour ça.']);
   });
@@ -248,6 +255,283 @@ describe('assistant', () => {
     expect(spoken).toEqual(['Paris est la capitale de la France.', 'Je suis sûr de celle-là.']);
     expect(turn.latency.firstSentenceMs).not.toBeNull();
     expect(turn.latency.voiceMs).not.toBeNull();
+  });
+
+  describe('standardised commands (no model)', () => {
+    let calls = 0;
+    beforeEach(async () => {
+      calls = model.requests.length;
+      await setAi(false);
+    });
+    afterAll(async () => {
+      await setAi(true);
+    });
+    const modelCalled = () => model.requests.length > calls;
+
+    it('creates a task with zero questions, without calling the model', async () => {
+      const before = (await tasks()).length;
+      const turn = await say('euh, ajoute une tâche appeler le studio demain avec le tag studio');
+      expect(turn).toMatchObject({
+        mode: 'command',
+        questions: 0,
+        reply: 'J’ai ajouté « appeler le studio » avec le tag studio pour demain.',
+        command: { verdict: 'recognised', actionId: 'todo.add-task', semantic: false },
+        actions: [{ actionId: 'todo.add-task', status: 'done' }],
+      });
+      expect(turn.command!.score).toBeGreaterThanOrEqual(0.7);
+      expect(turn.latency.matchMs).not.toBeNull();
+      expect(turn.latency.modelMs).toBeNull();
+      expect(modelCalled()).toBe(false);
+      expect(await tasks()).toHaveLength(before + 1);
+      // « Annuler » as for any change.
+      expect((await hub.request('POST', `${API}/turns/${turn.id}/actions/0/undo`)).status).toBe(
+        200,
+      );
+      expect(await tasks()).toHaveLength(before);
+    });
+
+    it('AI off: a free request is not understood, and the model is never called', async () => {
+      const turn = await say('quelle est la capitale de l’Australie ?');
+      expect(turn).toMatchObject({
+        mode: 'not-understood',
+        reply: 'Je n’ai pas compris ta demande.',
+        actions: [],
+      });
+      expect(modelCalled()).toBe(false);
+    });
+
+    it('AI off: a close command is suggested, never run', async () => {
+      const before = (await tasks()).length;
+      const turn = await say('supprime');
+      expect(turn.mode).toBe('not-understood');
+      expect(turn.reply).toMatch(/^Je n’ai pas compris ta demande\. Tu voulais dire : « .+ » \?$/);
+      expect(turn.actions).toEqual([]);
+      expect(await tasks()).toHaveLength(before);
+      // « oui » after a suggestion does nothing either.
+      expect((await say('oui')).actions).toEqual([]);
+    });
+
+    it('AI on: a request that is not a command goes to the model', async () => {
+      await setAi(true);
+      const turn = await say('quelle est la capitale de la France ?');
+      expect(turn.mode).toBe('ai');
+      expect(turn.command?.verdict).not.toBe('recognised');
+      expect(modelCalled()).toBe(true);
+    });
+
+    it('nothing runs below the threshold', async () => {
+      await hub.request('PUT', '/api/core/settings/assistant', { commandThreshold: 0.95 });
+      try {
+        // Recognised at the normal threshold, not at 0.95.
+        const before = (await tasks()).length;
+        const turn = await say('crée vite une tâche appeler Paul');
+        expect(turn).toMatchObject({ mode: 'not-understood', actions: [] });
+        expect(turn.command!.score!).toBeGreaterThan(0.7);
+        expect(turn.command!.score!).toBeLessThan(0.95);
+        expect(await tasks()).toHaveLength(before);
+      } finally {
+        await hub.request('PUT', '/api/core/settings/assistant', { commandThreshold: 0.7 });
+      }
+    });
+
+    it('a recognised command follows the rights and the confirmation rules', async () => {
+      await say('ajoute une tâche ranger le studio');
+      hub.hub.assistant.setRight('todo.delete-tasks', false);
+      let turn = await say('supprime la tâche ranger le studio');
+      expect(turn.actions).toMatchObject([{ status: 'forbidden' }]);
+      expect(turn.reply).toMatch(/^Je n’ai pas ce droit/);
+      hub.hub.assistant.setRight('todo.delete-tasks', true);
+      turn = await say('supprime la tâche ranger le studio');
+      expect(turn).toMatchObject({ mode: 'command', questions: 1 });
+      expect(turn.pending).toEqual({
+        kind: 'confirm',
+        question: 'Je supprime la tâche « ranger le studio » ?',
+      });
+      turn = await say('oui');
+      expect(turn).toMatchObject({
+        mode: 'answer',
+        reply: 'J’ai supprimé la tâche « ranger le studio ».',
+      });
+    });
+
+    it('« quelles sont les commandes ? » opens the list', async () => {
+      const turn = await say('quelles sont les commandes ?');
+      expect(turn).toMatchObject({ mode: 'command', reply: 'J’ouvre la liste des commandes.' });
+      expect(opened.at(-1)).toBe('/m/assistant/commands');
+    });
+  });
+
+  describe('dictionary of the commands', () => {
+    type Added = { saved: boolean; id: number | null; conflicts: { actionId: string }[] };
+    const test = async (text: string) =>
+      (
+        await hub.request<{ verdict: string; best: { actionId: string } | null; params: unknown }>(
+          'POST',
+          `${API}/commands/test`,
+          { text },
+        )
+      ).body;
+    const add = async (actionId: string, text: string, force = false) =>
+      (await hub.request<Added>('POST', `${API}/commands/${actionId}/phrases`, { text, force }))
+        .body;
+
+    it('lists the commands by module, with phrases, parameters, risk and rights', async () => {
+      const { body } = await hub.request<{
+        commands: {
+          id: string;
+          risk: string;
+          available: boolean;
+          right: { id: string } | null;
+          phrases: { source: string }[];
+          parameters: { name: string; required: boolean }[];
+        }[];
+      }>('GET', `${API}/commands`);
+      const add = body.commands.find((c) => c.id === 'todo.add-task')!;
+      expect(add).toMatchObject({
+        risk: 'change',
+        right: { id: 'todo.edit-tasks' },
+        available: true,
+      });
+      expect(add.parameters).toContainEqual({
+        name: 'title',
+        description: expect.any(String),
+        required: true,
+      });
+      expect(add.phrases.every((p) => p.source === 'module')).toBe(true);
+      // Sensitive actions are never commands.
+      expect(body.commands.some((c) => c.risk === 'sensitive')).toBe(false);
+    });
+
+    it('« Tester une phrase » runs nothing', async () => {
+      const before = (await tasks()).length;
+      const result = await test('ajoute une tâche finir la pochette pour vendredi');
+      expect(result).toMatchObject({
+        verdict: 'recognised',
+        best: { actionId: 'todo.add-task' },
+        params: { title: 'finir la pochette' },
+      });
+      expect(await tasks()).toHaveLength(before);
+    });
+
+    it('a phrase added counts at once; edited, deleted, restored', async () => {
+      const phrase = 'fais-moi la liste des trucs à faire';
+      expect((await test(phrase)).verdict).not.toBe('recognised');
+      const added = await add('todo.list-tasks', phrase);
+      expect(added).toMatchObject({ saved: true, conflicts: [] });
+      expect(await test(phrase)).toMatchObject({
+        verdict: 'recognised',
+        best: { actionId: 'todo.list-tasks' },
+      });
+      // Edited.
+      const edited = await hub.request<{ saved: boolean }>(
+        'PUT',
+        `${API}/commands/phrases/${added.id}`,
+        {
+          text: 'fais-moi la liste des choses à faire',
+        },
+      );
+      expect(edited.body.saved).toBe(true);
+      expect((await test('fais-moi la liste des choses à faire')).verdict).toBe('recognised');
+      // Deleted.
+      await hub.request('DELETE', `${API}/commands/phrases/${added.id}`);
+      expect((await test(phrase)).verdict).not.toBe('recognised');
+      // Restored: Thomas's phrases removed, module ones shown again.
+      await add('todo.list-tasks', phrase);
+      const restored = await hub.request<{ removed: number }>(
+        'POST',
+        `${API}/commands/todo.list-tasks/restore`,
+      );
+      expect(restored.body.removed).toBe(1);
+    });
+
+    it('warns when a phrase is too close to another command, and saves only if confirmed', async () => {
+      const result = await add('todo.add-task', 'supprime la tâche finir le mix');
+      expect(result.saved).toBe(false);
+      expect(result.conflicts.map((c) => c.actionId)).toContain('todo.delete-task');
+      const forced = await add('todo.add-task', 'supprime la tâche finir le mix', true);
+      expect(forced.saved).toBe(true);
+      await hub.request('POST', `${API}/commands/restore`);
+    });
+
+    it('hides a module phrase (never lost) and shows it again', async () => {
+      const text = 'quelles sont les commandes';
+      await hub.request('PUT', `${API}/commands/assistant.list-commands/hidden`, {
+        text,
+        hidden: true,
+      });
+      const { body } = await hub.request<{
+        commands: { id: string; phrases: { text: string; hidden: boolean }[] }[];
+      }>('GET', `${API}/commands`);
+      const command = body.commands.find((c) => c.id === 'assistant.list-commands')!;
+      expect(command.phrases.find((p) => p.text === text)).toMatchObject({ hidden: true });
+      await hub.request('PUT', `${API}/commands/assistant.list-commands/hidden`, {
+        text,
+        hidden: false,
+      });
+      expect((await test(text)).verdict).toBe('recognised');
+    });
+
+    it('« C’était… » adds the phrase of a request that was not understood', async () => {
+      await setAi(false);
+      try {
+        const turn = await say('mets la liste à jour pour moi');
+        expect(turn.mode).toBe('not-understood');
+        const result = await add('todo.list-tasks', turn.heard);
+        expect(result.saved).toBe(true);
+        expect((await say(turn.heard)).mode).toBe('command');
+      } finally {
+        await hub.request('POST', `${API}/commands/restore`);
+        await setAi(true);
+      }
+    });
+
+    it('exports and imports the dictionary (adds, never removes)', async () => {
+      await add('todo.list-tasks', 'montre mes trucs');
+      await hub.request('PUT', `${API}/commands/assistant.list-commands/hidden`, {
+        text: 'aide',
+        hidden: true,
+      });
+      const file = (
+        await hub.request<{ phrases: unknown[]; hidden: unknown[] }>(
+          'GET',
+          `${API}/commands/export`,
+        )
+      ).body;
+      expect(file).toMatchObject({
+        format: 'toolbox-assistant-commands',
+        phrases: [{ action: 'todo.list-tasks', text: 'montre mes trucs' }],
+        hidden: [{ action: 'assistant.list-commands', text: 'aide' }],
+      });
+      await hub.request('POST', `${API}/commands/restore`);
+      await add('todo.list-tasks', 'autre phrase gardée');
+      const imported = await hub.request<{ added: number; hidden: number; skipped: number }>(
+        'POST',
+        `${API}/commands/import`,
+        { file: { ...file, phrases: [...file.phrases, { action: 'nope.x', text: 'y' }] } },
+      );
+      expect(imported.body).toEqual({ added: 1, hidden: 1, skipped: 1 });
+      const after = (
+        await hub.request<{ phrases: { text: string }[] }>('GET', `${API}/commands/export`)
+      ).body;
+      expect(after.phrases.map((p) => p.text).sort()).toEqual([
+        'autre phrase gardée',
+        'montre mes trucs',
+      ]);
+      const bad = await hub.request('POST', `${API}/commands/import`, { file: { hello: 1 } });
+      expect(bad.status).toBe(400);
+      await hub.request('POST', `${API}/commands/restore`);
+    });
+
+    it('turns a right on and off from the assistant page', async () => {
+      const off = await hub.request<{ rights: { id: string; granted: boolean }[] }>(
+        'PUT',
+        `${API}/rights/todo.delete-tasks`,
+        { granted: false },
+      );
+      expect(off.body.rights.find((r) => r.id === 'todo.delete-tasks')!.granted).toBe(false);
+      await hub.request('PUT', `${API}/rights/todo.delete-tasks`, { granted: true });
+      expect((await hub.request('PUT', `${API}/rights/nope`, { granted: true })).status).toBe(404);
+    });
   });
 
   it('push-to-talk: hold to talk, or tap to start and tap again to stop', async () => {
@@ -297,7 +581,16 @@ describe('assistant', () => {
     expect(body.recommendation).toMatchObject({ model: 'ministral-3:3b', whisper: 'small' });
     expect(body.hotkey).toMatchObject({ available: true, key: { code: 106 } });
     expect(body.choices.voices.length).toBeGreaterThan(2);
-    expect(body.settings).toEqual({ speakReplies: true, speed: 1, directReads: false });
+    expect(body.settings).toEqual({
+      ai: true,
+      speakReplies: true,
+      speed: 1,
+      directReads: false,
+      commandThreshold: 0.7,
+      commandMargin: 0.08,
+    });
+    expect(body.commands).toMatchObject({ semantic: false, modelInstalled: false });
+    expect(body.commands.count).toBeGreaterThan(5);
   });
 
   it('forgets the conversation on « Nouvelle conversation »', async () => {
@@ -308,12 +601,24 @@ describe('assistant', () => {
 
 describe('assistant without Ollama', () => {
   it('says clearly that Ollama does not answer', async () => {
-    setAssistantTestHooks({ hardware: { ramGb: 8, threads: 4, cpu: 'test', gpus: [] } });
+    setAssistantTestHooks({
+      hardware: { ramGb: 8, threads: 4, cpu: 'test', gpus: [] },
+      embedder: null,
+    });
     const hub = await createTestHub({
       modules: [await loadModuleFolder(path.join(ROOT, 'assistant'))],
     });
     try {
       await hub.request('PUT', '/api/core/settings/assistant', { ollamaUrl: 'http://127.0.0.1:9' });
+      // AI off (default): Ollama is neither needed nor called.
+      const off = await hub.request<{ turn: TurnDto }>('POST', `${API}/turn/text`, {
+        text: 'bonjour',
+      });
+      expect(off.body.turn).toMatchObject({
+        reply: 'Je n’ai pas compris ta demande.',
+        error: null,
+      });
+      await hub.request('PUT', '/api/core/settings/assistant', { ai: true });
       const { body } = await hub.request<{ turn: TurnDto }>('POST', `${API}/turn/text`, {
         text: 'bonjour',
       });

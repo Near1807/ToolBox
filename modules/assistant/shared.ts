@@ -20,6 +20,20 @@ export interface TurnDto {
   source: 'voice' | 'text';
   /** What was understood (transcript), or typed. */
   heard: string;
+  /** « commande standardisée », « IA », not understood, or an answer (oui / non). */
+  mode: 'command' | 'ai' | 'not-understood' | 'answer' | null;
+  /** What the standardised commands found. */
+  command: {
+    verdict: 'recognised' | 'low-score' | 'ambiguous' | 'missing-params' | 'empty';
+    actionId: string | null;
+    score: number | null;
+    gap: number;
+    second: string | null;
+    semantic: boolean;
+    suggestion: string | null;
+  } | null;
+  /** Questions asked by the assistant in this turn. */
+  questions: number;
   reply: string;
   actions: TurnActionDto[];
   /** A pending question (« Je supprime la tâche … ? ») answered by Oui / Non. */
@@ -28,6 +42,10 @@ export interface TurnDto {
   latency: {
     /** Speech to text (ms). */
     transcribeMs: number | null;
+    /** Recognition of the commands (ms). */
+    matchMs: number | null;
+    /** Waiting for the model (ms), AI only. */
+    modelMs: number | null;
     /** Text to the end of the answer (ms). */
     thinkMs: number | null;
     /** Text to the first sentence ready (ms). */
@@ -78,7 +96,15 @@ export interface StatusDto {
     reason: string | null;
     key: { code: number; label: string } | null;
   };
-  settings: { speakReplies: boolean; speed: number; directReads: boolean };
+  settings: {
+    ai: boolean;
+    speakReplies: boolean;
+    speed: number;
+    directReads: boolean;
+    commandThreshold: number;
+    commandMargin: number;
+  };
+  commands: { count: number; semantic: boolean; modelInstalled: boolean; modelLabel: string };
   choices: {
     models: { tag: string; label: string; sizeGb: number; memoryGb: number; note: string }[];
     whisper: { id: string; label: string; note: string; size: number }[];
