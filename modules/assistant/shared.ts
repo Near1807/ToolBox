@@ -7,7 +7,7 @@ export interface TurnActionDto {
   moduleName: string;
   description: string;
   risk: 'read' | 'change' | 'destructive' | 'sensitive';
-  status: 'done' | 'confirm' | 'refused' | 'invalid' | 'error';
+  status: 'done' | 'confirm' | 'refused' | 'forbidden' | 'invalid' | 'error';
   message: string;
   undoId: string | null;
   open: string | null;

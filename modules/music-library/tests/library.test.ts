@@ -267,6 +267,17 @@ describe('project page and elements without project', () => {
       expect(await hub.hub.assistant.run('music-library.list-tracks', {})).toMatchObject({
         message: `1 morceau(x) dans la Bibliothèque : ${title}.`,
       });
+      // Standardised commands: the track name is taken from the phrase by code.
+      const extract = (id: string, said: string) =>
+        hub.hub.assistant.extract(`music-library.${id}`, said);
+      expect(await extract('track-project', 'euh où en est le morceau Aube ?')).toEqual({
+        track: 'Aube',
+      });
+      expect(await extract('track-project', 'l’état du morceau Nuit blanche')).toEqual({
+        track: 'Nuit blanche',
+      });
+      expect(await extract('open-track', 'ouvre la fiche de Aube')).toEqual({ track: 'Aube' });
+      expect(await extract('open-track', 'ouvre le planning')).toBeNull();
     } finally {
       await hub.close();
     }

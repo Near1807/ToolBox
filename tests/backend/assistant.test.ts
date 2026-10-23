@@ -13,7 +13,7 @@ afterEach(async () => {
 let items: string[] = [];
 
 /** A module declaring one action of each risk level, and a consumer with the permission. */
-async function start(host = createTestHost()) {
+async function start(host = createTestHost(), grant = true) {
   items = ['a'];
   let consumer: ModuleContext | null = null;
   const hub = await createTestHub({
@@ -38,6 +38,7 @@ async function start(host = createTestHost()) {
               },
               required: ['text'],
               risk: 'change',
+              right: { id: 'edit', label: 'L’assistant peut modifier la liste' },
               run: (p) => {
                 items.push(String(p.text));
                 return { message: `Ajouté ${String(p.text)}`, undo: () => void items.pop() };
@@ -47,6 +48,7 @@ async function start(host = createTestHost()) {
               name: 'clear',
               description: 'Vide la liste',
               risk: 'destructive',
+              right: { id: 'clear', label: 'L’assistant peut vider la liste' },
               confirmation: () => `Vider les ${items.length} éléments ?`,
               run: () => {
                 const before = items;
@@ -88,6 +90,10 @@ async function start(host = createTestHost()) {
     ],
   });
   hubs.push(hub);
+  if (grant) {
+    hub.hub.assistant.setRight('lists.edit', true);
+    hub.hub.assistant.setRight('lists.clear', true);
+  }
   return { hub, ctx: consumer! as ModuleContext };
 }
 
@@ -145,6 +151,59 @@ describe('ctx.assistant', () => {
     expect(items).toEqual(['a']);
   });
 
+  it('is read-only by default: each change has its own right, off until turned on', async () => {
+    const { hub, ctx } = await start(createTestHost(), false);
+    expect(await ctx.assistant.run('lists.count', {})).toMatchObject({ status: 'done' });
+    expect(await ctx.assistant.run('lists.add', { text: 'b' })).toEqual({
+      status: 'forbidden',
+      id: 'lists.add',
+      message:
+        'Je n’ai pas le droit de le faire : « L’assistant peut modifier la liste » est désactivé dans les droits de l’assistant.',
+      right: { id: 'lists.edit', label: 'L’assistant peut modifier la liste' },
+    });
+    // Even confirmed, a destructive action without its right is refused.
+    expect(await ctx.assistant.run('lists.clear', {}, { confirmed: true })).toMatchObject({
+      status: 'forbidden',
+    });
+    expect(items).toEqual(['a']);
+    expect(ctx.assistant.rights()).toEqual([
+      expect.objectContaining({ id: 'lists.edit', granted: false, actions: ['lists.add'] }),
+      expect.objectContaining({ id: 'lists.clear', granted: false, actions: ['lists.clear'] }),
+    ]);
+    // The rights are ordinary settings (section « Droits de l’assistant vocal »).
+    const settings = await hub.request<{ scope: string; values: Record<string, unknown> }[]>(
+      'GET',
+      '/api/core/settings',
+    );
+    expect(JSON.stringify(settings.body)).toContain('lists__edit');
+    hub.hub.assistant.setRight('lists.edit', true);
+    expect(await ctx.assistant.run('lists.add', { text: 'b' })).toMatchObject({ status: 'done' });
+    // The other right stays off; the confirmation is still required once it is on.
+    expect(await ctx.assistant.run('lists.clear', {})).toMatchObject({ status: 'forbidden' });
+    hub.hub.assistant.setRight('lists.clear', true);
+    expect(await ctx.assistant.run('lists.clear', {})).toMatchObject({ status: 'confirm' });
+  });
+
+  it('refuses a change or destructive action declared without its own right', async () => {
+    const hub = await createTestHub({
+      modules: [
+        fakeModule('bad', {
+          backend: {
+            register: (ctx) =>
+              ctx.assistant.define({
+                name: 'wipe',
+                description: 'x',
+                risk: 'change',
+                run: () => ({ message: '' }),
+              }),
+          },
+        }),
+      ],
+    });
+    hubs.push(hub);
+    expect(hub.hub.moduleInfos().find((m) => m.id === 'bad')).toMatchObject({ status: 'failed' });
+  });
+
   it('refuses sensitive actions and gives their page', async () => {
     const { ctx } = await start();
     const outcome = await ctx.assistant.run('lists.publish', {}, { confirmed: true });
@@ -185,6 +244,15 @@ describe('ctx.assistant', () => {
     expect(await ctx.assistant.run('core.open', { target: 'xyz' })).toMatchObject({
       status: 'error',
     });
+    // Standardised command: the target is taken from the phrase by code.
+    expect(
+      await ctx.assistant.extract('core.open', 'euh, ouvre le planning s’il te plaît'),
+    ).toEqual({ target: 'planning' });
+    expect(await ctx.assistant.extract('core.open', 'va dans les réglages')).toEqual({
+      target: 'réglages',
+    });
+    expect(await ctx.assistant.extract('core.open', 'ouvre')).toBeNull();
+    expect(await ctx.assistant.extract('core.list-jobs', 'quels rendus sont en cours')).toEqual({});
   });
 
   it('coerces what models send', () => {

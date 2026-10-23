@@ -232,6 +232,9 @@ describe('brain helpers', () => {
         required: [],
         risk: 'destructive',
         page: null,
+        examples: [],
+        extracts: false,
+        right: null,
       },
     ]);
     expect(toolName('release-planner.agenda')).toBe('release_planner__agenda');

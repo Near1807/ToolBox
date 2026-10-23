@@ -164,6 +164,14 @@ function parseArguments(call: ToolCall): unknown {
   }
 }
 
+/** Where Thomas turns the assistant's rights on. */
+export const RIGHTS_ROUTE = '/settings';
+
+/** One sentence, then the offer to open the rights (the pending « open » takes the « oui »). */
+export function forbiddenReply(label: string): string {
+  return `Je n’ai pas ce droit : « ${label} » est désactivé. J’ouvre les droits de l’assistant ?`;
+}
+
 /** What the model gets back from a tool (small). */
 function toolContent(outcome: AssistantOutcome): string {
   switch (outcome.status) {
@@ -173,6 +181,8 @@ function toolContent(outcome: AssistantOutcome): string {
       return JSON.stringify({ status: 'confirmation demandée', question: outcome.question });
     case 'refused':
       return JSON.stringify({ status: 'refusé (action sensible)', message: outcome.message });
+    case 'forbidden':
+      return JSON.stringify({ status: 'refusé (droit désactivé)', message: outcome.message });
     default:
       return JSON.stringify({ status: 'erreur', message: outcome.message });
   }
@@ -388,6 +398,14 @@ export class Brain {
               };
             const reply = `${info?.description.replace(/\.$/, '') ?? 'Ça'} : je ne le fais pas moi-même, c’est une action sensible.${outcome.open ? ` Je peux ouvrir ${info?.moduleName ?? 'la page'} pour que tu le fasses. Je l’ouvre ?` : ''}`;
             return this.closeTurn(finish(reply), text, turnMessages);
+          }
+          if (outcome.status === 'forbidden') {
+            this.pending = {
+              kind: 'open',
+              route: RIGHTS_ROUTE,
+              label: 'les droits de l’assistant',
+            };
+            return this.closeTurn(finish(forbiddenReply(outcome.right.label)), text, turnMessages);
           }
           if (outcome.status === 'done' && outcome.open) {
             this.deps.open(outcome.open);

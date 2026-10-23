@@ -373,6 +373,24 @@ describe('youtube-stats with a fake Google', () => {
     await hub.request('PUT', '/api/core/settings/youtube-stats', { demoMode: false });
   });
 
+  it('starts the sync by voice only with its own right (off by default)', async () => {
+    expect(await hub.hub.assistant.run('youtube-stats.sync', {})).toMatchObject({
+      status: 'forbidden',
+      right: { id: 'youtube-stats.sync' },
+    });
+    hub.hub.assistant.setRight('youtube-stats.sync', true);
+    try {
+      // The account needs reconnecting after the previous test: said plainly.
+      expect(await hub.hub.assistant.run('youtube-stats.sync', {})).toEqual({
+        status: 'error',
+        id: 'youtube-stats.sync',
+        message: 'L’autorisation Google a expiré : reconnecte le compte.',
+      });
+    } finally {
+      hub.hub.assistant.setRight('youtube-stats.sync', false);
+    }
+  });
+
   it('the demo is separate from the real data', async () => {
     await hub.request('PUT', '/api/core/settings/youtube-stats', { demoMode: true });
     const demo = (await hub.request<{ mode: string; videos: unknown[] }>('GET', `${API}/videos`))

@@ -1,7 +1,14 @@
 // What the voice assistant may read from the statistics (MODULES.md §5.15):
 // a channel summary, a track's figures, the highlights. Read only; the demo
 // data are always announced as such.
-import { HttpError, matchByName, type ModuleContext } from '@hub/sdk/backend';
+import {
+  extractName,
+  extractNumber,
+  HttpError,
+  matchByName,
+  normaliseUtterance,
+  type ModuleContext,
+} from '@hub/sdk/backend';
 import type { Dataset } from './dataset';
 import type { LabResult } from './lab';
 import type { Theory } from './theories';
@@ -17,9 +24,32 @@ const change = (now: number, before: number) => {
   return ` (${pct >= 0 ? '+' : ''}${pct} % par rapport à la période d’avant)`;
 };
 
+/** « sur 90 jours », « ce mois-ci », « cette semaine »; 28 days otherwise. */
+export function extractDays(utterance: string): { days: '7' | '28' | '90' } {
+  const said = normaliseUtterance(utterance);
+  const n = extractNumber(said);
+  if (n === 7 || /\bsemaine\b/.test(said)) return { days: '7' };
+  if (n === 90 || n === 3 || /\btrimestre\b|\btrois mois\b/.test(said)) return { days: '90' };
+  return { days: '28' };
+}
+
+const TRACK_PREFIXES = [
+  /(?:combien de vues (?:pour|sur|de|a fait|fait)|combien de vues|les stats|stats|statistiques|les statistiques|les chiffres|chiffres|vues|comment marche|comment se porte|comment va)(?![\p{L}])/iu,
+];
+
+/** « combien de vues pour Aube », « les stats du morceau Aube » → « Aube ». */
+export const extractTrackStats = (utterance: string) => {
+  const track = extractName(utterance, TRACK_PREFIXES);
+  // « les stats de la chaîne » is the channel summary, not a track.
+  if (!track || /^(?:la |ma )?cha[iî]ne\b/i.test(track)) return null;
+  return { track: track.replace(/\s+sur youtube$/i, '') };
+};
+
 export function registerAssistantActions(
   ctx: ModuleContext,
   analysis: () => { data: Dataset; lab: LabResult; theories: Theory[] },
+  /** Starts (or joins) the sync job; throws an HttpError saying what is missing. */
+  startSync: () => { jobId: string; alreadyRunning: boolean },
 ): void {
   const prefix = (data: Dataset) => (data.mode === 'demo' ? 'Données de démo : ' : '');
   const empty = (data: Dataset) => data.videos.length === 0;
@@ -35,6 +65,14 @@ export function registerAssistantActions(
     parameters: {
       days: { type: 'string', description: 'Période en jours', enum: ['7', '28', '90'] },
     },
+    examples: [
+      'résumé de la chaîne',
+      'comment va ma chaîne YouTube',
+      'les stats de la chaîne',
+      'combien de vues ce mois-ci',
+      'les statistiques YouTube de la semaine',
+    ],
+    extract: extractDays,
     risk: 'read',
     run: (params) => {
       const { data, lab, theories } = analysis();
@@ -74,6 +112,12 @@ export function registerAssistantActions(
       'Statistiques YouTube d’un morceau : vues de sa vidéo et de ses Shorts, meilleur élément.',
     parameters: { track: { type: 'string', description: 'Nom du morceau, même approximatif' } },
     required: ['track'],
+    examples: [
+      'combien de vues pour Aube',
+      'les stats du morceau Aube',
+      'comment marche Aube sur YouTube',
+    ],
+    extract: extractTrackStats,
     risk: 'read',
     run: (params) => {
       const { data, lab } = analysis();
@@ -125,6 +169,8 @@ export function registerAssistantActions(
     name: 'highlights',
     description:
       'Faits marquants des statistiques YouTube du moment (vidéo au-dessus de l’habitude, pic, théorie solide).',
+    examples: ['les faits marquants des stats', 'quoi de neuf sur YouTube'],
+    extract: () => ({}),
     risk: 'read',
     run: () => {
       const { data, lab, theories } = analysis();
@@ -135,6 +181,39 @@ export function registerAssistantActions(
         data: {
           demo: data.mode === 'demo',
           highlights: view.highlights.map((h) => ({ title: h.title, text: h.text })),
+        },
+      };
+    },
+  });
+
+  // The only action of this module that changes something: behind its own
+  // right, off by default (MODULES.md §1 bis). It reads YouTube and updates
+  // the local copy; nothing is sent online.
+  ctx.assistant.define({
+    name: 'sync',
+    description:
+      'Lance la synchronisation des statistiques YouTube (lit YouTube et met à jour la copie locale).',
+    examples: [
+      'lance la synchronisation des stats YouTube',
+      'synchronise les stats',
+      'mets à jour les statistiques YouTube',
+      'rafraîchis les stats de la chaîne',
+    ],
+    extract: () => ({}),
+    risk: 'change',
+    right: {
+      id: 'sync',
+      label: 'L’assistant peut lancer la synchronisation des stats YouTube',
+    },
+    run: () => {
+      const { jobId, alreadyRunning } = startSync();
+      if (alreadyRunning)
+        return { message: 'La synchronisation des stats est déjà en cours.', data: { jobId } };
+      return {
+        message: 'Synchronisation des stats YouTube lancée.',
+        data: { jobId },
+        undo: () => {
+          ctx.jobs.cancel(jobId);
         },
       };
     },

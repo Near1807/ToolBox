@@ -276,7 +276,7 @@ export default defineBackendModule({
       );
     };
 
-    ctx.routes.post('/sync', () => {
+    const checkAccount = () => {
       const account = accountState();
       if (!account.connected)
         throw new HttpError(
@@ -290,6 +290,9 @@ export default defineBackendModule({
           409,
           'Autorise d’abord l’accès aux statistiques (bouton « Autoriser les statistiques »).',
         );
+    };
+    ctx.routes.post('/sync', () => {
+      checkAccount();
       return enqueueSync();
     });
 
@@ -325,7 +328,13 @@ export default defineBackendModule({
         },
       };
     };
-    registerAssistantActions(ctx, analysis);
+    registerAssistantActions(ctx, analysis, () => {
+      checkAccount();
+      const running = runningSync();
+      const job = running ?? enqueueSync();
+      if (!job) throw new HttpError(409, 'Le compte Google n’est pas prêt.');
+      return { jobId: job.id, alreadyRunning: Boolean(running) };
+    });
     ctx.routes.get('/state', () => state());
 
     const visitKey = () => (demoMode() ? 'visit:demo' : 'visit:real');

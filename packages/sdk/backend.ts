@@ -7,6 +7,16 @@ export type { FastifyReply, FastifyRequest } from 'fastify';
 export type * from './manifest';
 export { matchByName, nameScore, normaliseName, type NameMatch } from './match';
 export { ELEMENT_STATES, listPhrase } from './assistant-texts';
+export {
+  cleanUtterance,
+  extractAfter,
+  extractName,
+  extractNumber,
+  extractTags,
+  extractTrailing,
+  normaliseUtterance,
+  stripCommand,
+} from './commands';
 
 // ---------------------------------------------------------------------------
 // What a module exports
@@ -479,6 +489,24 @@ export interface AssistantActionDefinition {
   page?: string;
   /** Not called for `sensitive` actions. Throw an HttpError with a French message on bad input. */
   run?: (params: AssistantParams) => AssistantActionResult | Promise<AssistantActionResult>;
+  /**
+   * Standardised command (no generative AI): French example phrases, several
+   * natural wordings (« ajoute une tâche finir le mix pour vendredi »). The
+   * assistant recognises a request by its meaning against these phrases.
+   */
+  examples?: string[];
+  /**
+   * Parameters taken from the request by code (title, tag, track, date,
+   * numbers). Return what was found; missing optional parameters stay absent
+   * (never asked). Return null when the phrase cannot be this command.
+   */
+  extract?: (utterance: string) => AssistantParams | null | Promise<AssistantParams | null>;
+  /**
+   * `change` and `destructive` (required): the switch that allows the assistant
+   * to do it, OFF by default (« L'assistant peut ajouter et cocher des tâches »).
+   * Several actions may share a switch (same id).
+   */
+  right?: { id: string; label: string };
 }
 
 /** An action as listed in the catalog. */
@@ -494,6 +522,12 @@ export interface AssistantActionInfo {
   risk: AssistantRisk;
   /** Full UI route of a sensitive action's page. */
   page: string | null;
+  /** Example phrases of the module (standardised command). */
+  examples: string[];
+  /** True when the module extracts the parameters itself (extract()). */
+  extracts: boolean;
+  /** The switch needed (`change`, `destructive`), and whether it is on. */
+  right: { id: string; label: string; granted: boolean } | null;
 }
 
 export type AssistantOutcome =
@@ -510,6 +544,8 @@ export type AssistantOutcome =
   | { status: 'confirm'; id: string; question: string }
   /** Sensitive action: never run; `open` is the page where the user does it. */
   | { status: 'refused'; id: string; message: string; open: string | null }
+  /** A change the assistant has no right to make (its switch is off). */
+  | { status: 'forbidden'; id: string; message: string; right: { id: string; label: string } }
   /** Unknown action or bad parameters (French message, for the model to fix or ask). */
   | { status: 'invalid'; id: string; message: string }
   | { status: 'error'; id: string; message: string };
@@ -523,6 +559,18 @@ export interface ModuleAssistant {
   run(id: string, params: unknown, options?: { confirmed?: boolean }): Promise<AssistantOutcome>;
   /** Undoes a done action (requires permissions.assistant). */
   undo(undoId: string): Promise<{ ok: boolean; message: string }>;
+  /** Parameters of a standardised command, taken from a phrase by the module's code (permissions.assistant). */
+  extract(id: string, utterance: string): Promise<AssistantParams | null>;
+  /** The rights (switches) of every module, with their state (permissions.assistant). */
+  rights(): {
+    id: string;
+    label: string;
+    moduleName: string;
+    granted: boolean;
+    actions: string[];
+  }[];
+  /** Turns a right on or off: only from a click of the user (permissions.assistant). */
+  setRight(id: string, granted: boolean): void;
 }
 
 // ---------------------------------------------------------------------------

@@ -30,6 +30,10 @@ Tes tâches, simples : titre, tags, échéance facultative en langage naturel, c
 | `delete-task`   | destructrice (confirmation) | « Je supprime la tâche « … » ? » avant ; annulable                                                                                                              |
 | `list-tags`     | lecture                     | tags existants (pour réutiliser le bon)                                                                                                                         |
 
+**Droits (désactivés par défaut)** : `todo.edit-tasks` « L’assistant peut ajouter et cocher des tâches » (`add-task`, `complete-task`) et `todo.delete-tasks` « L’assistant peut supprimer des tâches » (`delete-task`, toujours après un « oui »). Réglages › Droits de l’assistant vocal.
+
+**Commandes standardisées** (`backend/commands.ts`, testées dans `tests/commands.test.ts`) : phrases d'exemple et extracteurs en code pour `add-task` (titre, tags, échéance lue par le parseur de dates, morceau après « sur le morceau »), `list-tasks` (aujourd'hui, semaine, en retard, faites, toutes ; tag), `complete-task` et `delete-task` (la tâche, retrouvée ensuite par son nom approximatif). `list-tags` reste pour l'IA seulement.
+
 ## Données
 
 | Élément        | Détail                                                                                                                                                       |

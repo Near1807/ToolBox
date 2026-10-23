@@ -111,6 +111,8 @@ describe('assistant', () => {
         sensitiveModule(),
       ],
     });
+    hub.hub.assistant.setRight('todo.edit-tasks', true);
+    hub.hub.assistant.setRight('todo.delete-tasks', true);
   });
   afterAll(async () => {
     setAssistantTestHooks({});
@@ -170,6 +172,23 @@ describe('assistant', () => {
     // Follow-up questions keep the context of the session.
     const lastRequest = model.requests.at(-1)!;
     expect(lastRequest.messages.filter((m) => m.role === 'user').length).toBeGreaterThan(2);
+  });
+
+  it('says in one sentence when a right is off, and offers to open the rights', async () => {
+    hub.hub.assistant.setRight('todo.edit-tasks', false);
+    const before = (await tasks()).length;
+    try {
+      const turn = await say('ajoute finir le mix');
+      expect(turn.reply).toBe(
+        'Je n’ai pas ce droit : « L’assistant peut ajouter et cocher des tâches » est désactivé. J’ouvre les droits de l’assistant ?',
+      );
+      expect(turn.actions).toMatchObject([{ status: 'forbidden' }]);
+      expect(await tasks()).toHaveLength(before);
+      await say('oui');
+      expect(opened.at(-1)).toBe('/settings');
+    } finally {
+      hub.hub.assistant.setRight('todo.edit-tasks', true);
+    }
   });
 
   it('asks before deleting, and only a clear « oui » deletes', async () => {

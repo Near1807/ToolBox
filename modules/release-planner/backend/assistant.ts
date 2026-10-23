@@ -2,9 +2,34 @@
 // read the agenda (today, this week, late) and a track's release. Sending to
 // YouTube, publishing and moving a scheduled date stay with the user: they are
 // declared « sensitive » (never run, the assistant offers to open the page).
-import { HttpError, matchByName, type ModuleContext } from '@hub/sdk/backend';
+import {
+  extractName,
+  HttpError,
+  matchByName,
+  normaliseUtterance,
+  type ModuleContext,
+} from '@hub/sdk/backend';
 import type { Track } from '../../music-library/contract';
 import type { ItemState } from './status';
+
+/** « en retard », « cette semaine », otherwise today (standardised command, MODULES.md §5.15). */
+export function extractPeriod(utterance: string): { period: 'today' | 'week' | 'late' } {
+  const said = normaliseUtterance(utterance);
+  if (/\bretard\b/.test(said)) return { period: 'late' };
+  if (/\bsemaine\b|\b7 jours\b|\bsept jours\b|\bprochains jours\b/.test(said))
+    return { period: 'week' };
+  return { period: 'today' };
+}
+
+const RELEASE_PREFIXES = [
+  /(?:quand sort|quand est-ce que sort|où en est la sortie|ou en est la sortie|la sortie|sortie|planning)(?![\p{L}])/iu,
+];
+
+/** « où en est la sortie de Aube » → « Aube ». */
+export const extractRelease = (utterance: string) => {
+  const track = extractName(utterance, RELEASE_PREFIXES);
+  return track ? { track } : null;
+};
 
 /** The fields of a planned element the assistant reads. */
 export interface AgendaItem {
@@ -100,6 +125,15 @@ export function registerAssistantActions(
     parameters: {
       period: { type: 'string', description: 'Quelle période', enum: ['today', 'week', 'late'] },
     },
+    examples: [
+      'qu’est-ce que je dois publier aujourd’hui',
+      'qu’est-ce qui sort aujourd’hui',
+      'qu’est-ce que je publie cette semaine',
+      'le planning de la semaine',
+      'qu’est-ce qui est en retard dans le planning',
+      'quelles publications sont en retard',
+    ],
+    extract: extractPeriod,
     risk: 'read',
     run: (params) => {
       const today = source.today();
@@ -131,6 +165,8 @@ export function registerAssistantActions(
       'Où en est la sortie d’un morceau : date de sortie et état de chaque élément (vidéo, Shorts, Reels, post).',
     parameters: { track: { type: 'string', description: 'Nom du morceau, même approximatif' } },
     required: ['track'],
+    examples: ['où en est la sortie de Aube', 'quand sort Aube', 'la sortie du morceau Aube'],
+    extract: extractRelease,
     risk: 'read',
     run: (params) => {
       const match = matchByName(source.tracks(), String(params.track), (t) => t.title);

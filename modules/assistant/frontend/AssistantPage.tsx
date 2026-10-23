@@ -49,13 +49,14 @@ function ActionLine(props: {
       ? 'success'
       : action.status === 'confirm'
         ? 'warning'
-        : action.status === 'refused'
+        : action.status === 'refused' || action.status === 'forbidden'
           ? 'neutral'
           : 'danger';
   const label = {
     done: 'fait',
     confirm: 'à confirmer',
     refused: 'refusé (sensible)',
+    forbidden: 'droit désactivé',
     invalid: 'non compris',
     error: 'erreur',
   }[action.status];
@@ -87,6 +88,11 @@ function ActionLine(props: {
         </Button>
       )}
       {action.undone && <span className="small muted">annulé</span>}
+      {action.status === 'forbidden' && (
+        <Link className="small" to="/settings">
+          Droits de l’assistant
+        </Link>
+      )}
       {action.status === 'refused' && action.open && (
         <Link className="small" to={action.open}>
           Ouvrir la page

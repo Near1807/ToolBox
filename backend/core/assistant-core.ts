@@ -1,4 +1,4 @@
-import { HttpError, type AssistantActionDefinition } from '../../packages/sdk/backend';
+import { extractName, HttpError, type AssistantActionDefinition } from '../../packages/sdk/backend';
 import type { Hub } from './hub';
 
 // Actions of the hub itself (module id "core"): tasks in progress, list of the
@@ -22,6 +22,10 @@ export function normaliseWords(text: string): string {
     .trim();
 }
 
+const OPEN_PREFIXES = [
+  /(?:ouvre|ouvrir|affiche|montre|va dans|va sur|va à|va a|aller dans|aller sur|emmène-moi dans|emmène-moi sur|passe sur|passe à)(?:[- ]moi)?(?![\p{L}])/iu,
+];
+
 const STATUS_LABELS: Record<string, string> = {
   queued: 'en attente',
   running: 'en cours',
@@ -37,6 +41,13 @@ export function registerCoreActions(hub: Hub): void {
     name: 'list-jobs',
     description:
       'Liste les tâches de fond de ToolBox (rendus vidéo, envois YouTube, synchros) en cours, en attente ou en échec récemment.',
+    examples: [
+      'quels rendus sont en cours',
+      'qu’est-ce qui tourne en ce moment',
+      'les tâches en cours',
+      'où en est le rendu',
+    ],
+    extract: () => ({}),
     risk: 'read',
     run: () => {
       const since = Date.now() - 24 * 3600 * 1000;
@@ -69,6 +80,8 @@ export function registerCoreActions(hub: Hub): void {
   define({
     name: 'list-modules',
     description: 'Liste les outils (modules) de ToolBox avec leur rôle.',
+    examples: ['quels sont les outils', 'liste les outils de ToolBox'],
+    extract: () => ({}),
     risk: 'read',
     run: () => {
       const modules = hub
@@ -90,6 +103,16 @@ export function registerCoreActions(hub: Hub): void {
       },
     },
     required: ['target'],
+    examples: [
+      'ouvre le planning',
+      'ouvre les stats YouTube',
+      'va dans la to-do',
+      'ouvre les réglages',
+    ],
+    extract: (utterance) => {
+      const target = extractName(utterance, OPEN_PREFIXES);
+      return target ? { target } : null;
+    },
     risk: 'read',
     run: (params) => {
       const wanted = normaliseWords(String(params.target));
