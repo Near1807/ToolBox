@@ -4,6 +4,46 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.18.0] — 2026-10-24
+
+Un nouvel outil pour mesurer les masters, des Stats YouTube qui disent d'où vient chaque chiffre, un assistant qui comprend mieux les noms et les mots de Thomas, des sauvegardes plus légères.
+
+### Ajouté
+
+- **Analyse du master** (nouveau module, section Musique), sans jamais modifier l'audio :
+  - projets (morceau de la Bibliothèque ou analyse libre), versions v1, v2… copiées dans l'app (supprimables vers la Corbeille), analyse en tâche de fond, cache par contenu ;
+  - ligne de temps zoomable synchronisée à la lecture (forme d'onde, sonie momentanée et court terme, 7 bandes superposées ou empilées, spectrogramme, facteur de crête et PLR, largeur globale ou par bande, corrélation, mono, repères : crête vraie au-dessus d'un seuil réglable, écrêtages, phase, silences), clic = lecture, survol = valeurs exactes ;
+  - sections automatiques (Intro, Montée, Drop, Pause, Outro…) modifiables à la main, mesures et contrastes par section ;
+  - mesures globales (sonie intégrée, LRA, crête vraie, PLR, dépassements et écrêtages datés, normalisation Spotify / YouTube / Apple Music / SoundCloud / Deezer réglable, stéréo, mono par bande, équilibre tonal au tiers d'octave, hygiène technique) ;
+  - versions alignées automatiquement (décalage réglable), écarts globaux, par section, par bande, carte des différences ;
+  - profils de références, comparaison à sonie égale, écoute A/B à volume égal (seul le volume de lecture change) ;
+  - export HTML ; dossier surveillé (désactivé par défaut, lecture seule) avec notification ;
+  - mesures vérifiées contre `ebur128` de FFmpeg (±0,1) et sur signaux connus.
+- **Intégrations facultatives** : carte « Analyse du master » sur la page d'un morceau (« Analyser », badge) ; vérification rapide non bloquante avant « Générer » dans Vidéo YouTube, Pack Insta, Reels perso (« Générer quand même » / « Voir l'analyse ») ; trois commandes de l'assistant en lecture (« comment est le master d'Obsidian », « où sont les crêtes », « compare les deux dernières versions »).
+- **Stats YouTube** : bouton « Diagnostic » (chaque cause possible, avec l'action à faire), résumé après chaque synchronisation (demandé, reçu, modifié, dernière date, durée), deux sources affichées (« en direct (estimé) » et « données consolidées jusqu'au JJ/MM »), source de chaque nombre au survol, liste des imports CSV avec « Supprimer cet import » et « Supprimer toutes les données CSV » (confirmation détaillée, sauvegarde de la base avant).
+- **Assistant** : mots attendus transmis à la reconnaissance vocale (liste modifiable), corrections « entendu → compris » avec la transcription brute et corrigée dans l'historique, page « Mots », surnoms des outils et des morceaux, noms reconnus au son (« obsidienne » → Obsidian) avec « Tu voulais dire … ? », choix entre deux commandes proches, signal « micro prêt », « ouvre l'application ».
+- SDK : `ctx.db.backup(reason)`, `precheckTrack` et `usePrecheck`, `NotFoundError`, noms au son dans `matchByName`, `backup.exclude` dans le manifeste.
+
+### Modifié
+
+- **Planning** : « cette semaine » = semaine du calendrier (lundi → dimanche), en bilan (fait / en retard / à venir) ; « semaine prochaine », « 7 prochains jours », « aujourd'hui » distincts.
+- **Stats YouTube** : les statistiques par vidéo sont demandées 4 à la fois (mesuré : 275 s → 74 s pour 100 vidéos à 300 ms par requête) ; la page se recharge à la fin d'une synchronisation ; la date limite des données consolidées est le dernier jour donné par YouTube.
+- **Exporter une sauvegarde** : moteurs, modèles, voix, embeddings et téléchargements de l'assistant exclus (ils se retéléchargent en un clic), comme les analyses recalculables du master.
+- Bibliothèque : la page projet range à part les masters importés et les rapports d'analyse.
+
+### Corrigé
+
+- **Stats YouTube figées après un import CSV** : les lignes créées par un CSV comptaient comme des jours déjà synchronisés, la synchronisation sautait les jours manquants (restés à 0 vue). Réparé par la migration 2 (prochaine synchro : tout l'historique une fois).
+- Stats YouTube : un export CSV « totaux » (figé à sa date) passait avant les impressions de l'API ; un CSV importé après coup écrasait celles de l'API.
+
+### Retiré
+
+- Réglage caché `directReads` de l'assistant (remplacé depuis la v0.17 par le choix automatique).
+
+### Données
+
+- Migrations : `youtube_stats` 2 (provenance des nombres, imports d'avant repérés), `music_library` 3 (surnoms), `assistant` 2 (mots, corrections, surnoms), `master_analysis` 1 (nouveau). Aucune donnée supprimée.
+
 ## [0.17.0] — 2026-10-23
 
 L'assistant vocal devient rapide et contrôlé : les demandes courantes sont des **commandes reconnues sans IA**, l'IA est facultative (désactivée par défaut) et l'assistant est **en lecture seule** tant que Thomas n'active pas ses droits un par un.

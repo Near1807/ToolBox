@@ -2,7 +2,7 @@
   "id": "custom-reels",
   "name": "Reels depuis mes vidéos",
   "description": "Des Reels 9:16 faits avec tes propres vidéos, sur un extrait du morceau, avec un effet au choix.",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "section": "Musique",
   "icon": "🎬",
   "order": 35,
