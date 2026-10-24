@@ -8,9 +8,12 @@
   "order": 30,
   "dependsOn": {
     "modules": ["music-library", "video-engine"],
-    "services": ["musicLibrary", "videoEngine"]
+    "services": ["musicLibrary", "videoEngine"],
+    "optionalServices": ["masterAnalysis"]
   },
-  "provides": { "services": ["instagramPack"] },
+  "provides": {
+    "services": ["instagramPack"]
+  },
   "settings": [
     {
       "key": "clipDuration",

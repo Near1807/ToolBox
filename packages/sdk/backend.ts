@@ -706,3 +706,29 @@ export function openEventStream(request: FastifyRequest, reply: FastifyReply): E
     },
   };
 }
+
+/**
+ * The quick check of a track's master before a generation (generators): asks
+ * the optional masterAnalysis service, and answers « nothing to say » when it
+ * is absent, disabled or fails — a generation is never blocked by it.
+ */
+export async function precheckTrack(
+  ctx: ModuleContext,
+  track: { id: number; audioPath: string } | null,
+): Promise<{ ok: boolean; issues: { kind: string; text: string }[]; path: string | null }> {
+  const service = ctx.services.optional<{
+    quickCheck(
+      path: string,
+      trackId?: number | null,
+    ): Promise<{ ok: boolean; issues: { kind: string; text: string }[] }>;
+    pagePath(trackId: number | null): string;
+  }>('masterAnalysis');
+  if (!service || !track) return { ok: true, issues: [], path: null };
+  try {
+    const result = await service.quickCheck(track.audioPath, track.id);
+    return { ok: result.ok, issues: result.issues, path: service.pagePath(track.id) };
+  } catch (error) {
+    ctx.logger.warn('Vérification rapide du master impossible', error);
+    return { ok: true, issues: [], path: null };
+  }
+}

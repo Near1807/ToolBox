@@ -1,0 +1,66 @@
+{
+  "id": "master-analysis",
+  "name": "Analyse du master",
+  "description": "Mesure un master pendant sa production, sans jamais le modifier : sonie, crêtes, bandes, stéréo et mono, sections, versions comparées, références, normalisation des plateformes.",
+  "version": "1.0.0",
+  "section": "Musique",
+  "icon": "🎚️",
+  "order": 15,
+  "dependsOn": {
+    "modules": [],
+    "services": [],
+    "optionalServices": ["musicLibrary"]
+  },
+  "provides": {
+    "services": ["masterAnalysis"]
+  },
+  "backup": {
+    "exclude": ["analyses"]
+  },
+  "settings": [
+    {
+      "key": "overThreshold",
+      "type": "number",
+      "label": "Seuil des dépassements de crête vraie (dBTP)",
+      "description": "Les passages au-dessus sont marqués sur la ligne de temps et listés.",
+      "min": -6,
+      "max": 3,
+      "step": 0.1,
+      "default": -1
+    },
+    {
+      "key": "platforms",
+      "type": "string",
+      "label": "Normalisation des plateformes",
+      "description": "« Nom:cible LUFS:mode:plafond dBTP » séparés par « ; ». Mode « both » = baissé et monté (monté seulement jusqu'au plafond), « down » = seulement baissé. Spotify et SoundCloud : valeurs de leurs pages d'aide ; YouTube, Apple Music, Deezer : non publiées officiellement, valeurs mesurées par la profession.",
+      "default": "Spotify:-14:both:-1; YouTube:-14:down:-1; Apple Music:-16:both:-1; SoundCloud:-14:both:-1; Deezer:-15:down:-1"
+    },
+    {
+      "key": "precheck",
+      "type": "boolean",
+      "label": "Vérification rapide avant de générer une vidéo",
+      "description": "YouTube, Pack Insta, Reels perso : avant de générer, signale (sans bloquer) une crête au-dessus de 0 dBTP, un écrêtage, un long silence ou un problème de mono. Lecture seule.",
+      "default": true
+    },
+    {
+      "key": "watchEnabled",
+      "type": "boolean",
+      "label": "Surveiller un dossier",
+      "description": "Chaque fichier audio nouveau ou réécrit dans le dossier est copié et analysé comme une nouvelle version, comparée à la précédente. Lecture seule : rien n'est jamais modifié, déplacé ni supprimé dans le dossier.",
+      "default": false
+    },
+    {
+      "key": "watchFolder",
+      "type": "folder",
+      "label": "Dossier surveillé",
+      "description": "Chemin complet (ex. le dossier d'export de ton logiciel de musique).",
+      "default": ""
+    },
+    {
+      "key": "watchNotify",
+      "type": "boolean",
+      "label": "Notification à la fin d'une analyse du dossier surveillé",
+      "default": true
+    }
+  ]
+}

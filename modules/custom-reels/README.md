@@ -48,6 +48,8 @@ Chaque copie importée est aussi enregistrée dans `ctx.outputs` (ref `source:<i
 
 Modules `music-library` et `video-engine` ; services `musicLibrary` et `videoEngine` (`renderVideoReel`, `previewVideoReel`, `probeVideo`, `filmstrip`, `waveform`, `videoEffects`, `findTrackInVideo`).
 
+Facultatif : `masterAnalysis` (« Analyse du master ») — avant « Générer », vérification rapide du master, jamais bloquante (`GET /tracks/:id/precheck`, `precheckTrack` du SDK, `usePrecheck` dans l'interface) : « Générer quand même » / « Voir l'analyse » / « Annuler ». Sans le module, rien ne change.
+
 ## API
 
 | Méthode | Route                                         | Rôle                                                                                                                                                                                                                                                          |

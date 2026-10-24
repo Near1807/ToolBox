@@ -796,3 +796,74 @@ export function UndoToast(props: {
     </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Quick check of the master before a generation
+// ---------------------------------------------------------------------------
+
+/** What a generator's `GET …/precheck` answers (from the optional masterAnalysis service). */
+export interface PrecheckResult {
+  ok: boolean;
+  issues: { kind: string; text: string }[];
+  /** Page of « Analyse du master » for the track (« Voir l'analyse »), null without the module. */
+  path: string | null;
+}
+
+/**
+ * Checks the master before generating, without ever blocking: `guard(url,
+ * generate)` reads the check and runs `generate` at once when there is
+ * nothing to say (or the check is unavailable); otherwise `notice` shows the
+ * facts with « Générer quand même » / « Voir l'analyse » / « Annuler ».
+ */
+export function usePrecheck(get: <T>(url: string) => Promise<T>) {
+  const [pending, setPending] = useState<{ result: PrecheckResult; generate: () => void } | null>(
+    null,
+  );
+  const guard = async (url: string, generate: () => void | Promise<void>) => {
+    let result: PrecheckResult | null;
+    try {
+      result = await get<PrecheckResult>(url);
+    } catch {
+      result = null;
+    }
+    if (!result || result.ok || result.issues.length === 0) return void (await generate());
+    setPending({ result, generate: () => void generate() });
+  };
+  const notice = pending ? (
+    <div className="ui-precheck" role="alertdialog" aria-label="Vérification du master">
+      <strong>Vérification rapide du master avant de générer :</strong>
+      <ul>
+        {pending.result.issues.map((issue) => (
+          <li key={issue.kind + issue.text}>{issue.text}</li>
+        ))}
+      </ul>
+      <div className="ui-actions">
+        <Button
+          small
+          onClick={() => {
+            const generate = pending.generate;
+            setPending(null);
+            generate();
+          }}
+        >
+          Générer quand même
+        </Button>
+        {pending.result.path !== null && (
+          <Button
+            variant="secondary"
+            small
+            onClick={() => {
+              window.location.hash = `#/m/master-analysis${pending.result.path}`;
+            }}
+          >
+            Voir l’analyse
+          </Button>
+        )}
+        <Button variant="secondary" small onClick={() => setPending(null)}>
+          Annuler
+        </Button>
+      </div>
+    </div>
+  ) : null;
+  return { guard, notice };
+}

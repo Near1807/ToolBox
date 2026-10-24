@@ -8,9 +8,12 @@
   "order": 35,
   "dependsOn": {
     "modules": ["music-library", "video-engine"],
-    "services": ["musicLibrary", "videoEngine"]
+    "services": ["musicLibrary", "videoEngine"],
+    "optionalServices": ["masterAnalysis"]
   },
-  "provides": { "services": ["customReels"] },
+  "provides": {
+    "services": ["customReels"]
+  },
   "settings": [
     {
       "key": "clipDuration",
@@ -27,11 +30,26 @@
       "type": "select",
       "label": "Effet par défaut",
       "options": [
-        { "value": "raw", "label": "Brut" },
-        { "value": "calm", "label": "Calme" },
-        { "value": "rhythm", "label": "Rythme" },
-        { "value": "cine", "label": "Ciné" },
-        { "value": "camera", "label": "Caméra embarquée" }
+        {
+          "value": "raw",
+          "label": "Brut"
+        },
+        {
+          "value": "calm",
+          "label": "Calme"
+        },
+        {
+          "value": "rhythm",
+          "label": "Rythme"
+        },
+        {
+          "value": "cine",
+          "label": "Ciné"
+        },
+        {
+          "value": "camera",
+          "label": "Caméra embarquée"
+        }
       ],
       "default": "raw"
     },

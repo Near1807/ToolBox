@@ -2,11 +2,18 @@
   "id": "music-library",
   "name": "Bibliothèque",
   "description": "Tes morceaux : son, cover et infos, prêts pour générer tes vidéos.",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "section": "Musique",
   "icon": "🎵",
   "order": 10,
-  "provides": { "services": ["musicLibrary"] },
+  "dependsOn": {
+    "modules": [],
+    "services": [],
+    "optionalServices": ["masterAnalysis"]
+  },
+  "provides": {
+    "services": ["musicLibrary"]
+  },
   "settings": [
     {
       "key": "defaultArtist",

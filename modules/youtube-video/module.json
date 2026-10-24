@@ -8,9 +8,12 @@
   "order": 20,
   "dependsOn": {
     "modules": ["music-library", "video-engine"],
-    "services": ["musicLibrary", "videoEngine"]
+    "services": ["musicLibrary", "videoEngine"],
+    "optionalServices": ["masterAnalysis"]
   },
-  "provides": { "services": ["youtubeVideo"] },
+  "provides": {
+    "services": ["youtubeVideo"]
+  },
   "settings": [
     {
       "key": "titleTemplate",

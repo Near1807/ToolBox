@@ -46,3 +46,7 @@ Aucune.
 | PUT     | `/tracks/:id/project/included` | `{ moduleId, ref, included }`                                   |
 | GET     | `/orphans`                     | Éléments sans projet (tous modules)                             |
 | POST    | `/orphans/attach`              | `{ ids, trackId }` : rattache au morceau                        |
+
+## Analyse du master (facultatif)
+
+Avec le module « Analyse du master » (service facultatif `masterAnalysis`) : carte sur la page du morceau (dernière version mesurée, badge sonie et crête vraie, « Analyser », « Voir l'analyse ») ; route `POST /tracks/:id/analyse-master`. La page projet range les copies de masters (« Masters importés ») et les rapports d'analyse à part. Sans le module : rien ne change.

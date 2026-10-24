@@ -1,7 +1,13 @@
 // youtube-video: a 16:9 video of a whole track, plus a ready-to-copy description.
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { defineBackendModule, HttpError, requestBody, type ModuleContext } from '@hub/sdk/backend';
+import {
+  precheckTrack,
+  defineBackendModule,
+  HttpError,
+  requestBody,
+  type ModuleContext,
+} from '@hub/sdk/backend';
 import type { MusicLibraryService, Track } from '../../music-library/contract';
 import type { VideoEngineService } from '../../video-engine/contract';
 import { fillTemplate, parseTags, toTemplate } from '@hub/sdk/texts';
@@ -79,6 +85,10 @@ export default defineBackendModule({
   register(ctx: ModuleContext) {
     const library = ctx.services.get<MusicLibraryService>('musicLibrary');
     const engine = ctx.services.get<VideoEngineService>('videoEngine');
+    // Quick check of the master before generating (optional « Analyse du master », never blocking).
+    ctx.routes.get('/tracks/:id/precheck', (request) =>
+      precheckTrack(ctx, library.getTrack(Number((request.params as { id: string }).id))),
+    );
     const videos = ctx.db.table('videos');
 
     const requireTrack = (params: unknown): Track => {

@@ -23,6 +23,7 @@ import {
   useModule,
   useSelection,
   TrackList,
+  usePrecheck,
 } from '@hub/sdk/frontend';
 
 interface TrackSummary {
@@ -53,6 +54,7 @@ interface TrackDetail extends TrackSummary {
 
 function TrackPanel(props: { trackId: number }) {
   const module = useModule();
+  const precheck = usePrecheck(module.api.get);
   const detail = useApi<TrackDetail>(module.url(`/tracks/${props.trackId}`));
   const { jobs, cancel } = useJobs(module.id);
   const [preview, setPreview] = useState<{
@@ -98,14 +100,15 @@ function TrackPanel(props: { trackId: number }) {
     }
   };
 
-  const render = async () => {
-    setError(null);
-    try {
-      await module.api.post(`/tracks/${track.id}/render`);
-    } catch (err) {
-      setError(errorMessage(err));
-    }
-  };
+  const render = () =>
+    precheck.guard(`/tracks/${track.id}/precheck`, async () => {
+      setError(null);
+      try {
+        await module.api.post(`/tracks/${track.id}/render`);
+      } catch (err) {
+        setError(errorMessage(err));
+      }
+    });
 
   const videoAction = async (video: VideoItem, action: 'open' | 'reveal') => {
     try {
@@ -162,6 +165,7 @@ function TrackPanel(props: { trackId: number }) {
               <Button disabled={!track.coverUrl || Boolean(active)} onClick={() => void render()}>
                 Générer la vidéo
               </Button>
+              {precheck.notice}
               <Button
                 variant="secondary"
                 onClick={() => void module.api.post('/open-output-folder')}

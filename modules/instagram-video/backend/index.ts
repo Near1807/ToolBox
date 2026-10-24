@@ -5,6 +5,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } 
 import path from 'node:path';
 import { promisify } from 'node:util';
 import {
+  precheckTrack,
   defineBackendModule,
   ELEMENT_STATES,
   HttpError,
@@ -94,6 +95,10 @@ export default defineBackendModule({
   register(ctx: ModuleContext) {
     const library = ctx.services.get<MusicLibraryService>('musicLibrary');
     const engine = ctx.services.get<VideoEngineService>('videoEngine');
+    // Quick check of the master before generating (optional « Analyse du master », never blocking).
+    ctx.routes.get('/tracks/:id/precheck', (request) =>
+      precheckTrack(ctx, library.getTrack(Number((request.params as { id: string }).id))),
+    );
     const store = new PackStore(ctx);
     const legacyReels = ctx.db.table('reels');
 

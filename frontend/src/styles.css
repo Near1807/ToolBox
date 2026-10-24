@@ -1593,3 +1593,16 @@ input[type='range'] {
   box-shadow: var(--shadow);
   color: var(--text);
 }
+
+/* Quick check of the master before a generation (usePrecheck). */
+.ui-precheck {
+  margin: 8px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--warning);
+  border-radius: var(--radius-sm);
+  background: var(--surface-solid);
+}
+.ui-precheck ul {
+  margin: 6px 0;
+  padding-left: 18px;
+}

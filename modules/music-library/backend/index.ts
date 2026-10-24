@@ -19,6 +19,7 @@ import {
   type ProjectStatusEntry,
   type ProjectStatusProvider,
 } from '../contract';
+import type { MasterAnalysisService } from '../../master-analysis/contract';
 import { Library } from './library';
 
 const PROJECT_PREFIXES = [
@@ -321,7 +322,23 @@ export default defineBackendModule({
         // Files generated from this track by every module (ctx.outputs, checked on disk).
         outputs: ctx.outputs.bySubject(trackSubject(track.id)),
         infos: trackInfos(track.id),
+        master: masterOf(track.id),
       };
+    });
+
+    // « Analyse du master » (optional): its state for the track, and « Analyser ».
+    const masterService = () => ctx.services.optional<MasterAnalysisService>('masterAnalysis');
+    const masterOf = (trackId: number) => {
+      const service = masterService();
+      return service
+        ? { available: true, status: service.trackStatus(trackId), path: service.pagePath(trackId) }
+        : { available: false, status: null, path: '' };
+    };
+    ctx.routes.post('/tracks/:id/analyse-master', async (request) => {
+      const track = library.require(idParam(request.params));
+      const service = masterService();
+      if (!service) throw new HttpError(409, 'Le module « Analyse du master » n’est pas là.');
+      return service.analyseTrack(track.id);
     });
 
     // Project page: everything generated from the track, grouped in the UI.

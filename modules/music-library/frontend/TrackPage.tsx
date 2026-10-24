@@ -9,10 +9,12 @@ import {
   getFilePath,
   Page,
   pickFiles,
+  StateBadge,
   useApi,
   useModule,
   type OutputRecord,
 } from '@hub/sdk/frontend';
+import type { MasterTrackStatus } from '../../master-analysis/contract';
 import type { TrackDto } from '../contract';
 import { CoverImage } from './CoverImage';
 import { ProjectView } from './ProjectView';
@@ -22,6 +24,8 @@ type TrackDetail = TrackDto & {
   outputs: OutputRecord[];
   /** Lines added by other modules (e.g. Instagram pack status). */
   infos: { moduleId: string; label: string; value: string }[];
+  /** « Analyse du master », when that module is there. */
+  master: { available: boolean; status: MasterTrackStatus | null; path: string };
 };
 
 interface FormState {
@@ -177,6 +181,10 @@ export function TrackPage() {
           <Card title="Projet : tout ce qui a été généré">
             <ProjectView trackId={data.id} onChange={track.reload} />
           </Card>
+
+          {data.master.available && (
+            <MasterCard trackId={data.id} master={data.master} onChange={track.reload} />
+          )}
 
           <Card title="Statistiques">
             <p className="muted">
@@ -335,6 +343,64 @@ function InfoForm(props: { track: TrackDto; onSaved: () => void }) {
           {error && <span className="error">{error}</span>}
         </div>
       </form>
+    </Card>
+  );
+}
+
+/** The master of the track as « Analyse du master » measured it, and « Analyser ». */
+function MasterCard(props: {
+  trackId: number;
+  master: TrackDetail['master'];
+  onChange: () => void;
+}) {
+  const module = useModule();
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const s = props.master.status;
+  const analyse = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await module.api.post(`/tracks/${props.trackId}/analyse-master`);
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(false);
+      props.onChange();
+    }
+  };
+  return (
+    <Card title="Analyse du master">
+      {s ? (
+        <p>
+          <strong>{s.versionName}</strong>{' '}
+          {s.badge ? (
+            <StateBadge tone={s.clips > 0 ? 'danger' : s.overs > 0 ? 'warning' : 'success'}>
+              {s.badge}
+            </StateBadge>
+          ) : (
+            <StateBadge tone="running">Analyse en cours</StateBadge>
+          )}{' '}
+          {s.badge && (
+            <span className="small muted">
+              {s.overs} dépassement(s) de crête, {s.clips} écrêtage(s)
+            </span>
+          )}
+        </p>
+      ) : (
+        <p className="muted">Pas encore analysé.</p>
+      )}
+      {error && <ErrorMessage>{error}</ErrorMessage>}
+      <div className="toolbar">
+        <Button small disabled={busy} onClick={() => void analyse()}>
+          Analyser
+        </Button>
+        <Link to={`/m/master-analysis${props.master.path}`}>Voir l’analyse</Link>
+      </div>
+      <p className="small muted">
+        Mesure le fichier audio actuel du morceau (une nouvelle version seulement s’il a changé).
+        Rien n’est modifié.
+      </p>
     </Card>
   );
 }

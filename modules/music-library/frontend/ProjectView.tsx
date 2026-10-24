@@ -49,11 +49,24 @@ const GROUPS: { title: string; match: (e: ProjectElement) => boolean; aspect: Me
     aspect: 'vertical',
   },
   { title: 'Miniatures', match: (e) => e.moduleId === 'release-planner', aspect: 'landscape' },
+  {
+    title: 'Rapports d’analyse du master',
+    match: (e) => e.moduleId === 'master-analysis' && e.kind !== 'source',
+    aspect: 'landscape',
+  },
   // Imported material (kind « source », MODULES.md §5.13): listed, never part of the release.
+  {
+    title: 'Masters importés (analyse)',
+    match: (e) => e.moduleId === 'master-analysis' && e.kind === 'source',
+    aspect: 'landscape',
+  },
   { title: 'Vidéos importées', match: (e) => e.kind === 'source', aspect: 'landscape' },
 ];
 
 const isVideo = (element: OutputRecord) => /\.(mp4|mov|webm)$/i.test(element.fileName);
+/** Audio files, reports…: no picture, the file name stands in for it. */
+const hasPicture = (element: OutputRecord) =>
+  isVideo(element) || /\.(png|jpe?g|webp|gif)$/i.test(element.fileName);
 
 /**
  * The project of a track: everything generated from it, grouped by type, with
@@ -131,7 +144,7 @@ export function ProjectView(props: { trackId: number; onChange?: () => void }) {
                   }
                   thumb={
                     <MediaThumb
-                      src={element.url}
+                      src={hasPicture(element) ? element.url : null}
                       media={isVideo(element) ? 'video' : 'image'}
                       aspect={group.aspect}
                       dragUrl={element.url}
