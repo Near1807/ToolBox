@@ -84,7 +84,7 @@ export interface ModuleContext {
   readonly assistant: ModuleAssistant;
   /** Push-to-talk style global keys (held / released), with permissions.globalKeys. */
   readonly hotkeys: ModuleHotkeys;
-  /** The desktop window: open a page, show the floating indicator. */
+  /** The desktop window: open a page, ask for the floating window. */
   readonly ui: ModuleUi;
   readonly binaries: ModuleBinaries;
   readonly logger: ModuleLogger;
@@ -639,10 +639,14 @@ export interface ModuleAssistant {
 // ---------------------------------------------------------------------------
 
 /** A key of the keyboard, as seen by the system-wide hook (libuiohook key code). */
+export type HotkeyModifier = 'ctrl' | 'alt' | 'shift' | 'meta';
+
 export interface HotkeySpec {
   code: number;
-  /** French, for the UI (« Touche Copilot », « Ctrl droit », « F13 »). */
+  /** French, for the UI (« Touche Copilot », « Ctrl droit », « Ctrl + Espace »). */
   label: string;
+  /** A combination: these modifiers held (either side) when `code` goes down. */
+  modifiers?: HotkeyModifier[];
 }
 
 export interface ModuleHotkeys {
@@ -650,18 +654,31 @@ export interface ModuleHotkeys {
   status(): { available: boolean; reason: string | null };
   /**
    * Calls onPress when `key` goes down and onRelease when it comes back up,
-   * even when ToolBox has no focus (auto-repeat is filtered). Replaces the
-   * previous binding of this module; `null` stops listening.
+   * even when ToolBox has no focus (auto-repeat is filtered). A combination
+   * (`modifiers`) fires only with exactly those modifiers held. Replaces the
+   * previous binding of this module with the same `name` (a module may have
+   * several: « mic », « bar »); `null` stops it.
    */
-  hold(key: HotkeySpec | null, handlers: { onPress: () => void; onRelease: () => void }): void;
-  /** Resolves with the next key pressed anywhere (« appuie sur la touche voulue »), or null after timeoutMs. */
+  hold(
+    key: HotkeySpec | null,
+    handlers: { onPress: () => void; onRelease: () => void },
+    name?: string,
+  ): void;
+  /**
+   * Resolves with the next key or combination pressed anywhere (« appuie sur
+   * la touche voulue »): a key with the modifiers held at that moment, or a
+   * modifier alone pressed and released; null after timeoutMs.
+   */
   capture(timeoutMs?: number): Promise<HotkeySpec | null>;
 }
 
 export interface ModuleUi {
   /** Shows the main window (restored, focused) on a UI route ("/m/todo", "/jobs"…). */
   open(route: string): void;
-  /** Shows or hides the floating indicator (the module's `Overlay` component, always on top). */
+  /**
+   * Asks for (or releases) the floating window of the hub, which shows the
+   * module's `Overlay` component (always on top, shared by all modules: MODULES.md §5.16).
+   */
   setOverlay(visible: boolean): void;
 }
 

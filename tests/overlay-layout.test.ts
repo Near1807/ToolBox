@@ -37,8 +37,9 @@ describe('floating window layout', () => {
     const two = overlayBounds(area, { width: 300, height: 130 });
     expect(two.y + two.height).toBe(one.y + one.height);
     // Second screen on the left, empty content (1 × 1).
-    expect(overlayBounds({ x: -1280, y: 0, width: 1280, height: 984 }, { width: 0, height: 0 }))
-      .toEqual({ x: -640, y: 984 - 1 - BOTTOM_GAP, width: 1, height: 1 });
+    expect(
+      overlayBounds({ x: -1280, y: 0, width: 1280, height: 984 }, { width: 0, height: 0 }),
+    ).toEqual({ x: -640, y: 984 - 1 - BOTTOM_GAP, width: 1, height: 1 });
     expect(MAX_HEIGHT).toBeGreaterThan(300);
   });
 });

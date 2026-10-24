@@ -372,7 +372,7 @@ ctx.assistant.define({
 
 ### 5.16 `ctx.hotkeys` et `ctx.ui` — touche globale, fenêtre, fenêtre flottante
 
-- `ctx.hotkeys` (avec `permissions.globalKeys`) : `hold(key, { onPress, onRelease })` écoute une touche **maintenue** dans tout Windows (crochet clavier `uiohook-napi`, ADR 0028), `capture()` attend « la touche voulue », `status()` dit si c'est possible. Le crochet ne tourne que pendant qu'un module écoute ; seul le code de la touche choisie est regardé, rien n'est enregistré. Absent hors de l'app de bureau (le module propose alors un bouton).
+- `ctx.hotkeys` (avec `permissions.globalKeys`) : `hold(key, { onPress, onRelease }, name?)` écoute une touche **maintenue** dans tout Windows (crochet clavier `uiohook-napi`, ADR 0028) ; un module peut avoir plusieurs touches (`name` : « mic », « bar »). Une **combinaison** (`key.modifiers` : `ctrl`, `alt`, `shift`, `meta`) ne se déclenche qu'avec exactement ces modificateurs ; une touche seule se déclenche quels que soient les modificateurs tenus. `capture()` attend « la touche voulue » : une touche avec les modificateurs tenus à ce moment, ou un modificateur seul pressé puis relâché. `status()` dit si c'est possible. Le crochet ne tourne que pendant qu'un module écoute ; seul le code de la touche choisie est regardé, rien n'est enregistré. Absent hors de l'app de bureau (le module propose alors un bouton).
 - `ctx.ui.open(route)` : montre la fenêtre (même réduite ou dans la zone de notification) sur une page (`/m/todo`, `/jobs`).
 - `ctx.ui.setOverlay(visible)` : demande ou libère la **fenêtre flottante** du socle, qui affiche le composant `Overlay` du module (§7). Le socle compte les demandes : la fenêtre est là tant qu'un module au moins la demande. ADR 0036.
 

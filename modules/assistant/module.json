@@ -150,6 +150,49 @@
       "hidden": true
     },
     {
+      "key": "barKey",
+      "type": "string",
+      "label": "Touche de la barre écrite",
+      "description": "Aucune par défaut : la barre est désactivée tant qu'aucune touche n'est choisie (page Assistant).",
+      "default": "",
+      "hidden": true
+    },
+    {
+      "key": "barMode",
+      "type": "select",
+      "label": "Barre écrite : déclencheur",
+      "options": [
+        {
+          "value": "double",
+          "label": "Double appui"
+        },
+        {
+          "value": "single",
+          "label": "Appui simple"
+        }
+      ],
+      "default": "double",
+      "hidden": true
+    },
+    {
+      "key": "barDoubleMs",
+      "type": "number",
+      "label": "Barre écrite : délai du double appui (ms)",
+      "min": 150,
+      "max": 1000,
+      "step": 50,
+      "default": 400,
+      "hidden": true
+    },
+    {
+      "key": "speakTyped",
+      "type": "boolean",
+      "label": "Barre écrite : lire aussi la réponse à voix haute",
+      "description": "Désactivé : la réponse s'affiche dans la barre, sans voix.",
+      "default": false,
+      "hidden": true
+    },
+    {
       "key": "systemPrompt",
       "type": "string",
       "label": "Instructions du modèle",

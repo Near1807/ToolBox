@@ -17,7 +17,8 @@ export interface TurnActionDto {
 export interface TurnDto {
   id: number;
   at: string;
-  source: 'voice' | 'text';
+  /** Spoken, typed on the page, or typed in the floating command bar. */
+  source: 'voice' | 'text' | 'bar';
   /** What was understood (transcript after the corrections), or typed. */
   heard: string;
   /** What the ear wrote before the corrections (voice only; null when unchanged). */
@@ -108,6 +109,15 @@ export interface StatusDto {
     available: boolean;
     reason: string | null;
     key: { code: number; label: string } | null;
+  };
+  /** The written command bar: its key (none = off), single or double press. */
+  bar: {
+    key: { code: number; label: string } | null;
+    mode: 'single' | 'double';
+    doubleMs: number;
+    speak: boolean;
+    /** Same key as the microphone: how the gestures are told apart. */
+    conflict: { warning: boolean; text: string } | null;
   };
   settings: {
     ai: boolean;
@@ -214,4 +224,9 @@ export interface VocabularyDto {
   tools: { key: string; label: string }[];
   /** What is sent to whisper.cpp with each recording (expected words). */
   expected: string;
+}
+
+/** The bar opened or closed (event « bar » of /events). */
+export interface BarEvent {
+  open: boolean;
 }

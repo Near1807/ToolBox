@@ -13,11 +13,12 @@ import {
   openEventStream,
   requestBody,
   type EventStream,
+  type HotkeyModifier,
   type HotkeySpec,
   type ModuleContext,
   type SettingValue,
 } from '@hub/sdk/backend';
-import type { AssistantState, StatusDto, TurnDto } from '../shared';
+import type { AssistantState, BarEvent, StatusDto, TurnDto } from '../shared';
 import {
   autoPromptLines,
   Brain,
@@ -40,6 +41,13 @@ import { expectedWordsPrompt, Vocabulary, VOCABULARY_MIGRATION } from './vocabul
 import type { MusicLibraryService } from '../../music-library/contract';
 import { OnnxEmbedder, embeddingsInstalled, EMBEDDING_FILES, type Embedder } from './embedder';
 import { DEFAULT_MATCH } from './matcher';
+import {
+  conflictOf,
+  KeyGestures,
+  type BarMode,
+  type GestureActions,
+  type KeyRole,
+} from './gestures';
 import { download, extract, findExecutable } from './download';
 import { PiperVoice, WhisperServer, type Synthesizer, type Transcriber } from './engines';
 import { detectHardware, recommend, type Hardware, type Recommendation } from './hardware';
@@ -84,9 +92,30 @@ function onPath(name: string): string | null {
   return null;
 }
 
-function parseKey(value: string | null): HotkeySpec | null {
-  const match = /^(\d+)\|(.*)$/.exec(value ?? '');
-  return match ? { code: Number(match[1]), label: match[2]! } : null;
+/** A key in the settings: « 106|Touche Copilot », or « 57+ctrl,shift|Ctrl + Maj + Espace ». */
+export function parseKey(value: string | null): HotkeySpec | null {
+  const match = /^(\d+)(?:\+([a-z,]+))?\|(.*)$/.exec(value ?? '');
+  if (!match) return null;
+  const modifiers = (match[2] ?? '')
+    .split(',')
+    .filter((m): m is HotkeyModifier => ['ctrl', 'alt', 'shift', 'meta'].includes(m));
+  return modifiers.length
+    ? { code: Number(match[1]), label: match[3]!, modifiers }
+    : { code: Number(match[1]), label: match[3]! };
+}
+export function formatKey(key: HotkeySpec): string {
+  return `${key.code}${key.modifiers?.length ? `+${key.modifiers.join(',')}` : ''}|${key.label}`;
+}
+/**
+ * Two keys that one press fires together: same key, and the same modifiers
+ * unless one of them has none (a single key fires whatever is held).
+ */
+export function sameKey(a: HotkeySpec | null, b: HotkeySpec | null): boolean {
+  if (!a || !b || a.code !== b.code) return false;
+  const ma = a.modifiers ?? [];
+  const mb = b.modifiers ?? [];
+  if (!ma.length || !mb.length) return true;
+  return ma.length === mb.length && ma.every((m) => mb.includes(m));
 }
 
 export default defineBackendModule({
@@ -330,13 +359,28 @@ export default defineBackendModule({
     let stateText: string | null = null;
     let toggleMode = false;
     let overlayTimer: ReturnType<typeof setTimeout> | null = null;
+    /** The written command bar is open (floating window). */
+    let barOpen = false;
+    /** The floating window: while listening / thinking / speaking, a moment after, or the bar. */
+    const refreshOverlay = () => {
+      if (overlayTimer) clearTimeout(overlayTimer);
+      overlayTimer = null;
+      if (barOpen || state !== 'idle') return ctx.ui.setOverlay(true);
+      overlayTimer = setTimeout(() => {
+        overlayTimer = null;
+        if (!barOpen && state === 'idle') ctx.ui.setOverlay(false);
+      }, 2500);
+    };
     const setState = (next: AssistantState, text: string | null = stateText) => {
       state = next;
       stateText = text;
       broadcast('state', { state, text, toggle: toggleMode, ai: aiOn(), ready: micReady });
-      if (overlayTimer) clearTimeout(overlayTimer);
-      if (next === 'idle') overlayTimer = setTimeout(() => ctx.ui.setOverlay(false), 2500);
-      else ctx.ui.setOverlay(true);
+      refreshOverlay();
+    };
+    const setBar = (open: boolean) => {
+      barOpen = open;
+      broadcast('bar', { open } satisfies BarEvent);
+      refreshOverlay();
     };
 
     const turns: TurnDto[] = [];
@@ -347,7 +391,6 @@ export default defineBackendModule({
 
     let listenTimer: ReturnType<typeof setTimeout> | null = null;
     let releasedAt = 0;
-    let pressedAt = 0;
     /** The microphone really receives sound (the page said so): « Parle ». */
     let micReady = false;
     let listenStartedAt = 0;
@@ -379,28 +422,65 @@ export default defineBackendModule({
     };
 
     // Push-to-talk: held = talk while held; a quick tap = tap again to finish (keys
-    // such as the Copilot key on some PCs send their release right away).
+    // such as the Copilot key on some PCs send their release right away). The bar
+    // key: single or double press; on the same key, gestures.ts tells them apart.
+    let gestures: KeyGestures[] = [];
+    const micKey = () => parseKey(setting<string>('pushToTalkKey'));
+    const barKey = () => parseKey(setting<string>('barKey'));
+    const barMode = (): BarMode => (setting<string>('barMode') === 'single' ? 'single' : 'double');
     const bindKey = () => {
+      for (const g of gestures) g.dispose();
+      gestures = [];
       if (!ctx.hotkeys.status().available) return;
-      ctx.hotkeys.hold(parseKey(setting<string>('pushToTalkKey')), {
-        onPress: () => {
-          pressedAt = Date.now();
-          if (state === 'listening' && toggleMode) stopListening();
-          else startListening();
-        },
-        onRelease: () => {
+      const actions: GestureActions = {
+        micStart: () => void startListening(),
+        micStop: () => void stopListening(),
+        micToggle: () => {
           if (state !== 'listening') return;
-          if (Date.now() - pressedAt >= HOLD_MS) stopListening();
-          else {
-            toggleMode = true;
-            setState('listening', null);
-          }
+          toggleMode = true;
+          setState('listening', null);
         },
-      });
+        micCancel: () => {
+          if (state !== 'listening') return;
+          if (listenTimer) clearTimeout(listenTimer);
+          toggleMode = false;
+          micReady = false;
+          broadcast('record', { action: 'cancel' });
+          setState('idle', null);
+        },
+        listening: () => state === 'listening' && toggleMode,
+        openBar: () => setBar(true),
+      };
+      const options = {
+        holdMs: HOLD_MS,
+        doubleMs: Math.max(150, Math.min(1000, setting<number>('barDoubleMs') ?? 400)),
+        barMode: barMode(),
+        now: () => Date.now(),
+        setTimer: (fn: () => void, ms: number) => setTimeout(fn, ms),
+        clearTimer: (t: unknown) => clearTimeout(t as ReturnType<typeof setTimeout>),
+      };
+      const mic = micKey();
+      const bar = barKey();
+      const shared = sameKey(mic, bar);
+      const bind = (key: HotkeySpec | null, role: KeyRole, name: string) => {
+        if (!key) return ctx.hotkeys.hold(null, { onPress() {}, onRelease() {} }, name);
+        const g = new KeyGestures(role, actions, options);
+        gestures.push(g);
+        ctx.hotkeys.hold(
+          key,
+          {
+            onPress: () => g.press(),
+            onRelease: () => g.release(),
+          },
+          name,
+        );
+      };
+      bind(mic, shared ? 'both' : 'mic', 'mic');
+      bind(shared ? null : bar, 'bar', 'bar');
     };
     bindKey();
     ctx.settings.onChange((key) => {
-      if (key === 'pushToTalkKey') bindKey();
+      if (['pushToTalkKey', 'barKey', 'barMode', 'barDoubleMs'].includes(key)) bindKey();
       if (key === 'model') capabilities.clear();
       // The AI switched on: the model is loaded now, not at the first question.
       if ((key === 'ai' || key === 'systemPrompt') && aiOn()) void warmModel();
@@ -414,7 +494,12 @@ export default defineBackendModule({
       sentence: string,
       firstAt: { t: number | null },
     ) => {
-      const voice = setting<boolean>('speakReplies') !== false ? synthesizer() : null;
+      // A written command (bar) is answered on screen; aloud only if asked.
+      const aloud =
+        turn.source === 'bar'
+          ? setting<boolean>('speakTyped') === true
+          : setting<boolean>('speakReplies') !== false;
+      const voice = aloud ? synthesizer() : null;
       if (!voice) return null;
       speaking ??= { turnId: turn.id, pending: 0, ended: false };
       speaking.pending++;
@@ -441,7 +526,7 @@ export default defineBackendModule({
     let busy: Promise<unknown> = Promise.resolve();
     const handleText = (
       text: string,
-      source: 'voice' | 'text',
+      source: TurnDto['source'],
       transcribeMs: number | null,
       /** What the ear wrote, before the corrections (voice only, when different). */
       rawHeard: string | null = null,
@@ -689,7 +774,14 @@ export default defineBackendModule({
           running: Boolean(whisper?.running),
         },
         piper: { engine: piperExe(), voice: voice.id, voiceInstalled },
-        hotkey: { ...hotkey, key: parseKey(setting<string>('pushToTalkKey')) },
+        hotkey: { ...hotkey, key: micKey() },
+        bar: {
+          key: barKey(),
+          mode: barMode(),
+          doubleMs: setting<number>('barDoubleMs') ?? 400,
+          speak: setting<boolean>('speakTyped') === true,
+          conflict: conflictOf(sameKey(micKey(), barKey()), barMode()),
+        },
         settings: {
           ai: aiOn(),
           speakReplies: setting<boolean>('speakReplies') !== false,
@@ -748,11 +840,13 @@ export default defineBackendModule({
           ai: aiOn(),
           ready: micReady,
         });
+        // A page opened after the bar (the floating window loads on demand).
+        if (barOpen) stream.send('bar', { open: true } satisfies BarEvent);
       },
       { streamTicket: true },
     );
 
-    ctx.routes.get('/turns', () => ({ turns, state }));
+    ctx.routes.get('/turns', () => ({ turns, state, bar: barOpen }));
 
     ctx.routes.post('/listen/start', () => ({ ok: startListening() }));
     /** The page's microphone receives sound: the indicator says « Parle » (and a short sound). */
@@ -817,17 +911,34 @@ export default defineBackendModule({
       return { turn: await handleText(text, 'text', null) };
     });
 
+    // The written command bar (floating window): same path as the voice without the
+    // transcription (corrections and nicknames, commands, AI if on, same rights and
+    // confirmations); the answer is shown, read aloud only with « speakTyped ».
+    ctx.routes.post('/bar/open', () => (setBar(true), { ok: true }));
+    ctx.routes.post('/bar/close', () => (setBar(false), { ok: true }));
+    ctx.routes.post('/bar/send', async (request) => {
+      const text = String(requestBody(request).text ?? '').trim();
+      if (!text) throw new HttpError(400, 'Écris une commande');
+      if (text.length > 1000) throw new HttpError(400, 'Commande trop longue');
+      releasedAt = 0;
+      const corrected = vocabulary.correct(text);
+      return {
+        turn: await handleText(corrected, 'bar', null, corrected !== text ? text : null),
+      };
+    });
+
     ctx.routes.post('/turns/:id/answer', async (request) => {
       const turn = turns.find((t) => t.id === idParam(request.params));
       if (!turn?.pending || turn !== turns[0])
         throw new HttpError(409, 'Plus de question en attente');
       const body = requestBody(request);
       // A click on one of the choices (« Tu voulais dire : … ou … ? »).
+      const source = turn.source === 'bar' ? 'bar' : 'text';
       if (typeof body.choice === 'number')
         return {
-          turn: await handleText(body.choice === 0 ? 'le premier' : 'le deuxième', 'text', null),
+          turn: await handleText(body.choice === 0 ? 'le premier' : 'le deuxième', source, null),
         };
-      return { turn: await handleText(body.yes ? 'oui' : 'non', 'text', null) };
+      return { turn: await handleText(body.yes ? 'oui' : 'non', source, null) };
     });
 
     ctx.routes.post('/turns/:id/actions/:index/undo', async (request) => {
@@ -910,14 +1021,27 @@ export default defineBackendModule({
         ctx.settings.set('commandThreshold', Math.min(0.95, Math.max(0.5, body.commandThreshold)));
       if (typeof body.commandMargin === 'number')
         ctx.settings.set('commandMargin', Math.min(0.3, Math.max(0, body.commandMargin)));
+      if (body.barMode === 'single' || body.barMode === 'double')
+        ctx.settings.set('barMode', body.barMode);
+      if (typeof body.barDoubleMs === 'number')
+        ctx.settings.set(
+          'barDoubleMs',
+          Math.round(Math.min(1000, Math.max(150, body.barDoubleMs))),
+        );
+      if (typeof body.speakTyped === 'boolean') ctx.settings.set('speakTyped', body.speakTyped);
       return status();
     });
 
-    ctx.routes.post('/hotkey/capture', async () => {
+    ctx.routes.post('/hotkey/capture', async (request) => {
+      const target = requestBody(request).target === 'bar' ? 'barKey' : 'pushToTalkKey';
       const key = await ctx.hotkeys.capture(10_000);
       if (!key) throw new HttpError(408, 'Aucune touche pressée en 10 secondes');
-      ctx.settings.set('pushToTalkKey', `${key.code}|${key.label}`);
+      ctx.settings.set(target, formatKey(key));
       return { key };
+    });
+    ctx.routes.post('/hotkey/clear-bar', () => {
+      ctx.settings.set('barKey', '');
+      return { ok: true };
     });
 
     ctx.routes.post('/voice/test', async () => {

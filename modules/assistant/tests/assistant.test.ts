@@ -634,6 +634,114 @@ describe('assistant', () => {
     expect(await state()).toBe('idle');
   });
 
+  describe('written command bar (floating window)', () => {
+    const live = async () =>
+      (await hub.request<{ state: string; bar: boolean }>('GET', `${API}/turns`)).body;
+    const settings = (values: Record<string, unknown>) =>
+      hub.request('PUT', '/api/core/settings/assistant', values);
+    const type = async (text: string) =>
+      (await hub.request<{ turn: TurnDto }>('POST', `${API}/bar/send`, { text })).body.turn;
+    const key = (type: 'down' | 'up', code: number) => listener!({ type, code });
+    beforeEach(async () => {
+      await setAi(false);
+      await hub.request('POST', `${API}/bar/close`);
+    });
+    afterAll(async () => {
+      await settings({ barKey: '', barMode: 'double', speakTyped: false });
+      await setAi(true);
+    });
+
+    it('off by default: no key chosen', async () => {
+      const status = (await hub.request<StatusDto>('GET', `${API}/status`)).body;
+      expect(status.bar).toMatchObject({ key: null, mode: 'double', speak: false, conflict: null });
+    });
+
+    it('its own key, single press, a combination: opens the bar without the microphone', async () => {
+      await settings({ barKey: '57+ctrl|Ctrl + Espace', barMode: 'single' });
+      key('down', 57); // Space alone: nothing
+      key('up', 57);
+      expect((await live()).bar).toBe(false);
+      key('down', 29);
+      key('down', 57);
+      key('up', 57);
+      key('up', 29);
+      expect(await live()).toMatchObject({ bar: true, state: 'idle' });
+      expect(overlay.at(-1)).toBe(true);
+      // Échap (the page calls /bar/close).
+      await hub.request('POST', `${API}/bar/close`);
+      expect((await live()).bar).toBe(false);
+    });
+
+    it('same key as the microphone, double press: held = microphone, two taps = bar', async () => {
+      await settings({ barKey: '106|Touche Copilot', barMode: 'double', barDoubleMs: 400 });
+      const status = (await hub.request<StatusDto>('GET', `${API}/status`)).body;
+      expect(status.bar.conflict).toMatchObject({ warning: false });
+      key('down', 106);
+      await new Promise((r) => setTimeout(r, 380));
+      key('up', 106);
+      expect(await live()).toMatchObject({ state: 'transcribing', bar: false });
+      await hub.request('POST', `${API}/listen/cancel`);
+      key('down', 106);
+      key('up', 106);
+      key('down', 106);
+      key('up', 106);
+      // The recording of the first tap is thrown away, the bar opens.
+      expect(await live()).toMatchObject({ state: 'idle', bar: true });
+      await settings({ barMode: 'single' });
+      expect(
+        (await hub.request<StatusDto>('GET', `${API}/status`)).body.bar.conflict,
+      ).toMatchObject({ warning: true });
+      await settings({ barKey: '' });
+    });
+
+    it('same path as the voice: same command, same answer, marked « bar », not read aloud', async () => {
+      const phrase = 'ajoute une tâche appeler le studio demain avec le tag studio';
+      const page = await say(phrase);
+      await hub.request('POST', `${API}/turns/${page.id}/actions/0/undo`);
+      spoken.length = 0;
+      const typed = await type(phrase);
+      expect(typed).toMatchObject({
+        source: 'bar',
+        mode: page.mode,
+        reply: page.reply,
+        command: { actionId: 'todo.add-task', verdict: 'recognised' },
+        actions: [{ actionId: 'todo.add-task', status: 'done', undoId: expect.any(String) }],
+      });
+      expect(spoken).toEqual([]);
+      // « Annuler » from the bar.
+      expect((await hub.request('POST', `${API}/turns/${typed.id}/actions/0/undo`)).status).toBe(
+        200,
+      );
+      // « Lire aussi à voix haute » on.
+      await settings({ speakTyped: true });
+      const aloud = await type(phrase);
+      expect(spoken.length).toBeGreaterThan(0);
+      await hub.request('POST', `${API}/turns/${aloud.id}/actions/0/undo`);
+      await settings({ speakTyped: false });
+    });
+
+    it('corrections apply as for the voice; a confirmation is answered from the bar', async () => {
+      await hub.request('POST', `${API}/vocabulary/corrections`, {
+        heard: 'la liste des trucs',
+        replacement: 'la to-do',
+      });
+      expect(await type('ouvre la liste des trucs')).toMatchObject({
+        heard: 'ouvre la to-do',
+        rawHeard: 'ouvre la liste des trucs',
+        reply: 'J’ouvre To-do.',
+      });
+      await hub.request('POST', '/api/modules/todo/tasks', { title: 'Vider la corbeille' });
+      const ask = await type('supprime la tâche vider la corbeille');
+      expect(ask.pending).toMatchObject({ kind: 'confirm' });
+      const before = (await tasks()).length;
+      const done = (
+        await hub.request<{ turn: TurnDto }>('POST', `${API}/turns/${ask.id}/answer`, { yes: true })
+      ).body.turn;
+      expect(done.source).toBe('bar');
+      expect((await tasks()).length).toBe(before - 1);
+    });
+  });
+
   it('corrects what the ear wrote, then recognises the command; expected words sent', async () => {
     const wav = Buffer.alloc(44 + 32_000).toString('base64');
     heard = 'Ouvre la tout doux.';
