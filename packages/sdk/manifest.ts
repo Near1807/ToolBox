@@ -83,6 +83,12 @@ export interface ModuleManifest {
     /** Listens to keys system-wide, even without focus (ctx.hotkeys): push-to-talk. */
     globalKeys?: boolean;
   };
+  /**
+   * « Exporter une sauvegarde » : folders of the module's data folder left out
+   * (downloaded engines and models, caches…), paths relative to ctx.files.dataDir.
+   * Only what can be downloaded again or rebuilt: never the user's data.
+   */
+  backup?: { exclude?: string[] };
   settings?: SettingField[];
 }
 

@@ -204,8 +204,7 @@ export default defineBackendModule({
       const choice = setting<string>('directReplies') || 'auto';
       if (choice === 'on') return true;
       if (choice === 'off') return false;
-      // The former switch, when Thomas had turned it on.
-      return setting<boolean>('directReads') === true || noDedicatedGpu();
+      return noDedicatedGpu();
     };
     const matchSettings = () => ({
       threshold: setting<number>('commandThreshold') ?? DEFAULT_MATCH.threshold,
@@ -795,7 +794,6 @@ export default defineBackendModule({
         ctx.settings.set('speed', Math.min(1.5, Math.max(0.7, body.speed)));
       if (typeof body.speakReplies === 'boolean')
         ctx.settings.set('speakReplies', body.speakReplies);
-      if (typeof body.directReads === 'boolean') ctx.settings.set('directReads', body.directReads);
       if (
         body.directReplies === 'auto' ||
         body.directReplies === 'on' ||

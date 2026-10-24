@@ -272,16 +272,15 @@ export function registerCoreRoutes(app: FastifyInstance, hub: Hub, appVersion: s
       filters: [{ name: 'Archive ZIP', extensions: ['zip'] }],
     });
     if (!target) return { cancelled: true };
+    const loaded = hub.moduleInfos().filter((m) => m.status === 'loaded');
     const result = await exportBackupZip({
       db: hub.handle.db,
       dataDir: hub.dataDir,
       modulesDataDir: hub.modulesDataDir,
       target,
       appVersion,
-      modules: hub
-        .moduleInfos()
-        .filter((m) => m.status === 'loaded')
-        .map((m) => ({ id: m.id, version: m.manifest.version })),
+      modules: loaded.map((m) => ({ id: m.id, version: m.manifest.version })),
+      exclude: loaded.flatMap((m) => (m.manifest.backup?.exclude ?? []).map((p) => `${m.id}/${p}`)),
     });
     hub.logger.info(`Sauvegarde exportée : ${result.file}`);
     hub.host.showItemInFolder(result.file);

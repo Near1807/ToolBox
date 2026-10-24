@@ -10,6 +10,9 @@
     "assistant": true,
     "globalKeys": true
   },
+  "backup": {
+    "exclude": ["engines", "models", "voices", "embeddings", "downloads"]
+  },
   "settings": [
     {
       "key": "ai",
@@ -75,14 +78,6 @@
         }
       ],
       "default": "auto"
-    },
-    {
-      "key": "directReads",
-      "type": "boolean",
-      "label": "Réponses directes (ancien réglage)",
-      "description": "Lit tel quel le résultat des outils (« 3 tâches à faire… ») au lieu de le faire reformuler par le modèle : une étape de réflexion en moins.",
-      "default": false,
-      "hidden": true
     },
     {
       "key": "keepAlive",

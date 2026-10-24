@@ -85,6 +85,20 @@ const manifestSchema = z.strictObject({
       globalKeys: z.boolean().optional(),
     })
     .optional(),
+  backup: z
+    .strictObject({
+      exclude: z
+        .array(
+          z
+            .string()
+            .regex(
+              /^[a-z0-9][a-z0-9._-]*(\/[a-z0-9][a-z0-9._-]*)*$/i,
+              'chemin relatif au dossier de données du module attendu (ex. « models »)',
+            ),
+        )
+        .optional(),
+    })
+    .optional(),
   settings: z.array(settingField).optional(),
 });
 
