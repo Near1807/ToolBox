@@ -57,6 +57,13 @@
       "default": ""
     },
     {
+      "key": "guideHints",
+      "type": "boolean",
+      "label": "Afficher les « ? » d'aide",
+      "description": "Un petit « ? » à côté de chaque graphe et de chaque mesure ouvre la bonne partie du guide. Le bouton « Guide » reste toujours affiché.",
+      "default": true
+    },
+    {
       "key": "watchNotify",
       "type": "boolean",
       "label": "Notification à la fin d'une analyse du dossier surveillé",

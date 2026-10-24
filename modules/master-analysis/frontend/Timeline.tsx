@@ -15,6 +15,7 @@ import {
   widthCurve,
 } from '../shared/measures';
 import { BANDS, BLOCK, FINE, type Analysis, type Marker, type Section } from '../shared/types';
+import { Help } from './guide/Help';
 import { BAND_TOKENS, channelsOf, useColors, type Colors } from './theme';
 
 export interface View {
@@ -63,15 +64,15 @@ function curvesOf(a: Analysis): Curves {
 }
 
 const LANES = [
-  { id: 'wave', label: 'Forme d’onde', height: 90 },
-  { id: 'loudness', label: 'Sonie (LUFS)', height: 110 },
-  { id: 'bands', label: 'Énergie par bande', height: 130 },
-  { id: 'spectrogram', label: 'Spectrogramme', height: 120 },
-  { id: 'dynamics', label: 'Dynamique', height: 90 },
-  { id: 'width', label: 'Largeur stéréo', height: 80 },
-  { id: 'correlation', label: 'Corrélation de phase', height: 70 },
-  { id: 'mono', label: 'Compatibilité mono', height: 70 },
-  { id: 'markers', label: 'Repères', height: 34 },
+  { id: 'wave', label: 'Forme d’onde', height: 90, topic: 'forme-onde' },
+  { id: 'loudness', label: 'Sonie (LUFS)', height: 110, topic: 'sonie' },
+  { id: 'bands', label: 'Énergie par bande', height: 130, topic: 'bandes' },
+  { id: 'spectrogram', label: 'Spectrogramme', height: 120, topic: 'spectrogramme' },
+  { id: 'dynamics', label: 'Dynamique', height: 90, topic: 'facteur-crete' },
+  { id: 'width', label: 'Largeur stéréo', height: 80, topic: 'largeur' },
+  { id: 'correlation', label: 'Corrélation de phase', height: 70, topic: 'correlation' },
+  { id: 'mono', label: 'Compatibilité mono', height: 70, topic: 'mono' },
+  { id: 'markers', label: 'Repères', height: 34, topic: 'reperes' },
 ] as const;
 type LaneId = (typeof LANES)[number]['id'];
 
@@ -509,10 +510,16 @@ export function Timeline(props: {
       <Overview a={a} view={view} onView={setView} color={colors['text-3']} cursor={cursor} />
       <div className="ma-lanes-wrap">
         <div className="ma-lane-labels">
-          <div className="ma-sections-label small muted">Sections</div>
+          <div className="ma-sections-label small muted">
+            Sections
+            <Help topic="vue-sections" />
+          </div>
           {visible.map((lane) => (
             <div key={lane.id} className="ma-lane-label small" style={{ height: lane.height }}>
-              <span>{lane.label}</span>
+              <span>
+                {lane.label}
+                <Help topic={lane.topic} />
+              </span>
               {legend[lane.id] && (
                 <ul className="ma-legend">
                   {legend[lane.id]!.map((item) => (

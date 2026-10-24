@@ -346,7 +346,11 @@ export default defineBackendModule({
             coverUrl: ctx.files.mediaUrlIfExists(t.coverPath ?? ''),
           })),
         profiles: store.profiles().map((p) => ({ ...p, refs: store.refs(p.id).map(refDto) })),
-        settings: { overThreshold: threshold(), platforms: platforms() },
+        settings: {
+          overThreshold: threshold(),
+          platforms: platforms(),
+          guideHints: ctx.settings.get<boolean>('guideHints') !== false,
+        },
         watch: watchState(),
       };
     });

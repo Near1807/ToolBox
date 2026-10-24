@@ -54,7 +54,7 @@ export interface StateDto {
   projects: ProjectDto[];
   tracks: { id: number; title: string; artist: string; coverUrl: string | null }[];
   profiles: { id: number; name: string; created_at: string; refs: RefDto[] }[];
-  settings: { overThreshold: number; platforms: Platform[] };
+  settings: { overThreshold: number; platforms: Platform[]; guideHints: boolean };
   watch: { enabled: boolean; folder: string; lastScan: string | null; error: string | null };
 }
 

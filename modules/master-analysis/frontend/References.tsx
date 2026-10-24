@@ -17,6 +17,7 @@ import { abLevels } from '../shared/measures';
 import { fr, pct } from '../shared/format';
 import { BANDS } from '../shared/types';
 import { DiffBars, SpectrumChart } from './charts';
+import { Help } from './guide/Help';
 import { BAND_TOKENS, useColors } from './theme';
 import type { ReferencesDto, StateDto, VersionDto } from './types';
 
@@ -162,11 +163,15 @@ export function References(props: { state: StateDto; reload: () => void; current
       {c && (
         <>
           <section className="card ma-panels__wide">
-            <h3>Écoute A/B à volume égal</h3>
+            <h3>
+              Écoute A/B à volume égal <Help topic="ecoute-ab" />
+            </h3>
             <AbPlayer track={props.current} references={c.references} />
           </section>
           <section className="card">
-            <h3>Équilibre par bande (à sonie égale)</h3>
+            <h3>
+              Équilibre par bande (à sonie égale) <Help topic="equilibre-references" />
+            </h3>
             <p className="small muted">
               Énergie de chaque bande par rapport à la sonie intégrée : le master moins la moyenne
               des références.
@@ -182,7 +187,9 @@ export function References(props: { state: StateDto; reload: () => void; current
             />
           </section>
           <section className="card">
-            <h3>Global</h3>
+            <h3>
+              Global <Help topic="vue-references" />
+            </h3>
             <table className="ma-table">
               <thead>
                 <tr>
@@ -226,7 +233,9 @@ export function References(props: { state: StateDto; reload: () => void; current
             </table>
           </section>
           <section className="card ma-panels__wide">
-            <h3>Spectre au tiers d’octave, à sonie égale</h3>
+            <h3>
+              Spectre au tiers d’octave, à sonie égale <Help topic="spectre" />
+            </h3>
             <SpectrumChart
               ariaLabel="Spectre du master et des références"
               series={[
@@ -245,7 +254,9 @@ export function References(props: { state: StateDto; reload: () => void; current
             />
           </section>
           <section className="card ma-panels__wide">
-            <h3>Par section</h3>
+            <h3>
+              Par section <Help topic="equilibre-references" />
+            </h3>
             <p className="small muted">
               Section de la référence portant le même nom quand elle existe, sinon la référence
               entière.

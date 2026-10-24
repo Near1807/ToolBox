@@ -13,6 +13,7 @@ Mesure un master **pendant la production**, sans jamais le modifier : sonie, cr�
 - **Versions** : deux versions alignées dans le temps (décalage trouvé automatiquement, réglable et gardé), écarts globaux, par section, par bande, sonie superposée et **carte des différences** seconde par seconde.
 - **Références** : profils nommés (copies, jamais modifiées) ; comparaison à **sonie égale** (bandes, tiers d'octave, sections de même nom, global) ; **écoute A/B à volume égal** : la plus forte des deux est **baissée à la lecture** (le volume n’est jamais monté, aucun fichier modifié).
 - **Export** HTML autonome (imprimable en PDF), enregistré comme fichier du projet.
+- **Guide intégré** (page séparée `#/m/master-analysis/guide`, ouverte seulement à la demande : bouton « Guide », ou un petit « ? » à côté de chaque graphe et de chaque mesure, qui ouvre la bonne section ; les « ? » se masquent avec le réglage `guideHints`) : prise en main, chaque vue, chaque mesure et graphe, flux de travail, réglages, limites ; recherche (accents ignorés) ; captures annotées de la vraie interface. Contenu : `frontend/guide/content.ts` ; captures et positions des repères : `scripts/guide-captures.mjs` (à relancer après un changement d'interface). Le test `tests/guide.test.ts` vérifie que chaque « ? », chaque lien et chaque repère mène quelque part.
 - **Dossier surveillé** (désactivé par défaut) : un fichier audio nouveau ou réécrit (taille stable entre deux passages d'une minute) est copié et analysé comme nouvelle version du projet de même nom (« Obsidian v3.wav » → projet « Obsidian ») ; le morceau est **proposé** d'après le nom du fichier (« Rattacher ») ; notification à la fin avec la comparaison à la version précédente. **Lecture seule** : rien n'est jamais modifié, déplacé ni supprimé dans le dossier. Un fichier identique à une version existante est ignoré.
 
 ## Mesures : précision et choix
@@ -30,7 +31,7 @@ Mesure un master **pendant la production**, sans jamais le modifier : sonie, cr�
 | Vidéo YouTube, Pack Insta, Reels perso | Avant « Générer » : vérification rapide **non bloquante** (crête vraie > 0 dBTP, écrêtage, long silence, problème de mono) → « Générer quand même » / « Voir l'analyse » / « Annuler » |
 | Assistant vocal                        | Lecture seule : « comment est le master d'Obsidian », « où sont les crêtes », « compare les deux dernières versions »                                                                  |
 
-Sans la Bibliothèque : analyses libres seulement. Sans ce module : rien n'est bloqué ailleurs (`precheckTrack` du SDK répond « rien à signaler »). Pour les Reels perso, la vérification porte sur le fichier du morceau (même quand le Reel garde le son de la vidéo).
+Sans la Bibliothèque : analyses libres seulement. Sans ce module : rien n'est bloqué ailleurs (`precheckTrack` du SDK répond « rien à signaler »). Pour les Reels perso, la vérification suit le mode de son : en « Son de la vidéo », le master n'est pas entendu, donc pas vérifié, et l'interface le dit.
 
 ## Service `masterAnalysis` (`contract.ts`)
 
@@ -42,7 +43,7 @@ Sans la Bibliothèque : analyses libres seulement. Sans ce module : rien n'est b
 | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Tables          | `master_analysis__groups` (projets : morceau ou libre, morceau proposé) · `__versions` · `__analyses` (résumé par empreinte) · `__profiles` · `__refs` · `__watch` (fichiers vus dans le dossier) — migration 1      |
 | Fichiers        | `files/` (copies des versions), `references/` (copies des références) : dans la sauvegarde ; `analyses/` (courbes, recalculables) : **hors sauvegarde** (`backup.exclude`) ; rapports HTML dans le dossier de sortie |
-| Réglages        | `overThreshold` (−1 dBTP), `platforms`, `precheck` (oui), `watchEnabled` (**non**), `watchFolder`, `watchNotify` (oui)                                                                                               |
+| Réglages        | `overThreshold` (−1 dBTP), `platforms`, `precheck` (oui), `watchEnabled` (**non**), `watchFolder`, `watchNotify` (oui), `guideHints` (oui : les « ? » d'aide)                                                        |
 | Tâche           | `analyse` (une à la fois, reprise au démarrage si l'app a été fermée pendant)                                                                                                                                        |
 | Planificateur   | `watch-folder` toutes les minutes, sans effet tant que le dossier surveillé est désactivé                                                                                                                            |
 | Sujets (projet) | morceau `music-library:track:<id>` ; analyse libre `master-analysis:group:<id>` ; référence `master-analysis:profile:<id>`. `onReattach` déplace les versions (une référence reste dans son profil)                  |

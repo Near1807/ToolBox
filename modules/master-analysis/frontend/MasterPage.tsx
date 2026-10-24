@@ -3,7 +3,7 @@
 // analysis of the chosen version: timeline, global measures, sections,
 // versions compared, references.
 import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
-import { useSearchParams } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import {
   Button,
   Card,
@@ -25,6 +25,7 @@ import { decodeAnalysis } from '../shared/codec';
 import { fr } from '../shared/format';
 import type { Analysis, Section } from '../shared/types';
 import { Global } from './Global';
+import { Help, HelpHints, useGuidePath } from './guide/Help';
 import { References } from './References';
 import { Sections } from './Sections';
 import { Timeline } from './Timeline';
@@ -41,6 +42,13 @@ const TABS = [
   ['versions', 'Versions'],
   ['references', 'Références'],
 ] as const;
+const TAB_TOPICS = {
+  timeline: 'vue-ligne-de-temps',
+  global: 'vue-mesures-globales',
+  sections: 'vue-sections',
+  versions: 'vue-versions',
+  references: 'vue-references',
+} as const;
 type Tab = (typeof TABS)[number][0];
 
 /** An entry of the list: a project (key = its group, negative ids for the tracks not analysed yet). */
@@ -62,6 +70,8 @@ export function MasterPage() {
   const state = useApi<StateDto>(module.url(`/state?v=${finished}-${active?.id ?? ''}`));
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
+  const navigate = useNavigate();
+  const guidePath = useGuidePath();
   const s = state.data;
 
   const entries: Entry[] = useMemo(() => {
@@ -139,68 +149,75 @@ export function MasterPage() {
       title="Analyse du master"
       subtitle="Mesures du master pendant la production : rien n’est jamais modifié dans tes fichiers"
       actions={
-        <Button variant="secondary" onClick={() => void newFree()}>
-          Nouvelle analyse libre…
-        </Button>
+        <>
+          <Button variant="secondary" onClick={() => navigate(guidePath())}>
+            Guide
+          </Button>
+          <Button variant="secondary" onClick={() => void newFree()}>
+            Nouvelle analyse libre…
+          </Button>
+        </>
       }
     >
-      {error && <ErrorMessage>{error}</ErrorMessage>}
-      {state.error && <ErrorMessage>{state.error}</ErrorMessage>}
-      {s && entries.length === 0 ? (
-        <EmptyState title="Aucun master analysé.">
-          Glisse un fichier WAV, FLAC, AIFF ou MP3 ici, ou « Nouvelle analyse libre… ».
-          {!s.library && ' (La Bibliothèque n’est pas là : les analyses restent libres.)'}
-          <div className="ma-drop" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
-            Déposer un fichier
-          </div>
-        </EmptyState>
-      ) : (
-        <TrackList
-          tracks={entries}
-          selected={selected}
-          onSelect={(id) => select(id)}
-          detail={(e) => {
-            const last = e.project?.versions.at(-1);
-            if (!e.project) return 'pas encore analysé';
-            const kind = e.project.kind === 'free' ? 'Analyse libre · ' : '';
-            return last?.summary
-              ? `${kind}${last.name.split(' ')[0]} · ${fr(last.summary.integrated)} LUFS · ${fr(last.summary.truePeak, 1, true)} dBTP`
-              : `${kind}${e.project.versions.length} version(s)`;
-          }}
-        >
-          <div
-            className={`ma-project${dragging ? ' ma-project--drop' : ''}`}
-            onDragOver={(e) => {
-              e.preventDefault();
-              setDragging(true);
+      <HelpHints.Provider value={s?.settings.guideHints ?? true}>
+        {error && <ErrorMessage>{error}</ErrorMessage>}
+        {state.error && <ErrorMessage>{state.error}</ErrorMessage>}
+        {s && entries.length === 0 ? (
+          <EmptyState title="Aucun master analysé.">
+            Glisse un fichier WAV, FLAC, AIFF ou MP3 ici, ou « Nouvelle analyse libre… ».
+            {!s.library && ' (La Bibliothèque n’est pas là : les analyses restent libres.)'}
+            <div className="ma-drop" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
+              Déposer un fichier
+            </div>
+          </EmptyState>
+        ) : (
+          <TrackList
+            tracks={entries}
+            selected={selected}
+            onSelect={(id) => select(id)}
+            detail={(e) => {
+              const last = e.project?.versions.at(-1);
+              if (!e.project) return 'pas encore analysé';
+              const kind = e.project.kind === 'free' ? 'Analyse libre · ' : '';
+              return last?.summary
+                ? `${kind}${last.name.split(' ')[0]} · ${fr(last.summary.integrated)} LUFS · ${fr(last.summary.truePeak, 1, true)} dBTP`
+                : `${kind}${e.project.versions.length} version(s)`;
             }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={onDrop}
           >
-            {entry && s && (
-              <Project
-                key={entry.id}
-                entry={entry}
-                state={s}
-                versionId={params.get('version') ? Number(params.get('version')) : null}
-                onVersion={(v) => entry.project && select(entry.project.groupId, v)}
-                jobs={jobs}
-                run={run}
-                addFiles={(paths) => void addFiles(paths, entry)}
-                reload={state.reload}
-              />
-            )}
-          </div>
-        </TrackList>
-      )}
-      {s && (
-        <p className="small muted">
-          Dossier surveillé :{' '}
-          {s.watch.enabled ? `activé (${s.watch.folder || 'aucun dossier choisi'})` : 'désactivé'} —
-          réglages du module. Lecture seule : rien n’y est jamais modifié, déplacé ni supprimé.
-          {s.watch.error && <span className="error"> {s.watch.error}</span>}
-        </p>
-      )}
+            <div
+              className={`ma-project${dragging ? ' ma-project--drop' : ''}`}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragging(true);
+              }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={onDrop}
+            >
+              {entry && s && (
+                <Project
+                  key={entry.id}
+                  entry={entry}
+                  state={s}
+                  versionId={params.get('version') ? Number(params.get('version')) : null}
+                  onVersion={(v) => entry.project && select(entry.project.groupId, v)}
+                  jobs={jobs}
+                  run={run}
+                  addFiles={(paths) => void addFiles(paths, entry)}
+                  reload={state.reload}
+                />
+              )}
+            </div>
+          </TrackList>
+        )}
+        {s && (
+          <p className="small muted">
+            Dossier surveillé :{' '}
+            {s.watch.enabled ? `activé (${s.watch.folder || 'aucun dossier choisi'})` : 'désactivé'}{' '}
+            — réglages du module. Lecture seule : rien n’y est jamais modifié, déplacé ni supprimé.
+            {s.watch.error && <span className="error"> {s.watch.error}</span>}
+          </p>
+        )}
+      </HelpHints.Provider>
     </Page>
   );
 }
@@ -498,6 +515,7 @@ function AnalysisView(props: {
           />{' '}
           dBTP
         </label>
+        <Help topic="crete-vraie" />
         <span className="small muted">
           Analysé en {fr((props.version.analysisMs ?? analysis.analysisMs) / 1000)} s
         </span>
@@ -514,6 +532,9 @@ function AnalysisView(props: {
             {label}
           </button>
         ))}
+        <span className="ma-tabs__help">
+          <Help topic={TAB_TOPICS[props.tab]} />
+        </span>
       </nav>
       {props.tab === 'timeline' && (
         <Timeline

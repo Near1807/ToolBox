@@ -5,6 +5,7 @@ import { clock, fr, pct } from '../shared/format';
 import { markers, measures } from '../shared/measures';
 import { BANDS, BLOCK, type Analysis, type PlatformResult } from '../shared/types';
 import { SpectrumChart } from './charts';
+import { Help } from './guide/Help';
 import { BAND_TOKENS, useColors } from './theme';
 
 const KIND: Record<string, string> = {
@@ -25,9 +26,12 @@ export function Global(props: {
   const colors = useColors();
   const list = markers(a, props.threshold);
   const file = a.file;
-  const row = (label: string, value: string, hint?: string) => (
+  const row = (label: string, value: string, hint?: string, topic?: string) => (
     <tr>
-      <th>{label}</th>
+      <th>
+        {label}
+        {topic && <Help topic={topic} />}
+      </th>
       <td className="num">{value}</td>
       <td className="small muted">{hint}</td>
     </tr>
@@ -35,41 +39,49 @@ export function Global(props: {
   return (
     <div className="ma-panels">
       <section className="card">
-        <h3>Sonie et dynamique</h3>
+        <h3>
+          Sonie et dynamique <Help topic="sonie" />
+        </h3>
         <table className="ma-table">
           <tbody>
             {row(
               'Sonie intégrée',
               `${fr(m.integrated)} LUFS`,
               'BS.1770-4, portes −70 LUFS et −10 LU',
+              'sonie',
             )}
-            {row('Plage de sonie (LRA)', `${fr(m.lra)} LU`, 'EBU Tech 3342')}
+            {row('Plage de sonie (LRA)', `${fr(m.lra)} LU`, 'EBU Tech 3342', 'lra')}
             {row(
               'Crête vraie maximale',
               `${fr(m.truePeak, 1, true)} dBTP`,
               'suréchantillonnage ×4',
+              'crete-vraie',
             )}
-            {row('Crête d’échantillon', `${fr(m.samplePeak, 1, true)} dBFS`)}
-            {row('PLR', `${fr(m.plr)} LU`, 'crête vraie − sonie intégrée')}
-            {row('Facteur de crête', `${fr(m.crest)} dB`, 'crête − RMS')}
-            {row('RMS', `${fr(m.rms)} dBFS`)}
+            {row('Crête d’échantillon', `${fr(m.samplePeak, 1, true)} dBFS`, undefined, 'ecretage')}
+            {row('PLR', `${fr(m.plr)} LU`, 'crête vraie − sonie intégrée', 'plr')}
+            {row('Facteur de crête', `${fr(m.crest)} dB`, 'crête − RMS', 'facteur-crete')}
+            {row('RMS', `${fr(m.rms)} dBFS`, undefined, 'facteur-crete')}
           </tbody>
         </table>
       </section>
       <section className="card">
-        <h3>Stéréo et mono</h3>
+        <h3>
+          Stéréo et mono <Help topic="largeur" />
+        </h3>
         <table className="ma-table">
           <tbody>
             {row(
               'Corrélation de phase',
               fr(m.correlation, 2),
               '1 = mono, 0 = sans lien, −1 = opposition',
+              'correlation',
             )}
-            {row('Largeur', pct(m.width), 'part du côté (S) dans l’énergie')}
+            {row('Largeur', pct(m.width), 'part du côté (S) dans l’énergie', 'largeur')}
             {row(
               'Perte au mono',
               `${fr(m.monoLoss)} dB`,
               'niveau de la somme mono par rapport à la stéréo',
+              'mono',
             )}
           </tbody>
         </table>
@@ -93,7 +105,9 @@ export function Global(props: {
         </table>
       </section>
       <section className="card ma-panels__wide">
-        <h3>Équilibre tonal</h3>
+        <h3>
+          Équilibre tonal <Help topic="bandes" />
+        </h3>
         <table className="ma-table">
           <thead>
             <tr>
@@ -124,6 +138,9 @@ export function Global(props: {
             ))}
           </tbody>
         </table>
+        <p className="small muted">
+          Spectre moyen <Help topic="spectre" />
+        </p>
         <SpectrumChart
           ariaLabel="Spectre moyen lissé au tiers d’octave"
           series={[
@@ -142,7 +159,9 @@ export function Global(props: {
         />
       </section>
       <section className="card">
-        <h3>Normalisation des plateformes</h3>
+        <h3>
+          Normalisation des plateformes <Help topic="normalisation" />
+        </h3>
         <table className="ma-table">
           <thead>
             <tr>
@@ -172,7 +191,9 @@ export function Global(props: {
         </p>
       </section>
       <section className="card">
-        <h3>Hygiène technique</h3>
+        <h3>
+          Hygiène technique <Help topic="hygiene" />
+        </h3>
         <table className="ma-table">
           <tbody>
             {row(
@@ -206,7 +227,8 @@ export function Global(props: {
       <section className="card ma-panels__wide">
         <h3>
           Dépassements et écrêtages ({list.filter((x) => x.kind === 'over').length} au-dessus de{' '}
-          {fr(props.threshold, 1, true)} dBTP, {a.clipping.length} écrêtage(s))
+          {fr(props.threshold, 1, true)} dBTP, {a.clipping.length} écrêtage(s)){' '}
+          <Help topic="reperes" />
         </h3>
         {list.length === 0 ? (
           <p className="muted">Aucun repère.</p>

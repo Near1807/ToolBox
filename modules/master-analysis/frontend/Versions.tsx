@@ -6,6 +6,7 @@ import { Button, ErrorMessage, errorMessage, useApi, useModule } from '@hub/sdk/
 import { clock, fr, pct } from '../shared/format';
 import { BANDS, type Measures } from '../shared/types';
 import { DiffBars } from './charts';
+import { Help } from './guide/Help';
 import { BAND_TOKENS, useColors } from './theme';
 import type { CompareDto, VersionDto } from './types';
 
@@ -92,6 +93,7 @@ export function Versions(props: {
               {c.manual
                 ? ' (réglé à la main)'
                 : ` (trouvé automatiquement, confiance ${pct(c.auto.confidence)})`}
+              <Help topic="alignement" />
             </span>
           )}
           <label className="small">
@@ -124,7 +126,9 @@ export function Versions(props: {
       {c && (
         <>
           <section className="card">
-            <h3>Différences globales</h3>
+            <h3>
+              Différences globales <Help topic="vue-versions" />
+            </h3>
             <table className="ma-table">
               <thead>
                 <tr>
@@ -159,7 +163,7 @@ export function Versions(props: {
           </section>
           <section className="card">
             <h3>
-              Énergie par bande ({c.b.name} − {c.a.name})
+              Énergie par bande ({c.b.name} − {c.a.name}) <Help topic="bandes" />
             </h3>
             <DiffBars
               ariaLabel="Écart par bande"
@@ -172,7 +176,9 @@ export function Versions(props: {
             />
           </section>
           <section className="card ma-panels__wide">
-            <h3>Sonie court terme superposée (versions alignées)</h3>
+            <h3>
+              Sonie court terme superposée (versions alignées) <Help topic="sonie-superposee" />
+            </h3>
             <Overlay
               points={c.overlay}
               a={c.a.name}
@@ -182,7 +188,9 @@ export function Versions(props: {
             />
           </section>
           <section className="card ma-panels__wide">
-            <h3>Par section (sections de {c.a.name})</h3>
+            <h3>
+              Par section (sections de {c.a.name}) <Help topic="vue-versions" />
+            </h3>
             <table className="ma-table">
               <thead>
                 <tr>
@@ -231,7 +239,9 @@ export function Versions(props: {
             </p>
           </section>
           <section className="card ma-panels__wide">
-            <h3>Carte des différences dans le temps</h3>
+            <h3>
+              Carte des différences dans le temps <Help topic="carte-differences" />
+            </h3>
             <DifferenceMap map={c.map} onSeek={props.onSeek} />
           </section>
         </>

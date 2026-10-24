@@ -489,6 +489,16 @@ L'interface a plusieurs thèmes (Réglages › Apparence, `docs/THEMES.md`). **A
 
 - Textes de l'interface en français.
 
+### 7.4 Guide intégré (module complexe)
+
+**Un module complexe fournit un guide intégré, mis à jour à chaque changement d'interface.** Complexe = plusieurs vues, des graphes ou des mesures qui demandent une explication (premier exemple : `master-analysis`).
+
+- **Page séparée** du module (`pages: [{ path: 'guide', … }]`), ouverte **seulement à la demande** : un bouton « Guide » sur la page principale, et un petit « ? » discret à côté de chaque graphe et de chaque mesure, qui ouvre la bonne section (`guide?s=<id>`). Les « ? » se masquent avec un réglage du module (booléen, affiché par défaut) ; le bouton « Guide » reste toujours là.
+- **Contenu en français**, en données (pas en JSX éparpillé) : prise en main en 5 minutes ; chaque vue avec ses éléments et ses gestes ; chaque mesure et chaque graphe (ce que c'est, unité, comment le lire) ; flux de travail ; réglages et leur effet ; limites et pièges. **Recherche** dans le guide (accents et casse ignorés).
+- **Captures annotées de l'interface réelle**, produites par un script qui pilote l'app (Playwright) et mesure la position des repères numérotés (modèle : `scripts/guide-captures.mjs`). Images légères (JPEG), dans le dossier du module.
+- **Mise à jour dans le même commit** que tout changement d'une vue, d'un graphe, d'une mesure ou d'un réglage : texte, et captures relancées si l'élément montré a changé. Un test vérifie que chaque « ? », chaque lien interne et chaque repère mène à une section ou une capture existante (modèle : `modules/master-analysis/tests/guide.test.ts`).
+- Le guide **explique et ne décide rien** : il ne change ni le comportement du module ni ses données.
+
 ## 8. Tests
 
 Chaque module a ses tests dans `modules/<id>/tests/`. `@hub/sdk/testing` démarre un **vrai socle** (base, migrations, routes) dans un dossier temporaire :
@@ -537,5 +547,6 @@ L'état de chaque module est visible dans **Réglages > Modules** (avec bouton D
 - [ ] Éléments générés affichés avec les composants partagés du SDK (§7.1), aucune couleur en dur (§7.2)
 - [ ] Textes en français, code en anglais
 - [ ] `README.md` du module à jour (rôle, données, réglages, événements, services, API)
+- [ ] Module complexe : guide intégré à jour (§7.4), captures relancées si l'interface montrée a changé
 - [ ] Tests dans `tests/`, `npm test` passe
 - [ ] `CHANGELOG.md` et `docs/ROADMAP.md` mis à jour
