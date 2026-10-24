@@ -122,6 +122,11 @@ export default defineBackendModule({
 
     const analysisPath = (hash: string) => ctx.files.dataPath('analyses', `${hash}.json`);
     const decoded = new Map<string, Analysis>();
+    const remember = (hash: string, analysis: Analysis) => {
+      decoded.set(hash, analysis);
+      // A few in memory (each is a few MB).
+      if (decoded.size > 6) decoded.delete(decoded.keys().next().value!);
+    };
     const loadAnalysis = (hash: string): Analysis | null => {
       const cached = decoded.get(hash);
       if (cached) return cached;
@@ -130,9 +135,7 @@ export default defineBackendModule({
       try {
         const analysis = decodeAnalysis(readFileSync(file, 'utf8'));
         if (analysis.analyzer !== ANALYZER_VERSION) return null;
-        decoded.set(hash, analysis);
-        // A few in memory (each is a few MB).
-        if (decoded.size > 6) decoded.delete(decoded.keys().next().value!);
+        remember(hash, analysis);
         return analysis;
       } catch (error) {
         ctx.logger.warn(`Analyse illisible (${hash.slice(0, 8)}) : elle sera refaite`, error);
@@ -162,7 +165,7 @@ export default defineBackendModule({
         summaryOf(analysis, threshold()),
         analysis.analysisMs,
       );
-      decoded.set(hash, analysis);
+      remember(hash, analysis);
       ctx.logger.info(
         `Analyse de ${path.basename(file)} : ${fr(analysis.blocks * BLOCK, 0)} s d’audio en ${fr(analysis.analysisMs / 1000)} s`,
       );
@@ -343,7 +346,11 @@ export default defineBackendModule({
             coverUrl: ctx.files.mediaUrlIfExists(t.coverPath ?? ''),
           })),
         profiles: store.profiles().map((p) => ({ ...p, refs: store.refs(p.id).map(refDto) })),
-        settings: { overThreshold: threshold(), platforms: platforms() },
+        settings: {
+          overThreshold: threshold(),
+          platforms: platforms(),
+          guideHints: ctx.settings.get<boolean>('guideHints') !== false,
+        },
         watch: watchState(),
       };
     });
@@ -854,7 +861,13 @@ export default defineBackendModule({
       const suggested = match?.kind === 'match' ? match.item.id : null;
       return store.createFreeGroup(path.basename(file, path.extname(file)).slice(0, 80), suggested);
     };
-    const scanFolder = async () => {
+    // One scan at a time: the minute timer and « Analyser maintenant » could overlap.
+    let scanning: Promise<void> | null = null;
+    const scanFolder = () => {
+      scanning ??= scanOnce().finally(() => (scanning = null));
+      return scanning;
+    };
+    const scanOnce = async () => {
       const state = watchState();
       if (!state.enabled || !state.folder) return;
       watch.lastScan = new Date().toISOString();
@@ -865,6 +878,9 @@ export default defineBackendModule({
       } catch (error) {
         watch.error = `Dossier illisible : ${error instanceof Error ? error.message : String(error)}`;
         return;
+      }
+      for (const file of watch.pending.keys()) {
+        if (!names.includes(path.basename(file))) watch.pending.delete(file);
       }
       for (const name of names) {
         const file = path.join(state.folder, name);

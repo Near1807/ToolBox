@@ -7,6 +7,7 @@ import { clock, fr, pct } from '../shared/format';
 import { sectionMeasures } from '../shared/measures';
 import { BANDS, type Analysis, type Section } from '../shared/types';
 import { DiffBars } from './charts';
+import { Help } from './guide/Help';
 import { BAND_TOKENS, useColors } from './theme';
 
 export function Sections(props: {
@@ -87,6 +88,7 @@ export function Sections(props: {
           <Button variant="secondary" small onClick={() => void reset()}>
             Revenir au découpage automatique
           </Button>
+          <Help topic="vue-sections" />
           <span className="small muted">
             Découpage automatique d’après la sonie, le bas et le haut du spectre, la densité et la
             largeur : un point de départ, modifiable.
@@ -99,12 +101,24 @@ export function Sections(props: {
               <th>Nom</th>
               <th className="num">Début</th>
               <th className="num">Fin</th>
-              <th className="num">Sonie</th>
-              <th className="num">vs morceau</th>
-              <th className="num">PLR</th>
-              <th className="num">LRA</th>
-              <th className="num">Largeur</th>
-              <th className="num">Densité</th>
+              <th className="num">
+                Sonie <Help topic="sonie" />
+              </th>
+              <th className="num">
+                vs morceau <Help topic="contrastes" />
+              </th>
+              <th className="num">
+                PLR <Help topic="plr" />
+              </th>
+              <th className="num">
+                LRA <Help topic="lra" />
+              </th>
+              <th className="num">
+                Largeur <Help topic="largeur" />
+              </th>
+              <th className="num">
+                Densité <Help topic="densite" />
+              </th>
               <th />
             </tr>
           </thead>
@@ -168,7 +182,9 @@ export function Sections(props: {
         </table>
       </section>
       <section className="card ma-panels__wide">
-        <h3>Contrastes entre sections</h3>
+        <h3>
+          Contrastes entre sections <Help topic="contrastes" />
+        </h3>
         <p className="small muted">
           Chaque section par rapport au morceau entier : sonie (LU) et énergie de chaque bande (dB).
         </p>

@@ -13,9 +13,11 @@ import {
   useApi,
   useModule,
 } from '@hub/sdk/frontend';
+import { abLevels } from '../shared/measures';
 import { fr, pct } from '../shared/format';
 import { BANDS } from '../shared/types';
 import { DiffBars, SpectrumChart } from './charts';
+import { Help } from './guide/Help';
 import { BAND_TOKENS, useColors } from './theme';
 import type { ReferencesDto, StateDto, VersionDto } from './types';
 
@@ -161,11 +163,15 @@ export function References(props: { state: StateDto; reload: () => void; current
       {c && (
         <>
           <section className="card ma-panels__wide">
-            <h3>Écoute A/B à volume égal</h3>
+            <h3>
+              Écoute A/B à volume égal <Help topic="ecoute-ab" />
+            </h3>
             <AbPlayer track={props.current} references={c.references} />
           </section>
           <section className="card">
-            <h3>Équilibre par bande (à sonie égale)</h3>
+            <h3>
+              Équilibre par bande (à sonie égale) <Help topic="equilibre-references" />
+            </h3>
             <p className="small muted">
               Énergie de chaque bande par rapport à la sonie intégrée : le master moins la moyenne
               des références.
@@ -181,7 +187,9 @@ export function References(props: { state: StateDto; reload: () => void; current
             />
           </section>
           <section className="card">
-            <h3>Global</h3>
+            <h3>
+              Global <Help topic="vue-references" />
+            </h3>
             <table className="ma-table">
               <thead>
                 <tr>
@@ -225,7 +233,9 @@ export function References(props: { state: StateDto; reload: () => void; current
             </table>
           </section>
           <section className="card ma-panels__wide">
-            <h3>Spectre au tiers d’octave, à sonie égale</h3>
+            <h3>
+              Spectre au tiers d’octave, à sonie égale <Help topic="spectre" />
+            </h3>
             <SpectrumChart
               ariaLabel="Spectre du master et des références"
               series={[
@@ -244,7 +254,9 @@ export function References(props: { state: StateDto; reload: () => void; current
             />
           </section>
           <section className="card ma-panels__wide">
-            <h3>Par section</h3>
+            <h3>
+              Par section <Help topic="equilibre-references" />
+            </h3>
             <p className="small muted">
               Section de la référence portant le même nom quand elle existe, sinon la référence
               entière.
@@ -297,8 +309,8 @@ export function References(props: { state: StateDto; reload: () => void; current
 
 /**
  * Two players kept at the same position; switching A/B changes which one is
- * heard. The reference plays with the gain that brings it to the loudness of
- * the master (Web Audio; above 1 it may clip in playback only).
+ * heard. To compare at the same loudness, the louder of the two is turned
+ * down (element volume, never above 1: playback is never made louder).
  */
 function AbPlayer(props: { track: VersionDto; references: ReferencesDto['references'][number][] }) {
   const [refId, setRefId] = useState(props.references[0]?.id ?? null);
@@ -306,22 +318,12 @@ function AbPlayer(props: { track: VersionDto; references: ReferencesDto['referen
   const [playing, setPlaying] = useState(false);
   const a = useRef<HTMLAudioElement>(null);
   const b = useRef<HTMLAudioElement>(null);
-  const graph = useRef<{ context: AudioContext; gain: GainNode; element: HTMLAudioElement } | null>(
-    null,
-  );
   const ref = props.references.find((r) => r.id === refId) ?? null;
+  const levels = abLevels(ref?.gain ?? 0);
   useEffect(() => {
-    const el = b.current;
-    if (!el || !ref) return;
-    if (!graph.current || graph.current.element !== el) {
-      const context = new AudioContext();
-      const gain = context.createGain();
-      context.createMediaElementSource(el).connect(gain).connect(context.destination);
-      graph.current = { context, gain, element: el };
-    }
-    graph.current.gain.gain.value = 10 ** (ref.gain / 20);
-  }, [ref]);
-  useEffect(() => () => void graph.current?.context.close(), []);
+    if (a.current) a.current.volume = 10 ** (levels.master / 20);
+    if (b.current) b.current.volume = 10 ** (levels.reference / 20);
+  }, [levels.master, levels.reference]);
   const players = () => [a.current!, b.current!] as const;
   const toggle = async () => {
     const [pa, pb] = players();
@@ -331,7 +333,6 @@ function AbPlayer(props: { track: VersionDto; references: ReferencesDto['referen
       setPlaying(false);
       return;
     }
-    await graph.current?.context.resume();
     pb.currentTime = Math.min(pa.currentTime, pb.duration || pa.currentTime);
     pa.muted = side !== 'A';
     pb.muted = side !== 'B';
@@ -351,7 +352,7 @@ function AbPlayer(props: { track: VersionDto; references: ReferencesDto['referen
   return (
     <div className="toolbar">
       <audio ref={a} src={props.track.audioUrl ?? undefined} preload="auto" />
-      <audio ref={b} src={ref.audioUrl ?? undefined} preload="auto" crossOrigin="anonymous" />
+      <audio ref={b} src={ref.audioUrl ?? undefined} preload="auto" />
       <Button small onClick={() => void toggle()}>
         {playing ? 'Pause' : 'Lire'}
       </Button>
@@ -376,8 +377,13 @@ function AbPlayer(props: { track: VersionDto; references: ReferencesDto['referen
         ))}
       </select>
       <span className="small muted">
-        Volume de lecture de la référence : {fr(ref.gain, 1, true)} dB (pour l’entendre à la sonie
-        du master).
+        {levels.master < 0
+          ? `Master baissé de ${fr(-levels.master, 1)} dB à l’écoute`
+          : levels.reference < 0
+            ? `Référence baissée de ${fr(-levels.reference, 1)} dB à l’écoute`
+            : 'Même sonie, aucun réglage de volume'}{' '}
+        (la plus forte des deux est baissée pour les entendre à la même sonie ; le volume n’est
+        jamais monté).
       </span>
     </div>
   );

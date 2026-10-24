@@ -1,6 +1,8 @@
-// Frontend of « Analyse du master »: one page, and a home widget with the last analyses.
+// Frontend of « Analyse du master »: the page, its guide (separate page, on demand) and a
+// home widget with the last analyses.
 import { defineFrontendModule, useApi, useModule } from '@hub/sdk/frontend';
 import { fr } from '../shared/format';
+import { GuidePage } from './guide/GuidePage';
 import { MasterPage } from './MasterPage';
 import type { StateDto } from './types';
 import './master.css';
@@ -26,7 +28,10 @@ function HomeWidget() {
 }
 
 export default defineFrontendModule({
-  pages: [{ path: '', component: MasterPage }],
+  pages: [
+    { path: '', component: MasterPage },
+    { path: 'guide', component: GuidePage },
+  ],
   nav: { label: 'Analyse du master' },
   HomeWidget,
 });

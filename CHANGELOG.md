@@ -4,6 +4,35 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.19.0] — 2026-10-24
+
+Passe de nettoyage et d'audit (aucun changement visible), trois corrections demandées et le guide intégré de l'Analyse du master.
+
+### Ajouté
+
+- **Guide intégré de l'Analyse du master** : page séparée, ouverte seulement à la demande (bouton « Guide », ou un petit « ? » à côté de chaque graphe et de chaque mesure, qui ouvre la bonne section ; les « ? » se masquent dans les réglages du module). Prise en main en 5 minutes, chaque vue et ses gestes, chaque mesure et graphe (ce que c'est, unité, lecture), flux de travail (boucle de production, drop qui décolle, références et A/B, dossier surveillé), réglages, limites et pièges ; recherche (accents ignorés) ; six captures annotées de la vraie interface, refaites par `scripts/guide-captures.mjs`.
+- Règle du contrat : un module complexe fournit un guide intégré, mis à jour à chaque changement d'interface (`docs/MODULES.md` §7.4, CLAUDE.md).
+
+### Modifié
+
+- **Écoute A/B** (Analyse du master › Références) : la plus forte des deux est baissée pour les entendre à la même sonie ; le volume n'est jamais monté (avant : la référence pouvait être montée, avec un risque d'écrêtage à la lecture).
+- **Sauvegardes automatiques** : celles d'avant migration et celles d'avant suppression (`ctx.db.backup`) ont chacune leur rotation de 10 ; une série de suppressions ne pousse plus dehors les sauvegardes d'avant migration. Réglages › Sauvegardes les affiche à part, avec le nombre gardé.
+- **Reels perso** : la vérification rapide du master suit le mode de son. En « Son de la vidéo », le master n'est pas vérifié (il n'est pas entendu) et c'est dit ; avec des Reels mêlés, la note indique ceux qui ne sont pas concernés.
+
+### Corrigé
+
+- Analyse du master : une durée arrondie pouvait s'afficher « 0:60 » au lieu de « 1:00 » (axe de la sonie superposée des versions, repères, rapports).
+- Analyse du master : les analyses calculées restaient toutes en mémoire (le plafond de 6 ne valait que pour celles relues sur le disque) ; un ffprobe bloqué ne bloque plus l'analyse (délai de 30 s) ; deux passages du dossier surveillé ne peuvent plus se chevaucher et les fichiers disparus sont oubliés.
+- Test `findTrackInVideo` instable sous charge (délai porté à 180 s).
+
+### Retiré
+
+- Code mort : aides dB inutilisées et `durationOf` (Analyse du master), `ageDays` (Stats YouTube), un paramètre superflu (Pack Insta).
+
+### Sécurité
+
+- `npm audit fix` : `fast-uri` (correctif) ; `npm audit` : 0 vulnérabilité.
+
 ## [0.18.0] — 2026-10-24
 
 Un nouvel outil pour mesurer les masters, des Stats YouTube qui disent d'où vient chaque chiffre, un assistant qui comprend mieux les noms et les mots de Thomas, des sauvegardes plus légères.

@@ -21,10 +21,6 @@ const SILENCE = 0.001;
 const CLIP_RUN = 3;
 const FULL_SCALE = 0.9999;
 
-export interface ProbeResult {
-  info: FileInfo;
-}
-
 const LOSSY = new Set(['mp3', 'aac', 'vorbis', 'opus', 'wmav2', 'ac3', 'eac3']);
 
 /** Format, rate, bit depth, channels, duration (ffprobe). */
@@ -66,17 +62,27 @@ export async function probe(ffprobe: string, file: string): Promise<FileInfo> {
   };
 }
 
-function run(command: string, args: string[]): Promise<string> {
+/** Runs a short command (ffprobe) and returns its output; killed after `timeoutMs`. */
+function run(command: string, args: string[], timeoutMs = 30_000): Promise<string> {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { windowsHide: true });
     let out = '';
     let err = '';
+    const timer = setTimeout(() => {
+      child.kill();
+      reject(new Error('Lecture du fichier trop longue (ffprobe ne répond pas)'));
+    }, timeoutMs);
     child.stdout.on('data', (c: Buffer) => (out += c.toString()));
     child.stderr.on('data', (c: Buffer) => (err += c.toString()));
-    child.on('error', reject);
-    child.on('close', (code) =>
-      code === 0 ? resolve(out) : reject(new Error(err.trim().split('\n').pop() || `code ${code}`)),
-    );
+    child.on('error', (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      if (code === 0) resolve(out);
+      else reject(new Error(err.trim().split('\n').pop() || `code ${code}`));
+    });
   });
 }
 

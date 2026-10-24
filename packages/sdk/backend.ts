@@ -109,8 +109,9 @@ export interface ModuleDatabase {
   /** Runs fn inside a transaction (all or nothing). */
   transaction<T>(fn: () => T): T;
   /**
-   * Automatic backup of the whole database (<userData>/backups/, same rotation
-   * as the backups before migrations), to take before deleting data at the
+   * Automatic backup of the whole database (<userData>/backups/, its own
+   * rotation of 10, separate from the backups before migrations, which it
+   * never pushes out), to take before deleting data at the
    * user's request. Returns the backup's file name.
    */
   backup(reason: string): string;

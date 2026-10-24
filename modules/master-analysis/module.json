@@ -2,7 +2,7 @@
   "id": "master-analysis",
   "name": "Analyse du master",
   "description": "Mesure un master pendant sa production, sans jamais le modifier : sonie, crêtes, bandes, stéréo et mono, sections, versions comparées, références, normalisation des plateformes.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "section": "Musique",
   "icon": "🎚️",
   "order": 15,
@@ -55,6 +55,13 @@
       "label": "Dossier surveillé",
       "description": "Chemin complet (ex. le dossier d'export de ton logiciel de musique).",
       "default": ""
+    },
+    {
+      "key": "guideHints",
+      "type": "boolean",
+      "label": "Afficher les « ? » d'aide",
+      "description": "Un petit « ? » à côté de chaque graphe et de chaque mesure ouvre la bonne partie du guide. Le bouton « Guide » reste toujours affiché.",
+      "default": true
     },
     {
       "key": "watchNotify",

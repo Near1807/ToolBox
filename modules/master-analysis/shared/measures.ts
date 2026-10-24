@@ -143,8 +143,6 @@ export const blocksOf = (start: number, end: number): [number, number] => [
   Math.round(end / BLOCK),
 ];
 
-export const durationOf = (a: Analysis) => a.blocks * BLOCK;
-
 /**
  * Markers of the timeline: true peak above `threshold` (dBTP), clipping,
  * phase problems (correlation below −0.2 for 300 ms with sound), silences
@@ -573,4 +571,13 @@ export function compareReferences(
       };
     }),
   };
+}
+
+/**
+ * Playback levels (dB, ≤ 0) for the A/B: `gain` is what the reference would
+ * need to reach the master's loudness; the louder side is lowered instead.
+ */
+export function abLevels(gain: number): { master: number; reference: number } {
+  if (!Number.isFinite(gain)) return { master: 0, reference: 0 };
+  return gain > 0 ? { master: -gain, reference: 0 } : { master: 0, reference: gain };
 }

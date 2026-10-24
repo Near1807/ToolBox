@@ -81,5 +81,6 @@ describe('findTrackInVideo on real files (AAC phone video)', () => {
     ]);
     const none = await findTrackInVideo(ffmpegPath!, master, unrelated, { start: 4, duration: 15 });
     expect(none.reliable).toBe(false);
-  }, 60_000);
+    // Decoding and encoding take ~10 s alone and more when the whole suite runs at once.
+  }, 180_000);
 });

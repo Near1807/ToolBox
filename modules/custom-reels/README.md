@@ -48,7 +48,7 @@ Chaque copie importée est aussi enregistrée dans `ctx.outputs` (ref `source:<i
 
 Modules `music-library` et `video-engine` ; services `musicLibrary` et `videoEngine` (`renderVideoReel`, `previewVideoReel`, `probeVideo`, `filmstrip`, `waveform`, `videoEffects`, `findTrackInVideo`).
 
-Facultatif : `masterAnalysis` (« Analyse du master ») — avant « Générer », vérification rapide du master, jamais bloquante (`GET /tracks/:id/precheck`, `precheckTrack` du SDK, `usePrecheck` dans l'interface) : « Générer quand même » / « Voir l'analyse » / « Annuler ». Sans le module, rien ne change.
+Facultatif : `masterAnalysis` (« Analyse du master ») — avant « Générer », vérification rapide du master, jamais bloquante (`GET /tracks/:id/precheck`, `precheckTrack` du SDK, `usePrecheck` dans l'interface) : « Générer quand même » / « Voir l'analyse » / « Annuler ». Elle suit le **mode de son** des Reels à rendre : en « Son de la vidéo », le master n'est pas entendu, donc pas vérifié, et l'interface le dit (champ `note`) ; avec des Reels mêlés, seul le master est vérifié et la note indique les Reels non concernés. Sans le module, rien ne change.
 
 ## API
 

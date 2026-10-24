@@ -10,8 +10,11 @@ export function fr(value: number | null | undefined, digits = 1, sign = false): 
 
 /** 83.4 → « 1:23,4 » (or « 1:23 » with digits = 0). */
 export function clock(seconds: number, digits = 1): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds - m * 60;
+  // Rounded first: 59.97 s with no decimal is 1:00, not 0:60.
+  const unit = 10 ** digits;
+  const rounded = Math.round(seconds * unit) / unit;
+  const m = Math.floor(rounded / 60);
+  const s = rounded - m * 60;
   const text = s.toFixed(digits).replace('.', ',');
   return `${m}:${(s < 10 ? '0' : '') + text}`;
 }
