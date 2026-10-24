@@ -34,7 +34,7 @@ L'avertissement réapparaît à chaque nouvelle version (nouveau fichier non sig
 
 ## Sauvegardes et restauration
 
-- **Automatiques** : avant chaque mise à jour du schéma de la base, ToolBox copie `hub.db` dans `%APPDATA%\ToolBox\backups\` (10 dernières conservées). Si une mise à jour échoue, l'app restaure elle-même la copie et désactive l'outil concerné (message dans Réglages > Modules).
+- **Automatiques** : avant chaque mise à jour du schéma de la base, ToolBox copie `hub.db` dans `%APPDATA%\ToolBox\backups\` (10 dernières conservées) ; avant certaines suppressions (imports des Stats YouTube…), une autre copie, comptée à part (10 dernières), qui ne remplace jamais celles d'avant mise à jour. Si une mise à jour échoue, l'app restaure elle-même la copie et désactive l'outil concerné (message dans Réglages > Modules).
 - **Manuelles** : Réglages > Sauvegardes > **Exporter une sauvegarde** crée un `.zip` avec la base et les fichiers des outils (morceaux, covers…). À faire avant une grosse manipulation, et de temps en temps sur un disque externe ou un cloud.
 
 Restaurer à la main (app **fermée**, y compris dans la zone de notification) :

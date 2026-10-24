@@ -244,7 +244,7 @@ sequenceDiagram
 | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Base SQLite                | `%APPDATA%\ToolBox\hub.db` (tables `core__*` du socle, `<module>__*` des modules)                                                                                     |
 | Fichiers des modules       | `%APPDATA%\ToolBox\modules\<id>\`                                                                                                                                     |
-| Sauvegardes automatiques   | `%APPDATA%\ToolBox\backups\` (10 dernières, avant chaque migration)                                                                                                   |
+| Sauvegardes automatiques   | `%APPDATA%\ToolBox\backups\` (deux rotations séparées : 10 dernières avant migration, 10 dernières avant suppression via `ctx.db.backup`)                             |
 | Journaux                   | `%APPDATA%\ToolBox\logs\` (14 jours)                                                                                                                                  |
 | Comptes connectés          | table `core__accounts` (jetons OAuth chiffrés par safeStorage) ; client OAuth dans `core__settings` (portée `accounts`, secret chiffré)                               |
 | Fichiers générés (vidéos…) | dossier de sortie réglable (par défaut `Vidéos\ToolBox\<id>\`), registre `core__outputs` (vérifié au démarrage et à chaque affichage ; suppression vers la Corbeille) |

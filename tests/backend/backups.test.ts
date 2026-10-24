@@ -1,8 +1,16 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
+import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
 import yauzl from 'yauzl';
 import { createTestHub, createTestHost, type TestHub } from '@hub/sdk/testing';
+import {
+  backupKind,
+  createAutomaticBackup,
+  KEPT_BACKUPS,
+  listAutomaticBackups,
+} from '../../backend/core/backups';
 import { fakeModule } from '../helpers/fake-modules';
 
 function zipEntries(file: string): Promise<string[]> {
@@ -84,5 +92,38 @@ describe('backup export', () => {
     });
     const { body } = await hub.request('POST', '/api/core/backups/export');
     expect(body).toEqual({ cancelled: true });
+  });
+});
+
+describe('automatic backup rotations', () => {
+  it('module backups (before deletions) never push out the backups taken before migrations', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'backups-'));
+    const db = new Database(':memory:');
+    try {
+      let time = Date.UTC(2026, 0, 1);
+      const at = () => new Date((time += 1000));
+      for (let v = 1; v <= 3; v++)
+        createAutomaticBackup(db, dir, `avant-notes-v${v}`, 'migration', at());
+      for (let i = 1; i <= 25; i++)
+        createAutomaticBackup(db, dir, `stats-avant-suppression-import-${i}`, 'module', at());
+      const list = listAutomaticBackups(dir);
+      expect(list.filter((b) => b.kind === 'migration')).toHaveLength(3);
+      expect(list.filter((b) => b.kind === 'module')).toHaveLength(KEPT_BACKUPS.module);
+      for (let v = 4; v <= 15; v++)
+        createAutomaticBackup(db, dir, `avant-core-v${v}`, 'migration', at());
+      const after = listAutomaticBackups(dir);
+      expect(after.filter((b) => b.kind === 'migration')).toHaveLength(KEPT_BACKUPS.migration);
+      expect(after.filter((b) => b.kind === 'module')).toHaveLength(KEPT_BACKUPS.module);
+      // Older files (same naming) are classified by their name.
+      expect(backupKind('hub-2026-10-01T10-00-00-000Z-avant-master-analysis-v2.db')).toBe(
+        'migration',
+      );
+      expect(
+        backupKind('hub-2026-10-01T10-00-00-000Z-youtube-stats-avant-suppression-csv.db'),
+      ).toBe('module');
+    } finally {
+      db.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

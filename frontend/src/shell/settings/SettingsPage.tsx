@@ -77,10 +77,28 @@ function ModulesCard() {
   );
 }
 
+type BackupKind = 'migration' | 'module';
+
 interface BackupsInfo {
   folder: string;
-  automatic: { name: string; size: number; createdAt: string }[];
+  kept: Record<BackupKind, number>;
+  automatic: { name: string; kind: BackupKind; size: number; createdAt: string }[];
 }
+
+const BACKUP_GROUPS: { kind: BackupKind; title: string; text: (kept: number) => string }[] = [
+  {
+    kind: 'migration',
+    title: 'Avant les mises à jour de la base',
+    text: (kept) =>
+      `Avant chaque mise à jour de la base, une copie est faite automatiquement (${kept} dernières conservées).`,
+  },
+  {
+    kind: 'module',
+    title: 'Avant les suppressions',
+    text: (kept) =>
+      `Avant certaines suppressions (par exemple des imports des Stats YouTube), une copie est faite automatiquement (${kept} dernières conservées, comptées à part : elles ne remplacent jamais celles d’avant mise à jour).`,
+  },
+];
 
 function BackupsCard() {
   const backups = useApi<BackupsInfo>('/api/core/backups');
@@ -127,21 +145,26 @@ function BackupsCard() {
       </p>
       {result && <p className={result.ok ? 'success' : 'error'}>{result.message}</p>}
       <h3>Sauvegardes automatiques</h3>
-      <p className="muted">
-        Avant chaque mise à jour de la base, une copie est faite automatiquement (10 dernières
-        conservées).
-      </p>
-      {backups.data?.automatic.length === 0 && <p className="muted">Aucune pour l’instant.</p>}
-      <ul className="list">
-        {backups.data?.automatic.map((backup) => (
-          <li key={backup.name} className="list__item">
-            <span>{formatDateTime(backup.createdAt)}</span>
-            <span className="muted">
-              {backup.name} · {formatSize(backup.size)}
-            </span>
-          </li>
-        ))}
-      </ul>
+      {BACKUP_GROUPS.map((group) => {
+        const list = backups.data?.automatic.filter((b) => b.kind === group.kind) ?? [];
+        return (
+          <section key={group.kind}>
+            <h4>{group.title}</h4>
+            <p className="muted">{group.text(backups.data?.kept[group.kind] ?? 10)}</p>
+            {backups.data && list.length === 0 && <p className="muted">Aucune pour l’instant.</p>}
+            <ul className="list">
+              {list.map((backup) => (
+                <li key={backup.name} className="list__item">
+                  <span>{formatDateTime(backup.createdAt)}</span>
+                  <span className="muted">
+                    {backup.name} · {formatSize(backup.size)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        );
+      })}
       <Button
         variant="secondary"
         small

@@ -274,6 +274,7 @@ export class Hub {
           this.handle.db,
           this.backupsDir,
           `avant-${scope}-v${target}`,
+          'migration',
         );
         this.logger.info(
           `Sauvegarde avant migration de « ${scope} » : ${path.basename(backupFile)}`,
@@ -422,7 +423,12 @@ export class Hub {
       },
       transaction: (fn) => this.handle.db.transaction(fn)(),
       backup: (reason) => {
-        const file = createAutomaticBackup(this.handle.db, this.backupsDir, `${id}-${reason}`);
+        const file = createAutomaticBackup(
+          this.handle.db,
+          this.backupsDir,
+          `${id}-${reason}`,
+          'module',
+        );
         logger.info(`Sauvegarde de la base : ${path.basename(file)}`);
         return path.basename(file);
       },

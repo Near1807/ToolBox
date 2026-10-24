@@ -1,7 +1,7 @@
 import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import { AccountError, openEventStream, type JobInfo } from '../../packages/sdk/backend';
-import { listAutomaticBackups } from '../core/backups';
+import { KEPT_BACKUPS, listAutomaticBackups } from '../core/backups';
 import { getSqliteVersion } from '../core/database';
 import { exportBackupZip } from '../core/export';
 import { getBinaryVersion, getFfmpegPath, getFfprobePath } from '../core/ffmpeg-binaries';
@@ -252,8 +252,10 @@ export function registerCoreRoutes(app: FastifyInstance, hub: Hub, appVersion: s
 
   app.get('/api/core/backups', async () => ({
     folder: hub.backupsDir,
-    automatic: listAutomaticBackups(hub.backupsDir).map(({ name, size, createdAt }) => ({
+    kept: KEPT_BACKUPS,
+    automatic: listAutomaticBackups(hub.backupsDir).map(({ name, kind, size, createdAt }) => ({
       name,
+      kind,
       size,
       createdAt,
     })),
