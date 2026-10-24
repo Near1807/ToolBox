@@ -196,10 +196,6 @@ export default defineBackendModule({
   register(ctx: ModuleContext) {
     const library = ctx.services.get<MusicLibraryService>('musicLibrary');
     const engine = ctx.services.get<VideoEngineService>('videoEngine');
-    // Quick check of the master before generating (optional « Analyse du master », never blocking).
-    ctx.routes.get('/tracks/:id/precheck', (request) =>
-      precheckTrack(ctx, library.getTrack(Number((request.params as { id: string }).id))),
-    );
     const sources = ctx.db.table('sources');
     const reels = ctx.db.table('reels');
 
@@ -1178,6 +1174,33 @@ export default defineBackendModule({
         })
         .filter(Boolean);
       return { jobs };
+    });
+
+    // Quick check of the master before « Lancer le rendu » (optional « Analyse du master »,
+    // never blocking). Only the Reels that will be rendered count, with their sound mode: in
+    // « Son de la vidéo » the master is not heard, so it is not checked, and the answer says so.
+    ctx.routes.get('/tracks/:id/precheck', async (request) => {
+      const track = library.getTrack(idParam(request.params));
+      if (!track) return precheckTrack(ctx, null);
+      const pending = reelsOf(track.id).filter((row) =>
+        ['draft', 'outdated', 'failed', 'missing'].includes(stateOf(row, track)),
+      );
+      const videoSound = pending.filter((row) => row.audio_mode === 'video').length;
+      if (pending.length > 0 && videoSound === pending.length) {
+        return {
+          ok: true,
+          issues: [],
+          path: null,
+          note: 'Son de la vidéo : le master n’est pas vérifié, le son des Reels vient de tes vidéos.',
+        };
+      }
+      const result = await precheckTrack(ctx, track);
+      return videoSound > 0
+        ? {
+            ...result,
+            note: `${videoSound} Reel(s) en « Son de la vidéo » : non concerné(s) par cette vérification du master.`,
+          }
+        : result;
     });
 
     // Deletes a Reel: its file to the Recycle Bin (after confirmation in the UI), then the Reel.

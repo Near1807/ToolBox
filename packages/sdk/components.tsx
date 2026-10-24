@@ -807,6 +807,8 @@ export interface PrecheckResult {
   issues: { kind: string; text: string }[];
   /** Page of « Analyse du master » for the track (« Voir l'analyse »), null without the module. */
   path: string | null;
+  /** What the check left out and why (e.g. a Reel whose sound is the video's), shown as is. */
+  note?: string;
 }
 
 /**
@@ -819,6 +821,7 @@ export function usePrecheck(get: <T>(url: string) => Promise<T>) {
   const [pending, setPending] = useState<{ result: PrecheckResult; generate: () => void } | null>(
     null,
   );
+  const [note, setNote] = useState<string | null>(null);
   const guard = async (url: string, generate: () => void | Promise<void>) => {
     let result: PrecheckResult | null;
     try {
@@ -826,10 +829,20 @@ export function usePrecheck(get: <T>(url: string) => Promise<T>) {
     } catch {
       result = null;
     }
-    if (!result || result.ok || result.issues.length === 0) return void (await generate());
+    if (!result || result.ok || result.issues.length === 0) {
+      setNote(result?.note ?? null);
+      return void (await generate());
+    }
+    setNote(null);
     setPending({ result, generate: () => void generate() });
   };
-  const notice = pending ? (
+  const notice = !pending ? (
+    note ? (
+      <p className="muted small" role="status">
+        {note}
+      </p>
+    ) : null
+  ) : (
     <div className="ui-precheck" role="alertdialog" aria-label="Vérification du master">
       <strong>Vérification rapide du master avant de générer :</strong>
       <ul>
@@ -837,6 +850,7 @@ export function usePrecheck(get: <T>(url: string) => Promise<T>) {
           <li key={issue.kind + issue.text}>{issue.text}</li>
         ))}
       </ul>
+      {pending.result.note && <p className="muted small">{pending.result.note}</p>}
       <div className="ui-actions">
         <Button
           small
@@ -864,6 +878,6 @@ export function usePrecheck(get: <T>(url: string) => Promise<T>) {
         </Button>
       </div>
     </div>
-  ) : null;
+  );
   return { guard, notice };
 }

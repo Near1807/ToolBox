@@ -258,6 +258,18 @@ describe('custom-reels (Reels from my videos)', () => {
     expect(refused.status).toBe(400);
     expect(refused.body.error).toMatch(/plus courte que le Reel|pas retrouvé de façon fiable/);
     expect((await patch({ audioMode: 'track' })).body.audioMode).toBe('track');
+    // The quick check of the master follows the sound mode (no « Analyse du master » here).
+    const precheck = async () =>
+      (
+        await hub.request<{ ok: boolean; note?: string }>(
+          'GET',
+          `${API}/tracks/${trackId}/precheck`,
+        )
+      ).body;
+    expect(await precheck()).toEqual({ ok: true, issues: [], path: null });
+    await patch({ audioMode: 'video' });
+    expect((await precheck()).note).toMatch(/Son de la vidéo/);
+    await patch({ audioMode: 'track' });
     // Not generated yet: the copy is still needed.
     const [src] = (await track()).sources;
     expect(src).toMatchObject({ allReady: false, cleanupOffered: false });
