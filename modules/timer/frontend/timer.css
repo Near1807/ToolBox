@@ -1,0 +1,326 @@
+/* Timer — theme tokens only (docs/THEMES.md). */
+
+.tm-ring {
+  position: relative;
+  flex-shrink: 0;
+}
+.tm-ring svg {
+  display: block;
+}
+.tm-ring__track {
+  fill: none;
+  stroke: var(--surface-2);
+}
+.tm-ring__arc {
+  fill: none;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.25s linear;
+}
+.tm-ring__arc--work {
+  stroke: var(--accent);
+}
+.tm-ring__arc--break {
+  stroke: var(--success);
+}
+.tm-ring__arc--idle {
+  stroke: var(--border-strong);
+}
+.tm-ring__center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 4px;
+}
+.tm-phase {
+  color: var(--text-2);
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.tm-time {
+  font-family: var(--font-mono);
+  font-size: 3.4rem;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--text);
+}
+.tm-sub {
+  color: var(--text-2);
+  font-size: 0.9rem;
+}
+.tm-running,
+.tm-ended {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 32px;
+}
+.tm-side {
+  flex: 1;
+  min-width: 260px;
+}
+.tm-side h2 {
+  margin: 0 0 8px;
+  font-family: var(--font-display);
+}
+.tm-task {
+  margin: 0 0 12px;
+}
+.tm-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  margin: 0 0 16px;
+}
+.tm-facts div {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.tm-facts dt {
+  color: var(--text-2);
+  font-size: 0.82rem;
+}
+.tm-facts dd {
+  margin: 2px 0 0;
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+.tm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.tm-question {
+  font-size: 1.15rem;
+  margin: 12px 0;
+}
+.tm-restart {
+  margin-top: 8px;
+}
+.tm-inline {
+  color: var(--text-2);
+}
+.tm-strip {
+  position: relative;
+  display: flex;
+  gap: 2px;
+  height: 22px;
+  margin: 16px 0 4px;
+}
+.tm-strip__block {
+  display: grid;
+  place-items: center;
+  min-width: 2px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  color: var(--text-on-accent);
+  overflow: hidden;
+}
+.tm-strip__block--work {
+  background: var(--accent);
+}
+.tm-strip__block--break {
+  background: var(--surface-hover);
+}
+.tm-strip__block--long-break {
+  background: var(--border-strong);
+}
+.tm-strip__now {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 0;
+  border-left: 2px solid var(--text);
+}
+.tm-modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+.tm-modes button {
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: 8px 12px;
+  color: var(--text-2);
+  font: inherit;
+  cursor: pointer;
+}
+.tm-modes button[aria-selected='true'] {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+.tm-label {
+  color: var(--text-2);
+  margin: 0 0 8px;
+}
+.tm-chips {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.tm-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 14px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  transition:
+    border-color var(--fast),
+    background var(--fast);
+}
+.tm-chip:hover,
+.tm-chip:focus-visible {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.tm-chip__main {
+  font-family: var(--font-mono);
+  font-size: 1.6rem;
+  font-weight: 600;
+}
+.tm-chip__unit {
+  color: var(--text-2);
+  font-size: 0.8rem;
+}
+.tm-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+}
+.tm-form--grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  align-items: start;
+}
+.tm-end {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.tm-end legend {
+  color: var(--text-2);
+  padding: 0 4px;
+}
+.tm-task-pick select {
+  max-width: 420px;
+}
+.tm-preview {
+  margin: 16px 0;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.tm-preview h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+.tm-preview p {
+  margin: 6px 0 0;
+}
+.tm-presets {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.tm-preset {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.tm-preset .tm-strip {
+  margin: 4px 0;
+  height: 14px;
+}
+.tm-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.tm-table th,
+.tm-table td {
+  text-align: left;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.tm-table thead th {
+  color: var(--text-2);
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+.tm-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.tm-widget {
+  margin: 0;
+}
+
+/* The floating mini-timer (indicator window, transparent background) */
+.tm-hud {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: var(--surface-solid);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow);
+  color: var(--text);
+  font-family: var(--font-sans);
+}
+.tm-hud__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.tm-hud--break .tm-hud__dot {
+  background: var(--success);
+}
+.tm-hud--end .tm-hud__dot {
+  background: var(--text-3);
+}
+.tm-hud__phase {
+  color: var(--text-2);
+  font-size: 0.85rem;
+}
+.tm-hud__time {
+  font-family: var(--font-mono);
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+.tm-form .input--short,
+.tm-restart .input--short,
+.tm-end .input--short {
+  width: 5.5rem;
+}
+.tm-form label {
+  white-space: nowrap;
+}
