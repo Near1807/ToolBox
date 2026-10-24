@@ -16,6 +16,7 @@ import {
 } from '../shared/measures';
 import { BANDS, BLOCK, FINE, type Analysis, type Marker, type Section } from '../shared/types';
 import { Help } from './guide/Help';
+import { Choice, useStoredChoice } from './layout';
 import { BAND_TOKENS, channelsOf, useColors, type Colors } from './theme';
 
 export interface View {
@@ -64,17 +65,43 @@ function curvesOf(a: Analysis): Curves {
 }
 
 const LANES = [
-  { id: 'wave', label: 'Forme d’onde', height: 90, topic: 'forme-onde' },
-  { id: 'loudness', label: 'Sonie (LUFS)', height: 110, topic: 'sonie' },
-  { id: 'bands', label: 'Énergie par bande', height: 130, topic: 'bandes' },
-  { id: 'spectrogram', label: 'Spectrogramme', height: 120, topic: 'spectrogramme' },
-  { id: 'dynamics', label: 'Dynamique', height: 90, topic: 'facteur-crete' },
-  { id: 'width', label: 'Largeur stéréo', height: 80, topic: 'largeur' },
-  { id: 'correlation', label: 'Corrélation de phase', height: 70, topic: 'correlation' },
-  { id: 'mono', label: 'Compatibilité mono', height: 70, topic: 'mono' },
-  { id: 'markers', label: 'Repères', height: 34, topic: 'reperes' },
+  { id: 'wave', label: 'Forme d’onde', short: 'Forme d’onde', height: 110, topic: 'forme-onde' },
+  { id: 'loudness', label: 'Sonie (LUFS)', short: 'Sonie', height: 150, topic: 'sonie' },
+  {
+    id: 'bands',
+    label: 'Énergie par bande (dB)',
+    short: 'Bandes',
+    height: 200,
+    topic: 'bandes',
+  },
+  {
+    id: 'spectrogram',
+    label: 'Spectrogramme (Hz)',
+    short: 'Spectrogramme',
+    height: 150,
+    topic: 'spectrogramme',
+  },
+  {
+    id: 'dynamics',
+    label: 'Dynamique (dB · LU)',
+    short: 'Dynamique',
+    height: 120,
+    topic: 'facteur-crete',
+  },
+  { id: 'width', label: 'Largeur stéréo (%)', short: 'Largeur', height: 100, topic: 'largeur' },
+  {
+    id: 'correlation',
+    label: 'Corrélation de phase (−1 à +1)',
+    short: 'Corrélation',
+    height: 100,
+    topic: 'correlation',
+  },
+  { id: 'mono', label: 'Compatibilité mono (dB)', short: 'Mono', height: 100, topic: 'mono' },
+  { id: 'markers', label: 'Repères', short: 'Repères', height: 44, topic: 'reperes' },
 ] as const;
 type LaneId = (typeof LANES)[number]['id'];
+/** Shown by default: the essentials; the others one click away (choice remembered). */
+const DEFAULT_LANES: LaneId[] = ['wave', 'loudness', 'bands', 'markers'];
 
 const MARKER_LABELS: Record<Marker['kind'], string> = {
   over: 'Crête vraie au-dessus du seuil',
@@ -369,7 +396,7 @@ export function Timeline(props: {
   const [view, setView] = useState<View>({ start: 0, end: duration });
   const [stacked, setStacked] = useState(false);
   const [band, setBand] = useState<number | null>(null);
-  const [hidden, setHidden] = useState<Set<LaneId>>(new Set());
+  const lanes = useStoredChoice('timeline-lanes', DEFAULT_LANES);
   const [hover, setHover] = useState<number | null>(null);
   const [cursor, setCursor] = useState(0);
   const box = useRef<HTMLDivElement>(null);
@@ -395,7 +422,7 @@ export function Timeline(props: {
           spectrogram,
         });
     }
-  }, [a, curves, view, colors, stacked, band, list, spectrogram, width, hidden]);
+  }, [a, curves, view, colors, stacked, band, list, spectrogram, width, lanes.shown]);
 
   // Playback cursor.
   useEffect(() => {
@@ -443,7 +470,7 @@ export function Timeline(props: {
   };
   const xPercent = (t: number) => `${((t - view.start) / span) * 100}%`;
   const values = hover !== null ? valuesAt(hover, a, curves, list) : null;
-  const visible = LANES.filter((l) => !hidden.has(l.id));
+  const visible = LANES.filter((l) => lanes.shown.has(l.id));
 
   const legend: Partial<Record<LaneId, { label: string; color: string; dashed?: boolean }[]>> = {
     loudness: [
@@ -487,26 +514,40 @@ export function Timeline(props: {
           {clock(view.start)} → {clock(view.end)} · Ctrl + molette : zoom · Maj + molette : défiler
           · clic : lire
         </span>
-        <label className="small">
-          <input type="checkbox" checked={stacked} onChange={(e) => setStacked(e.target.checked)} />{' '}
-          Bandes empilées
-        </label>
-        <label className="small">
-          Largeur d’une bande{' '}
-          <select
-            className="input input--short"
-            value={band ?? ''}
-            onChange={(e) => setBand(e.target.value === '' ? null : Number(e.target.value))}
-          >
-            <option value="">—</option>
-            {BANDS.map((b, i) => (
-              <option key={b.id} value={i}>
-                {b.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        {lanes.shown.has('bands') && (
+          <label className="small">
+            <input
+              type="checkbox"
+              checked={stacked}
+              onChange={(e) => setStacked(e.target.checked)}
+            />{' '}
+            Bandes empilées
+          </label>
+        )}
+        {lanes.shown.has('width') && (
+          <label className="small">
+            Largeur d’une bande{' '}
+            <select
+              className="input input--short"
+              value={band ?? ''}
+              onChange={(e) => setBand(e.target.value === '' ? null : Number(e.target.value))}
+            >
+              <option value="">—</option>
+              {BANDS.map((b, i) => (
+                <option key={b.id} value={i}>
+                  {b.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
       </div>
+      <Choice
+        label="Pistes affichées"
+        options={LANES.map((l) => ({ id: l.id, label: l.short }))}
+        shown={lanes.shown}
+        onToggle={lanes.toggle}
+      />
       <Overview a={a} view={view} onView={setView} color={colors['text-3']} cursor={cursor} />
       <div className="ma-lanes-wrap">
         <div className="ma-lane-labels">
@@ -520,7 +561,7 @@ export function Timeline(props: {
                 {lane.label}
                 <Help topic={lane.topic} />
               </span>
-              {legend[lane.id] && (
+              {legend[lane.id] && lane.id !== 'markers' && (
                 <ul className="ma-legend">
                   {legend[lane.id]!.map((item) => (
                     <li key={item.label}>
@@ -596,24 +637,19 @@ export function Timeline(props: {
           )}
         </div>
       </div>
-      <div className="toolbar small">
-        Pistes :
-        {LANES.map((lane) => (
-          <label key={lane.id}>
-            <input
-              type="checkbox"
-              checked={!hidden.has(lane.id)}
-              onChange={(e) => {
-                const next = new Set(hidden);
-                if (e.target.checked) next.delete(lane.id);
-                else next.add(lane.id);
-                setHidden(next);
-              }}
-            />{' '}
-            {lane.label}
-          </label>
-        ))}
-      </div>
+      {lanes.shown.has('markers') && (
+        <ul className="ma-legend ma-legend--row ma-legend--markers" aria-label="Repères">
+          {legend.markers!.map((item) => (
+            <li key={item.label}>
+              <i
+                className="ma-swatch"
+                style={{ borderColor: item.color, background: item.color }}
+              />
+              {item.label}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

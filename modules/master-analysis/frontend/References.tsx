@@ -18,10 +18,17 @@ import { fr, pct } from '../shared/format';
 import { BANDS } from '../shared/types';
 import { DiffBars, SpectrumChart } from './charts';
 import { Help } from './guide/Help';
+import { Choice, emphasis, Group, KeyFigures, useStoredChoice } from './layout';
 import { BAND_TOKENS, useColors } from './theme';
 import type { ReferencesDto, StateDto, VersionDto } from './types';
 
 const AUDIO = [{ name: 'Audio', extensions: ['wav', 'flac', 'aif', 'aiff', 'mp3'] }];
+
+const SECTION_COLUMNS = [
+  { id: 'plr', label: 'PLR' },
+  { id: 'width', label: 'Largeur' },
+  { id: 'bands', label: 'Bandes' },
+] as const;
 
 export function References(props: { state: StateDto; reload: () => void; current: VersionDto }) {
   const module = useModule();
@@ -29,6 +36,7 @@ export function References(props: { state: StateDto; reload: () => void; current
   const profiles = props.state.profiles;
   const [profileId, setProfileId] = useState<number | null>(profiles[0]?.id ?? null);
   const [error, setError] = useState<string | null>(null);
+  const columns = useStoredChoice('references-columns', ['bands']);
   const profile = profiles.find((p) => p.id === profileId) ?? null;
   const ready = profile?.refs.some((r) => r.status === 'done') ?? false;
   const data = useApi<ReferencesDto>(
@@ -66,9 +74,12 @@ export function References(props: { state: StateDto; reload: () => void; current
       void run(() => module.api.post(`/profiles/${profile.id}/references`, { paths: files }));
   };
   const c = data.data;
+  const show = (id: string) => columns.shown.has(id);
+  const pair = (p: { track: number | null; references: number | null }, digits = 1, sign = false) =>
+    `${fr(p.track, digits, sign)} / ${fr(p.references, digits, sign)}`;
   return (
-    <div className="ma-panels">
-      <section className="card ma-panels__wide">
+    <div className="ma-groups">
+      <Group title="Profil de références" topic="vue-references" wide>
         <div className="toolbar">
           <label className="small">
             Profil{' '}
@@ -117,7 +128,7 @@ export function References(props: { state: StateDto; reload: () => void; current
             </>
           )}
         </div>
-        <p className="small muted">
+        <p className="ma-note">
           Les références sont copiées dans l’app et ne sont jamais modifiées. Sans référence, rien
           n’est bloqué : les autres onglets fonctionnent seuls.
         </p>
@@ -158,21 +169,90 @@ export function References(props: { state: StateDto; reload: () => void; current
             Aucun profil : crée-en un pour comparer ce master à des morceaux de référence.
           </p>
         )}
-      </section>
-      {data.error && <ErrorMessage>{data.error}</ErrorMessage>}
+        {data.error && <ErrorMessage>{data.error}</ErrorMessage>}
+        {c && <h4>Master (en grand) et moyenne des références (en dessous)</h4>}
+        {c && (
+          <KeyFigures
+            label="Master (références : moyenne)"
+            items={[
+              {
+                label: 'Sonie intégrée',
+                value: fr(c.global.integrated.track),
+                unit: 'LUFS',
+                sub: `références : ${fr(c.global.integrated.references)} LUFS`,
+                topic: 'sonie',
+              },
+              {
+                label: 'Crête vraie',
+                value: fr(c.global.truePeak.track, 1, true),
+                unit: 'dBTP',
+                sub: `références : ${fr(c.global.truePeak.references, 1, true)} dBTP`,
+                topic: 'crete-vraie',
+              },
+              {
+                label: 'PLR',
+                value: fr(c.global.plr.track),
+                unit: 'LU',
+                sub: `références : ${fr(c.global.plr.references)} LU`,
+                topic: 'plr',
+              },
+              {
+                label: 'LRA',
+                value: fr(c.global.lra.track),
+                unit: 'LU',
+                sub: `références : ${fr(c.global.lra.references)} LU`,
+                topic: 'lra',
+              },
+              {
+                label: 'Largeur',
+                value: pct(c.global.width.track),
+                sub: `références : ${pct(c.global.width.references)}`,
+                topic: 'largeur',
+              },
+              {
+                label: 'Corrélation',
+                value: fr(c.global.correlation.track, 2),
+                sub: `références : ${fr(c.global.correlation.references, 2)}`,
+                topic: 'correlation',
+              },
+            ]}
+          />
+        )}
+      </Group>
       {c && (
         <>
-          <section className="card ma-panels__wide">
-            <h3>
-              Écoute A/B à volume égal <Help topic="ecoute-ab" />
-            </h3>
+          <Group title="Écoute A/B à volume égal" topic="ecoute-ab" wide>
             <AbPlayer track={props.current} references={c.references} />
-          </section>
-          <section className="card">
-            <h3>
-              Équilibre par bande (à sonie égale) <Help topic="equilibre-references" />
-            </h3>
-            <p className="small muted">
+          </Group>
+          <Group
+            title="Fréquences (à sonie égale)"
+            topic="equilibre-references"
+            detailLabel="le spectre au tiers d’octave"
+            detail={
+              <>
+                <p className="ma-note">
+                  Spectre au tiers d’octave, à sonie égale <Help topic="spectre" />
+                </p>
+                <SpectrumChart
+                  ariaLabel="Spectre du master et des références"
+                  series={[
+                    {
+                      label: 'Master',
+                      points: c.thirdOctave.map((p) => ({ f: p.f, db: p.track })),
+                      color: colors['series-1'],
+                    },
+                    {
+                      label: 'Références (moyenne)',
+                      points: c.thirdOctave.map((p) => ({ f: p.f, db: p.references })),
+                      color: colors['series-2'],
+                      dashed: true,
+                    },
+                  ]}
+                />
+              </>
+            }
+          >
+            <p className="ma-note">
               Énergie de chaque bande par rapport à la sonie intégrée : le master moins la moyenne
               des références.
             </p>
@@ -185,122 +265,59 @@ export function References(props: { state: StateDto; reload: () => void; current
                 color: colors[BAND_TOKENS[i]!],
               }))}
             />
-          </section>
-          <section className="card">
-            <h3>
-              Global <Help topic="vue-references" />
-            </h3>
-            <table className="ma-table">
-              <thead>
-                <tr>
-                  <th />
-                  <th className="num">Master</th>
-                  <th className="num">Références (moyenne)</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <th>Sonie intégrée</th>
-                  <td className="num">{fr(c.global.integrated.track)} LUFS</td>
-                  <td className="num">{fr(c.global.integrated.references)} LUFS</td>
-                </tr>
-                <tr>
-                  <th>Crête vraie</th>
-                  <td className="num">{fr(c.global.truePeak.track, 1, true)} dBTP</td>
-                  <td className="num">{fr(c.global.truePeak.references, 1, true)} dBTP</td>
-                </tr>
-                <tr>
-                  <th>PLR</th>
-                  <td className="num">{fr(c.global.plr.track)} LU</td>
-                  <td className="num">{fr(c.global.plr.references)} LU</td>
-                </tr>
-                <tr>
-                  <th>LRA</th>
-                  <td className="num">{fr(c.global.lra.track)} LU</td>
-                  <td className="num">{fr(c.global.lra.references)} LU</td>
-                </tr>
-                <tr>
-                  <th>Largeur</th>
-                  <td className="num">{pct(c.global.width.track)}</td>
-                  <td className="num">{pct(c.global.width.references)}</td>
-                </tr>
-                <tr>
-                  <th>Corrélation</th>
-                  <td className="num">{fr(c.global.correlation.track, 2)}</td>
-                  <td className="num">{fr(c.global.correlation.references, 2)}</td>
-                </tr>
-              </tbody>
-            </table>
-          </section>
-          <section className="card ma-panels__wide">
-            <h3>
-              Spectre au tiers d’octave, à sonie égale <Help topic="spectre" />
-            </h3>
-            <SpectrumChart
-              ariaLabel="Spectre du master et des références"
-              series={[
-                {
-                  label: 'Master',
-                  points: c.thirdOctave.map((p) => ({ f: p.f, db: p.track })),
-                  color: colors['series-1'],
-                },
-                {
-                  label: 'Références (moyenne)',
-                  points: c.thirdOctave.map((p) => ({ f: p.f, db: p.references })),
-                  color: colors['series-2'],
-                  dashed: true,
-                },
-              ]}
-            />
-          </section>
-          <section className="card ma-panels__wide">
-            <h3>
-              Par section <Help topic="equilibre-references" />
-            </h3>
-            <p className="small muted">
+          </Group>
+          <Group title="Structure et sections" topic="equilibre-references" wide>
+            <p className="ma-note">
               Section de la référence portant le même nom quand elle existe, sinon la référence
-              entière.
+              entière. Bandes : écart du master, à sonie égale (dB) ; en gras : 3 ou plus ; en gris
+              : moins de 1.
             </p>
-            <table className="ma-table">
-              <thead>
-                <tr>
-                  <th>Section</th>
-                  <th className="num">Sonie (master / réf.)</th>
-                  <th className="num">PLR</th>
-                  <th className="num">Largeur</th>
-                  {BANDS.map((b) => (
-                    <th key={b.id} className="num">
-                      {b.label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {c.sections.map((s, i) => (
-                  <tr key={i}>
-                    <td>{s.section.label}</td>
-                    <td className="num">
-                      {fr(s.integrated.track)} / {fr(s.integrated.references)}
-                    </td>
-                    <td className="num">
-                      {fr(s.plr.track)} / {fr(s.plr.references)}
-                    </td>
-                    <td className="num">
-                      {pct(s.width.track)} / {pct(s.width.references)}
-                    </td>
-                    {s.bands.map((b) => (
-                      <td key={b.id} className="num">
-                        {fr(b.difference, 1, true)}
-                      </td>
-                    ))}
+            <Choice
+              label="Colonnes"
+              options={SECTION_COLUMNS}
+              shown={columns.shown}
+              onToggle={columns.toggle}
+            />
+            <div className="ma-scroll">
+              <table className="ma-table">
+                <thead>
+                  <tr>
+                    <th>Section</th>
+                    <th className="num">Sonie (LUFS, master / réf.)</th>
+                    {show('plr') && <th className="num">PLR (LU)</th>}
+                    {show('width') && <th className="num">Largeur (%)</th>}
+                    {show('bands') &&
+                      BANDS.map((b) => (
+                        <th key={b.id} className="num">
+                          {b.label} (dB)
+                        </th>
+                      ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-            <p className="small muted">
-              Bandes : écart du master par rapport aux références, à sonie égale (dB).
-            </p>
-          </section>
+                </thead>
+                <tbody>
+                  {c.sections.map((s, i) => (
+                    <tr key={i}>
+                      <th>{s.section.label}</th>
+                      <td className="num">{pair(s.integrated)}</td>
+                      {show('plr') && <td className="num">{pair(s.plr)}</td>}
+                      {show('width') && (
+                        <td className="num">
+                          {fr(s.width.track === null ? null : s.width.track * 100, 0)} /{' '}
+                          {fr(s.width.references === null ? null : s.width.references * 100, 0)}
+                        </td>
+                      )}
+                      {show('bands') &&
+                        s.bands.map((b) => (
+                          <td key={b.id} className={`num ${emphasis(b.difference)}`}>
+                            {fr(b.difference, 1, true)}
+                          </td>
+                        ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Group>
         </>
       )}
     </div>

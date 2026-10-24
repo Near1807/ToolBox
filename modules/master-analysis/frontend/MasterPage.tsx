@@ -22,10 +22,12 @@ import {
   useModule,
 } from '@hub/sdk/frontend';
 import { decodeAnalysis } from '../shared/codec';
+import { markers, measures } from '../shared/measures';
 import { fr } from '../shared/format';
 import type { Analysis, Section } from '../shared/types';
 import { Global } from './Global';
 import { Help, HelpHints, useGuidePath } from './guide/Help';
+import { KeyFigures } from './layout';
 import { References } from './References';
 import { Sections } from './Sections';
 import { Timeline } from './Timeline';
@@ -103,6 +105,11 @@ export function MasterPage() {
         ? (s?.projects.find((p) => p.trackId === Number(fromTrack))?.groupId ?? -Number(fromTrack))
         : (entries[0]?.id ?? null);
   const entry = entries.find((e) => e.id === selected) ?? null;
+  const current = currentVersion(
+    entry?.project ?? null,
+    params.get('version') ? Number(params.get('version')) : null,
+  );
+  const [tab, setTab] = useState<Tab>('timeline');
   const select = (id: number, version?: number) =>
     setParams(
       id < 0
@@ -198,7 +205,7 @@ export function MasterPage() {
                   key={entry.id}
                   entry={entry}
                   state={s}
-                  versionId={params.get('version') ? Number(params.get('version')) : null}
+                  current={current}
                   onVersion={(v) => entry.project && select(entry.project.groupId, v)}
                   jobs={jobs}
                   run={run}
@@ -208,6 +215,18 @@ export function MasterPage() {
               )}
             </div>
           </TrackList>
+        )}
+        {entry?.project && current?.status === 'done' && s && (
+          <AnalysisView
+            key={current.id}
+            title={entry.title}
+            version={current}
+            versions={entry.project.versions}
+            tab={tab}
+            onTab={setTab}
+            state={s}
+            reload={state.reload}
+          />
         )}
         {s && (
           <p className="small muted">
@@ -241,7 +260,7 @@ function statusBadge(v: VersionDto, progress: number | null) {
 function Project(props: {
   entry: Entry;
   state: StateDto;
-  versionId: number | null;
+  current: VersionDto | null;
   onVersion: (id: number) => void;
   jobs: ReturnType<typeof useJobs>['jobs'];
   run: (action: () => Promise<unknown>) => Promise<unknown>;
@@ -251,12 +270,7 @@ function Project(props: {
   const module = useModule();
   const project = props.entry.project;
   const versions = project?.versions ?? [];
-  const current =
-    versions.find((v) => v.id === props.versionId) ??
-    versions.filter((v) => v.status === 'done').at(-1) ??
-    versions.at(-1) ??
-    null;
-  const [tab, setTab] = useState<Tab>('timeline');
+  const current = props.current;
   const add = async () => {
     const files = await pickFiles({
       title: 'Nouvelle version du master',
@@ -453,22 +467,23 @@ function Project(props: {
           </ul>
         )}
       </Card>
-      {current?.status === 'done' && (
-        <AnalysisView
-          key={current.id}
-          version={current}
-          versions={versions}
-          tab={tab}
-          onTab={setTab}
-          state={props.state}
-          reload={props.reload}
-        />
-      )}
     </>
   );
 }
 
+/** The version shown: the one in the address, otherwise the last analysed one. */
+function currentVersion(project: ProjectDto | null, versionId: number | null) {
+  const versions = project?.versions ?? [];
+  return (
+    versions.find((v) => v.id === versionId) ??
+    versions.filter((v) => v.status === 'done').at(-1) ??
+    versions.at(-1) ??
+    null
+  );
+}
+
 function AnalysisView(props: {
+  title: string;
   version: VersionDto;
   versions: VersionDto[];
   tab: Tab;
@@ -498,8 +513,40 @@ function AnalysisView(props: {
     el.currentTime = t;
     void el.play();
   };
+  const m = measures(analysis);
+  const overs = markers(analysis, limit).filter((x) => x.kind === 'over').length;
   return (
-    <div className="ma-analysis">
+    <section className="ma-analysis" aria-label="Analyse de la version">
+      <header className="ma-analysis__head">
+        <h2>
+          {props.title} <span className="muted">· {props.version.name}</span>
+          <Help topic="lecture" />
+        </h2>
+        <span className="small muted">
+          Analysé en {fr((props.version.analysisMs ?? analysis.analysisMs) / 1000)} s
+        </span>
+      </header>
+      <KeyFigures
+        label="Chiffres clés de la version"
+        items={[
+          { label: 'Sonie intégrée', value: fr(m.integrated), unit: 'LUFS', topic: 'sonie' },
+          {
+            label: 'Crête vraie',
+            value: fr(m.truePeak, 1, true),
+            unit: 'dBTP',
+            topic: 'crete-vraie',
+          },
+          { label: 'LRA', value: fr(m.lra), unit: 'LU', topic: 'lra' },
+          { label: 'PLR', value: fr(m.plr), unit: 'LU', topic: 'plr' },
+          { label: 'Perte au mono', value: fr(m.monoLoss), unit: 'dB', topic: 'mono' },
+          {
+            label: 'Dépassements',
+            value: String(overs),
+            sub: `au-dessus de ${fr(limit, 1, true)} dBTP · ${analysis.clipping.length} écrêtage(s)`,
+            topic: 'reperes',
+          },
+        ]}
+      />
       <div className="toolbar ma-player">
         <audio ref={audio} src={props.version.audioUrl ?? undefined} controls preload="metadata" />
         <label className="small">
@@ -516,9 +563,6 @@ function AnalysisView(props: {
           dBTP
         </label>
         <Help topic="crete-vraie" />
-        <span className="small muted">
-          Analysé en {fr((props.version.analysisMs ?? analysis.analysisMs) / 1000)} s
-        </span>
       </div>
       <nav className="ma-tabs" role="tablist">
         {TABS.map(([id, label]) => (
@@ -546,7 +590,14 @@ function AnalysisView(props: {
         />
       )}
       {props.tab === 'global' && (
-        <Global analysis={analysis} threshold={limit} platforms={d.platforms} onSeek={seek} />
+        <Global
+          analysis={analysis}
+          threshold={limit}
+          platforms={d.platforms}
+          sections={shownSections}
+          onSeek={seek}
+          onOpenSections={() => props.onTab('sections')}
+        />
       )}
       {props.tab === 'sections' && (
         <Sections
@@ -564,6 +615,6 @@ function AnalysisView(props: {
       {props.tab === 'references' && (
         <References state={props.state} reload={props.reload} current={props.version} />
       )}
-    </div>
+    </section>
   );
 }
