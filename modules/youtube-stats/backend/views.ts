@@ -57,6 +57,48 @@ function sumRows(rows: DayRow[], metric: keyof DayRow, from: string, to: string)
   return total;
 }
 
+/**
+ * Impressions and CTR of a whole video, by priority: the days of the API, then
+ * a « totals » CSV (frozen at its export), then the days of a CSV. CTR of days
+ * is weighted by their impressions.
+ */
+export function reachTotals(
+  video: StatVideo,
+  rows: DayRow[],
+): {
+  impressions: number | null;
+  ctr: number | null;
+  source: 'api' | 'api+csv' | 'csv-totals' | 'csv' | null;
+} {
+  const withReach = rows.filter((r) => r.impressions !== null || r.ctr !== null);
+  const fromApi = withReach.filter((r) => (r.reachSource ?? 'api') === 'api');
+  const fromDays = (list: DayRow[]) => {
+    let impressions = 0;
+    let clicks = 0;
+    let weighted = 0;
+    for (const r of list) {
+      impressions += r.impressions ?? 0;
+      if (r.ctr !== null && r.impressions) {
+        clicks += (r.ctr * r.impressions) / 100;
+        weighted += r.impressions;
+      }
+    }
+    return {
+      impressions: list.some((r) => r.impressions !== null) ? impressions : null,
+      ctr: weighted > 0 ? (clicks / weighted) * 100 : null,
+    };
+  };
+  if (fromApi.length > 0)
+    return {
+      ...fromDays(withReach),
+      source: fromApi.length === withReach.length ? 'api' : 'api+csv',
+    };
+  if (video.impressions !== null || video.ctr !== null)
+    return { impressions: video.impressions, ctr: video.ctr, source: 'csv-totals' };
+  if (withReach.length > 0) return { ...fromDays(withReach), source: 'csv' };
+  return { impressions: null, ctr: null, source: null };
+}
+
 // ---------------------------------------------------------------------------
 // Records and milestones
 // ---------------------------------------------------------------------------
@@ -232,6 +274,14 @@ export function overview(
   const snapshots = [...data.snapshots].sort((a, b) => a.day.localeCompare(b.day));
   const latest = snapshots[snapshots.length - 1] ?? null;
   const atStart = [...snapshots].reverse().find((s) => s.day <= previousLast) ?? null;
+  // Live counters (YouTube Data API, at the last sync): what YouTube shows now, estimated.
+  const live = {
+    subscribers: latest?.subscribers ?? null,
+    views: latest?.views ?? null,
+    likes: sum(data.videos.map((v) => v.totalLikes)),
+    comments: sum(data.videos.map((v) => v.totalComments)),
+    day: latest?.day ?? null,
+  };
   const key = {
     subscribers: latest?.subscribers ?? null,
     subscribersDelta: latest && atStart ? latest.subscribers - atStart.subscribers : null,
@@ -405,6 +455,7 @@ export function overview(
 
   return {
     period: { first, last, previousFirst, previousLast },
+    live,
     key,
     series,
     topTracks,
@@ -522,6 +573,7 @@ export function videoDetail(data: Dataset, lab: LabResult, id: string) {
   const map = new Map(rows.map((r) => [r.day, r]));
   const pick = (metric: keyof DayRow) =>
     days.map((d) => (map.get(d)?.[metric] ?? null) as number | null);
+  const reach = reachTotals(video, rows);
   const totals: Record<string, number | null> = {
     views: ix.total(video, 'views'),
     engagedViews: rows.some((r) => r.engagedViews !== null)
@@ -538,10 +590,8 @@ export function videoDetail(data: Dataset, lab: LabResult, id: string) {
     shares: ix.total(video, 'shares'),
     subsGained: ix.total(video, 'subsGained'),
     subsLost: ix.total(video, 'subsLost'),
-    impressions:
-      video.impressions ??
-      (rows.some((r) => r.impressions !== null) ? ix.total(video, 'impressions') : null),
-    ctr: video.ctr,
+    impressions: reach.impressions,
+    ctr: reach.ctr,
     subsPer1000: perf.subsPer1000,
     likeRate: perf.likeRate,
     shareRate: perf.shareRate,
@@ -583,7 +633,13 @@ export function videoDetail(data: Dataset, lab: LabResult, id: string) {
       avgViewPct: pick('avgViewPct'),
       impressions: pick('impressions'),
       ctr: pick('ctr'),
+      /** Source of each day's impressions / CTR (hover). */
+      reachSource: days.map((d) => {
+        const r = map.get(d);
+        return r && (r.impressions !== null || r.ctr !== null) ? (r.reachSource ?? 'api') : null;
+      }),
     },
+    reachSource: reach.source,
     anomalies: anomalies(viewsSeries, 10).map((a) => ({ day: days[a.index]!, ...a })),
     totals,
     metricHelp: METRICS,

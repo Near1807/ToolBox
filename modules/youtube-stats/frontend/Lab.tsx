@@ -52,6 +52,10 @@ export function Lab(props: { openVideo: (id: string) => void; openTrack: (id: nu
   );
   return (
     <div className="ys-labs">
+      <p className="ys-sourceline small muted">
+        <strong>Données consolidées</strong> — YouTube Analytics, disponibles jusqu’au{' '}
+        {fmtDay(d.lastDay)} : les analyses ne voient pas les jours plus récents.
+      </p>
       <nav className="ys-toc small">
         {[
           ['perf', 'Performance relative'],

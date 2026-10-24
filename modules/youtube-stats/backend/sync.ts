@@ -21,6 +21,13 @@ export interface SyncOptions {
    * the channel days only; the per-video statistics wait for the next sync.
    */
   minimal?: boolean;
+  /**
+   * The whole history of every video and of the channel again (after a CSV
+   * created rows the sync took for known days, or after CSV data was deleted).
+   */
+  fullHistory?: boolean;
+  /** Requests in flight at once for the per-video statistics (4 by default). */
+  concurrency?: number;
   progress: (fraction: number, message: string) => void;
   signal: AbortSignal;
   log: (message: string) => void;
@@ -29,10 +36,26 @@ export interface SyncOptions {
 export interface SyncSummary {
   calls: number;
   videos: number;
+  /** Day rows received from Analytics (videos). */
   dayRows: number;
   retention: number;
   breakdowns: number;
   warnings: string[];
+  /** Period asked to Analytics (null: nothing asked, e.g. postponed). */
+  requested?: { from: string; to: string } | null;
+  /** Rows (video days + channel days) new or really different from what was stored. */
+  changed?: number;
+  /** Last day Analytics gave data for, before and after this sync. */
+  previousLastDay?: string | null;
+  lastAvailableDay?: string | null;
+  /** Days of the channel received for the first time. */
+  newDays?: number;
+  /** Videos whose statistics were asked (the others had nothing to ask yet). */
+  videosAsked?: number;
+  fullHistory?: boolean;
+  /** Milliseconds per step, and in all. */
+  durations?: Record<string, number>;
+  totalMs?: number;
 }
 
 const num = (value: unknown) => (typeof value === 'number' ? value : Number(value ?? 0)) || 0;
@@ -82,6 +105,14 @@ export async function syncChannel(
   store: StatsStore,
   options: SyncOptions,
 ): Promise<SyncSummary> {
+  const started = Date.now();
+  const durations: Record<string, number> = {};
+  let mark = started;
+  const step = (name: string) => {
+    const now = Date.now();
+    durations[name] = (durations[name] ?? 0) + now - mark;
+    mark = now;
+  };
   const summary: SyncSummary = {
     calls: 0,
     videos: 0,
@@ -89,6 +120,26 @@ export async function syncChannel(
     retention: 0,
     breakdowns: 0,
     warnings: [],
+    requested: null,
+    changed: 0,
+    previousLastDay: store.lastChannelDay(),
+    lastAvailableDay: null,
+    newDays: 0,
+    videosAsked: 0,
+    fullHistory: Boolean(options.fullHistory),
+    durations,
+    totalMs: 0,
+  };
+  const finish = (message: string) => {
+    summary.calls = client.calls;
+    summary.lastAvailableDay = store.lastChannelDay();
+    summary.totalMs = Date.now() - started;
+    options.progress(1, message);
+    return summary;
+  };
+  const ask = (from: string) => {
+    if (!summary.requested) summary.requested = { from, to: options.lastDay };
+    else if (from < summary.requested.from) summary.requested.from = from;
   };
   const check = () => {
     if (options.signal.aborted) throw new Error('Synchronisation annulée');
@@ -179,6 +230,7 @@ export async function syncChannel(
       });
     }
   }
+  step('videos');
   const videos = store.videos().filter((v) => ids.includes(v.id));
   summary.videos = videos.length;
   // Only videos already published have statistics.
@@ -190,11 +242,12 @@ export async function syncChannel(
   check();
   options.progress(0.1, 'Statistiques de la chaîne…');
   const firstPublished = live.map((v) => youtubeDay(v.published_at)).sort()[0];
-  const lastChannelDay = store.lastChannelDay();
+  const lastChannelDay = options.fullHistory ? null : store.lastChannelDay();
   const channelFrom = lastChannelDay
     ? addDay(lastChannelDay, -options.refreshDays)
     : firstPublished;
   if (channelFrom && channelFrom <= lastDay) {
+    ask(channelFrom);
     const rows = await client.report({
       startDate: channelFrom,
       endDate: lastDay,
@@ -210,7 +263,9 @@ export async function syncChannel(
       ],
       sort: 'day',
     });
-    store.upsertChannelDays(
+    const previous = summary.previousLastDay;
+    summary.newDays = rows.filter((r) => !previous || String(r.day) > previous).length;
+    summary.changed! += store.upsertChannelDays(
       rows.map((r): ChannelDay => ({
         day: String(r.day),
         views: num(r.views),
@@ -223,7 +278,7 @@ export async function syncChannel(
       })),
     );
     // Subscribers before today: rebuilt backwards from today's count (first sync only).
-    if (!lastChannelDay) {
+    if (!summary.previousLastDay) {
       let subscribers = num(channel.statistics?.subscriberCount);
       let views = num(channel.statistics?.viewCount);
       const sorted = [...rows].sort((a, b) => String(b.day).localeCompare(String(a.day)));
@@ -235,13 +290,12 @@ export async function syncChannel(
     }
   }
 
+  step('channel');
   if (options.minimal) {
-    summary.calls = client.calls;
     summary.warnings.push(
       'Synchronisation minimale : des envois YouTube sont prévus dans les 24 h (le Planning passe en premier). Le détail par vidéo suivra.',
     );
-    options.progress(1, 'Synchronisation minimale terminée');
-    return summary;
+    return finish('Synchronisation minimale terminée');
   }
 
   // 4. Every video: kind, days, retention, breakdowns.
@@ -253,18 +307,16 @@ export async function syncChannel(
   )
     reach = null;
   let engaged = store.meta<boolean>('engagedViews');
-  const total = Math.max(1, live.length);
-  for (const [index, video] of live.entries()) {
+  let done = 0;
+  const one = async (video: VideoRow) => {
     check();
-    options.progress(
-      0.15 + (0.8 * index) / total,
-      `Vidéo ${index + 1} sur ${live.length} : ${video.title}`,
-    );
     const published = youtubeDay(video.published_at);
-    const last = store.lastDayOf(video.id);
+    const last = options.fullHistory ? null : store.lastDayOf(video.id);
     const from = last ? addDay(last, -options.refreshDays) : published;
     const start = from < published ? published : from;
     if (start <= lastDay) {
+      ask(start);
+      summary.videosAsked!++;
       const query = {
         startDate: start,
         endDate: lastDay,
@@ -281,7 +333,7 @@ export async function syncChannel(
         engaged = result.optional;
         store.setMeta('engagedViews', engaged);
       }
-      store.upsertDays(result.rows.map((r) => dayRow(video.id, r)));
+      summary.changed! += store.upsertDays(result.rows.map((r) => dayRow(video.id, r)));
       summary.dayRows += result.rows.length;
       // Impressions and click-through rate: only when Google accepts them in the API.
       if (reach !== 'unavailable') {
@@ -290,9 +342,9 @@ export async function syncChannel(
             ...query,
             metrics: ['videoThumbnailImpressions', 'videoThumbnailImpressionsClickRate'],
           });
-          store.upsertDays(
+          store.upsertReach(
             reachRows.map((r) => dayRow(video.id, r)),
-            { reachOnly: true },
+            { kind: 'api' },
           );
           if (reach !== 'api') {
             reach = 'api';
@@ -300,12 +352,14 @@ export async function syncChannel(
           }
         } catch (error) {
           if (!(error instanceof GoogleApiError) || error.kind !== 'unsupported') throw error;
-          reach = 'unavailable';
-          store.setMeta('reach', 'unavailable');
-          store.setMeta('reachCheckedAt', new Date().toISOString());
-          summary.warnings.push(
-            'Impressions et taux de clics non fournis par l’API pour ta chaîne : importe l’export CSV de YouTube Studio pour les avoir.',
-          );
+          if (reach !== 'unavailable') {
+            reach = 'unavailable';
+            store.setMeta('reach', 'unavailable');
+            store.setMeta('reachCheckedAt', new Date().toISOString());
+            summary.warnings.push(
+              'Impressions et taux de clics non fournis par l’API pour ta chaîne : importe l’export CSV de YouTube Studio pour les avoir.',
+            );
+          }
         }
       }
     }
@@ -323,7 +377,33 @@ export async function syncChannel(
       }
       store.setVideoFields(video.id, { retention_at: new Date().toISOString() });
     }
-  }
+    done++;
+    options.progress(
+      0.15 + (0.8 * done) / Math.max(1, live.length),
+      `Vidéo ${done} sur ${live.length} : ${video.title}`,
+    );
+  };
+  // The first video alone (it tells which optional metrics Google accepts),
+  // then a few at once: one after the other, a channel of 100 videos took minutes.
+  const queue = [...live];
+  const first = queue.shift();
+  if (first) await one(first);
+  const workers = Math.max(1, options.concurrency ?? 4);
+  let failure: unknown = null;
+  // Every worker ends before the sync answers (no request left writing after an error).
+  await Promise.allSettled(
+    Array.from({ length: Math.min(workers, queue.length) }, async () => {
+      for (let video = queue.shift(); video && failure === null; video = queue.shift()) {
+        try {
+          await one(video);
+        } catch (error) {
+          failure ??= error;
+        }
+      }
+    }),
+  );
+  if (failure !== null) throw failure;
+  step('perVideo');
 
   // 5. Channel-wide breakdowns (whole history).
   check();
@@ -331,9 +411,8 @@ export async function syncChannel(
   if (firstPublished && firstPublished <= lastDay) {
     await channelBreakdowns(client, store, firstPublished, lastDay);
   }
-  summary.calls = client.calls;
-  options.progress(1, 'Synchronisation terminée');
-  return summary;
+  step('channelBreakdowns');
+  return finish('Synchronisation terminée');
 }
 
 async function retentionOf(

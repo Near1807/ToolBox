@@ -27,6 +27,19 @@ import type { VideoDetailData, VideoListData } from './types';
 
 type Sort = 'date' | 'views' | 'index' | 'pct';
 
+/** Where the impressions / CTR of a video come from (API first, CSV for what it lacks). */
+const REACH_SOURCES: Record<string, string> = {
+  api: 'API YouTube Analytics',
+  'api+csv': 'API YouTube Analytics, complétée par un import CSV',
+  'csv-totals': 'export CSV de Studio (totaux à la date de l’export)',
+  csv: 'export CSV de Studio (par jour)',
+};
+const DAY_SOURCES: Record<string, string> = {
+  api: 'API YouTube Analytics',
+  csv: 'import CSV de Studio',
+  unknown: 'import CSV ou API (import d’avant la v0.18)',
+};
+
 export function Videos(props: {
   filters: FilterValues;
   onFilters: (f: FilterValues) => void;
@@ -187,14 +200,20 @@ function VideoSheet(props: { id: string; back: () => void }) {
   if (!d) return <p className="muted">Calcul…</p>;
   const v = d.video;
   const t = d.totals;
-  const tile = (key: string, value: string, label?: string) => (
-    <div className="ys-kpi" key={key}>
+  const tile = (key: string, value: string, label?: string, source?: string) => (
+    <div className="ys-kpi" key={key} title={source ? `Source : ${source}` : undefined}>
       <div className="small muted">
         <Metric k={key}>{label}</Metric>
       </div>
       <div className="ys-kpi__value num">{value}</div>
+      {source && <div className="small muted">{source}</div>}
     </div>
   );
+  const consolidated =
+    d.mode === 'demo'
+      ? undefined
+      : `API YouTube Analytics, jusqu’au ${fmtDay(d.days.at(-1) ?? '')}`;
+  const reachSource = d.reachSource ? REACH_SOURCES[d.reachSource] : undefined;
   const ageGender = (() => {
     const rows = d.breakdowns.age_gender ?? [];
     const byAge = new Map<string, number>();
@@ -242,7 +261,7 @@ function VideoSheet(props: { id: string; back: () => void }) {
           </p>
         )}
         <div className="ys-kpis">
-          {tile('views', fmtInt(t.views))}
+          {tile('views', fmtInt(t.views), undefined, consolidated)}
           {t.engagedViews !== null && tile('engagedViews', fmtInt(t.engagedViews))}
           {tile('minutes', `${fmtNum((t.minutes ?? 0) / 60, 1)} h`)}
           {tile(
@@ -257,8 +276,13 @@ function VideoSheet(props: { id: string; back: () => void }) {
           {tile('subsLost', fmtInt(t.subsLost))}
           {tile('subsPer1000', fmtNum(t.subsPer1000, 1))}
           {tile('halfLife', t.halfLife === null ? '—' : `${t.halfLife} j`)}
-          {tile('impressions', t.impressions === null ? '—' : fmtInt(t.impressions))}
-          {tile('ctr', t.ctr === null ? '—' : `${fmtNum(t.ctr, 1)} %`)}
+          {tile(
+            'impressions',
+            t.impressions === null ? '—' : fmtInt(t.impressions),
+            undefined,
+            reachSource,
+          )}
+          {tile('ctr', t.ctr === null ? '—' : `${fmtNum(t.ctr, 1)} %`, undefined, reachSource)}
         </div>
         {(t.impressions === null || t.ctr === null) && (
           <p className="small muted">
@@ -314,6 +338,7 @@ function VideoSheet(props: { id: string; back: () => void }) {
               dashed: v.kind !== 'short',
             },
           ]}
+          note={() => (consolidated ? `Source : ${consolidated} (consolidé)` : null)}
           marks={d.anomalies.map((a) => ({
             index: d.days.indexOf(a.day),
             label: `${a.kind === 'spike' ? 'Pic' : 'Creux'} inhabituel (attendu ~${fmtInt(a.expected)})`,
@@ -333,6 +358,10 @@ function VideoSheet(props: { id: string; back: () => void }) {
             ]}
             height={150}
             format={(n) => `${fmtNum(n, 1)} %`}
+            note={(i) => {
+              const source = d.series.reachSource[i];
+              return source ? `Source : ${DAY_SOURCES[source] ?? source}` : null;
+            }}
           />
         )}
       </Card>

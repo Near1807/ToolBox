@@ -150,6 +150,8 @@ export function LineChart(props: {
   /** Horizontal reference (e.g. 1 = as usual). */
   reference?: { value: number; label: string };
   xFormat?: (x: string) => string;
+  /** Extra line of the tooltip for a point (e.g. where the number comes from). */
+  note?: (index: number) => string | null;
   ariaLabel: string;
 }) {
   const [ref, width] = useWidth();
@@ -318,6 +320,7 @@ export function LineChart(props: {
                         }
                       />
                     ))}
+                    {props.note?.(hover) && <div className="ys-tip__note">{props.note(hover)}</div>}
                     {props.marks
                       ?.filter((m) => m.index === hover)
                       .map((m, k) => (

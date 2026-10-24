@@ -38,6 +38,26 @@ export function Overview(props: {
   return (
     <div className={data.loading ? 'ys-stale' : undefined}>
       <Filters value={props.filters} onChange={props.onFilters} />
+      <div className="ys-sourceline small muted">
+        <strong>En direct (estimé)</strong> — compteurs de YouTube
+        {d.liveAt ? ` lus le ${new Date(d.liveAt).toLocaleString('fr-FR')}` : ''}, comme sur la
+        chaîne
+      </div>
+      <div className="ys-kpis ys-kpis--live">
+        <Kpi
+          label="Abonnés (en direct)"
+          value={fmtInt(d.live.subscribers)}
+          hint="arrondi par YouTube au-delà de 1 000"
+        />
+        <Kpi label="Vues totales (en direct)" value={fmtInt(d.live.views)} />
+        <Kpi label="J’aime (en direct)" value={fmtInt(d.live.likes)} />
+        <Kpi label="Commentaires (en direct)" value={fmtInt(d.live.comments)} />
+      </div>
+      <div className="ys-sourceline small muted">
+        <strong>Données consolidées</strong> — YouTube Analytics, disponibles jusqu’au{' '}
+        {fmtDay(d.lastDay)} (YouTube les publie avec 2 à 3 jours de retard) : période du{' '}
+        {fmtDay(d.period.first)} au {fmtDay(d.period.last)}
+      </div>
       <div className="ys-kpis">
         <Kpi
           label={<Metric k="subscribers" />}
@@ -106,8 +126,8 @@ export function Overview(props: {
           marks={marks.filter((m) => m.index >= 0)}
         />
         <p className="small muted">
-          Traits verticaux : publications. Les données YouTube s’arrêtent au {fmtDay(d.lastDay)} (2
-          à 3 jours de retard).
+          Traits verticaux : publications. Données consolidées disponibles jusqu’au{' '}
+          {fmtDay(d.lastDay)} (2 à 3 jours de retard de YouTube).
         </p>
       </Card>
 

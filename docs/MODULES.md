@@ -121,12 +121,13 @@ export default defineBackendModule({
 
 ### 5.1 `ctx.db` — base SQLite
 
-| Membre            | Rôle                                                                                                                                    |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `prefix`          | Préfixe des tables du module, ex. `music_library__`                                                                                     |
-| `table(name)`     | Nom complet d'une table : `table('tracks')` → `music_library__tracks`                                                                   |
-| `prepare(sql)`    | Requête préparée (API better-sqlite3 : `run`, `get`, `all`). **Refuse `CREATE`/`ALTER`/`DROP`** : le schéma ne change que par migration |
-| `transaction(fn)` | Exécute `fn` dans une transaction (tout ou rien)                                                                                        |
+| Membre            | Rôle                                                                                                                                                                                                                                                                |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `prefix`          | Préfixe des tables du module, ex. `music_library__`                                                                                                                                                                                                                 |
+| `table(name)`     | Nom complet d'une table : `table('tracks')` → `music_library__tracks`                                                                                                                                                                                               |
+| `prepare(sql)`    | Requête préparée (API better-sqlite3 : `run`, `get`, `all`). **Refuse `CREATE`/`ALTER`/`DROP`** : le schéma ne change que par migration                                                                                                                             |
+| `transaction(fn)` | Exécute `fn` dans une transaction (tout ou rien)                                                                                                                                                                                                                    |
+| `backup(reason)`  | Sauvegarde automatique de toute la base (`<userData>/backups/`, même rotation que celles d'avant migration) ; renvoie le nom du fichier. **À faire avant toute suppression de données demandée par l'utilisateur** (ex. « Supprimer cet import » des Stats YouTube) |
 
 Une seule base `hub.db`, partagée. Tables, index, vues et triggers d'un module **doivent** commencer par son préfixe (vérifié à chaque migration). Lire les tables d'un autre module est interdit : on passe par son service.
 

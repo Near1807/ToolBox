@@ -651,3 +651,49 @@
 .ys-info dd {
   margin: 0;
 }
+
+/* Sources of the numbers (live / consolidated) and the diagnostic. */
+.ys-sourceline {
+  margin: 12px 0 6px;
+}
+.ys-kpis--live .ys-kpi__value {
+  font-size: 1.25rem;
+}
+.ys-checks {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.ys-check {
+  display: grid;
+  grid-template-columns: 112px 1fr;
+  gap: 10px;
+  align-items: start;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.ys-check__badge {
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--text-2);
+}
+.ys-check--ok .ys-check__badge {
+  color: var(--success);
+}
+.ys-check--problem {
+  border-color: var(--danger);
+}
+.ys-check--problem .ys-check__badge {
+  color: var(--danger);
+}
+.ys-check--warning .ys-check__badge {
+  color: var(--warning);
+}
+.ys-check--info .ys-check__badge {
+  color: var(--info);
+}

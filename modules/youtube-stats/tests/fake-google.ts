@@ -32,6 +32,10 @@ export class FakeGoogle {
   refreshInvalid = false;
   /** Google refuses the impressions metrics in the Analytics API. */
   reachUnsupported = true;
+  /** « YouTube Analytics API » not enabled in the Google Cloud project. */
+  analyticsDisabled = false;
+  /** The connection is cut (no network). */
+  networkDown = false;
 
   constructor() {
     this.server = createServer((req, res) => void this.handle(req, res));
@@ -92,6 +96,10 @@ export class FakeGoogle {
   private async handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const url = new URL(req.url ?? '/', this.base);
     this.log.push(`${req.method} ${url.pathname}`);
+    if (this.networkDown && url.pathname !== '/token') {
+      req.socket.destroy();
+      return;
+    }
     if (url.pathname === '/token') {
       const params = new URLSearchParams(await this.body(req));
       if (params.get('grant_type') === 'authorization_code') {
@@ -183,6 +191,13 @@ export class FakeGoogle {
 
   private report(params: URLSearchParams, res: ServerResponse) {
     this.reports.push(params);
+    if (this.analyticsDisabled)
+      return this.error(
+        res,
+        403,
+        'accessNotConfigured',
+        'YouTube Analytics API has not been used in project 123 before or it is disabled.',
+      );
     if (!this.grantedScope.includes('yt-analytics.readonly')) {
       return this.error(
         res,

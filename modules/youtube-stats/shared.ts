@@ -38,7 +38,7 @@ export interface StatVideo {
   totalViews: number;
   totalLikes: number;
   totalComments: number;
-  /** From a YouTube Studio CSV export (or the API when available), lifetime. */
+  /** From a « totals » YouTube Studio CSV export (frozen at its date), lifetime. */
   impressions: number | null;
   ctr: number | null;
 }
@@ -59,6 +59,8 @@ export interface DayRow {
   subsLost: number;
   impressions: number | null;
   ctr: number | null;
+  /** Where impressions / CTR come from (real data only): API first, CSV for what it lacks. */
+  reachSource?: 'api' | 'csv' | 'unknown' | null;
 }
 
 export interface ChannelDay {

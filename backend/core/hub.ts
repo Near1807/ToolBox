@@ -421,6 +421,11 @@ export class Hub {
         return this.handle.db.prepare(sql);
       },
       transaction: (fn) => this.handle.db.transaction(fn)(),
+      backup: (reason) => {
+        const file = createAutomaticBackup(this.handle.db, this.backupsDir, `${id}-${reason}`);
+        logger.info(`Sauvegarde de la base : ${path.basename(file)}`);
+        return path.basename(file);
+      },
     };
 
     const events = this.bus.forSource(id, logger, (off) => disposers.push(off));

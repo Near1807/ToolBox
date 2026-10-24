@@ -108,6 +108,12 @@ export interface ModuleDatabase {
   prepare(sql: string): Statement;
   /** Runs fn inside a transaction (all or nothing). */
   transaction<T>(fn: () => T): T;
+  /**
+   * Automatic backup of the whole database (<userData>/backups/, same rotation
+   * as the backups before migrations), to take before deleting data at the
+   * user's request. Returns the backup's file name.
+   */
+  backup(reason: string): string;
 }
 
 export interface ModuleFiles {
