@@ -15,6 +15,7 @@ import {
   parsePlatforms,
   DEFAULT_PLATFORMS,
 } from '../shared/measures';
+import { clock } from '../shared/format';
 import { BLOCK, type Analysis } from '../shared/types';
 import { ebur128, ffmpeg, ffprobe, noise, RATE, seconds, sine, writeWav } from './signals';
 
@@ -289,5 +290,14 @@ describe('A/B playback levels', () => {
     expect(abLevels(2)).toEqual({ master: -2, reference: 0 });
     expect(abLevels(0)).toEqual({ master: 0, reference: 0 });
     expect(abLevels(Number.NaN)).toEqual({ master: 0, reference: 0 });
+  });
+});
+
+describe('clock', () => {
+  it('rounds before splitting minutes and seconds (never « 0:60 »)', () => {
+    expect(clock(59.97, 0)).toBe('1:00');
+    expect(clock(119.96, 1)).toBe('2:00,0');
+    expect(clock(86.4)).toBe('1:26,4');
+    expect(clock(5.25, 2)).toBe('0:05,25');
   });
 });
