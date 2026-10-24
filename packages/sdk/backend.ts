@@ -139,6 +139,19 @@ export interface ModuleFiles {
    * outside the allowed folders (for DTOs: a missing file shows « Fichier introuvable »).
    */
   mediaUrlIfExists(path: string | null | undefined): string | null;
+  /**
+   * Export asked by the user: shows the « Enregistrer sous » dialog (the OS
+   * asks before replacing an existing file), then writes `data` there.
+   * Returns the path, or null when the user cancelled. Not a generated file:
+   * nothing is registered in ctx.outputs. Outside the desktop app: null.
+   */
+  saveAs(options: {
+    title: string;
+    /** File name proposed (in the output root by default). */
+    defaultName: string;
+    filters?: { name: string; extensions: string[] }[];
+    data: string | Uint8Array;
+  }): Promise<string | null>;
   /** Read-only files shipped with the module: modules/<id>/assets/ (fonts, images…). */
   readonly assetsDir: string;
   /** Path inside assetsDir; throws if it escapes the folder. */

@@ -3,12 +3,23 @@
 // references, export, quick check, assistant (read only), watched folder (read
 // only, off by default), attaching a free project to a track — with and
 // without the Library.
-import { mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, utimesSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  utimesSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { inflateRawSync } from 'node:zlib';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { precheckTrack, type ModuleContext } from '@hub/sdk/backend';
 import {
+  createTestHost,
   createTestHub,
   loadModuleFolder,
   type DiscoveredModule,
@@ -21,6 +32,29 @@ import { baseName } from '../backend/index';
 import { noise, seconds, sine, writeWav } from './signals';
 
 const API = '/api/modules/master-analysis';
+
+/** Reads a zip (central directory; stored or deflated entries) into texts. */
+function unzip(file: string): Promise<Record<string, string>> {
+  const buf = readFileSync(file);
+  const end = buf.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
+  const count = buf.readUInt16LE(end + 10);
+  let at = buf.readUInt32LE(end + 16);
+  const out: Record<string, string> = {};
+  for (let i = 0; i < count; i++) {
+    const method = buf.readUInt16LE(at + 10);
+    const size = buf.readUInt32LE(at + 20);
+    const nameLength = buf.readUInt16LE(at + 28);
+    const extra = buf.readUInt16LE(at + 30);
+    const comment = buf.readUInt16LE(at + 32);
+    const local = buf.readUInt32LE(at + 42);
+    const name = buf.subarray(at + 46, at + 46 + nameLength).toString();
+    const start = local + 30 + buf.readUInt16LE(local + 26) + buf.readUInt16LE(local + 28);
+    const data = buf.subarray(start, start + size);
+    out[name] = (method === 8 ? inflateRawSync(data) : data).toString('utf8');
+    at += 46 + nameLength + extra + comment;
+  }
+  return Promise.resolve(out);
+}
 
 function fakeLibrary(tracks: Track[]): DiscoveredModule {
   return {
@@ -93,12 +127,14 @@ describe('master-analysis on a hub', () => {
         name: string;
         status: string;
         identicalTo: string | null;
-        summary: { integrated: number; clips: number } | null;
+        summary: { integrated: number; truePeak: number; clips: number } | null;
       }[];
     }[];
     profiles: { id: number; refs: { id: number; status: string }[] }[];
   };
   let consumer: ModuleContext | null = null;
+  let saveTarget: string | null = null;
+  const asked: { title: string; defaultPath?: string }[] = [];
   /** The service as another module sees it (ctx.services.optional). */
   const masterService = () => consumer!.services.optional<MasterAnalysisService>('masterAnalysis')!;
   const state = async () => (await hub.request<State>('GET', `${API}/state`)).body;
@@ -116,6 +152,13 @@ describe('master-analysis on a hub', () => {
       coverPath: null,
     } as unknown as Track);
     hub = await createTestHub({
+      // « Enregistrer sous »: the test answers like the user (a path, or cancel).
+      host: createTestHost({
+        selectSaveFile: (options) => {
+          asked.push(options);
+          return Promise.resolve(saveTarget);
+        },
+      }),
       modules: [
         fakeLibrary(tracks),
         await loadModuleFolder(path.resolve(import.meta.dirname, '..')),
@@ -283,15 +326,136 @@ describe('master-analysis on a hub', () => {
     expect(statSync(ref).size).toBeGreaterThan(0);
   });
 
-  it('export: an HTML report registered as a file of the project', async () => {
+  // Bug of v0.20: « Exporter (HTML) » wrote a file in the output folder and answered
+  // nothing visible (no dialog, no message). Now: « Enregistrer sous », the path back.
+  it('export: the HTML report goes through « Enregistrer sous », self-contained', async () => {
+    const p = await state();
+    const project = p.projects.find((x) => x.trackId === 1)!;
+    const v = project.versions[1]!;
+    const profile = p.profiles.find((x) => x.refs.some((r) => r.status === 'done'))!;
+    const outputsBefore = (await hub.request<unknown[]>('GET', '/api/core/outputs')).body.length;
+    saveTarget = path.join(dir, 'exports-user', 'rapport.html');
+    const out = await hub.request<{ path?: string }>('POST', `${API}/versions/${v.id}/export`, {
+      format: 'html',
+      profileId: profile.id,
+    });
+    expect(out.status).toBe(200);
+    expect(out.body.path).toBe(saveTarget);
+    expect(asked.at(-1)!.title).toMatch(/rapport/);
+    expect(path.basename(asked.at(-1)!.defaultPath!)).toBe(
+      `Analyse - Obsidian - ${v.name.replace('/', '_')}.html`,
+    );
+    const html = readFileSync(saveTarget, 'utf8');
+    // Self-contained: no script, no external resource, PNG images embedded.
+    expect(html).toMatch(/^<!doctype html>/);
+    expect(html).not.toMatch(/<script|<canvas|<link |src="http|url\(/i);
+    const images = [...html.matchAll(/<img src="data:image\/png;base64,([A-Za-z0-9+/=]+)"/g)];
+    expect(images.length).toBeGreaterThanOrEqual(7);
+    for (const [, b64] of images)
+      expect(Buffer.from(b64!, 'base64').subarray(1, 4).toString()).toBe('PNG');
+    // Every number as text, with the comparisons.
+    const m = v.summary!;
+    const fr1 = (x: number, sign = false) =>
+      `${sign && x > 0 ? '+' : ''}${x.toFixed(1).replace('.', ',').replace('-', '−')}`;
+    expect(html).toContain(`${fr1(m.integrated)} LUFS`);
+    expect(html).toContain(`${fr1(m.truePeak, true)} dBTP`);
+    for (const title of [
+      'Chiffres clés',
+      'Normalisation des plateformes',
+      'Repères',
+      'Contrastes entre sections',
+      `Écarts avec ${project.versions[0]!.name}`,
+      'Écarts avec les références',
+    ])
+      expect(html).toContain(title);
+    expect(html).toMatch(/Écrêtage[^<]*<\/td><td class="n">0:12/);
+    // Not a file of the project: nothing added to ctx.outputs.
+    expect((await hub.request<unknown[]>('GET', '/api/core/outputs')).body.length).toBe(
+      outputsBefore,
+    );
+  });
+
+  it('export: cancelling the dialog writes nothing', async () => {
     const v = (await state()).projects.find((p) => p.trackId === 1)!.versions[1]!;
-    const out = await hub.request<{ path: string; subject: string }>(
+    saveTarget = null;
+    const out = await hub.request<{ cancelled?: boolean }>(
       'POST',
       `${API}/versions/${v.id}/export`,
+      {
+        format: 'html',
+      },
     );
-    expect(out.status).toBe(200);
-    expect(out.body.subject).toBe('music-library:track:1');
-    expect(path.basename(out.body.path)).toMatch(/^Analyse - Obsidian - v2.*\.html$/);
+    expect(out.body).toEqual({ cancelled: true });
+  });
+
+  it('export: the Markdown summary has every key number', async () => {
+    const p = await state();
+    const v = p.projects.find((x) => x.trackId === 1)!.versions[1]!;
+    const profile = p.profiles.find((x) => x.refs.some((r) => r.status === 'done'))!;
+    const { text } = (
+      await hub.request<{ text: string }>(
+        'GET',
+        `${API}/versions/${v.id}/summary?profile=${profile.id}`,
+      )
+    ).body;
+    for (const part of [
+      new RegExp(`^# Analyse du master — Obsidian — ${v.name}`),
+      /Sonie intégrée -?−?\d+,\d LUFS · LRA/,
+      /Crête vraie [+−]?\d+,\d dBTP/,
+      /\d+ dépassement\(s\)/,
+      /## Plateformes/,
+      /## Bandes/,
+      /## Sections/,
+      /## Contrastes/,
+      /- Écrêtage \(\d+\) : 0:12/,
+      `## Écarts avec ${p.projects.find((x) => x.trackId === 1)!.versions[0]!.name}`,
+      /## Écarts avec les références/,
+    ])
+      expect(text).toMatch(part);
+    // Without anything to compare with: no such part.
+    const alone = (
+      await hub.request<{ text: string }>(
+        'GET',
+        `${API}/versions/${p.projects.find((x) => x.trackId === 1)!.versions[0]!.id}/summary`,
+      )
+    ).body.text;
+    expect(alone).not.toMatch(/## Écarts/);
+  });
+
+  it('export: complete data (CSV + JSON) agree with the measures', async () => {
+    const v = (await state()).projects.find((p) => p.trackId === 1)!.versions[1]!;
+    saveTarget = path.join(dir, 'exports-user', 'données.zip');
+    const out = await hub.request<{ path?: string }>('POST', `${API}/versions/${v.id}/export`, {
+      format: 'data',
+    });
+    expect(out.body.path).toBe(saveTarget);
+    expect(existsSync(saveTarget)).toBe(true);
+    const files = await unzip(saveTarget);
+    expect(Object.keys(files).sort()).toEqual(['LISEZMOI.txt', 'analyse.json', 'courbes.csv']);
+    const json = JSON.parse(files['analyse.json']!) as {
+      measures: { integrated: number; truePeak: number };
+      durationSec: number;
+      versions: { other: string } | null;
+      sections: unknown[];
+      markers: { kind: string }[];
+    };
+    const analysis = v.summary!;
+    expect(json.measures.integrated).toBeCloseTo(analysis.integrated, 6);
+    expect(json.measures.truePeak).toBeCloseTo(analysis.truePeak, 6);
+    expect(json.versions?.other).toBe(
+      (await state()).projects.find((p) => p.trackId === 1)!.versions[0]!.name,
+    );
+    expect(json.markers.some((x) => x.kind === 'clip')).toBe(true);
+    const rows = files['courbes.csv']!.trim().split('\n');
+    const head = rows[0]!.split(';');
+    expect(head[0]).toBe('temps_s');
+    expect(head).toContain('sonie_court_terme_lufs');
+    // One row per 100 ms block.
+    expect(rows.length - 1).toBe(Math.round(json.durationSec * 10));
+    // The loudest true peak of the curve is the global one.
+    const tp = head.indexOf('crete_vraie_dbtp');
+    const peaks = rows.slice(1).map((r) => Number(r.split(';')[tp]) || -Infinity);
+    expect(Math.max(...peaks)).toBeCloseTo(json.measures.truePeak, 2);
   });
 
   it('the assistant reads the measures (read only)', async () => {

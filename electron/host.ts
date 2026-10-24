@@ -41,7 +41,13 @@ export function createElectronHost(): HostAdapter {
     },
     selectSaveFile: async ({ title, defaultPath, filters }) => {
       const window = parent();
-      const options: Electron.SaveDialogOptions = { title, defaultPath, filters };
+      const options: Electron.SaveDialogOptions = {
+        title,
+        defaultPath,
+        filters,
+        // Windows and macOS ask before replacing a file anyway; Linux only with this.
+        properties: ['showOverwriteConfirmation'],
+      };
       const result = window
         ? await dialog.showSaveDialog(window, options)
         : await dialog.showSaveDialog(options);

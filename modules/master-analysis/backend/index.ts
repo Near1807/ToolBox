@@ -49,7 +49,7 @@ import {
   type Section,
 } from '../shared/types';
 import { analyseFile } from './analyze';
-import { buildReport } from './report';
+import { dataZip, type ExportInput, htmlReport, markdownSummary } from './export';
 import { MasterStore, MIGRATION_V1, type GroupRow, type RefRow, type VersionRow } from './store';
 import {
   badgeOf,
@@ -739,39 +739,93 @@ export default defineBackendModule({
       };
     });
 
-    // Export (HTML report, a generated file of the project) -------------------------------
+    // Exports (asked by the user: « Enregistrer sous », not files of the project) ------------
+    // HTML report, Markdown summary and complete data are built from the same input
+    // (export.ts), so their numbers agree. Reports exported by v0.20 and earlier stay
+    // registered as files of the project (Corbeille) until deleted.
 
-    ctx.routes.post('/versions/:id/export', (request) => {
-      const v = versionParam(request);
+    const exportInput = (v: VersionRow, query: { compareTo?: unknown; profile?: unknown }) => {
       const a = loadVersion(v);
       const group = store.group(v.group_id)!;
       const title = trackOf(group.track_id)?.title ?? group.name;
-      const previous = store
-        .versions(v.group_id)
-        .filter((x) => x.number < v.number && x.status === 'done')
-        .at(-1);
-      const html = buildReport({
+      const done = store.versions(v.group_id).filter((x) => x.id !== v.id && x.status === 'done');
+      // The version compared with: the one asked, else the previous one.
+      const other =
+        query.compareTo !== undefined && query.compareTo !== null && query.compareTo !== ''
+          ? done.find((x) => x.id === Number(query.compareTo))
+          : done.filter((x) => x.number < v.number).at(-1);
+      let versions: ExportInput['versions'] = null;
+      if (other) {
+        const c = comparison(other, v, null);
+        versions = {
+          other: other.name,
+          comparison: { offset: c.offset, global: c.global, sections: c.sections, map: c.map },
+          confidence: c.auto.confidence,
+          manual: c.manual,
+          measures: c.measures,
+          overlay: c.overlay,
+        };
+      }
+      let references: ExportInput['references'] = null;
+      const p =
+        query.profile !== undefined && query.profile !== null && query.profile !== ''
+          ? store.profile(Number(query.profile))
+          : undefined;
+      if (p) {
+        const refs = store
+          .refs(p.id)
+          .filter((r) => r.status === 'done')
+          .flatMap((r) => {
+            const analysis = loadAnalysis(r.hash);
+            return analysis ? [{ name: r.name, analysis, sections: sectionsOf(r, analysis) }] : [];
+          });
+        if (refs.length)
+          references = {
+            profile: p.name,
+            names: refs.map((r) => r.name),
+            result: compareReferences({ analysis: a, sections: sectionsOf(v, a) }, refs),
+          };
+      }
+      const input: ExportInput = {
         title,
-        version: v.name,
+        version: { name: v.name, originalName: v.original_name, createdAt: v.created_at },
         analysis: a,
         sections: sectionsOf(v, a),
         threshold: threshold(),
         platforms: normalisation(measures(a), platforms()),
-        previous: previous
-          ? { name: previous.name, comparison: comparison(previous, v, null) }
-          : null,
-      });
-      const safe = `${title} - ${v.name}`.replace(/[<>:"/\\|?*]+/g, '_').slice(0, 120);
-      const file = path.join(ctx.files.outputDir(), `Analyse - ${safe}.html`);
-      mkdirSync(path.dirname(file), { recursive: true });
-      writeFileSync(file, html);
-      return ctx.outputs.register({
-        path: file,
-        ref: `report:${v.id}`,
-        parent: `group:${group.id}`,
-        subject: subjectOf(group),
-        label: `Rapport d’analyse — ${v.name}`,
-      });
+        versions,
+        references,
+        generatedAt: new Date(),
+      };
+      return input;
+    };
+    ctx.routes.post('/versions/:id/export', async (request) => {
+      const v = versionParam(request);
+      const body = requestBody(request);
+      const format = body.format === 'data' ? 'data' : 'html';
+      const input = exportInput(v, { compareTo: body.compareTo, profile: body.profileId });
+      const name = `Analyse - ${input.title} - ${v.name}`;
+      const saved =
+        format === 'html'
+          ? await ctx.files.saveAs({
+              title: 'Exporter le rapport d’analyse',
+              defaultName: `${name}.html`,
+              filters: [{ name: 'Page HTML', extensions: ['html'] }],
+              data: htmlReport(input),
+            })
+          : await ctx.files.saveAs({
+              title: 'Exporter les données complètes',
+              defaultName: `${name} - données.zip`,
+              filters: [{ name: 'Archive zip', extensions: ['zip'] }],
+              data: await dataZip(input),
+            });
+      if (saved) ctx.logger.info(`Export ${format} : ${saved}`);
+      return saved ? { path: saved } : { cancelled: true };
+    });
+    ctx.routes.get('/versions/:id/summary', (request) => {
+      const v = versionParam(request);
+      const q = request.query as { compareTo?: string; profile?: string };
+      return { text: markdownSummary(exportInput(v, q)) };
     });
 
     // Quick check before a generation (service) -----------------------------------------

@@ -313,6 +313,34 @@ export const GUIDE: GuideChapter[] = [
           },
         ],
       },
+      {
+        id: 'exports',
+        title: 'Exporter une analyse',
+        keywords:
+          'export rapport html pdf imprimer résumé markdown copier csv json zip données enregistrer',
+        blocks: [
+          'Sous les chiffres clés, la ligne **Exporter** concerne la version affichée. Choisis d’abord ce qui est inclus : la version comparée (par défaut la précédente) et un profil de références (s’il a des références analysées). Les chiffres sont exactement ceux de la page ; aucune interprétation ni conseil n’est ajouté.',
+          {
+            terms: [
+              [
+                'Exporter le rapport (HTML)…',
+                'Un seul fichier .html, enregistré où tu veux (boîte « Enregistrer sous »). Il s’ouvre dans n’importe quel navigateur, sans l’app ni internet, et s’imprime en PDF (Imprimer → Enregistrer au format PDF). Tous les chiffres y sont en texte et en tableaux ; les graphes sont des images intégrées.',
+              ],
+              [
+                'Copier le résumé',
+                'Copie un résumé compact en Markdown dans le presse-papiers : chiffres clés, plateformes, bandes, sections, contrastes, repères avec minutage, écarts avec la version comparée et les références. Pratique pour coller dans une conversation.',
+              ],
+              [
+                'Exporter les données complètes…',
+                'Un fichier .zip avec courbes.csv (une ligne par 100 ms : sonie, crêtes, bandes, largeur, corrélation, perte au mono, densité ; séparateur « ; ») et analyse.json (toutes les mesures).',
+              ],
+            ],
+          },
+          {
+            note: 'Les exports ne sont pas rangés dans les fichiers du projet : ce sont tes fichiers, à l’endroit choisi. Si le fichier existe déjà, Windows demande avant de le remplacer.',
+          },
+        ],
+      },
     ],
   },
   {
