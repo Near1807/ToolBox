@@ -30,7 +30,7 @@ Légende : ✅ fait · 🚧 en cours · ⏳ prévu
 
 À faire, chacune dans une session dédiée :
 
-- **electron-builder 26.5+** (version majeure) : corrige les 8 vulnérabilités « modérées » de `npm audit` (outil de fabrication de l'installateur, rien d'embarqué dans l'app). Avec un test d'installation du `.exe` sur Windows.
+- **electron-builder** (outil de fabrication de l'installateur, rien d'embarqué dans l'app ; 26.15.3 installé, 26.18 disponible) : les vulnérabilités « modérées » signalées en v0.14.1 ont disparu de `npm audit` (0 en v0.19.0, après correctifs des dépendances transitives) ; la mise à jour reste à faire dans une session dédiée, avec un test d'installation du `.exe` sur Windows.
 - **Versions majeures**, une à la fois, avec rendus de référence et captures avant / après : Electron 45, react-router 8, TypeScript 7 (quand typescript-eslint le prendra en charge), `@types/node` 26 ; aussi `@napi-rs/canvas` 1.0.13 (rendu des Reels), polices `@fontsource` 5.3 et `lucide-react` 1.61 (interface).
 
 Écarté (gain trop faible pour le risque) :
