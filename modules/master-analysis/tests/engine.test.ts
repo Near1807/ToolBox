@@ -6,6 +6,7 @@ import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { analyseFile } from '../backend/analyze';
 import {
+  abLevels,
   align,
   compareVersions,
   markers,
@@ -281,3 +282,12 @@ describe('platform normalisation', () => {
 });
 
 export type { Analysis };
+
+describe('A/B playback levels', () => {
+  it('only the louder side is turned down, never up', () => {
+    expect(abLevels(-3.5)).toEqual({ master: 0, reference: -3.5 });
+    expect(abLevels(2)).toEqual({ master: -2, reference: 0 });
+    expect(abLevels(0)).toEqual({ master: 0, reference: 0 });
+    expect(abLevels(Number.NaN)).toEqual({ master: 0, reference: 0 });
+  });
+});
