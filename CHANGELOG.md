@@ -4,6 +4,37 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.20.0] — 2026-10-24
+
+L'Analyse du master devient lisible d'un coup d'œil (mêmes mesures, au chiffre près), et un nouvel outil : le Timer, avec le pomodoro incrémental pour briser la barrière du démarrage.
+
+### Ajouté
+
+- **Timer** (nouveau module, section Outils) :
+  - timer simple (un clic sur une durée), sessions avec pauses (pomodoro : cycles ou durée totale, pause longue facultative), **pomodoro incrémental** (départ court, +X min ou +X % par cycle, plafond, pauses constantes) ;
+  - aperçu avant de lancer (frise des cycles, durées, heure de fin estimée) ; préréglages enregistrables (« Pomodoro classique 25/5 » et « Démarrage doux 2 h » livrés) ;
+  - temps calculé depuis l'heure réelle : continue si tu changes de page, reprend correctement après une fermeture de l'app ;
+  - notification et son (cloche, bips ou aucun, volume réglable) à chaque changement de phase ; « Passer la pause », « +5 min » ;
+  - tâche de la To-do facultative : à la fin, « Tâche terminée ? » → « Oui » la coche (ton clic), « Non » propose de relancer ou « Plus tard » ;
+  - mini-timer flottant (indicateur toujours visible, désactivable), widget d'accueil, historique et temps passé par tâche ;
+  - assistant : « combien de temps il reste » (lecture) ; lancer, préréglage, pause, reprendre, arrêter, passer la pause derrière le droit « L'assistant peut piloter le timer », désactivé par défaut. ADR 0035.
+- **To-do** : bouton ⏱ « Lancer un timer » sur chaque tâche et temps de travail passé dessus (si le Timer est là) ; service `todo` pour les autres modules.
+
+### Modifié
+
+- **Analyse du master, présentation** (aucune mesure ne change : identiques octet par octet) :
+  - l'analyse passe sous la liste des projets, en pleine largeur ;
+  - en haut, les chiffres clés en grand (sonie intégrée, crête vraie, LRA, PLR, perte au mono, dépassements) ;
+  - vues rangées par question (Volume et dynamique, Crêtes et saturation, Fréquences, Stéréo et mono, Structure et sections, Fichier), détail replié (« Voir le détail ») ;
+  - ligne de temps : 4 pistes par défaut (forme d'onde, sonie, bandes, repères), les autres d'un clic, choix retenu ; pistes plus hautes, unités dans les titres, légendes complètes ;
+  - tableaux : colonnes secondaires au choix (retenues), unités dans les en-têtes, écarts de 3 ou plus en gras, de moins de 1 en gris (sans texte) ;
+  - Sections lisible sur un écran de portable (noms entiers ; une carte par section sur un écran étroit), contrastes en tableau (les barres en détail) ;
+  - guide intégré et ses captures mis à jour (nouvelle partie « Lire la page : résumé, détail, écarts »).
+
+### Corrigé
+
+- Analyse du master : à 1 280 px de large, les noms des sections étaient tronqués (« Int », « Pa ») et le tableau débordait.
+
 ## [0.19.0] — 2026-10-24
 
 Passe de nettoyage et d'audit (aucun changement visible), trois corrections demandées et le guide intégré de l'Analyse du master.
