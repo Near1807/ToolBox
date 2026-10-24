@@ -34,6 +34,41 @@ Une demande est d'abord comparée aux **commandes** (les actions des modules qui
 - **Conflit** : une phrase trop proche d'une autre commande affiche un avertissement qui nomme les deux ; enregistrée seulement après confirmation.
 - **« C'était… »** dans l'historique, sur une demande non comprise : choisir la commande voulue ajoute la phrase (avec la vérification des conflits).
 
+## Mots : ce que l'oreille écrit (ADR 0032)
+
+La reconnaissance vocale reste en français. Trois outils, modifiables par Thomas :
+
+- **Mots attendus** : avec chaque enregistrement, whisper.cpp reçoit une liste de mots à savoir écrire (son « prompt initial »). Dans l'ordre :
+  - « ToolBox » ;
+  - la liste de mots anglais et du métier (page « Mots », préremplie : to-do, mix, master, drop, Reel, Short, sidechain, preset…) ;
+  - les noms et surnoms des outils ;
+  - le nom d'artiste ;
+  - les titres et surnoms des morceaux ;
+  - les tags.
+
+  Elle est recalculée à chaque fois (à jour quand la Bibliothèque change), coupée à environ 700 caractères.
+
+- **Corrections** (« quand l'oreille écrit X, comprendre Y ») :
+  - appliquées juste après la transcription, avant la reconnaissance des commandes ;
+  - sur des mots entiers seulement, sans tenir compte des majuscules ni des accents ;
+  - préremplie : « tout doux » → « to-do ».
+
+  L'historique montre la transcription brute et corrigée. Le bouton **« Corriger »** crée une correction : on sélectionne le mot mal écrit et on tape le bon. Page **« Mots »** : ajouter, modifier, supprimer, tester, exporter / importer (même fichier que le dictionnaire).
+
+- **Surnoms** : des outils et des pages (page Commandes, ex. To-do : « to-do », « mes tâches », « liste de tâches ») et des morceaux (sur la fiche du morceau). Utilisés pour trouver la cible, et ajoutés aux mots attendus.
+
+**Noms au son** : un morceau ou un outil est aussi trouvé par sa prononciation (« obsidienne » → Obsidian, « gros caillou » → GrosKaillou).
+
+**Valeur introuvable** : « Je ne trouve pas le morceau « obsidienne ». Tu voulais dire « Obsidian » ? ». « Oui » relance la même commande avec le bon nom (mêmes droits et confirmations).
+
+**Deux commandes trop proches** : « Tu voulais dire : A ou B ? » (voix : « le premier », « la deuxième », ou des mots de la commande ; ou boutons). La réponse exécute la commande choisie, puis propose « Je retiens « ta phrase » pour B ? » ; la phrase n'est ajoutée que sur « oui ».
+
+**Micro** :
+
+- l'indicateur flottant affiche « Micro… » tant que le micro n'envoie pas de son, puis « Parle, je t'écoute », avec un son très court (réglage « Son micro prêt ») ;
+- le moteur audio est préparé une fois, sans micro ; le micro ne s'ouvre qu'à l'appui et se referme aussitôt après ;
+- l'historique affiche le temps d'ouverture du micro.
+
 ## IA simplifiée (quand elle est activée)
 
 - **La sécurité est appliquée par le code, jamais par le modèle** : confirmation d'une suppression, droits, refus des actions sensibles, message exact de l'action.
@@ -105,7 +140,7 @@ Chaque échange affiche : « commande standardisée » ou « IA » (ou « pas co
 
 | Élément     | Détail                                                                                                                                                                                                                                                                                                                                                                                                   |
 | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Tables      | `assistant__phrases` (phrases de Thomas : action, texte), `assistant__hidden_phrases` (phrases des modules masquées) — migration 1. Historique et contexte en mémoire seulement                                                                                                                                                                                                                          |
+| Tables      | `assistant__phrases` (phrases de Thomas : action, texte), `assistant__hidden_phrases` (phrases des modules masquées) — migration 1 ; `assistant__corrections`, `assistant__words` (mots attendus), `assistant__nicknames` (surnoms des outils et pages) — migration 2, préremplies. Historique et contexte en mémoire seulement                                                                          |
 | Fichiers    | `<userData>/modules/assistant/` : `engines/whisper`, `engines/piper` (moteurs), `models/ggml-*.bin`, `voices/*.onnx(.json)`, `embeddings/<modèle>/` (modèle des commandes), `downloads/` (archives), `speech/` (phrases synthétisées, effacées après 10 min)                                                                                                                                             |
 | Réglages    | `ai` (non), `commandThreshold` (0,7), `commandMargin` (0,08), `speakReplies` (oui), `speed` (1), `directReplies` (automatique), `keepAlive` (30 min), `ollamaUrl` (`http://127.0.0.1:11434`) ; ancien `directReads` (caché, encore lu par « Automatique ») ; `systemPrompt` (caché, vide = instructions d'origine) ; cachés, modifiés depuis la page : `model`, `whisperModel`, `voice`, `pushToTalkKey` |
 | Tâche       | `install` (moteur, modèle de reconnaissance, voix, modèle Ollama, modèle des commandes) avec progression et reprise des téléchargements                                                                                                                                                                                                                                                                  |
@@ -114,27 +149,29 @@ Chaque échange affiche : « commande standardisée » ou « IA » (ou « pas co
 
 ## API
 
-| Méthode      | Route                                                        | Rôle                                                                                                                                   |
-| ------------ | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
-| GET          | `/status`                                                    | Matériel, recommandation, Ollama (version, modèles installés, capacités), moteurs et modèles, touche, réglages, installations en cours |
-| GET          | `/events` (SSE, ticket)                                      | `state`, `turn`, `record` (start / stop / cancel), `speech`, `speech-end`, `speech-stop`                                               |
-| GET          | `/turns`                                                     | Historique de la session                                                                                                               |
-| POST         | `/listen/start` · `/listen/stop` · `/listen/cancel`          | Micro de la page                                                                                                                       |
-| POST         | `/turn/audio` `{ audio }` · `/turn/text` `{ text }`          | Une demande (WAV 16 kHz en base64, ou texte)                                                                                           |
-| POST         | `/turns/:id/answer` `{ yes }` · `/turns/:id/actions/:i/undo` | Oui / Non · Annuler                                                                                                                    |
-| POST         | `/speech/done` · `/reset` · `/voice/test`                    | Fin de lecture · nouvelle conversation · écouter la voix                                                                               |
-| POST         | `/install` `{ target, id? }` · `/install-all`                | Installations                                                                                                                          |
-| PUT          | `/choices`                                                   | Modèle, reconnaissance, voix, vitesse, voix haute, réponses directes                                                                   |
-| POST         | `/hotkey/capture` · `/ollama/start`                          | Changer la touche · démarrer Ollama installé                                                                                           |
-| GET          | `/commands`                                                  | Commandes, phrases (module / Thomas, masquées), droits, réglages de reconnaissance                                                     |
-| POST         | `/commands/test` `{ text }`                                  | Tester une phrase : commande, score, écart, paramètres, classement (rien n'est exécuté)                                                |
-| POST         | `/commands/:action/phrases` `{ text, force? }`               | Ajouter une phrase (conflits renvoyés, enregistrée seulement avec `force`)                                                             |
-| PUT · DELETE | `/commands/phrases/:id`                                      | Modifier (`{ text, force? }`) · supprimer une phrase de Thomas                                                                         |
-| PUT          | `/commands/:action/hidden` `{ text, hidden }`                | Masquer / réafficher une phrase du module                                                                                              |
-| POST         | `/commands/:action/restore` · `/commands/restore`            | Rétablir les phrases d'origine (une commande · toutes)                                                                                 |
-| GET · POST   | `/commands/export` · `/commands/import` `{ file }`           | Exporter · importer le dictionnaire (ajoute, ne retire rien)                                                                           |
-| PUT          | `/rights/:id` `{ granted }`                                  | Activer / désactiver un droit de l'assistant                                                                                           |
-| GET · PUT    | `/prompt` · `{ text }`                                       | Instructions du modèle (d'origine, personnalisées, parties ajoutées par l'app, longueur) · les modifier (`''` = rétablir)              |
+| Méthode                   | Route                                                                                                                                     | Rôle                                                                                                                                   |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| GET                       | `/status`                                                                                                                                 | Matériel, recommandation, Ollama (version, modèles installés, capacités), moteurs et modèles, touche, réglages, installations en cours |
+| GET                       | `/events` (SSE, ticket)                                                                                                                   | `state`, `turn`, `record` (start / stop / cancel), `speech`, `speech-end`, `speech-stop`                                               |
+| GET                       | `/turns`                                                                                                                                  | Historique de la session                                                                                                               |
+| POST                      | `/listen/start` · `/listen/stop` · `/listen/cancel`                                                                                       | Micro de la page                                                                                                                       |
+| POST                      | `/turn/audio` `{ audio }` · `/turn/text` `{ text }`                                                                                       | Une demande (WAV 16 kHz en base64, ou texte)                                                                                           |
+| POST                      | `/turns/:id/answer` `{ yes }` · `/turns/:id/actions/:i/undo`                                                                              | Oui / Non · Annuler                                                                                                                    |
+| POST                      | `/speech/done` · `/reset` · `/voice/test`                                                                                                 | Fin de lecture · nouvelle conversation · écouter la voix                                                                               |
+| POST                      | `/install` `{ target, id? }` · `/install-all`                                                                                             | Installations                                                                                                                          |
+| PUT                       | `/choices`                                                                                                                                | Modèle, reconnaissance, voix, vitesse, voix haute, réponses directes                                                                   |
+| POST                      | `/hotkey/capture` · `/ollama/start`                                                                                                       | Changer la touche · démarrer Ollama installé                                                                                           |
+| GET                       | `/commands`                                                                                                                               | Commandes, phrases (module / Thomas, masquées), droits, réglages de reconnaissance                                                     |
+| POST                      | `/commands/test` `{ text }`                                                                                                               | Tester une phrase : commande, score, écart, paramètres, classement (rien n'est exécuté)                                                |
+| POST                      | `/commands/:action/phrases` `{ text, force? }`                                                                                            | Ajouter une phrase (conflits renvoyés, enregistrée seulement avec `force`)                                                             |
+| PUT · DELETE              | `/commands/phrases/:id`                                                                                                                   | Modifier (`{ text, force? }`) · supprimer une phrase de Thomas                                                                         |
+| PUT                       | `/commands/:action/hidden` `{ text, hidden }`                                                                                             | Masquer / réafficher une phrase du module                                                                                              |
+| POST                      | `/commands/:action/restore` · `/commands/restore`                                                                                         | Rétablir les phrases d'origine (une commande · toutes)                                                                                 |
+| GET · POST                | `/commands/export` · `/commands/import` `{ file }`                                                                                        | Exporter · importer le dictionnaire (ajoute, ne retire rien)                                                                           |
+| PUT                       | `/rights/:id` `{ granted }`                                                                                                               | Activer / désactiver un droit de l'assistant                                                                                           |
+| GET · PUT                 | `/prompt` · `{ text }`                                                                                                                    | Instructions du modèle (d'origine, personnalisées, parties ajoutées par l'app, longueur) · les modifier (`''` = rétablir)              |
+| GET · POST · PUT · DELETE | `/vocabulary` · `/vocabulary/corrections[/:id]` · `/vocabulary/words[/:id]` · `/vocabulary/words/restore` · `/vocabulary/nicknames[/:id]` | Mots : corrections, mots attendus, surnoms des outils, mots envoyés à la reconnaissance                                                |
+| POST                      | `/vocabulary/test` `{ text }` · `/listen/ready`                                                                                           | Tester une correction (texte corrigé et commande obtenue, rien n'est exécuté) · le micro reçoit du son (« Parle »)                     |
 
 Pour les tests : `TOOLBOX_WHISPER_SERVER`, `TOOLBOX_PIPER` (chemins des moteurs), `setAssistantTestHooks` (faux modèle et faux moteurs).
 

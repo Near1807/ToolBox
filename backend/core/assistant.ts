@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import {
   HttpError,
+  NotFoundError,
   type AssistantActionDefinition,
   type AssistantActionInfo,
   type AssistantOutcome,
@@ -170,6 +171,23 @@ export class AssistantRegistry {
     return [...rights.values()];
   }
 
+  /** Other names of the tools and pages (« mes tâches » → To-do), set by the assistant module. */
+  private nicknames: Record<string, string[]> = {};
+
+  toolNicknames(): Record<string, string[]> {
+    return this.nicknames;
+  }
+
+  /** Key: a module id (« todo ») or a page route (« /settings »). */
+  setToolNicknames(nicknames: Record<string, string[]>): void {
+    this.nicknames = Object.fromEntries(
+      Object.entries(nicknames).map(([key, list]) => [
+        key,
+        [...new Set(list.map((n) => n.trim()).filter(Boolean))],
+      ]),
+    );
+  }
+
   setRight(id: string, granted: boolean): void {
     if (!this.rights().some((r) => r.id === id)) throw new Error(`Droit inconnu « ${id} »`);
     this.rightsStore?.set(id, granted);
@@ -197,6 +215,7 @@ export class AssistantRegistry {
         required: definition.required ?? [],
         risk: definition.risk,
         page,
+        label: definition.label ?? definition.description,
         examples: definition.examples ?? [],
         extracts: Boolean(definition.extract),
         right: null,
@@ -284,6 +303,15 @@ export class AssistantRegistry {
     } catch (error) {
       // An HttpError is an expected refusal (unknown task…): no log noise.
       if (!(error instanceof HttpError)) logger?.error(`Action « ${id} » en échec`, error);
+      if (error instanceof NotFoundError) {
+        const { param, what, value, suggestions } = error;
+        return {
+          status: 'error',
+          id,
+          message: errorMessage(error),
+          notFound: { param, what, value, suggestions },
+        };
+      }
       return { status: 'error', id, message: errorMessage(error) };
     }
   }
@@ -347,6 +375,10 @@ export class AssistantRegistry {
       rights: () => {
         guard();
         return this.rights();
+      },
+      setToolNicknames: (nicknames) => {
+        guard();
+        this.setToolNicknames(nicknames);
       },
       setRight: (id, granted) => {
         guard();

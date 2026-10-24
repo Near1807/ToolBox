@@ -35,7 +35,8 @@ export interface UserPhrase {
 /** The file of « Exporter le dictionnaire ». */
 export interface DictionaryFile {
   format: 'toolbox-assistant-commands';
-  version: 1;
+  /** 2: with the words (corrections, expected words, nicknames). */
+  version: 1 | 2;
   exportedAt: string;
   phrases: { action: string; text: string }[];
   hidden: { action: string; text: string }[];
@@ -160,7 +161,11 @@ export class Dictionary {
     known: (actionId: string) => boolean,
   ): { added: number; hidden: number; skipped: number } {
     const data = file as Partial<DictionaryFile> | null;
-    if (!data || data.format !== 'toolbox-assistant-commands' || data.version !== 1)
+    if (
+      !data ||
+      data.format !== 'toolbox-assistant-commands' ||
+      (data.version !== 1 && data.version !== 2)
+    )
       throw new Error('Ce fichier n’est pas un dictionnaire de commandes ToolBox');
     const list = (value: unknown) =>
       (Array.isArray(value) ? value : []).filter(

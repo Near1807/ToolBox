@@ -23,7 +23,10 @@ export async function exportBackupZip(options: {
   target: string;
   appVersion: string;
   modules: { id: string; version: string }[];
+  /** Left out (downloaded again on demand), relative to modulesDataDir: « assistant/models ». */
+  exclude?: string[];
 }): Promise<ExportResult> {
+  const excluded = (options.exclude ?? []).map((p) => p.replace(/\/+$/, '') + '/');
   const tempDb = path.join(options.dataDir, 'tmp', `export-${Date.now()}.db`);
   const partial = `${options.target}.part`;
   snapshotDatabase(options.db, tempDb);
@@ -43,6 +46,7 @@ export async function exportBackupZip(options: {
       if (!entry.isFile()) continue;
       const absolute = path.join(entry.parentPath, entry.name);
       const relative = path.relative(options.modulesDataDir, absolute).split(path.sep).join('/');
+      if (excluded.some((prefix) => relative.startsWith(prefix))) continue;
       zip.addFile(absolute, `modules/${relative}`);
       fileCount += 1;
     }
@@ -53,6 +57,8 @@ export async function exportBackupZip(options: {
       createdAt: new Date().toISOString(),
       modules: options.modules,
       contents: { 'hub.db': 'base de données', 'modules/': 'fichiers des modules' },
+      // Downloaded engines and models: not in the backup, downloaded again with one click.
+      excluded: options.exclude ?? [],
     };
     zip.addBuffer(Buffer.from(JSON.stringify(description, null, 2)), 'toolbox-sauvegarde.json');
     zip.end();

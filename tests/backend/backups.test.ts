@@ -46,6 +46,37 @@ describe('backup export', () => {
     ]);
   });
 
+  it('leaves out what a module declares as downloaded again on demand (backup.exclude)', async () => {
+    let target = '';
+    hub = await createTestHub({
+      modules: [fakeModule('voice', { manifest: { backup: { exclude: ['models', 'engines'] } } })],
+      host: createTestHost({ selectSaveFile: async () => target }),
+    });
+    target = path.join(hub.dataDir, 'export.zip');
+    const dir = path.join(hub.dataDir, 'modules', 'voice');
+    for (const sub of ['models', 'engines/bin', 'phrases', 'models-notes'])
+      mkdirSync(path.join(dir, sub), { recursive: true });
+    writeFileSync(path.join(dir, 'models', 'big.bin'), 'x');
+    writeFileSync(path.join(dir, 'engines', 'bin', 'tool.exe'), 'x');
+    writeFileSync(path.join(dir, 'phrases', 'mine.json'), '{}');
+    // Same prefix but another folder: kept.
+    writeFileSync(path.join(dir, 'models-notes', 'a.txt'), 'x');
+    await hub.request('POST', '/api/core/backups/export');
+    expect(await zipEntries(target)).toEqual([
+      'hub.db',
+      'modules/voice/models-notes/a.txt',
+      'modules/voice/phrases/mine.json',
+      'toolbox-sauvegarde.json',
+    ]);
+  });
+
+  it('refuses an exclusion that leaves the module folder', async () => {
+    hub = await createTestHub({
+      modules: [fakeModule('bad', { manifest: { backup: { exclude: ['../other'] } } })],
+    });
+    expect(hub.hub.moduleInfos().find((m) => m.id === 'bad')!.status).not.toBe('loaded');
+  });
+
   it('does nothing when the save dialog is cancelled', async () => {
     hub = await createTestHub({
       modules: [],

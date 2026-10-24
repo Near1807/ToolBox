@@ -2,14 +2,15 @@
 // « Fait » box and an optional track of the library. The assistant drives it
 // through the actions declared at the end (docs/MODULES.md §5.15).
 import {
+  type AssistantParams,
   defineBackendModule,
   HttpError,
   idParam,
   listPhrase,
   matchByName,
-  requestBody,
-  type AssistantParams,
   type ModuleContext,
+  NotFoundError,
+  requestBody,
 } from '@hub/sdk/backend';
 import type { MusicLibraryService } from '../../music-library/contract';
 import { formatDue, localToday, parseDue, spokenDue, daysBetween, addDays } from '../dates';
@@ -310,9 +311,17 @@ export default defineBackendModule({
           409,
           'La Bibliothèque n’est pas disponible : impossible de rattacher un morceau.',
         );
-      const match = matchByName(service.listTracks(), name, (t) => t.title);
+      const match = matchByName(service.listTracks(), name, (t) => [
+        t.title,
+        ...(t.nicknames ?? []),
+      ]);
       if (match.kind === 'none')
-        throw new HttpError(404, `Aucun morceau ne s’appelle « ${name} ».`);
+        throw new NotFoundError(
+          'track',
+          'le morceau',
+          name,
+          match.suggestions.map((t) => t.title),
+        );
       if (match.kind === 'ambiguous') {
         throw new HttpError(
           409,
@@ -330,9 +339,11 @@ export default defineBackendModule({
       );
       const match = matchByName(rows, wanted, (r) => r.title);
       if (match.kind === 'none') {
-        throw new HttpError(
-          404,
-          `Je ne trouve pas de tâche ${scope === 'done' ? 'faite ' : scope === 'open' ? 'à faire ' : ''}qui ressemble à « ${wanted} ».`,
+        throw new NotFoundError(
+          'task',
+          `de tâche ${scope === 'done' ? 'faite ' : scope === 'open' ? 'à faire ' : ''}qui ressemble à`,
+          wanted,
+          match.suggestions.map((r) => r.title),
         );
       }
       if (match.kind === 'ambiguous') {

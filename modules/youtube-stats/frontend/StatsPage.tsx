@@ -3,7 +3,7 @@
 // The tab and the open track / video live in the URL (?tab=…&video=…).
 import { useState } from 'react';
 import { useSearchParams } from 'react-router';
-import { api, Button, EmptyState, Page, useApi, useModule } from '@hub/sdk/frontend';
+import { api, Button, EmptyState, Page, useApi, useJobs, useModule } from '@hub/sdk/frontend';
 import { DemoBanner, type FilterValues } from './common';
 import { Data } from './Data';
 import { Lab } from './Lab';
@@ -25,7 +25,17 @@ type Tab = (typeof TABS)[number][0];
 
 export function StatsPage() {
   const module = useModule();
-  const state = useApi<StateData>(module.url('/state'));
+  // When a sync ends, the state and every tab are read again (before, the page
+  // kept showing the numbers of before the sync until it was reopened); while
+  // it runs, the state follows its progress.
+  const { jobs } = useJobs(module.id);
+  const syncs = jobs.filter((j) => j.type === 'sync');
+  const finished = syncs.filter((j) => j.finishedAt !== null).length;
+  const active = syncs.find((j) => j.status === 'queued' || j.status === 'running');
+  const dataVersion = `${finished}`;
+  const state = useApi<StateData>(
+    module.url(`/state?v=${dataVersion}-${active ? `${active.id}-${active.progress ?? ''}` : ''}`),
+  );
   const [params, setParams] = useSearchParams();
   const [filters, setFilters] = useState<FilterValues>({ period: '28', kind: 'all', track: '' });
   const tab = (TABS.find(([id]) => id === params.get('tab'))?.[0] ?? 'overview') as Tab;
@@ -96,7 +106,7 @@ export function StatsPage() {
           </div>
         </EmptyState>
       ) : (
-        <>
+        <div key={dataVersion} className="ys-tab">
           {tab === 'overview' && (
             <Overview
               filters={filters}
@@ -123,7 +133,7 @@ export function StatsPage() {
           {tab === 'lab' && <Lab openVideo={openVideo} openTrack={openTrack} />}
           {tab === 'theories' && <Theories />}
           {tab === 'data' && <Data state={s ?? null} reload={state.reload} />}
-        </>
+        </div>
       )}
     </Page>
   );

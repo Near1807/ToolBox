@@ -255,6 +255,46 @@ describe('ctx.assistant', () => {
     expect(await ctx.assistant.extract('core.list-jobs', 'quels rendus sont en cours')).toEqual({});
   });
 
+  it('opens a tool by a nickname or by its sound, and offers the closest one', async () => {
+    const { ctx } = await start();
+    ctx.assistant.setToolNicknames({ lists: ['ma liste de courses'], '/settings': ['options'] });
+    expect(await ctx.assistant.run('core.open', { target: 'ma liste de courses' })).toMatchObject({
+      open: '/m/lists',
+    });
+    expect(await ctx.assistant.run('core.open', { target: 'options' })).toMatchObject({
+      open: '/settings',
+    });
+    // Nothing close enough: what was not found, and the closest names.
+    const outcome = await ctx.assistant.run('core.open', { target: 'module liste' });
+    expect(outcome.status === 'done' || outcome.status === 'error').toBe(true);
+    const none = await ctx.assistant.run('core.open', { target: 'zzzz' });
+    expect(none).toMatchObject({
+      status: 'error',
+      message: 'Je ne trouve pas l’outil « zzzz ».',
+      notFound: { param: 'target', value: 'zzzz' },
+    });
+  });
+
+  it('« ouvre l’application » shows the window, on a page if asked', async () => {
+    const { ctx } = await start();
+    const extract = (said: string) => ctx.assistant.extract('core.show-app', said);
+    expect(await extract('ouvre l’application')).toEqual({});
+    expect(await extract('ouvre ToolBox')).toEqual({});
+    expect(await extract('reviens sur l’app')).toEqual({});
+    expect(await extract('ouvre l’application sur les réglages')).toEqual({ target: 'reglages' });
+    expect(await extract('ouvre le planning')).toBeNull();
+    // « ouvre l'application » is not a tool to open.
+    expect(await ctx.assistant.extract('core.open', 'ouvre l’application')).toBeNull();
+    expect(await ctx.assistant.run('core.show-app', {})).toMatchObject({
+      status: 'done',
+      message: 'C’est ouvert.',
+      open: '/',
+    });
+    expect(await ctx.assistant.run('core.show-app', { target: 'reglages' })).toMatchObject({
+      open: '/settings',
+    });
+  });
+
   it('coerces what models send', () => {
     const definition = {
       name: 'x',

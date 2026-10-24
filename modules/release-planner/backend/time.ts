@@ -109,6 +109,11 @@ export function weekday(date: string): number {
 }
 
 /** The YouTube quota day (it resets at midnight, Pacific time). */
+/** Sunday of the calendar week (Monday → Sunday) of `date`: « cette semaine » everywhere. */
+export function weekEnd(date: string): string {
+  return addDays(date, 6 - weekday(date));
+}
+
 export function quotaDay(now: Date): string {
   return utcToZoned(now, QUOTA_TIME_ZONE).date;
 }

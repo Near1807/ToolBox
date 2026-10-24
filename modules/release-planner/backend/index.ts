@@ -70,6 +70,7 @@ import {
   quotaDay,
   utcToZoned,
   weekday,
+  weekEnd,
   zonedToUtc,
 } from './time';
 import {
@@ -1472,7 +1473,8 @@ export default defineBackendModule({
         date: today,
         today: all.filter((item) => item.date === today),
         late: all.filter((item) => item.late && item.date < today),
-        upcoming: all.filter((item) => item.date > today && item.date <= addDays(today, 7)),
+        // The rest of the calendar week (Monday → Sunday), as everywhere in the app.
+        upcoming: all.filter((item) => item.date > today && item.date <= weekEnd(today)),
         account: ctx.accounts.status(GOOGLE),
       };
     });

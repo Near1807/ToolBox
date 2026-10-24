@@ -25,7 +25,43 @@ export interface TurnAction {
 
 export type Pending =
   | { kind: 'confirm'; actionId: string; params: unknown; question: string; moduleName: string }
-  | { kind: 'open'; route: string; label: string };
+  | { kind: 'open'; route: string; label: string }
+  /** « Tu voulais dire « Obsidian » ? »: « oui » runs the same action with that value. */
+  | { kind: 'retry'; actionId: string; params: Record<string, unknown>; question: string }
+  /** « Tu voulais dire : … ou … ? »: the answer picks one (never the code). */
+  | {
+      kind: 'choose';
+      options: { actionId: string; params: Record<string, unknown>; label: string }[];
+      utterance: string;
+      question: string;
+    }
+  /** « Je retiens cette phrase pour … ? »: « oui » adds it to the dictionary. */
+  | { kind: 'learn'; actionId: string; text: string; label: string; question: string };
+
+/** « le premier », « la deuxième », « 2 », or words of one of the labels; null if unclear. */
+export function pickChoice(text: string, labels: string[]): number | null {
+  const said = text
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (/^(?:(?:le|la|l) )?(?:premier|premiere|1|un|une|1er|1re)(?: .*)?$/.test(said)) return 0;
+  if (/^(?:(?:le|la|l) )?(?:deuxieme|second|seconde|2|deux|2e|autre)(?: .*)?$/.test(said))
+    return labels.length > 1 ? 1 : null;
+  const scores = labels.map((label) => {
+    const words = label
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((w) => w.length > 3);
+    return words.filter((w) => said.includes(w)).length;
+  });
+  const best = Math.max(...scores);
+  return best > 0 && scores.filter((s) => s === best).length === 1 ? scores.indexOf(best) : null;
+}
 
 /** How a turn was answered. */
 export type TurnMode = 'command' | 'ai' | 'not-understood' | 'answer';
@@ -92,6 +128,8 @@ export interface BrainDeps {
   prompt?: () => string | null;
   /** keep_alive sent to Ollama. */
   keepAlive?: () => string;
+  /** Adds Thomas's phrase to a command (with the conflict check): « Je retiens … ? ». */
+  learn?: (actionId: string, text: string) => Promise<{ saved: boolean; conflicts: string[] }>;
 }
 
 export const NOT_UNDERSTOOD = 'Je n’ai pas compris ta demande.';
@@ -362,7 +400,41 @@ export class Brain {
 
     // A pending question first: only a clear « oui » / « non » answers it.
     const pending = this.pending;
-    if (pending) {
+    if (pending?.kind === 'choose') {
+      const no =
+        yesNo(text) === 'no' || /^(?:aucun|aucune|ni l un ni l autre)/.test(text.toLowerCase());
+      const index = no
+        ? null
+        : pickChoice(
+            text,
+            pending.options.map((o) => o.label),
+          );
+      if (no || index !== null) {
+        this.pending = null;
+        result.mode = 'answer';
+        if (no) return this.closeTurn(finish('D’accord.'), text);
+        const option = pending.options[index!]!;
+        const info = catalog.find((a) => a.id === option.actionId);
+        const outcome = await this.deps.run(option.actionId, option.params);
+        result.actions.push(this.record(info, option.actionId, outcome));
+        const asked = this.react(outcome, info, option.params);
+        if (asked !== null) return this.closeTurn(finish(asked), text);
+        const reply = this.doneReply(outcome, result);
+        if (outcome.status !== 'done' || !this.deps.learn)
+          return this.closeTurn(finish(reply), text);
+        // Offered, never done without Thomas's « oui ».
+        const question = `Je retiens « ${pending.utterance} » pour « ${option.label} » ?`;
+        this.pending = {
+          kind: 'learn',
+          actionId: option.actionId,
+          text: pending.utterance,
+          label: option.label,
+          question,
+        };
+        return this.closeTurn(finish(`${reply} ${question}`), text);
+      }
+    }
+    if (pending && pending.kind !== 'choose') {
       const answer = yesNo(text);
       this.pending = null;
       if (answer) {
@@ -377,6 +449,26 @@ export class Brain {
           this.deps.open(pending.route);
           result.opened = pending.route;
           return this.closeTurn(finish(`J’ouvre ${pending.label}.`), text);
+        }
+        if (pending.kind === 'learn') {
+          const learnt = await this.deps.learn!(pending.actionId, pending.text);
+          return this.closeTurn(
+            finish(
+              learnt.saved
+                ? `C’est noté : « ${pending.text} » lance maintenant « ${pending.label} ».`
+                : `Je ne l’ajoute pas : cette phrase est trop proche de ${learnt.conflicts.map((c) => `« ${c} »`).join(' et ')}. Tu peux le faire depuis la page Commandes.`,
+            ),
+            text,
+          );
+        }
+        if (pending.kind === 'retry') {
+          // Same action, the value Thomas accepted: same rights and confirmations.
+          const info = catalog.find((a) => a.id === pending.actionId);
+          const outcome = await this.deps.run(pending.actionId, pending.params);
+          result.actions.push(this.record(info, pending.actionId, outcome));
+          const reply =
+            this.react(outcome, info, pending.params) ?? this.doneReply(outcome, result);
+          return this.closeTurn(finish(reply), text);
         }
         const info = catalog.find((a) => a.id === pending.actionId);
         const outcome = await this.deps.run(pending.actionId, pending.params, { confirmed: true });
@@ -403,6 +495,18 @@ export class Brain {
         result.actions.push(this.record(info, actionId, outcome));
         const reply = this.react(outcome, info, params) ?? this.doneReply(outcome, result);
         return this.closeTurn(finish(reply), text);
+      }
+      // Two commands about as close: Thomas picks (AI on or off).
+      if (match.choices.length === 2) {
+        result.mode = 'not-understood';
+        const options = match.choices.map((c) => ({
+          actionId: c.actionId,
+          params: c.params ?? {},
+          label: catalog.find((a) => a.id === c.actionId)?.label ?? c.phrase,
+        }));
+        const question = `Tu voulais dire : « ${options[0]!.label} » ou « ${options[1]!.label} » ?`;
+        this.pending = { kind: 'choose', options, utterance: text, question };
+        return this.closeTurn(finish(question), text);
       }
     }
     if (this.deps.ai && !this.deps.ai()) {
@@ -588,6 +692,18 @@ export class Brain {
     if (outcome.status === 'forbidden') {
       this.pending = { kind: 'open', route: RIGHTS_ROUTE, label: 'les droits de l’assistant' };
       return forbiddenReply(outcome.right.label);
+    }
+    // A value that matches nothing, but something close exists: offer it.
+    if (outcome.status === 'error' && outcome.notFound?.suggestions.length) {
+      const { param, suggestions } = outcome.notFound;
+      const question = `${outcome.message} Tu voulais dire « ${suggestions[0]} » ?`;
+      this.pending = {
+        kind: 'retry',
+        actionId: outcome.id,
+        params: { ...(params as Record<string, unknown>), [param]: suggestions[0] },
+        question,
+      };
+      return question;
     }
     return null;
   }

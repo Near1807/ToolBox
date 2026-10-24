@@ -122,7 +122,8 @@ function BackupsCard() {
       <p className="muted">
         L’export crée un fichier .zip contenant la base de données et les fichiers des outils
         (morceaux, covers…). Les vidéos générées n’y sont pas : elles sont déjà dans ton dossier de
-        sortie.
+        sortie. Les moteurs et modèles téléchargés (reconnaissance vocale, voix, modèle des
+        commandes…) n’y sont pas non plus : ils se retéléchargent d’un clic depuis leur outil.
       </p>
       {result && <p className={result.ok ? 'success' : 'error'}>{result.message}</p>}
       <h3>Sauvegardes automatiques</h3>

@@ -439,12 +439,18 @@ describe('release-planner (mock YouTube)', () => {
       hub.hub.assistant.run(`release-planner.${id}`, params);
     expect(await run('release', { track: 'drop' })).toMatchObject({
       status: 'done',
-      message: 'Sortie de Drop : lundi 14 janvier. 0 élément(s) publié(s) sur 10.',
+      message: expect.stringMatching(
+        /^Sortie de Drop : à venir : .+\. Jour J : lundi 14 janvier\.$/,
+      ),
     });
-    const agenda = await run('agenda', { period: 'week' });
+    const agenda = await run('agenda', { period: 'next7' });
     expect(agenda).toMatchObject({
       status: 'done',
-      message: expect.stringMatching(/^Rien à publier dans les 7 prochains jours/),
+      message: 'Rien de prévu les 7 prochains jours.',
+    });
+    // « cette semaine » = the calendar week; « Rien de prévu » here too (sortie en 2030).
+    expect(await run('agenda', { period: 'week' })).toMatchObject({
+      message: 'Rien de prévu cette semaine.',
     });
     expect(await run('upload', {})).toMatchObject({
       status: 'refused',

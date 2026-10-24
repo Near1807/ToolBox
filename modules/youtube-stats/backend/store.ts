@@ -1,7 +1,7 @@
 // Local storage of the statistics (tables of the module): everything is kept,
 // so trends can be computed over years even if YouTube changes its API. The
 // real dataset is built from these tables + what the other modules know.
-import type { ModuleContext } from '@hub/sdk/backend';
+import type { MigrationDatabase, ModuleContext } from '@hub/sdk/backend';
 import type { CustomReelsService } from '../../custom-reels/contract';
 import type { InstagramPackService } from '../../instagram-video/contract';
 import type { MusicLibraryService } from '../../music-library/contract';
@@ -115,6 +115,96 @@ export const MIGRATION_V1 = `
   );
 `;
 
+/**
+ * Provenance of every number (v0.18): `api_at` = when the Analytics API last
+ * wrote the core metrics of a day (NULL: a row only a CSV created, with no
+ * views of its own); `reach_source` / `import_id` = where impressions and CTR
+ * come from ('api', 'csv' + its import, 'unknown' when it cannot be told).
+ * Rows of before are labelled from what can be known for sure (see ADR 0033).
+ */
+export function migrationV2(db: MigrationDatabase): void {
+  const t = (name: string) => db.table(name);
+  db.exec(`
+    ALTER TABLE ${t('days')} ADD COLUMN api_at TEXT;
+    ALTER TABLE ${t('days')} ADD COLUMN reach_source TEXT;
+    ALTER TABLE ${t('days')} ADD COLUMN import_id INTEGER;
+    ALTER TABLE ${t('videos')} ADD COLUMN reach_import_id INTEGER;
+    ALTER TABLE ${t('imports')} ADD COLUMN period_from TEXT;
+    ALTER TABLE ${t('imports')} ADD COLUMN period_to TEXT;
+    ALTER TABLE ${t('imports')} ADD COLUMN metrics TEXT NOT NULL DEFAULT '[]';
+    ALTER TABLE ${t('imports')} ADD COLUMN legacy INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE ${t('imports')} ADD COLUMN days INTEGER NOT NULL DEFAULT 0;
+    CREATE INDEX ${t('days_import')} ON ${t('days')} (import_id);
+  `);
+  // The API always gives an average view duration; a CSV row never has one.
+  db.exec(`UPDATE ${t('days')} SET api_at = 'avant-0.18' WHERE avg_view_duration IS NOT NULL`);
+  const imports = db.prepare(`SELECT id, kind FROM ${t('imports')} ORDER BY id`).all() as {
+    id: number;
+    kind: string;
+  }[];
+  db.exec(`UPDATE ${t('imports')} SET legacy = 1`);
+  const meta = db.prepare(`SELECT value FROM ${t('meta')} WHERE key = 'reach'`).get() as
+    { value: string } | undefined;
+  const apiReach = meta?.value === '"api"';
+  const daily = imports.filter((i) => i.kind === 'daily');
+  const totals = imports.filter((i) => i.kind === 'totals');
+  const withReach = `impressions IS NOT NULL OR ctr IS NOT NULL`;
+  if (daily.length === 0) {
+    // No daily import: impressions of the days can only come from the API.
+    db.exec(`UPDATE ${t('days')} SET reach_source = 'api' WHERE ${withReach}`);
+  } else if (!apiReach && daily.length === 1) {
+    // The API never gave them and a single daily import exists: they are its own.
+    db.prepare(
+      `UPDATE ${t('days')} SET reach_source = 'csv', import_id = ? WHERE ${withReach}`,
+    ).run(daily[0]!.id);
+  } else {
+    // Several imports, or the API and CSV both wrote them: not attributable for sure.
+    db.exec(
+      `UPDATE ${t('days')} SET reach_source = '${apiReach ? 'unknown' : 'csv'}' WHERE ${withReach}`,
+    );
+  }
+  // Impressions of a whole video only come from a « totals » CSV.
+  if (totals.length === 1)
+    db.prepare(
+      `UPDATE ${t('videos')} SET reach_import_id = ? WHERE impressions IS NOT NULL OR ctr IS NOT NULL`,
+    ).run(totals[0]!.id);
+  // Period and number of days of the imports that could be attributed.
+  db.exec(`
+    UPDATE ${t('imports')} SET
+      period_from = (SELECT MIN(day) FROM ${t('days')} d WHERE d.import_id = ${t('imports')}.id),
+      period_to = (SELECT MAX(day) FROM ${t('days')} d WHERE d.import_id = ${t('imports')}.id),
+      days = (SELECT COUNT(*) FROM ${t('days')} d WHERE d.import_id = ${t('imports')}.id)
+  `);
+  // Rows only a CSV created made the sync believe those days were known (the
+  // « numbers frozen after an import »): the next sync fetches the whole history again.
+  const holes = db.prepare(`SELECT COUNT(*) AS n FROM ${t('days')} WHERE api_at IS NULL`).get() as {
+    n: number;
+  };
+  if (holes.n > 0)
+    db.exec(
+      `INSERT INTO ${t('meta')} (key, value) VALUES ('fullResync', '"migration-0.18"')
+       ON CONFLICT (key) DO UPDATE SET value = excluded.value`,
+    );
+}
+
+export interface ImportRow {
+  id: number;
+  file_name: string;
+  imported_at: string;
+  kind: string;
+  rows: number;
+  matched: number;
+  columns: string;
+  metrics: string[];
+  period_from: string | null;
+  period_to: string | null;
+  days: number;
+  /** Videos whose whole-life impressions / CTR come from this import (« totals »). */
+  videos: number;
+  /** Made before v0.18: its data could not always be told from the others. */
+  legacy: boolean;
+}
+
 export interface VideoRow {
   id: string;
   title: string;
@@ -129,6 +219,7 @@ export interface VideoRow {
   total_comments: number;
   impressions: number | null;
   ctr: number | null;
+  reach_import_id: number | null;
   /** null: automatic (Planning) · 'manual': manual_track_id · 'none': not a track's. */
   link_mode: 'manual' | 'none' | null;
   manual_track_id: number | null;
@@ -152,6 +243,9 @@ interface DayDbRow {
   subs_lost: number;
   impressions: number | null;
   ctr: number | null;
+  api_at: string | null;
+  reach_source: 'api' | 'csv' | 'unknown' | null;
+  import_id: number | null;
 }
 
 export interface LinkServices {
@@ -247,6 +341,7 @@ export class StatsStore {
       | 'breakdowns_at'
       | 'impressions'
       | 'ctr'
+      | 'reach_import_id'
       | 'updated_at'
     >,
   ): void {
@@ -278,49 +373,87 @@ export class StatsStore {
 
   // Daily rows -----------------------------------------------------------------
 
-  upsertDays(rows: DayRow[], options: { reachOnly?: boolean } = {}): void {
-    const statement = options.reachOnly
-      ? this.ctx.db.prepare(
-          `INSERT INTO ${this.t.days} (video_id, day, impressions, ctr) VALUES (@videoId, @day, @impressions, @ctr)
-           ON CONFLICT (video_id, day) DO UPDATE SET impressions = excluded.impressions, ctr = excluded.ctr`,
-        )
-      : this.ctx.db.prepare(
-          `INSERT INTO ${this.t.days} (video_id, day, views, engaged_views, minutes, avg_view_duration, avg_view_pct,
-             likes, comments, shares, subs_gained, subs_lost, impressions, ctr)
-           VALUES (@videoId, @day, @views, @engagedViews, @minutes, @avgViewDuration, @avgViewPct,
-             @likes, @comments, @shares, @subsGained, @subsLost, @impressions, @ctr)
-           ON CONFLICT (video_id, day) DO UPDATE SET views = excluded.views, engaged_views = excluded.engaged_views,
-             minutes = excluded.minutes, avg_view_duration = excluded.avg_view_duration,
-             avg_view_pct = excluded.avg_view_pct, likes = excluded.likes, comments = excluded.comments,
-             shares = excluded.shares, subs_gained = excluded.subs_gained, subs_lost = excluded.subs_lost,
-             impressions = COALESCE(excluded.impressions, ${this.t.days}.impressions),
-             ctr = COALESCE(excluded.ctr, ${this.t.days}.ctr)`,
-        );
+  /**
+   * Core metrics of days from the Analytics API (never impressions / CTR, see
+   * upsertReach). Returns how many rows were new or really changed.
+   */
+  upsertDays(rows: DayRow[]): number {
+    const statement = this.ctx.db.prepare(
+      `INSERT INTO ${this.t.days} (video_id, day, views, engaged_views, minutes, avg_view_duration, avg_view_pct,
+         likes, comments, shares, subs_gained, subs_lost, api_at)
+       VALUES (@videoId, @day, @views, @engagedViews, @minutes, @avgViewDuration, @avgViewPct,
+         @likes, @comments, @shares, @subsGained, @subsLost, @now)
+       ON CONFLICT (video_id, day) DO UPDATE SET views = excluded.views, engaged_views = excluded.engaged_views,
+         minutes = excluded.minutes, avg_view_duration = excluded.avg_view_duration,
+         avg_view_pct = excluded.avg_view_pct, likes = excluded.likes, comments = excluded.comments,
+         shares = excluded.shares, subs_gained = excluded.subs_gained, subs_lost = excluded.subs_lost,
+         api_at = excluded.api_at
+       WHERE ${this.t.days}.api_at IS NULL OR views IS NOT excluded.views
+         OR engaged_views IS NOT excluded.engaged_views OR minutes IS NOT excluded.minutes
+         OR avg_view_duration IS NOT excluded.avg_view_duration OR avg_view_pct IS NOT excluded.avg_view_pct
+         OR likes IS NOT excluded.likes OR comments IS NOT excluded.comments OR shares IS NOT excluded.shares
+         OR subs_gained IS NOT excluded.subs_gained OR subs_lost IS NOT excluded.subs_lost`,
+    );
+    const now = new Date().toISOString();
+    let changed = 0;
     this.ctx.db.transaction(() => {
-      for (const row of rows) statement.run(row);
+      for (const row of rows) changed += statement.run({ ...row, now }).changes;
     });
+    return changed;
   }
 
+  /**
+   * Impressions and CTR of days. From the API they always win; from a CSV they
+   * only fill what the API did not give (never over an API value), labelled
+   * with their import. Returns the rows written and those kept from the API.
+   */
+  upsertReach(
+    rows: { videoId: string; day: string; impressions: number | null; ctr: number | null }[],
+    source: { kind: 'api' } | { kind: 'csv'; importId: number },
+  ): { written: number; keptApi: number } {
+    const importId = source.kind === 'csv' ? source.importId : null;
+    const statement = this.ctx.db.prepare(
+      `INSERT INTO ${this.t.days} (video_id, day, impressions, ctr, reach_source, import_id)
+       VALUES (@videoId, @day, @impressions, @ctr, @source, @importId)
+       ON CONFLICT (video_id, day) DO UPDATE SET impressions = excluded.impressions, ctr = excluded.ctr,
+         reach_source = excluded.reach_source, import_id = excluded.import_id
+       ${source.kind === 'csv' ? `WHERE ${this.t.days}.reach_source IS NOT 'api'` : ''}`,
+    );
+    let written = 0;
+    this.ctx.db.transaction(() => {
+      for (const row of rows)
+        written += statement.run({ ...row, source: source.kind, importId }).changes;
+    });
+    return { written, keptApi: rows.length - written };
+  }
+
+  /** Last day the Analytics API gave for a video (rows a CSV created do not count). */
   lastDayOf(videoId: string): string | null {
     const row = this.ctx.db
       .prepare(
-        `SELECT MAX(day) AS day FROM ${this.t.days} WHERE video_id = ? AND views IS NOT NULL`,
+        `SELECT MAX(day) AS day FROM ${this.t.days} WHERE video_id = ? AND api_at IS NOT NULL`,
       )
       .get(videoId) as { day: string | null };
     return row.day;
   }
 
-  upsertChannelDays(rows: ChannelDay[]): void {
+  /** Returns how many days were new or really changed. */
+  upsertChannelDays(rows: ChannelDay[]): number {
     const statement = this.ctx.db.prepare(
       `INSERT INTO ${this.t.channelDays} (day, views, minutes, subs_gained, subs_lost, likes, comments, shares)
        VALUES (@day, @views, @minutes, @subsGained, @subsLost, @likes, @comments, @shares)
        ON CONFLICT (day) DO UPDATE SET views = excluded.views, minutes = excluded.minutes,
          subs_gained = excluded.subs_gained, subs_lost = excluded.subs_lost, likes = excluded.likes,
-         comments = excluded.comments, shares = excluded.shares`,
+         comments = excluded.comments, shares = excluded.shares
+       WHERE views IS NOT excluded.views OR minutes IS NOT excluded.minutes
+         OR subs_gained IS NOT excluded.subs_gained OR subs_lost IS NOT excluded.subs_lost
+         OR likes IS NOT excluded.likes OR comments IS NOT excluded.comments OR shares IS NOT excluded.shares`,
     );
+    let changed = 0;
     this.ctx.db.transaction(() => {
-      for (const row of rows) statement.run(row);
+      for (const row of rows) changed += statement.run(row).changes;
     });
+    return changed;
   }
 
   lastChannelDay(): string | null {
@@ -410,37 +543,152 @@ export class StatsStore {
       );
   }
 
+  /** Records an import; its rows are then written with its id (upsertReach). */
   addImport(entry: {
     fileName: string;
     kind: string;
     rows: number;
     matched: number;
     columns: string[];
-  }): void {
-    this.ctx.db
-      .prepare(
-        `INSERT INTO ${this.t.imports} (file_name, imported_at, kind, rows, matched, columns) VALUES (?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
-        entry.fileName,
-        new Date().toISOString(),
-        entry.kind,
-        entry.rows,
-        entry.matched,
-        JSON.stringify(entry.columns),
-      );
+    metrics: string[];
+  }): number {
+    return Number(
+      this.ctx.db
+        .prepare(
+          `INSERT INTO ${this.t.imports} (file_name, imported_at, kind, rows, matched, columns, metrics)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          entry.fileName,
+          new Date().toISOString(),
+          entry.kind,
+          entry.rows,
+          entry.matched,
+          JSON.stringify(entry.columns),
+          JSON.stringify(entry.metrics),
+        ).lastInsertRowid,
+    );
   }
 
-  imports(): {
-    id: number;
-    file_name: string;
-    imported_at: string;
-    kind: string;
-    rows: number;
-    matched: number;
-    columns: string;
-  }[] {
-    return this.ctx.db.prepare(`SELECT * FROM ${this.t.imports} ORDER BY id DESC`).all() as never;
+  /** Period and number of days an import still provides (after the API took over some). */
+  refreshImportPeriod(id: number): void {
+    this.ctx.db
+      .prepare(
+        `UPDATE ${this.t.imports} SET
+           period_from = (SELECT MIN(day) FROM ${this.t.days} WHERE import_id = @id),
+           period_to = (SELECT MAX(day) FROM ${this.t.days} WHERE import_id = @id),
+           days = (SELECT COUNT(*) FROM ${this.t.days} WHERE import_id = @id)
+         WHERE id = @id`,
+      )
+      .run({ id });
+  }
+
+  imports(): ImportRow[] {
+    const rows = this.ctx.db
+      .prepare(
+        `SELECT i.*, (SELECT COUNT(*) FROM ${this.t.videos} v WHERE v.reach_import_id = i.id) AS videos
+         FROM ${this.t.imports} i ORDER BY i.id DESC`,
+      )
+      .all() as (Omit<ImportRow, 'metrics' | 'legacy'> & { metrics: string; legacy: number })[];
+    return rows.map((r) => ({
+      ...r,
+      metrics: JSON.parse(r.metrics) as string[],
+      legacy: r.legacy === 1,
+    }));
+  }
+
+  /** CSV data that cannot be tied to one import (imports of before v0.18). */
+  unattributedCsv(): { days: number; videos: number } {
+    const days = this.ctx.db
+      .prepare(
+        `SELECT COUNT(*) AS n FROM ${this.t.days} WHERE reach_source IN ('csv', 'unknown') AND import_id IS NULL`,
+      )
+      .get() as { n: number };
+    const videos = this.ctx.db
+      .prepare(
+        `SELECT COUNT(*) AS n FROM ${this.t.videos} WHERE (impressions IS NOT NULL OR ctr IS NOT NULL) AND reach_import_id IS NULL`,
+      )
+      .get() as { n: number };
+    return { days: days.n, videos: videos.n };
+  }
+
+  /**
+   * What deleting an import removes: impressions / CTR of its days (rows the
+   * CSV alone created go entirely: they hold nothing else) and of its videos.
+   * Never a value of the API.
+   */
+  importFootprint(id: number | 'all'): { days: number; rowsRemoved: number; videos: number } {
+    const where =
+      id === 'all'
+        ? `reach_source IN ('csv', 'unknown')`
+        : `reach_source = 'csv' AND import_id = @id`;
+    const get = (sql: string) => (this.ctx.db.prepare(sql).get({ id }) as { n: number }).n;
+    return {
+      days: get(`SELECT COUNT(*) AS n FROM ${this.t.days} WHERE ${where}`),
+      rowsRemoved: get(
+        `SELECT COUNT(*) AS n FROM ${this.t.days} WHERE ${where} AND api_at IS NULL`,
+      ),
+      videos: get(
+        id === 'all'
+          ? `SELECT COUNT(*) AS n FROM ${this.t.videos} WHERE impressions IS NOT NULL OR ctr IS NOT NULL`
+          : `SELECT COUNT(*) AS n FROM ${this.t.videos} WHERE reach_import_id = @id`,
+      ),
+    };
+  }
+
+  /** Deletes an import's data (or every CSV datum) and its line in the list. */
+  deleteImport(id: number | 'all'): { days: number; rowsRemoved: number; videos: number } {
+    const footprint = this.importFootprint(id);
+    const where =
+      id === 'all'
+        ? `reach_source IN ('csv', 'unknown')`
+        : `reach_source = 'csv' AND import_id = @id`;
+    this.ctx.db.transaction(() => {
+      const db = this.ctx.db;
+      db.prepare(`DELETE FROM ${this.t.days} WHERE ${where} AND api_at IS NULL`).run({ id });
+      db.prepare(
+        `UPDATE ${this.t.days} SET impressions = NULL, ctr = NULL, reach_source = NULL, import_id = NULL WHERE ${where}`,
+      ).run({ id });
+      db.prepare(
+        id === 'all'
+          ? `UPDATE ${this.t.videos} SET impressions = NULL, ctr = NULL, reach_import_id = NULL`
+          : `UPDATE ${this.t.videos} SET impressions = NULL, ctr = NULL, reach_import_id = NULL WHERE reach_import_id = @id`,
+      ).run({ id });
+      db.prepare(
+        id === 'all'
+          ? `DELETE FROM ${this.t.imports}`
+          : `DELETE FROM ${this.t.imports} WHERE id = @id`,
+      ).run({ id });
+    });
+    return footprint;
+  }
+
+  /** Sources of the numbers, for the « Données » tab and the diagnostic. */
+  sources(): {
+    apiDays: number;
+    csvOnlyDays: number;
+    lastApiDay: string | null;
+    reach: Record<string, number>;
+  } {
+    const db = this.ctx.db;
+    const count = (sql: string) => (db.prepare(sql).get() as { n: number }).n;
+    const reach: Record<string, number> = {};
+    for (const r of db
+      .prepare(
+        `SELECT reach_source AS source, COUNT(*) AS n FROM ${this.t.days} WHERE reach_source IS NOT NULL GROUP BY reach_source`,
+      )
+      .all() as { source: string; n: number }[])
+      reach[r.source] = r.n;
+    return {
+      apiDays: count(`SELECT COUNT(*) AS n FROM ${this.t.days} WHERE api_at IS NOT NULL`),
+      csvOnlyDays: count(`SELECT COUNT(*) AS n FROM ${this.t.days} WHERE api_at IS NULL`),
+      lastApiDay: (
+        db.prepare(`SELECT MAX(day) AS day FROM ${this.t.days} WHERE api_at IS NOT NULL`).get() as {
+          day: string | null;
+        }
+      ).day,
+      reach,
+    };
   }
 
   journal(): JournalEntry[] {
@@ -526,24 +774,25 @@ export class StatsStore {
       impressions: row.impressions,
       ctr: row.ctr,
     }));
-    const days = (
-      db.prepare(`SELECT * FROM ${this.t.days} WHERE views IS NOT NULL`).all() as DayDbRow[]
-    ).map((r): DayRow => ({
-      videoId: r.video_id,
-      day: r.day,
-      views: r.views,
-      engagedViews: r.engaged_views,
-      minutes: r.minutes,
-      avgViewDuration: r.avg_view_duration,
-      avgViewPct: r.avg_view_pct,
-      likes: r.likes,
-      comments: r.comments,
-      shares: r.shares,
-      subsGained: r.subs_gained,
-      subsLost: r.subs_lost,
-      impressions: r.impressions,
-      ctr: r.ctr,
-    }));
+    const days = (db.prepare(`SELECT * FROM ${this.t.days}`).all() as DayDbRow[]).map(
+      (r): DayRow => ({
+        videoId: r.video_id,
+        day: r.day,
+        views: r.views,
+        engagedViews: r.engaged_views,
+        minutes: r.minutes,
+        avgViewDuration: r.avg_view_duration,
+        avgViewPct: r.avg_view_pct,
+        likes: r.likes,
+        comments: r.comments,
+        shares: r.shares,
+        subsGained: r.subs_gained,
+        subsLost: r.subs_lost,
+        impressions: r.impressions,
+        ctr: r.ctr,
+        reachSource: r.reach_source,
+      }),
+    );
     const channelDays = (
       db.prepare(`SELECT * FROM ${this.t.channelDays} ORDER BY day`).all() as {
         day: string;
@@ -613,7 +862,12 @@ export class StatsStore {
       });
     }
     const reach =
-      this.meta<string>('reach') === 'api' ? 'api' : this.imports().length ? 'csv' : 'none';
+      this.meta<string>('reach') === 'api'
+        ? 'api'
+        : days.some((d) => d.reachSource === 'csv' || d.reachSource === 'unknown') ||
+            videos.some((v) => v.impressions !== null || v.ctr !== null)
+          ? 'csv'
+          : 'none';
     return {
       mode: 'real',
       lastDay: options.lastDay,

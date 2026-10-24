@@ -6,29 +6,43 @@ import {
   extractName,
   HttpError,
   matchByName,
-  normaliseUtterance,
   type ModuleContext,
+  normaliseUtterance,
+  NotFoundError,
 } from '@hub/sdk/backend';
 import type { Track } from '../../music-library/contract';
 import type { ItemState } from './status';
 
-/** « en retard », « cette semaine », otherwise today (standardised command, MODULES.md §5.15). */
-export function extractPeriod(utterance: string): { period: 'today' | 'week' | 'late' } {
+export type Period = 'today' | 'week' | 'next-week' | 'next7' | 'late';
+
+/**
+ * The period said (standardised command, MODULES.md §5.15): « cette semaine »
+ * is the calendar week (Monday → Sunday), « la semaine prochaine » the next
+ * one, « les 7 prochains jours » a rolling week; otherwise today.
+ */
+export function extractPeriod(utterance: string): { period: Period } {
   const said = normaliseUtterance(utterance);
-  if (/\bretard\b/.test(said)) return { period: 'late' };
-  if (/\bsemaine\b|\b7 jours\b|\bsept jours\b|\bprochains jours\b/.test(said))
-    return { period: 'week' };
+  if (/\bretard\b/.test(said) && !/\bsemaine\b/.test(said)) return { period: 'late' };
+  if (/\b(?:7|sept) (?:prochains )?jours\b|\bprochains jours\b/.test(said))
+    return { period: 'next7' };
+  if (/\bsemaine prochaine\b|\bprochaine semaine\b/.test(said)) return { period: 'next-week' };
+  if (/\bsemaine\b/.test(said)) return { period: 'week' };
   return { period: 'today' };
 }
 
 const RELEASE_PREFIXES = [
-  /(?:quand sort|quand est-ce que sort|où en est la sortie|ou en est la sortie|la sortie|sortie|planning)(?![\p{L}])/iu,
+  // « où on est » : how the ear often writes « où en est ».
+  /(?:quand sort|quand est-ce que sort|o[uù] (?:en|on) (?:est|sont) (?:la sortie|les sorties)|le point sur la sortie|la sortie|sortie|planning)(?![\p{L}])/iu,
 ];
+
+/** A period said where a track name is expected: not a track (« les sorties de cette semaine »). */
+const PERIOD_WORDS =
+  /^(?:(?:de |du |d’|d')?(?:cette|la|ma) semaine|(?:la )?semaine prochaine|aujourd’hui|aujourd'hui|demain|ce mois(?:-ci)?|(?:les )?(?:7|sept) prochains jours)$/i;
 
 /** « où en est la sortie de Aube » → « Aube ». */
 export const extractRelease = (utterance: string) => {
   const track = extractName(utterance, RELEASE_PREFIXES);
-  return track ? { track } : null;
+  return track && !PERIOD_WORDS.test(track) ? { track } : null;
 };
 
 /** The fields of a planned element the assistant reads. */
@@ -84,6 +98,44 @@ function addDays(day: string, days: number): string {
   return date.toISOString().slice(0, 10);
 }
 
+/** Monday of the calendar week of `day` (YYYY-MM-DD). */
+export function mondayOf(day: string): string {
+  const weekday = (new Date(`${day}T00:00:00Z`).getUTCDay() + 6) % 7;
+  return addDays(day, -weekday);
+}
+
+/** The days of a period: [from, to] inclusive. */
+export function periodRange(period: Period, today: string): [string, string] {
+  switch (period) {
+    case 'week':
+      return [mondayOf(today), addDays(mondayOf(today), 6)];
+    case 'next-week':
+      return [addDays(mondayOf(today), 7), addDays(mondayOf(today), 13)];
+    case 'next7':
+      return [today, addDays(today, 6)];
+    default:
+      return [today, today];
+  }
+}
+
+/**
+ * The review of some elements, in the order of the days: what already happened
+ * (published; planned but not published = late), then what is still to come.
+ */
+export function review(items: AgendaItem[], today: string) {
+  const sorted = [...items].sort((a, b) =>
+    `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`),
+  );
+  const done = sorted.filter((i) => i.status === 'published');
+  const late = sorted.filter((i) => i.status !== 'published' && (i.late || i.date < today));
+  const upcoming = sorted.filter((i) => i.status !== 'published' && !(i.late || i.date < today));
+  return { done, late, upcoming };
+}
+
+function count(n: number, one: string, many: string): string {
+  return `${n} ${n === 1 ? one : many}`;
+}
+
 function describe(item: AgendaItem, today: string) {
   const instagram = item.platform === 'instagram';
   return {
@@ -97,6 +149,53 @@ function describe(item: AgendaItem, today: string) {
         ? 'à publier toi-même sur Instagram'
         : STATUS[item.status],
     late: item.late,
+  };
+}
+
+/** « vendredi 23 octobre » (days of the review are spoken without « demain »). */
+function dayName(day: string): string {
+  const date = new Date(`${day}T00:00:00Z`);
+  return `${WEEKDAYS[date.getUTCDay()]} ${date.getUTCDate()}`;
+}
+
+/** Short spoken review, the full list goes in the data (shown in the history). */
+function reviewMessage(
+  what: string,
+  parts: ReturnType<typeof review>,
+  today: string,
+): { message: string; detail: string[] } {
+  const line = (i: AgendaItem) =>
+    `${dayName(i.date)} ${i.time} — ${i.label} de ${i.trackTitle} (${i.platform === 'instagram' ? 'Instagram' : 'YouTube'}) : ${describe(i, today).status}`;
+  const detail = [
+    ...parts.done.map((i) => `Fait · ${line(i)}`),
+    ...parts.late.map((i) => `En retard · ${line(i)}`),
+    ...parts.upcoming.map((i) => `À venir · ${line(i)}`),
+  ];
+  const total = parts.done.length + parts.late.length + parts.upcoming.length;
+  if (total === 0) return { message: `Rien de prévu ${what}.`, detail };
+  const said: string[] = [];
+  if (parts.done.length)
+    said.push(
+      `${count(parts.done.length, 'élément publié', 'éléments publiés')} (${parts.done
+        .slice(0, 3)
+        .map(
+          (i) =>
+            `${i.label} ${i.platform === 'instagram' ? 'Instagram' : 'YouTube'} ${dayName(i.date)}`,
+        )
+        .join(', ')}${parts.done.length > 3 ? '…' : ''})`,
+    );
+  if (parts.late.length) said.push(`${count(parts.late.length, 'en retard', 'en retard')}`);
+  if (parts.upcoming.length) {
+    const youtube = parts.upcoming.filter((i) => i.platform === 'youtube').length;
+    const instagram = parts.upcoming.length - youtube;
+    const next = parts.upcoming[0]!;
+    said.push(
+      `à venir : ${[youtube ? `${youtube} sur YouTube` : '', instagram ? `${instagram} à publier sur Instagram` : ''].filter(Boolean).join(' et ')}, le prochain ${spokenDate(next.date, today)} à ${next.time} (${next.label} de ${next.trackTitle})`,
+    );
+  }
+  return {
+    message: `${what.charAt(0).toUpperCase()}${what.slice(1)} : ${said.join(' ; ')}.`,
+    detail,
   };
 }
 
@@ -120,16 +219,28 @@ export function registerAssistantActions(
 ): void {
   ctx.assistant.define({
     name: 'agenda',
+    label:
+      'Planning d’une période (aujourd’hui, cette semaine, semaine prochaine, 7 jours, retards)',
     description:
-      'Ce qu’il faut publier : period « today » (aujourd’hui, et ce qui est en retard), « week » (7 prochains jours), « late » (en retard seulement). Dit pour chaque élément (vidéo, Short, Reel, post) la plateforme, l’heure et l’état (programmé sur YouTube, à publier soi-même sur Instagram…).',
+      'Le planning de sortie d’une période. period : « today » (aujourd’hui, et ce qui est en retard), « week » (cette semaine du calendrier, lundi → dimanche : ce qui est publié, en retard, puis à venir), « next-week » (semaine prochaine du calendrier), « next7 » (les 7 prochains jours), « late » (en retard seulement).',
     parameters: {
-      period: { type: 'string', description: 'Quelle période', enum: ['today', 'week', 'late'] },
+      period: {
+        type: 'string',
+        description: 'Quelle période',
+        enum: ['today', 'week', 'next-week', 'next7', 'late'],
+      },
     },
     examples: [
       'qu’est-ce que je dois publier aujourd’hui',
       'qu’est-ce qui sort aujourd’hui',
       'qu’est-ce que je publie cette semaine',
-      'le planning de la semaine',
+      'quel est le planning de cette semaine',
+      'où en sont les sorties de cette semaine',
+      'qu’est-ce qui est fait et qu’est-ce qui reste cette semaine',
+      'le point sur la semaine',
+      'le planning de la semaine prochaine',
+      'qu’est-ce que je publie la semaine prochaine',
+      'qu’est-ce qui sort les 7 prochains jours',
       'qu’est-ce qui est en retard dans le planning',
       'quelles publications sont en retard',
     ],
@@ -137,41 +248,66 @@ export function registerAssistantActions(
     risk: 'read',
     run: (params) => {
       const today = source.today();
-      const period = String(params.period ?? 'today');
+      const period = (String(params.period ?? 'today') as Period) ?? 'today';
       const all = source.items();
-      const late = all.filter((i) => i.late && i.date <= today);
-      const chosen =
-        period === 'late'
-          ? late
-          : period === 'week'
-            ? all.filter((i) => i.date >= today && i.date <= addDays(today, 7))
+      const late = all.filter((i) => i.late && i.date <= today && i.status !== 'published');
+      if (period === 'late' || period === 'today') {
+        const chosen =
+          period === 'late'
+            ? late
             : all.filter((i) => i.date === today || (i.late && i.date < today));
-      chosen.sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
-      const list = chosen.map((i) => describe(i, today));
+        chosen.sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
+        const list = chosen.map((i) => describe(i, today));
+        const what = period === 'late' ? 'en retard' : 'aujourd’hui';
+        const message =
+          list.length === 0
+            ? `Rien à publier ${what}${period !== 'late' && late.length ? `, mais ${late.length} élément(s) en retard` : ''}.`
+            : `${list.length} élément(s) ${what} : ${sentence(list.slice(0, 6))}${list.length > 6 ? ', etc.' : ''}.`;
+        return { message, data: { period, items: list.slice(0, 20), lateCount: late.length } };
+      }
+      const [from, to] = periodRange(period, today);
+      const parts = review(
+        all.filter((i) => i.date >= from && i.date <= to),
+        today,
+      );
       const what =
-        { today: 'aujourd’hui', week: 'dans les 7 prochains jours', late: 'en retard' }[period] ??
-        'aujourd’hui';
-      const message =
-        list.length === 0
-          ? `Rien à publier ${what}${period !== 'late' && late.length ? `, mais ${late.length} élément(s) en retard` : ''}.`
-          : `${list.length} élément(s) ${what} : ${sentence(list.slice(0, 6))}${list.length > 6 ? ', etc.' : ''}.`;
-      return { message, data: { items: list.slice(0, 20), lateCount: late.length } };
+        period === 'week'
+          ? 'cette semaine'
+          : period === 'next-week'
+            ? 'la semaine prochaine'
+            : 'les 7 prochains jours';
+      const { message, detail } = reviewMessage(what, parts, today);
+      return { message, data: { period, from, to, detail } };
     },
   });
 
   ctx.assistant.define({
     name: 'release',
+    label: 'Où en est la sortie d’un morceau',
     description:
       'Où en est la sortie d’un morceau : date de sortie et état de chaque élément (vidéo, Shorts, Reels, post).',
     parameters: { track: { type: 'string', description: 'Nom du morceau, même approximatif' } },
     required: ['track'],
-    examples: ['où en est la sortie de Aube', 'quand sort Aube', 'la sortie du morceau Aube'],
+    examples: [
+      'où en est la sortie de Aube',
+      'quand sort Aube',
+      'la sortie du morceau Aube',
+      'le point sur la sortie de Aube',
+    ],
     extract: extractRelease,
     risk: 'read',
     run: (params) => {
-      const match = matchByName(source.tracks(), String(params.track), (t) => t.title);
+      const match = matchByName(source.tracks(), String(params.track), (t) => [
+        t.title,
+        ...(t.nicknames ?? []),
+      ]);
       if (match.kind === 'none')
-        throw new HttpError(404, `Aucun morceau ne s’appelle « ${String(params.track)} ».`);
+        throw new NotFoundError(
+          'track',
+          'le morceau',
+          String(params.track),
+          match.suggestions.map((t) => t.title),
+        );
       if (match.kind === 'ambiguous') {
         throw new HttpError(
           409,
@@ -189,11 +325,11 @@ export function registerAssistantActions(
           data: { track: track.title, planned: false },
         };
       const today = source.today();
-      const list = release.items.map((i) => describe(i, today));
-      const published = list.filter((i) => i.status === 'publié').length;
+      const parts = review(release.items, today);
+      const { message, detail } = reviewMessage(`sortie de ${track.title}`, parts, today);
       return {
-        message: `Sortie de ${track.title} : ${spokenDate(release.date, today)}. ${published} élément(s) publié(s) sur ${list.length}.`,
-        data: { track: track.title, releaseDate: release.date, items: list },
+        message: `${message} Jour J : ${spokenDate(release.date, today)}.`,
+        data: { track: track.title, releaseDate: release.date, detail },
       };
     },
   });

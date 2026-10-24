@@ -184,6 +184,73 @@ function WasMeant(props: { turn: TurnDto }) {
   );
 }
 
+/**
+ * « Corriger » : a word the ear wrote wrong (select it in the transcript, or
+ * type it) and the right one: a correction applied to every next recording.
+ */
+function FixWord(props: { turn: TurnDto }) {
+  const module = useModule();
+  const [open, setOpen] = useState(false);
+  const [heard, setHeard] = useState('');
+  const [right, setRight] = useState('');
+  const [done, setDone] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  if (done) return <p className="small as-notice">{done}</p>;
+  if (!open)
+    return (
+      <Button
+        variant="secondary"
+        small
+        title="Sélectionne d’abord le mot mal écrit dans la phrase"
+        onClick={() => {
+          const selected = window.getSelection()?.toString().trim() ?? '';
+          setHeard(selected && props.turn.heard.includes(selected) ? selected : '');
+          setOpen(true);
+        }}
+      >
+        Corriger
+      </Button>
+    );
+  return (
+    <form
+      className="as-row small"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void module.api
+          .post('/vocabulary/corrections', { heard, replacement: right })
+          .then(() =>
+            setDone(
+              `Correction ajoutée : quand l’oreille écrit « ${heard} », je comprends « ${right} ».`,
+            ),
+          )
+          .catch((err: unknown) => setError(errorMessage(err)));
+      }}
+    >
+      <input
+        className="input"
+        value={heard}
+        placeholder="Mot mal écrit (ex. tout doux)"
+        onChange={(e) => setHeard(e.target.value)}
+        aria-label="Mot mal écrit"
+      />
+      <input
+        className="input"
+        value={right}
+        placeholder="Le bon mot (ex. to-do)"
+        onChange={(e) => setRight(e.target.value)}
+        aria-label="Le bon mot"
+      />
+      <Button type="submit" small disabled={!heard.trim() || !right.trim()}>
+        Ajouter la correction
+      </Button>
+      <Button variant="secondary" small onClick={() => setOpen(false)}>
+        Annuler
+      </Button>
+      {error && <span className="error small">{error}</span>}
+    </form>
+  );
+}
+
 function TurnView(props: { turn: TurnDto; latest: boolean; onChange: () => void }) {
   const module = useModule();
   const { turn } = props;
@@ -195,7 +262,11 @@ function TurnView(props: { turn: TurnDto; latest: boolean; onChange: () => void 
         <span className="small muted">
           {turn.source === 'voice' ? '🎙️ Tu as dit' : '⌨️ Tu as écrit'}
         </span>
-        <p>{turn.heard}</p>
+        <p className="as-heard">{turn.heard}</p>
+        {turn.rawHeard && (
+          <p className="small faint">L’oreille a écrit : « {turn.rawHeard} » (corrigé)</p>
+        )}
+        {turn.source === 'voice' && <FixWord turn={turn} />}
       </div>
       <div className="as-turn__reply">
         <span className="small muted">Assistant</span>
@@ -215,7 +286,34 @@ function TurnView(props: { turn: TurnDto; latest: boolean; onChange: () => void 
           </ul>
         )}
         {turn.mode === 'not-understood' && <WasMeant turn={turn} />}
-        {turn.pending && props.latest && (
+        {turn.pending?.kind === 'choose' && props.latest && (
+          <div className="as-pending">
+            {turn.pending.options?.map((label, choice) => (
+              <Button
+                key={label}
+                small
+                variant={choice === 0 ? 'primary' : 'secondary'}
+                onClick={() =>
+                  void module.api.post(`/turns/${turn.id}/answer`, { choice }).then(props.onChange)
+                }
+              >
+                {label}
+              </Button>
+            ))}
+            <Button
+              variant="secondary"
+              small
+              onClick={() =>
+                void module.api
+                  .post(`/turns/${turn.id}/answer`, { yes: false })
+                  .then(props.onChange)
+              }
+            >
+              Aucune
+            </Button>
+          </div>
+        )}
+        {turn.pending && turn.pending.kind !== 'choose' && props.latest && (
           <div className="as-pending">
             <Button
               small
@@ -248,6 +346,7 @@ function TurnView(props: { turn: TurnDto; latest: boolean; onChange: () => void 
           {turn.questions > 0 && <> · {turn.questions} question(s)</>}
         </p>
         <p className="as-latency small faint" title="Temps de chaque maillon">
+          {turn.source === 'voice' && l.micOpenMs !== null && <>Micro {seconds(l.micOpenMs)} · </>}
           {turn.source === 'voice' && <>Transcription {seconds(l.transcribeMs)} · </>}
           {l.matchMs !== null && <>Commandes {seconds(l.matchMs)} · </>}
           {l.modelMs !== null && <>Modèle {seconds(l.modelMs)} · </>}
@@ -345,6 +444,9 @@ function Conversation(props: { status: StatusDto | null; onStatusChange: () => v
         <div className="as-row">
           <Link className="small" to={module.path('commands')}>
             Commandes
+          </Link>
+          <Link className="small" to={module.path('mots')}>
+            Mots
           </Link>
           <Button
             variant="secondary"
@@ -741,6 +843,14 @@ function Setup(props: { status: StatusDto; reload: () => void }) {
               onChange={(e) => void choose({ speakReplies: e.target.checked })}
             />{' '}
             Répondre à voix haute
+          </label>
+          <label className="as-inline" title="Un son très court quand le micro reçoit ta voix">
+            <input
+              type="checkbox"
+              checked={status.settings.readySound}
+              onChange={(e) => void choose({ readySound: e.target.checked })}
+            />{' '}
+            Son « micro prêt »
           </label>
         </div>
       </Step>

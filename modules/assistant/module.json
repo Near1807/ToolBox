@@ -2,13 +2,19 @@
   "id": "assistant",
   "name": "Assistant vocal",
   "description": "Parle à ToolBox en maintenant une touche : tâches de la To-do, ce qu'il faut publier, stats, état des morceaux. 100 % local et gratuit (Whisper, Ollama, Piper).",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "section": "Outils",
   "icon": "🎙️",
   "order": 20,
+  "dependsOn": {
+    "optionalServices": ["musicLibrary"]
+  },
   "permissions": {
     "assistant": true,
     "globalKeys": true
+  },
+  "backup": {
+    "exclude": ["engines", "models", "voices", "embeddings", "downloads"]
   },
   "settings": [
     {
@@ -46,6 +52,13 @@
       "default": true
     },
     {
+      "key": "readySound",
+      "type": "boolean",
+      "label": "Son « micro prêt »",
+      "description": "Un son très court quand le micro reçoit vraiment ta voix : parle à partir de là (l'indicateur passe aussi de « Micro… » à « Parle »).",
+      "default": true
+    },
+    {
       "key": "speed",
       "type": "number",
       "label": "Vitesse de la voix",
@@ -75,14 +88,6 @@
         }
       ],
       "default": "auto"
-    },
-    {
-      "key": "directReads",
-      "type": "boolean",
-      "label": "Réponses directes (ancien réglage)",
-      "description": "Lit tel quel le résultat des outils (« 3 tâches à faire… ») au lieu de le faire reformuler par le modèle : une étape de réflexion en moins.",
-      "default": false,
-      "hidden": true
     },
     {
       "key": "keepAlive",

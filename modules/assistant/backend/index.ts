@@ -36,6 +36,8 @@ import {
 } from './catalog';
 import { CommandService } from './commands';
 import { DICTIONARY_MIGRATIONS } from './dictionary';
+import { expectedWordsPrompt, Vocabulary, VOCABULARY_MIGRATION } from './vocabulary';
+import type { MusicLibraryService } from '../../music-library/contract';
 import { OnnxEmbedder, embeddingsInstalled, EMBEDDING_FILES, type Embedder } from './embedder';
 import { DEFAULT_MATCH } from './matcher';
 import { download, extract, findExecutable } from './download';
@@ -88,7 +90,7 @@ function parseKey(value: string | null): HotkeySpec | null {
 }
 
 export default defineBackendModule({
-  migrations: DICTIONARY_MIGRATIONS,
+  migrations: [...DICTIONARY_MIGRATIONS, VOCABULARY_MIGRATION],
   register(ctx: ModuleContext) {
     const setting = <T extends SettingValue>(key: string) => ctx.settings.get<T>(key);
     const ollama = new OllamaClient(() => setting<string>('ollamaUrl') || 'http://127.0.0.1:11434');
@@ -204,14 +206,58 @@ export default defineBackendModule({
       const choice = setting<string>('directReplies') || 'auto';
       if (choice === 'on') return true;
       if (choice === 'off') return false;
-      // The former switch, when Thomas had turned it on.
-      return setting<boolean>('directReads') === true || noDedicatedGpu();
+      return noDedicatedGpu();
     };
     const matchSettings = () => ({
       threshold: setting<number>('commandThreshold') ?? DEFAULT_MATCH.threshold,
       margin: setting<number>('commandMargin') ?? DEFAULT_MATCH.margin,
     });
     const commands = new CommandService(ctx, matchSettings);
+
+    // --- Words: corrections, expected words, nicknames of the tools -------------
+
+    const vocabulary = new Vocabulary(ctx.db);
+    const shareNicknames = () => ctx.assistant.setToolNicknames(vocabulary.nicknameMap());
+    shareNicknames();
+    const library = () => ctx.services.optional<MusicLibraryService>('musicLibrary');
+    let tagsCache: { at: number; tags: string[] } | null = null;
+    /** Tags of the To-do (its own read action, when the module is there), kept 1 min. */
+    const todoTags = async (): Promise<string[]> => {
+      if (tagsCache && Date.now() - tagsCache.at < 60_000) return tagsCache.tags;
+      let tags: string[] = [];
+      if (ctx.assistant.actions().some((a) => a.id === 'todo.list-tags')) {
+        const outcome = await ctx.assistant.run('todo.list-tags', {});
+        if (outcome.status === 'done') {
+          const data = outcome.data as { tags?: { tag?: string; name?: string }[] | string[] };
+          tags = (data?.tags ?? []).map((t) =>
+            typeof t === 'string' ? t : (t.tag ?? t.name ?? ''),
+          );
+        }
+      }
+      tagsCache = { at: Date.now(), tags };
+      return tags;
+    };
+    /**
+     * The words given to whisper.cpp with each recording: the app, Thomas's
+     * English words, the tools and their nicknames, the artist, the tracks and
+     * their nicknames (the library as it is now), the tags.
+     */
+    const expectedWords = async (): Promise<string> => {
+      const tracks = library()?.listTracks() ?? [];
+      const nicknames = vocabulary.nicknameMap();
+      const tools = [...new Set(ctx.assistant.actions().map((a) => a.moduleName))].filter(
+        (name) => name !== 'ToolBox',
+      );
+      return expectedWordsPrompt([
+        ['ToolBox'],
+        vocabulary.words().map((w) => w.word),
+        tools,
+        Object.values(nicknames).flat(),
+        [...new Set(tracks.map((t) => t.artist).filter(Boolean))],
+        tracks.flatMap((t) => [t.title, ...(t.nicknames ?? [])]),
+        [...new Set([...tracks.flatMap((t) => t.tags), ...(await todoTags())])],
+      ]);
+    };
     const embeddingsDir = ctx.files.dataPath('embeddings', EMBEDDING_MODEL.id);
     const loadEmbedder = () => {
       if (testHooks.embedder !== undefined) commands.setEmbedder(testHooks.embedder);
@@ -246,6 +292,12 @@ export default defineBackendModule({
       },
       ai: aiOn,
       prompt: () => setting<string>('systemPrompt') || null,
+      learn: async (actionId, text) => {
+        const result = await commands.addPhrase(actionId, text);
+        const labelOf = (id: string) =>
+          ctx.assistant.actions().find((a) => a.id === id)?.label ?? id;
+        return { saved: result.saved, conflicts: result.conflicts.map((c) => labelOf(c.actionId)) };
+      },
       keepAlive: () => setting<string>('keepAlive') || '30m',
     });
 
@@ -281,7 +333,7 @@ export default defineBackendModule({
     const setState = (next: AssistantState, text: string | null = stateText) => {
       state = next;
       stateText = text;
-      broadcast('state', { state, text, toggle: toggleMode, ai: aiOn() });
+      broadcast('state', { state, text, toggle: toggleMode, ai: aiOn(), ready: micReady });
       if (overlayTimer) clearTimeout(overlayTimer);
       if (next === 'idle') overlayTimer = setTimeout(() => ctx.ui.setOverlay(false), 2500);
       else ctx.ui.setOverlay(true);
@@ -296,12 +348,19 @@ export default defineBackendModule({
     let listenTimer: ReturnType<typeof setTimeout> | null = null;
     let releasedAt = 0;
     let pressedAt = 0;
+    /** The microphone really receives sound (the page said so): « Parle ». */
+    let micReady = false;
+    let listenStartedAt = 0;
+    /** From the key pressed to the microphone ready, for the next voice turn (ms). */
+    let lastMicOpenMs: number | null = null;
     let speaking: { turnId: number; pending: number; ended: boolean } | null = null;
 
     const startListening = () => {
       if (state === 'transcribing' || state === 'thinking') return false;
       if (state === 'speaking') broadcast('speech-stop', {});
       speaking = null;
+      micReady = false;
+      listenStartedAt = Date.now();
       setState('listening', null);
       broadcast('record', { action: 'start' });
       if (listenTimer) clearTimeout(listenTimer);
@@ -312,6 +371,7 @@ export default defineBackendModule({
       if (state !== 'listening') return false;
       if (listenTimer) clearTimeout(listenTimer);
       toggleMode = false;
+      micReady = false;
       releasedAt = Date.now();
       setState('transcribing', null);
       broadcast('record', { action: 'stop' });
@@ -383,6 +443,8 @@ export default defineBackendModule({
       text: string,
       source: 'voice' | 'text',
       transcribeMs: number | null,
+      /** What the ear wrote, before the corrections (voice only, when different). */
+      rawHeard: string | null = null,
     ): Promise<TurnDto> => {
       const run = async () => {
         PiperVoice.cleanup(speechDir);
@@ -391,6 +453,7 @@ export default defineBackendModule({
           at: new Date().toISOString(),
           source,
           heard: text,
+          rawHeard,
           mode: null,
           command: null,
           questions: 0,
@@ -406,6 +469,7 @@ export default defineBackendModule({
             firstSentenceMs: null,
             voiceMs: null,
             firstAudioMs: null,
+            micOpenMs: source === 'voice' ? lastMicOpenMs : null,
             rounds: 0,
           },
         };
@@ -429,7 +493,14 @@ export default defineBackendModule({
         turn.error = result.error;
         turn.actions = result.actions.map((a) => ({ ...a, undone: false }));
         turn.pending = result.pending
-          ? { kind: result.pending.kind, question: result.reply }
+          ? {
+              kind: result.pending.kind,
+              question: result.reply,
+              options:
+                result.pending.kind === 'choose'
+                  ? result.pending.options.map((o) => o.label)
+                  : undefined,
+            }
           : null;
         turn.latency = {
           ...turn.latency,
@@ -622,6 +693,7 @@ export default defineBackendModule({
         settings: {
           ai: aiOn(),
           speakReplies: setting<boolean>('speakReplies') !== false,
+          readySound: setting<boolean>('readySound') !== false,
           speed: setting<number>('speed') ?? 1,
           directReads: directReplies(),
           directReplies: (setting<string>('directReplies') || 'auto') as 'auto' | 'on' | 'off',
@@ -669,7 +741,13 @@ export default defineBackendModule({
         const stream = openEventStream(request, reply);
         streams.add(stream);
         stream.onClose(() => streams.delete(stream));
-        stream.send('state', { state, text: stateText, toggle: toggleMode, ai: aiOn() });
+        stream.send('state', {
+          state,
+          text: stateText,
+          toggle: toggleMode,
+          ai: aiOn(),
+          ready: micReady,
+        });
       },
       { streamTicket: true },
     );
@@ -677,6 +755,14 @@ export default defineBackendModule({
     ctx.routes.get('/turns', () => ({ turns, state }));
 
     ctx.routes.post('/listen/start', () => ({ ok: startListening() }));
+    /** The page's microphone receives sound: the indicator says « Parle » (and a short sound). */
+    ctx.routes.post('/listen/ready', () => {
+      if (state !== 'listening' || micReady) return { ok: false };
+      micReady = true;
+      lastMicOpenMs = Date.now() - listenStartedAt;
+      setState('listening', null);
+      return { ok: true, ms: lastMicOpenMs, sound: setting<boolean>('readySound') !== false };
+    });
     ctx.routes.post('/listen/stop', () => ({ ok: stopListening() }));
     ctx.routes.post('/listen/cancel', () => {
       if (state === 'listening' || state === 'transcribing') {
@@ -699,7 +785,7 @@ export default defineBackendModule({
         const started = Date.now();
         let text: string;
         try {
-          text = await transcriber().transcribe(wav);
+          text = await transcriber().transcribe(wav, { prompt: await expectedWords() });
         } catch (error) {
           setState('idle', null);
           throw error instanceof HttpError ? error : new HttpError(500, (error as Error).message);
@@ -709,7 +795,16 @@ export default defineBackendModule({
           setState('idle', null);
           return { turn: null, message: 'Je n’ai rien entendu.' };
         }
-        return { turn: await handleText(text, 'voice', transcribeMs) };
+        // « When the ear writes X, understand Y »: before the commands are recognised.
+        const corrected = vocabulary.correct(text);
+        return {
+          turn: await handleText(
+            corrected,
+            'voice',
+            transcribeMs,
+            corrected !== text ? text : null,
+          ),
+        };
       },
       { bodyLimit: 8 * 1024 * 1024 },
     );
@@ -726,7 +821,13 @@ export default defineBackendModule({
       const turn = turns.find((t) => t.id === idParam(request.params));
       if (!turn?.pending || turn !== turns[0])
         throw new HttpError(409, 'Plus de question en attente');
-      return { turn: await handleText(requestBody(request).yes ? 'oui' : 'non', 'text', null) };
+      const body = requestBody(request);
+      // A click on one of the choices (« Tu voulais dire : … ou … ? »).
+      if (typeof body.choice === 'number')
+        return {
+          turn: await handleText(body.choice === 0 ? 'le premier' : 'le deuxième', 'text', null),
+        };
+      return { turn: await handleText(body.yes ? 'oui' : 'non', 'text', null) };
     });
 
     ctx.routes.post('/turns/:id/actions/:index/undo', async (request) => {
@@ -793,9 +894,9 @@ export default defineBackendModule({
       }
       if (typeof body.speed === 'number')
         ctx.settings.set('speed', Math.min(1.5, Math.max(0.7, body.speed)));
+      if (typeof body.readySound === 'boolean') ctx.settings.set('readySound', body.readySound);
       if (typeof body.speakReplies === 'boolean')
         ctx.settings.set('speakReplies', body.speakReplies);
-      if (typeof body.directReads === 'boolean') ctx.settings.set('directReads', body.directReads);
       if (
         body.directReplies === 'auto' ||
         body.directReplies === 'on' ||
@@ -960,11 +1061,99 @@ export default defineBackendModule({
       commands.restore(commandId(request)).catch(fail),
     );
     ctx.routes.post('/commands/restore', async () => commands.restore().catch(fail));
-    ctx.routes.get('/commands/export', () => commands.dictionary.export());
+    // One file for the dictionary and the words (corrections, expected words, nicknames).
+    ctx.routes.get('/commands/export', () => ({
+      ...commands.dictionary.export(),
+      version: 2,
+      vocabulary: vocabulary.export(),
+    }));
     ctx.routes.post(
       '/commands/import',
-      async (request) => commands.import(requestBody(request).file).catch(fail),
+      async (request) => {
+        const file = requestBody(request).file as { vocabulary?: object } | undefined;
+        const result = await commands.import(file).catch(fail);
+        const words = vocabulary.import((file?.vocabulary ?? {}) as Record<string, unknown>);
+        shareNicknames();
+        return { ...result, vocabulary: words };
+      },
       { bodyLimit: 2 * 1024 * 1024 },
+    );
+
+    // --- Words page -----------------------------------------------------------
+
+    const vocabularyState = async () => ({
+      corrections: vocabulary.corrections(),
+      words: vocabulary.words(),
+      nicknames: vocabulary.nicknames(),
+      // Tools and pages that can have nicknames (key, name).
+      tools: [
+        ...[
+          ...new Map(
+            ctx.assistant
+              .actions()
+              .filter((a) => a.moduleId !== 'core')
+              .map((a) => [a.moduleId, a.moduleName]),
+          ),
+        ].map(([key, label]) => ({ key, label })),
+        { key: '/', label: 'Accueil' },
+        { key: '/jobs', label: 'Tâches en cours' },
+        { key: '/outputs', label: 'Fichiers générés' },
+        { key: '/settings', label: 'Réglages' },
+        { key: '/logs', label: 'Journaux' },
+      ],
+      expected: await expectedWords(),
+    });
+    const vocabularyChange = async (change: () => void) => {
+      try {
+        change();
+      } catch (error) {
+        fail(error);
+      }
+      shareNicknames();
+      return vocabularyState();
+    };
+    ctx.routes.get('/vocabulary', () => vocabularyState());
+    ctx.routes.post('/vocabulary/corrections', (request) => {
+      const body = requestBody(request);
+      return vocabularyChange(() => vocabulary.setCorrection(body.heard, body.replacement));
+    });
+    ctx.routes.put('/vocabulary/corrections/:id', (request) => {
+      const body = requestBody(request);
+      return vocabularyChange(() =>
+        vocabulary.setCorrection(body.heard, body.replacement, idParam(request.params)),
+      );
+    });
+    ctx.routes.delete('/vocabulary/corrections/:id', (request) =>
+      vocabularyChange(() => vocabulary.removeCorrection(idParam(request.params))),
+    );
+    /** « Tester » : the text corrected, and the command it then gives (nothing runs). */
+    ctx.routes.post('/vocabulary/test', async (request) => {
+      const text = String(requestBody(request).text ?? '').trim();
+      if (!text) throw new HttpError(400, 'Écris une phrase');
+      const corrected = vocabulary.correct(text);
+      const match = await commands.match(corrected);
+      return {
+        corrected,
+        changed: corrected !== text,
+        verdict: match.verdict,
+        command: commands.describe(match.best),
+      };
+    });
+    ctx.routes.post('/vocabulary/words', (request) =>
+      vocabularyChange(() => vocabulary.addWord(requestBody(request).word)),
+    );
+    ctx.routes.delete('/vocabulary/words/:id', (request) =>
+      vocabularyChange(() => vocabulary.removeWord(idParam(request.params))),
+    );
+    ctx.routes.post('/vocabulary/words/restore', () =>
+      vocabularyChange(() => void vocabulary.restoreWords()),
+    );
+    ctx.routes.post('/vocabulary/nicknames', (request) => {
+      const body = requestBody(request);
+      return vocabularyChange(() => vocabulary.addNickname(body.target, body.nickname));
+    });
+    ctx.routes.delete('/vocabulary/nicknames/:id', (request) =>
+      vocabularyChange(() => vocabulary.removeNickname(idParam(request.params))),
     );
 
     ctx.routes.put('/rights/:rightId', (request) => {

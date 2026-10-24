@@ -55,8 +55,14 @@ export function toBase64(bytes: Uint8Array): string {
 
 export class Recorder {
   private stream: MediaStream | null = null;
+  /**
+   * Kept between recordings (created once, suspended in between): creating it
+   * at each press made the start of the sentence lost. It never touches the
+   * microphone by itself: only start() opens it, stop() closes it.
+   */
   private context: AudioContext | null = null;
   private node: ScriptProcessorNode | null = null;
+  private source: MediaStreamAudioSourceNode | null = null;
   private chunks: Float32Array[] = [];
   private starting: Promise<void> | null = null;
 
@@ -64,38 +70,73 @@ export class Recorder {
     return this.starting !== null;
   }
 
-  start(): Promise<void> {
+  /** Prepares the audio engine (no microphone): the first press is then faster. */
+  warm(): void {
+    if (!this.context) this.context = new AudioContext({ latencyHint: 'interactive' });
+  }
+
+  /** `onReady`: the first sound arrived, the microphone really listens (« Parle »). */
+  start(onReady?: () => void): Promise<void> {
     this.chunks = [];
     this.starting = (async () => {
-      this.stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          channelCount: 1,
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
-      this.context = new AudioContext();
-      const source = this.context.createMediaStreamSource(this.stream);
-      // ScriptProcessor: simple and enough for a few seconds of speech.
-      this.node = this.context.createScriptProcessor(4096, 1, 1);
-      this.node.onaudioprocess = (event) =>
+      this.warm();
+      const context = this.context!;
+      const [stream] = await Promise.all([
+        navigator.mediaDevices.getUserMedia({
+          audio: {
+            channelCount: 1,
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        }),
+        context.resume(),
+      ]);
+      this.stream = stream;
+      this.source = context.createMediaStreamSource(stream);
+      // ScriptProcessor: simple and enough for a few seconds of speech; 2048
+      // samples (~45 ms) so « ready » comes fast.
+      this.node = context.createScriptProcessor(2048, 1, 1);
+      let first = true;
+      this.node.onaudioprocess = (event) => {
         this.chunks.push(new Float32Array(event.inputBuffer.getChannelData(0)));
-      source.connect(this.node);
-      this.node.connect(this.context.destination);
+        if (first) {
+          first = false;
+          onReady?.();
+        }
+      };
+      this.source.connect(this.node);
+      this.node.connect(context.destination);
     })();
     return this.starting;
+  }
+
+  /** A short tone (« le micro est prêt »), through the same audio engine. */
+  beep(): void {
+    const context = this.context;
+    if (!context) return;
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.frequency.value = 880;
+    gain.gain.setValueAtTime(0.0001, context.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.08, context.currentTime + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.08);
+    oscillator.connect(gain).connect(context.destination);
+    oscillator.start();
+    oscillator.stop(context.currentTime + 0.09);
   }
 
   private async release(): Promise<number> {
     await this.starting?.catch(() => {});
     const rate = this.context?.sampleRate ?? TARGET_RATE;
     this.node?.disconnect();
+    this.source?.disconnect();
+    // The microphone is closed at once (no permanent listening).
     for (const track of this.stream?.getTracks() ?? []) track.stop();
-    await this.context?.close().catch(() => {});
+    await this.context?.suspend().catch(() => {});
     this.node = null;
+    this.source = null;
     this.stream = null;
-    this.context = null;
     this.starting = null;
     return rate;
   }

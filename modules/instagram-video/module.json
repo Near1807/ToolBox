@@ -2,15 +2,18 @@
   "id": "instagram-video",
   "name": "Pack Instagram",
   "description": "Pour chaque morceau : 4 Reels verticaux, une image de post 4:5 et la légende, avec le suivi de publication.",
-  "version": "4.3.0",
+  "version": "4.4.0",
   "section": "Musique",
   "icon": "📱",
   "order": 30,
   "dependsOn": {
     "modules": ["music-library", "video-engine"],
-    "services": ["musicLibrary", "videoEngine"]
+    "services": ["musicLibrary", "videoEngine"],
+    "optionalServices": ["masterAnalysis"]
   },
-  "provides": { "services": ["instagramPack"] },
+  "provides": {
+    "services": ["instagramPack"]
+  },
   "settings": [
     {
       "key": "clipDuration",

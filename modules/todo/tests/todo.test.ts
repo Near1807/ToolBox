@@ -192,7 +192,7 @@ describe('To-do', () => {
         });
         expect(await run('add-task', { title: 'x', track: 'zèbre' })).toMatchObject({
           status: 'error',
-          message: 'Aucun morceau ne s’appelle « zèbre ».',
+          message: 'Je ne trouve pas le morceau « zèbre ».',
         });
         expect((await list()).tasks).toHaveLength(0);
       });

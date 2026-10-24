@@ -17,6 +17,7 @@ import {
   useJobs,
   useModule,
   TrackList,
+  usePrecheck,
 } from '@hub/sdk/frontend';
 import { ReelEditor } from './ReelEditor';
 import type { EffectInfo, Source, TrackDetail, TrackSummary } from './types';
@@ -229,6 +230,7 @@ function Sources(props: { track: TrackDetail; onChanged: () => void }) {
 
 function TrackPanel(props: { trackId: number; effects: EffectInfo[]; onChange: () => void }) {
   const module = useModule();
+  const precheck = usePrecheck(module.api.get);
   const detail = useApi<TrackDetail>(module.url(`/tracks/${props.trackId}`));
   const waveform = useApi<{ durationSec: number; peaks: number[] }>(
     module.url(`/tracks/${props.trackId}/waveform`),
@@ -361,10 +363,15 @@ function TrackPanel(props: { trackId: number; effects: EffectInfo[]; onChange: (
               <Button
                 small
                 disabled={toRender.length === 0}
-                onClick={() => void run(() => module.api.post(`/tracks/${track.id}/render`))}
+                onClick={() =>
+                  void precheck.guard(`/tracks/${track.id}/precheck`, () =>
+                    run(() => module.api.post(`/tracks/${track.id}/render`)),
+                  )
+                }
               >
                 Lancer le rendu ({toRender.length})
               </Button>
+              {precheck.notice}
             </span>
           }
         >

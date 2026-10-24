@@ -5,7 +5,14 @@ import type { ModuleManifest, SettingValue } from './manifest';
 
 export type { FastifyReply, FastifyRequest } from 'fastify';
 export type * from './manifest';
-export { matchByName, nameScore, normaliseName, type NameMatch } from './match';
+export {
+  matchByName,
+  nameScore,
+  normaliseName,
+  phoneticKey,
+  soundScore,
+  type NameMatch,
+} from './match';
 export { ELEMENT_STATES, listPhrase } from './assistant-texts';
 export {
   cleanUtterance,
@@ -101,6 +108,12 @@ export interface ModuleDatabase {
   prepare(sql: string): Statement;
   /** Runs fn inside a transaction (all or nothing). */
   transaction<T>(fn: () => T): T;
+  /**
+   * Automatic backup of the whole database (<userData>/backups/, same rotation
+   * as the backups before migrations), to take before deleting data at the
+   * user's request. Returns the backup's file name.
+   */
+  backup(reason: string): string;
 }
 
 export interface ModuleFiles {
@@ -266,6 +279,25 @@ export class HttpError extends Error {
   ) {
     super(message);
     this.name = 'HttpError';
+  }
+}
+
+/**
+ * « Je ne trouve pas le morceau « obsidienne ». » with the closest names: the
+ * assistant then offers « Tu voulais dire « Obsidian » ? » and, on « oui »,
+ * runs the same action with that value (same rights and confirmations).
+ */
+export class NotFoundError extends HttpError {
+  constructor(
+    /** The parameter of the action that matched nothing (« track »). */
+    readonly param: string,
+    /** What it is, with its article: « le morceau », « la tâche », « l’outil ». */
+    readonly what: string,
+    readonly value: string,
+    /** Closest existing names, best first. */
+    readonly suggestions: string[] = [],
+  ) {
+    super(404, `Je ne trouve pas ${what} « ${value} ».`);
   }
 }
 
@@ -494,6 +526,8 @@ export interface AssistantActionDefinition {
    * natural wordings (« ajoute une tâche finir le mix pour vendredi »). The
    * assistant recognises a request by its meaning against these phrases.
    */
+  /** Short French label shown and said (« Tu voulais dire : … ? », page Commandes). */
+  label?: string;
   examples?: string[];
   /**
    * Parameters taken from the request by code (title, tag, track, date,
@@ -523,6 +557,8 @@ export interface AssistantActionInfo {
   /** Full UI route of a sensitive action's page. */
   page: string | null;
   /** Example phrases of the module (standardised command). */
+  /** Short label (the description when none was given). */
+  label: string;
   examples: string[];
   /** True when the module extracts the parameters itself (extract()). */
   extracts: boolean;
@@ -548,7 +584,13 @@ export type AssistantOutcome =
   | { status: 'forbidden'; id: string; message: string; right: { id: string; label: string } }
   /** Unknown action or bad parameters (French message, for the model to fix or ask). */
   | { status: 'invalid'; id: string; message: string }
-  | { status: 'error'; id: string; message: string };
+  | {
+      status: 'error';
+      id: string;
+      message: string;
+      /** A parameter matched nothing (NotFoundError): its value and the closest names. */
+      notFound?: { param: string; what: string; value: string; suggestions: string[] };
+    };
 
 export interface ModuleAssistant {
   /** Declares an action of this module. */
@@ -571,6 +613,11 @@ export interface ModuleAssistant {
   }[];
   /** Turns a right on or off: only from a click of the user (permissions.assistant). */
   setRight(id: string, granted: boolean): void;
+  /**
+   * Other names of the tools and pages for « ouvre … » (key: module id or page
+   * route, e.g. { todo: ['mes tâches'] }), kept by the voice assistant.
+   */
+  setToolNicknames(nicknames: Record<string, string[]>): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -658,4 +705,30 @@ export function openEventStream(request: FastifyRequest, reply: FastifyReply): E
       res.end();
     },
   };
+}
+
+/**
+ * The quick check of a track's master before a generation (generators): asks
+ * the optional masterAnalysis service, and answers « nothing to say » when it
+ * is absent, disabled or fails — a generation is never blocked by it.
+ */
+export async function precheckTrack(
+  ctx: ModuleContext,
+  track: { id: number; audioPath: string } | null,
+): Promise<{ ok: boolean; issues: { kind: string; text: string }[]; path: string | null }> {
+  const service = ctx.services.optional<{
+    quickCheck(
+      path: string,
+      trackId?: number | null,
+    ): Promise<{ ok: boolean; issues: { kind: string; text: string }[] }>;
+    pagePath(trackId: number | null): string;
+  }>('masterAnalysis');
+  if (!service || !track) return { ok: true, issues: [], path: null };
+  try {
+    const result = await service.quickCheck(track.audioPath, track.id);
+    return { ok: result.ok, issues: result.issues, path: service.pagePath(track.id) };
+  } catch (error) {
+    ctx.logger.warn('Vérification rapide du master impossible', error);
+    return { ok: true, issues: [], path: null };
+  }
 }

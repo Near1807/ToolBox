@@ -48,6 +48,8 @@ L'analyse décode le son en mono 8 kHz avec FFmpeg (pics et RMS par fenêtre de 
 
 Modules `music-library` et `video-engine` ; services `musicLibrary` (morceaux, fichiers générés, ligne d'info) et `videoEngine` (`render` avec `fadeSeconds`, `renderPost`, `preview`).
 
+Facultatif : `masterAnalysis` (« Analyse du master ») — avant « Générer », vérification rapide du master, jamais bloquante (`GET /tracks/:id/precheck`, `precheckTrack` du SDK, `usePrecheck` dans l'interface) : « Générer quand même » / « Voir l'analyse » / « Annuler ». Sans le module, rien ne change.
+
 ## API
 
 | Méthode | Route                                   | Rôle                                                                              |

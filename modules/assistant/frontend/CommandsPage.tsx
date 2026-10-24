@@ -14,7 +14,14 @@ import {
   useApi,
   useModule,
 } from '@hub/sdk/frontend';
-import type { CommandDto, CommandsDto, ConflictDto, RightDto, TestDto } from '../shared';
+import type {
+  CommandDto,
+  CommandsDto,
+  ConflictDto,
+  RightDto,
+  TestDto,
+  VocabularyDto,
+} from '../shared';
 
 export const RISK_LABELS: Record<CommandDto['risk'], string> = {
   read: 'lecture',
@@ -48,6 +55,81 @@ export async function savePhrase(
   if (first.saved) return true;
   if (!confirmConflict(target, first.conflicts)) return false;
   return (await save(true)).saved;
+}
+
+/** Other names of each tool and page for « ouvre … » (« mes tâches » → To-do). */
+function NicknamesCard() {
+  const module = useModule();
+  const state = useApi<VocabularyDto>(module.url('/vocabulary'));
+  const [data, setData] = useState<VocabularyDto | null>(null);
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [error, setError] = useState<string | null>(null);
+  const shown = data ?? state.data;
+  const call = (run: () => Promise<VocabularyDto>, after?: () => void) =>
+    void run()
+      .then((next) => {
+        setData(next);
+        setError(null);
+        after?.();
+      })
+      .catch((e: unknown) => setError(errorMessage(e)));
+  return (
+    <Card title="Surnoms des outils">
+      <p className="small muted">
+        Autres noms pour « ouvre … » ; ajoutés aussi aux mots attendus par la reconnaissance vocale.
+        Les surnoms des morceaux se règlent sur leur fiche (Bibliothèque).
+      </p>
+      {error && <ErrorMessage>{error}</ErrorMessage>}
+      <ul className="as-nicknames">
+        {shown?.tools.map((tool) => (
+          <li key={tool.key}>
+            <strong className="small">{tool.label}</strong>
+            <ul className="as-chips">
+              {(shown.nicknames[tool.key] ?? []).map((n) => (
+                <li key={n.id} className="as-chip">
+                  {n.nickname}
+                  <button
+                    type="button"
+                    className="as-chip__remove"
+                    aria-label={`Retirer ${n.nickname}`}
+                    title="Retirer"
+                    onClick={() =>
+                      call(() => module.api.delete<VocabularyDto>(`/vocabulary/nicknames/${n.id}`))
+                    }
+                  >
+                    ×
+                  </button>
+                </li>
+              ))}
+              <li>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    call(
+                      () =>
+                        module.api.post<VocabularyDto>('/vocabulary/nicknames', {
+                          target: tool.key,
+                          nickname: drafts[tool.key] ?? '',
+                        }),
+                      () => setDrafts((d) => ({ ...d, [tool.key]: '' })),
+                    );
+                  }}
+                >
+                  <input
+                    className="input as-chip-input"
+                    value={drafts[tool.key] ?? ''}
+                    placeholder="+ surnom"
+                    onChange={(e) => setDrafts((d) => ({ ...d, [tool.key]: e.target.value }))}
+                    aria-label={`Nouveau surnom pour ${tool.label}`}
+                  />
+                </form>
+              </li>
+            </ul>
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
 }
 
 export function RightsCard(props: { rights: RightDto[]; onChange: () => void }) {
@@ -514,6 +596,7 @@ export function CommandsPage() {
         </div>
         <div className="as-stack">
           <TestPhrase />
+          <NicknamesCard />
           {data.data && <RightsCard rights={data.data.rights} onChange={reload} />}
         </div>
       </div>

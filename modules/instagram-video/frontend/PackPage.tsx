@@ -20,6 +20,7 @@ import {
   useModule,
   useSelection,
   TrackList,
+  usePrecheck,
 } from '@hub/sdk/frontend';
 import { ItemTile } from './ItemTile';
 import type { Pack, PackItem, TrackDetail, TrackSummary, WaveformData } from './types';
@@ -134,6 +135,7 @@ function CreatePack(props: {
 
 function TrackPanel(props: { trackId: number; onChange: () => void }) {
   const module = useModule();
+  const precheck = usePrecheck(module.api.get);
   const detail = useApi<TrackDetail>(module.url(`/tracks/${props.trackId}`));
   const { jobs, cancel } = useJobs(module.id);
   const [error, setError] = useState<string | null>(null);
@@ -458,10 +460,12 @@ function TrackPanel(props: { trackId: number; onChange: () => void }) {
             <Button
               disabled={busy || rendering > 0 || toRender.length === 0 || !track.coverUrl}
               onClick={() =>
-                void run(async () => {
-                  await module.api.post(`/packs/${pack.id}/render`);
-                  refresh();
-                })
+                void precheck.guard(`/tracks/${track.id}/precheck`, () =>
+                  run(async () => {
+                    await module.api.post(`/packs/${pack.id}/render`);
+                    refresh();
+                  }),
+                )
               }
             >
               {rendering > 0
@@ -472,6 +476,7 @@ function TrackPanel(props: { trackId: number; onChange: () => void }) {
                     ? `Générer les ${toRender.length} fichiers à refaire`
                     : 'Pack à jour'}
             </Button>
+            {precheck.notice}
             <span className="muted small">
               Fichiers : {pack.folder} — « {track.title} - Reel 1.mp4 », … et « {track.title} -
               Post.jpg ».

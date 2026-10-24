@@ -40,6 +40,10 @@ describe('speech engines (fake processes, same protocol)', () => {
       expect(await server.transcribe(Buffer.alloc(4000))).toBe('bonjour (fr, audio reçu)');
       expect(server.running).toBe(true);
       expect(await server.transcribe(Buffer.alloc(10))).toBe('bonjour (fr, vide)');
+      // The expected words go with the recording (whisper.cpp « prompt »).
+      expect(await server.transcribe(Buffer.alloc(4000), { prompt: 'Obsidian, to-do' })).toBe(
+        'bonjour (fr, audio reçu, mots : Obsidian, to-do)',
+      );
     } finally {
       server.stop();
     }
@@ -243,6 +247,7 @@ describe('brain helpers', () => {
         required: [],
         risk: 'destructive',
         page: null,
+        label: 'Ajoute une tâche',
         examples: [],
         extracts: false,
         right: null,
@@ -341,6 +346,7 @@ describe('tool preselection', () => {
       required: [],
       risk: 'read',
       page: null,
+      label: id,
       examples: [],
       extracts: true,
       right: null,

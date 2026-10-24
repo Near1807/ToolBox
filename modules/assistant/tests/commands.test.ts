@@ -50,6 +50,18 @@ const RECOGNISED: [string, string, Record<string, unknown>?][] = [
   ['euh ouvre les réglages', 'core.open', { target: 'réglages' }],
   ['lance la synchronisation des stats YouTube', 'youtube-stats.sync'],
   ['quelles sont les commandes', 'assistant.list-commands'],
+  // Real phrases of Thomas's tests (v0.17), after the corrections of the ear.
+  ['rappelle-moi d’appeler Thierry demain', 'todo.add-task', { title: 'appeler Thierry' }],
+  ['quel est le planning de cette semaine', 'release-planner.agenda', { period: 'week' }],
+  ['où en sont les sorties de cette semaine', 'release-planner.agenda', { period: 'week' }],
+  ['le point sur la semaine', 'release-planner.agenda', { period: 'week' }],
+  ['le planning de la semaine prochaine', 'release-planner.agenda', { period: 'next-week' }],
+  ['qu’est-ce qui sort les 7 prochains jours', 'release-planner.agenda', { period: 'next7' }],
+  ['où on est la sortie de Obsidian', 'release-planner.release', { track: 'Obsidian' }],
+  ['ouvre la to-do', 'core.open', { target: 'to-do' }],
+  ['ouvre l’application', 'core.show-app'],
+  ['ouvre ToolBox', 'core.show-app'],
+  ['reviens sur l’app', 'core.show-app'],
 ];
 
 /** Never recognised: free questions, ambiguous or incomplete requests. */

@@ -2,7 +2,7 @@
 // API), with small fakes of the library, the release planner and the pack
 // (MODULES.md §8): incremental authorization, sync, linking to the tracks,
 // incremental re-sync, Studio CSV import, manual link, quota, expired token.
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -70,6 +70,21 @@ describe('youtube-stats with a fake Google', () => {
     }
     throw new Error('Synchronisation trop longue');
   };
+  const short = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
+  const diagnose = async () =>
+    Object.fromEntries(
+      (
+        await hub.request<{
+          checks: { id: string; status: string; detail: string; action: string | null }[];
+        }>('POST', `${API}/diagnostic`)
+      ).body.checks.map((c) => [c.id, c]),
+    );
+  const lastSyncState = async () =>
+    (
+      await hub.request<{
+        lastSync: { ok: boolean; message: string | null; report: string | null };
+      }>('GET', `${API}/state`)
+    ).body.lastSync;
   const sync = async () => {
     const started = await hub.request('POST', `${API}/sync`);
     expect(started.status).toBe(200);
@@ -203,6 +218,16 @@ describe('youtube-stats with a fake Google', () => {
   it('asks for the read-only statistics scopes, added to the existing ones', async () => {
     const before = await hub.request<{ account: { connected: boolean } }>('GET', `${API}/state`);
     expect(before.body.account.connected).toBe(false);
+    const diagnostic = (
+      await hub.request<{ checks: { id: string; status: string; detail: string }[] }>(
+        'POST',
+        `${API}/diagnostic`,
+      )
+    ).body.checks;
+    expect(diagnostic.find((c) => c.id === 'account')).toMatchObject({
+      status: 'problem',
+      detail: 'Non connecté.',
+    });
     expect((await hub.request<{ error: string }>('POST', `${API}/sync`)).body.error).toContain(
       'Connecte',
     );
@@ -295,6 +320,53 @@ describe('youtube-stats with a fake Google', () => {
     ).toBe(false);
   });
 
+  it('says what a sync asked and received, and when YouTube has nothing new', async () => {
+    const report = (await lastSyncState()).report!;
+    expect(report).toMatch(/^Demandé : du \d\d\/\d\d au \d\d\/\d\d, 3 vidéo\(s\) sur 3\./);
+    expect(report).toContain('Reçu : ');
+    // Same data at YouTube: nothing new, said with the last day YouTube has.
+    expect(report).toContain(
+      `Aucune donnée consolidée nouvelle depuis le ${short(day(-3))} (retard normal de YouTube).`,
+    );
+    expect(report).toMatch(/Durée : \d+ s, \d+ requête\(s\)\./);
+    // A new consolidated day at YouTube: received and counted.
+    for (const v of google.videos) v.daily[day(-2)] = 7;
+    await sync();
+    const next = (await lastSyncState()).report!;
+    expect(next).toContain(`Données YouTube disponibles jusqu’au ${short(day(-2))}.`);
+    expect(next).not.toContain('Aucune donnée consolidée nouvelle');
+    for (const v of google.videos) delete v.daily[day(-2)];
+  });
+
+  it('live counters and consolidated days are two sources, labelled as such', async () => {
+    const overview = (
+      await hub.request<{
+        lastDay: string;
+        liveAt: string | null;
+        live: { subscribers: number; views: number; likes: number; comments: number };
+        key: { views: number };
+      }>('GET', `${API}/overview?period=all`)
+    ).body;
+    // Live: the counters of the Data API (what YouTube shows), at the last sync.
+    expect(overview.live).toMatchObject({ subscribers: 120, likes: 9, comments: 3 });
+    expect(overview.live.views).toBe(
+      google.videos.reduce((t, v) => t + Object.values(v.daily).reduce((a, b) => a + b, 0), 0) +
+        3 * 7,
+    );
+    expect(overview.liveAt).not.toBeNull();
+    // Consolidated: up to the last day Analytics gave (the day received above, two days ago).
+    expect(overview.lastDay).toBe(day(-2));
+    const state = (
+      await hub.request<{ lastDay: string; sources: { apiDays: number; csvOnlyDays: number } }>(
+        'GET',
+        `${API}/state`,
+      )
+    ).body;
+    expect(state.lastDay).toBe(day(-2));
+    expect(state.sources.apiDays).toBeGreaterThan(0);
+    expect(state.sources.csvOnlyDays).toBe(0);
+  });
+
   it('Planning first: waits while uploads run, does the minimum when some are due soon', async () => {
     const lastSync = async () =>
       (
@@ -377,6 +449,148 @@ describe('youtube-stats with a fake Google', () => {
     ).toContain('Contenu');
   });
 
+  it('a CSV never masks the API nor makes days look known, and each import can be deleted', async () => {
+    const before = (
+      await hub.request<{ totals: Record<string, number | null>; series: { views: number[] } }>(
+        'GET',
+        `${API}/videos/longvideo01`,
+      )
+    ).body;
+    const file = path.join(dir, 'Chart data.csv');
+    writeFileSync(
+      file,
+      `Date,Contenu,Impressions,Taux de clics des impressions (%)\n${day(-5)},longvideo01,777,"4,5"\n${day(-1)},longvideo01,50,2\n`,
+    );
+    const imported = await hub.request<{ report: { id: number; keptApi: number }[] }>(
+      'POST',
+      `${API}/import`,
+      { path: file },
+    );
+    expect(imported.status).toBe(200);
+    const importId = imported.body.report[0]!.id;
+    const sheet = (
+      await hub.request<{
+        days: string[];
+        totals: Record<string, number | null>;
+        series: { views: number[]; impressions: (number | null)[]; reachSource: (string | null)[] };
+        reachSource: string | null;
+      }>('GET', `${API}/videos/longvideo01`)
+    ).body;
+    // The views stay those of the API, day by day; the CSV only adds impressions.
+    expect(sheet.totals.views).toBe(before.totals.views);
+    const i5 = sheet.days.indexOf(day(-5));
+    expect(sheet.series.views[i5]).toBe(20);
+    expect(sheet.series.impressions[i5]).toBe(777);
+    expect(sheet.series.reachSource[i5]).toBe('csv');
+    // Whole-life impressions: the « totals » export first (no API impressions here).
+    expect(sheet.reachSource).toBe('csv-totals');
+    // The day only the CSV knows (yesterday) does not make the sync skip days:
+    // it starts from the last API day (two days ago) minus 5, not from yesterday minus 5.
+    const calls = google.reports.length;
+    await sync();
+    const query = google.reports
+      .slice(calls)
+      .find((p) => p.get('filters') === 'video==longvideo01' && p.get('dimensions') === 'day')!;
+    expect(query.get('startDate')).toBe(day(-7));
+
+    const imports = (
+      await hub.request<{
+        imports: { id: number; days: number; period_from: string; metrics: string[] }[];
+      }>('GET', `${API}/imports`)
+    ).body.imports;
+    expect(imports.find((i) => i.id === importId)).toMatchObject({
+      days: 2,
+      period_from: day(-5),
+      metrics: ['impressions', 'ctr'],
+    });
+    const footprint = (
+      await hub.request<{ text: string; rowsRemoved: number }>(
+        'GET',
+        `${API}/imports/${importId}/footprint`,
+      )
+    ).body;
+    expect(footprint).toMatchObject({
+      text: 'impressions et taux de clics de 2 jour(s)-vidéo',
+      rowsRemoved: 1,
+    });
+    const removed = await hub.request<{ backup: string }>('DELETE', `${API}/imports/${importId}`);
+    expect(removed.status).toBe(200);
+    expect(existsSync(path.join(hub.hub.backupsDir, removed.body.backup))).toBe(true);
+    const after = (
+      await hub.request<{
+        days: string[];
+        totals: Record<string, number | null>;
+        series: { views: number[]; impressions: (number | null)[] };
+      }>('GET', `${API}/videos/longvideo01`)
+    ).body;
+    // Only that import went: API data intact, the other import (totals) kept.
+    expect(after.totals.views).toBe(before.totals.views);
+    expect(after.series.views[after.days.indexOf(day(-5))]).toBe(20);
+    expect(after.series.impressions[after.days.indexOf(day(-5))]).toBeNull();
+    expect(after.totals.impressions).toBe(4000);
+    // Every CSV datum at once.
+    expect((await hub.request('DELETE', `${API}/imports/all`)).status).toBe(200);
+    const last = (
+      await hub.request<{ totals: Record<string, number | null> }>(
+        'GET',
+        `${API}/videos/longvideo01`,
+      )
+    ).body;
+    expect(last.totals).toMatchObject({ impressions: null, ctr: null, views: before.totals.views });
+    expect(
+      (await hub.request<{ imports: unknown[] }>('GET', `${API}/imports`)).body.imports,
+    ).toEqual([]);
+  });
+
+  it('the diagnostic checks every cause and says what to do', async () => {
+    let checks = await diagnose();
+    for (const id of [
+      'demo',
+      'account',
+      'scopes',
+      'data',
+      'analytics',
+      'delay',
+      'priority',
+      'quota',
+    ])
+      expect(checks[id]?.status, id).toBe('ok');
+    expect(checks.delay!.detail).toContain(`jusqu’au ${short(day(-3))}`);
+
+    google.analyticsDisabled = true;
+    checks = await diagnose();
+    expect(checks.analytics).toMatchObject({ status: 'problem' });
+    expect(checks.analytics!.action).toContain('« YouTube Analytics API » › Activer');
+    google.analyticsDisabled = false;
+
+    google.quotaExceeded = true;
+    checks = await diagnose();
+    expect(checks.data!.status).toBe('problem');
+    expect(checks.data!.detail).toContain('Quota');
+    google.quotaExceeded = false;
+
+    google.networkDown = true;
+    checks = await diagnose();
+    expect(checks.data!.detail).toContain('Pas de connexion à Google (réseau)');
+    google.networkDown = false;
+
+    quota.uploadsActive = 1;
+    expect((await diagnose()).priority!.detail).toMatch(/envoi\(s\) YouTube en cours/);
+    quota.uploadsActive = 0;
+    quota.uploadsSoon = 1;
+    expect((await diagnose()).priority!.detail).toMatch(/synchronisation minimale/);
+    quota.uploadsSoon = 0;
+    quota.used = 9_500;
+    expect((await diagnose()).quota!.status).toBe('problem');
+    quota.used = 0;
+
+    await hub.request('PUT', '/api/core/settings/youtube-stats', { demoMode: true });
+    expect((await diagnose()).demo!.status).toBe('problem');
+    await hub.request('PUT', '/api/core/settings/youtube-stats', { demoMode: false });
+    // Data API answers, the sync said what it did.
+    expect((await diagnose()).sync!.detail).toContain('Demandé : du');
+  });
+
   it('links a video published outside the app by hand (title suggestion)', async () => {
     const links = (
       await hub.request<{ videos: { id: string; suggestion: { id: number } | null }[] }>(
@@ -428,6 +642,10 @@ describe('youtube-stats with a fake Google', () => {
     expect(
       (await hub.request<{ videos: unknown[] }>('GET', `${API}/videos`)).body.videos,
     ).toHaveLength(3);
+  });
+
+  it('an expired or revoked authorization is a cause of its own', async () => {
+    expect((await diagnose()).account).toMatchObject({ label: 'Jeton Google', status: 'problem' });
   });
 
   it('answers the assistant from the stored statistics, demo announced as such', async () => {

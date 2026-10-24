@@ -28,7 +28,7 @@ import {
 import { runLab, type LabResult } from './lab';
 import { suggestTrack } from './linking';
 import { addDay } from './stats';
-import { MIGRATION_V1, StatsStore, type LinkServices } from './store';
+import { MIGRATION_V1, migrationV2, StatsStore, type LinkServices } from './store';
 import { syncChannel, type SyncSummary } from './sync';
 import { generateTheories, updateJournal, type JournalEntry, type Theory } from './theories';
 import {
@@ -44,8 +44,43 @@ import {
 
 const GOOGLE = 'google';
 
-/** YouTube publishes Analytics with a delay of 2–3 days: the last day considered complete. */
-const lastCompleteDay = () => addDay(new Date().toISOString().slice(0, 10), -3);
+const today = () => new Date().toISOString().slice(0, 10);
+
+/** « 24/10 » */
+const shortDay = (day: string) => `${day.slice(8, 10)}/${day.slice(5, 7)}`;
+
+/** What a sync asked, received and changed, in one sentence (shown after each sync). */
+export function syncReport(summary: SyncSummary): string {
+  const parts: string[] = [];
+  if (summary.requested)
+    parts.push(
+      `Demandé : du ${shortDay(summary.requested.from)} au ${shortDay(summary.requested.to)}${summary.fullHistory ? ' (tout l’historique, réparation)' : ''}, ${summary.videosAsked ?? 0} vidéo(s) sur ${summary.videos}.`,
+    );
+  else parts.push(`Rien à demander à YouTube Analytics (${summary.videos} vidéo(s)).`);
+  parts.push(
+    `Reçu : ${summary.dayRows} jour(s) de statistiques par vidéo, ${summary.changed ?? 0} nouveau(x) ou modifié(s).`,
+  );
+  const last = summary.lastAvailableDay;
+  if (last && (summary.newDays ?? 0) === 0)
+    parts.push(
+      `Aucune donnée consolidée nouvelle depuis le ${shortDay(last)} (retard normal de YouTube).`,
+    );
+  else if (last) parts.push(`Données YouTube disponibles jusqu’au ${shortDay(last)}.`);
+  if (summary.totalMs !== undefined)
+    parts.push(
+      `Durée : ${Math.max(1, Math.round(summary.totalMs / 1000))} s, ${summary.calls} requête(s).`,
+    );
+  return parts.join(' ');
+}
+
+/** A network failure (no Internet, DNS, proxy), told apart from Google's answers. */
+const isNetworkError = (error: unknown) =>
+  error instanceof TypeError ||
+  /fetch failed|ENOTFOUND|ECONNREFUSED|ECONNRESET|ETIMEDOUT|EAI_AGAIN|network/i.test(
+    error instanceof Error
+      ? `${error.message} ${String((error as { cause?: unknown }).cause ?? '')}`
+      : '',
+  );
 
 interface Analysis {
   key: string;
@@ -55,7 +90,10 @@ interface Analysis {
 }
 
 export default defineBackendModule({
-  migrations: [{ version: 1, description: 'statistics tables', up: MIGRATION_V1 }],
+  migrations: [
+    { version: 1, description: 'statistics tables', up: MIGRATION_V1 },
+    { version: 2, description: 'provenance of the numbers (API / CSV import)', up: migrationV2 },
+  ],
 
   register(ctx: ModuleContext) {
     const store = new StatsStore(ctx);
@@ -69,6 +107,16 @@ export default defineBackendModule({
     const engine = ctx.services.optional<VideoEngineService>('videoEngine');
 
     const demoMode = () => ctx.settings.get<boolean>('demoMode') === true;
+    /**
+     * Last day of consolidated Analytics data: the last day YouTube gave for the
+     * channel (never today); 3 days ago before any sync.
+     */
+    const lastCompleteDay = () => {
+      const last = store.lastChannelDay();
+      const yesterday = addDay(today(), -1);
+      if (!last) return addDay(today(), -3);
+      return last < yesterday ? last : yesterday;
+    };
     const timeZone = () => {
       const value = ctx.settings.get<string>('timeZone') ?? 'Europe/Brussels';
       try {
@@ -219,6 +267,10 @@ export default defineBackendModule({
       summary: SyncSummary | null;
       /** Waiting for the uploads of the Planning: tried again at the next tick. */
       postponed?: boolean;
+      /** Strict minimum because uploads are due within 24 h. */
+      minimal?: boolean;
+      /** What was asked, received and changed (syncReport). */
+      report?: string | null;
     }) => store.setMeta('lastSync', value);
 
     ctx.jobs.define<Record<string, never>, SyncSummary>('sync', async (job) => {
@@ -261,9 +313,12 @@ export default defineBackendModule({
         },
         exhausted: () => planner?.recordYouTubeQuota(ctx.id, 0, true),
       });
+      const minimal = Boolean(outlook && outlook.uploadsSoon > 0);
+      const fullHistory = !minimal && store.meta<string>('fullResync') !== null;
       try {
         const summary = await syncChannel(client, store, {
-          minimal: Boolean(outlook && outlook.uploadsSoon > 0),
+          minimal,
+          fullHistory,
           lastDay: addDay(new Date().toISOString().slice(0, 10), -1),
           refreshDays: 5,
           detailsEveryDays: ctx.settings.get<number>('detailsEveryDays') ?? 7,
@@ -271,18 +326,20 @@ export default defineBackendModule({
           signal: job.signal,
           log: (message) => ctx.logger.info(message),
         });
+        if (fullHistory) store.setMeta('fullResync', null);
         await computeWaveforms();
         invalidate();
         evaluateTheories();
+        const report = syncReport(summary);
         setLastSync({
           at: new Date().toISOString(),
           ok: true,
           message: summary.warnings[0] ?? null,
           summary,
+          minimal,
+          report,
         });
-        ctx.logger.info(
-          `Synchronisation : ${summary.videos} vidéo(s), ${summary.dayRows} jour(s), ${summary.calls} requête(s) Google`,
-        );
+        ctx.logger.info(`Synchronisation : ${report}`);
         return summary;
       } catch (error) {
         const quotaError = error instanceof GoogleApiError && error.kind === 'quota';
@@ -293,7 +350,9 @@ export default defineBackendModule({
               ? `${error.message} ${services.planner.quotaOrigin()}`
               : error instanceof GoogleApiError || error instanceof AccountError
                 ? error.message
-                : `Synchronisation impossible : ${error instanceof Error ? error.message : String(error)}`;
+                : isNetworkError(error)
+                  ? `Pas de connexion à Google (réseau) : ${error instanceof Error ? error.message : String(error)}. Nouvel essai à la prochaine synchronisation.`
+                  : `Synchronisation impossible : ${error instanceof Error ? error.message : String(error)}`;
         setLastSync({ at: new Date().toISOString(), ok: false, message, summary: null });
         invalidate();
         throw new Error(message, { cause: error });
@@ -371,7 +430,11 @@ export default defineBackendModule({
         engagedViews: store.meta<boolean>('engagedViews'),
         hasData: store.videos().length > 0,
         lastDay: lastCompleteDay(),
-        imports: store.imports().slice(0, 5),
+        imports: store.imports(),
+        unattributedCsv: store.unattributedCsv(),
+        sources: store.sources(),
+        fullResync: store.meta<string>('fullResync') !== null,
+        autoSyncHours: ctx.settings.get<number>('syncHours') ?? 6,
         services: {
           library: Boolean(services.library),
           planner: Boolean(services.planner),
@@ -399,6 +462,7 @@ export default defineBackendModule({
         channel: data.channel,
         reach: data.reach,
         lastDay: data.lastDay,
+        liveAt: data.mode === 'demo' ? null : (store.meta<{ at: string }>('lastSync')?.at ?? null),
         ...overview(data, lab, theories, filters, store.meta<VisitMark>(visitKey())),
       };
     });
@@ -443,6 +507,7 @@ export default defineBackendModule({
       const growth = lab.growth.map((g) => ({ ...g, curves: g.curves.slice(-12) }));
       return {
         mode: data.mode,
+        lastDay: data.lastDay,
         tracks: data.tracks.map((t) => ({ id: t.id, title: t.title })),
         ...lab,
         growth,
@@ -515,53 +580,62 @@ export default defineBackendModule({
       }
       const known = new Set(store.videos().map((v) => v.id));
       const report: {
+        id: number;
         file: string;
         kind: string;
         rows: number;
         matched: number;
+        keptApi: number;
         columns: { header: string; field: string | null }[];
       }[] = [];
       for (const table of tables) {
         const rows = reachRows(table);
         const matched = rows.filter((r) => known.has(r.videoId));
-        if (table.kind === 'daily') {
-          store.upsertDays(
-            matched
-              .filter((r) => r.day)
-              .map((r) => ({
-                videoId: r.videoId,
-                day: r.day!,
-                views: 0,
-                engagedViews: null,
-                minutes: 0,
-                avgViewDuration: null,
-                avgViewPct: null,
-                likes: 0,
-                comments: 0,
-                shares: 0,
-                subsGained: 0,
-                subsLost: 0,
-                impressions: r.impressions,
-                ctr: r.ctr,
-              })),
-            { reachOnly: true },
-          );
-        } else if (table.kind === 'totals') {
-          for (const r of matched)
-            store.setVideoFields(r.videoId, { impressions: r.impressions, ctr: r.ctr });
-        }
-        store.addImport({
+        const metrics = [
+          ...new Set(
+            table.columns
+              .map((c) => c.field)
+              .filter((f): f is 'impressions' | 'ctr' => f === 'impressions' || f === 'ctr'),
+          ),
+        ];
+        const importId = store.addImport({
           fileName: table.fileName,
           kind: table.kind,
           rows: rows.length,
           matched: matched.length,
           columns: table.columns.map((c) => c.header),
+          metrics,
         });
+        // Only impressions / CTR are taken from a CSV, and never over a value of the API.
+        let keptApi = 0;
+        if (table.kind === 'daily') {
+          keptApi = store.upsertReach(
+            matched
+              .filter((r) => r.day)
+              .map((r) => ({
+                videoId: r.videoId,
+                day: r.day!,
+                impressions: r.impressions,
+                ctr: r.ctr,
+              })),
+            { kind: 'csv', importId },
+          ).keptApi;
+        } else if (table.kind === 'totals') {
+          for (const r of matched)
+            store.setVideoFields(r.videoId, {
+              impressions: r.impressions,
+              ctr: r.ctr,
+              reach_import_id: importId,
+            });
+        }
+        store.refreshImportPeriod(importId);
         report.push({
+          id: importId,
           file: table.fileName,
           kind: table.kind,
           rows: rows.length,
           matched: matched.length,
+          keptApi,
           columns: table.columns,
         });
       }
@@ -576,6 +650,362 @@ export default defineBackendModule({
       return { report };
     });
 
-    ctx.routes.get('/imports', () => store.imports());
+    // CSV imports: listed, and deletable one by one (backup of the database first).
+
+    const footprintText = (f: { days: number; rowsRemoved: number; videos: number }) =>
+      [
+        f.days ? `impressions et taux de clics de ${f.days} jour(s)-vidéo` : null,
+        f.videos ? `totaux d’impressions de ${f.videos} vidéo(s)` : null,
+      ]
+        .filter(Boolean)
+        .join(' et ') || 'aucune donnée (seulement la ligne de l’import)';
+
+    ctx.routes.get('/imports', () => ({
+      imports: store.imports(),
+      unattributed: store.unattributedCsv(),
+    }));
+
+    const importParam = (request: { params: unknown }) => {
+      const raw = (request.params as { id: string }).id;
+      if (raw === 'all') return 'all' as const;
+      const id = Number(raw);
+      if (!Number.isInteger(id) || !store.imports().some((i) => i.id === id))
+        throw new HttpError(404, 'Import introuvable');
+      return id;
+    };
+
+    ctx.routes.get('/imports/:id/footprint', (request) => {
+      const id = importParam(request);
+      const footprint = store.importFootprint(id);
+      return { ...footprint, text: footprintText(footprint) };
+    });
+
+    ctx.routes.delete('/imports/:id', (request) => {
+      if (demoMode()) throw new HttpError(409, 'Mode démo : désactive-le pour gérer tes imports.');
+      const id = importParam(request);
+      const unknownBefore = store.sources().reach.unknown ?? 0;
+      const backup = ctx.db.backup(
+        id === 'all' ? 'avant-suppression-csv' : `avant-suppression-import-${id}`,
+      );
+      const removed = store.deleteImport(id);
+      // Impressions that were maybe the API's went with them: fetched again from YouTube.
+      if (id === 'all' && unknownBefore > 0 && store.meta<string>('reach') === 'api')
+        store.setMeta('fullResync', 'csv-deleted');
+      invalidate();
+      ctx.logger.info(
+        `Import CSV ${id === 'all' ? '(tous)' : `n° ${id}`} supprimé : ${footprintText(removed)} (sauvegarde ${backup})`,
+      );
+      return { backup, removed, text: footprintText(removed) };
+    });
+
+    // Diagnostic: each possible cause, checked now (read only, 1 unit of quota).
+
+    ctx.routes.post('/diagnostic', async () => runDiagnostic());
+
+    type Check = {
+      id: string;
+      label: string;
+      status: 'ok' | 'problem' | 'warning' | 'info';
+      detail: string;
+      action: string | null;
+    };
+    const runDiagnostic = async (): Promise<{ checks: Check[]; at: string }> => {
+      const checks: Check[] = [];
+      const add = (check: Check) => checks.push(check);
+      const day = shortDay;
+      add(
+        demoMode()
+          ? {
+              id: 'demo',
+              label: 'Mode démo',
+              status: 'problem',
+              detail: 'Activé : les pages montrent une chaîne simulée, pas la tienne.',
+              action: 'Réglages du module Stats YouTube › décocher « Mode démo ».',
+            }
+          : {
+              id: 'demo',
+              label: 'Mode démo',
+              status: 'ok',
+              detail: 'Désactivé (vraies données).',
+              action: null,
+            },
+      );
+      const account = accountState();
+      if (!ctx.accounts.available || !account.configured) {
+        add({
+          id: 'account',
+          label: 'Compte Google',
+          status: 'problem',
+          detail: 'Les identifiants Google (ID client, secret) ne sont pas saisis.',
+          action:
+            'Réglages › Comptes connectés : saisis l’ID client et le secret de ton projet Google Cloud.',
+        });
+        return { checks, at: new Date().toISOString() };
+      }
+      if (!account.connected) {
+        add({
+          id: 'account',
+          label: 'Compte Google',
+          status: 'problem',
+          detail: 'Non connecté.',
+          action: 'Onglet « Données » › « Connecter le compte Google ».',
+        });
+        return { checks, at: new Date().toISOString() };
+      }
+      if (account.needsReconnect) {
+        add({
+          id: 'account',
+          label: 'Jeton Google',
+          status: 'problem',
+          detail: `Expiré ou révoqué${account.error ? ` (${account.error})` : ''}.`,
+          action: 'Onglet « Données » › « Autoriser les statistiques » pour reconnecter le compte.',
+        });
+        return { checks, at: new Date().toISOString() };
+      }
+      add({
+        id: 'account',
+        label: 'Compte Google',
+        status: 'ok',
+        detail: 'Connecté.',
+        action: null,
+      });
+      if (!account.scopesOk) {
+        add({
+          id: 'scopes',
+          label: 'Autorisation des statistiques',
+          status: 'problem',
+          detail: 'Le compte est connecté pour les envois, mais pas pour lire les statistiques.',
+          action: 'Onglet « Données » › « Autoriser les statistiques » (lecture seule, une fois).',
+        });
+        return { checks, at: new Date().toISOString() };
+      }
+      add({
+        id: 'scopes',
+        label: 'Autorisation des statistiques',
+        status: 'ok',
+        detail: 'Accordée (YouTube Analytics et YouTube en lecture seule).',
+        action: null,
+      });
+
+      const planner = services.planner;
+      const client = new GoogleClient((url, init) => ctx.accounts.fetch(GOOGLE, url, init), {
+        after: (units) => planner?.recordYouTubeQuota(ctx.id, units),
+        exhausted: () => planner?.recordYouTubeQuota(ctx.id, 0, true),
+      });
+      const explain = (error: unknown, api: string): Check => {
+        if (error instanceof AccountError)
+          return {
+            id: api,
+            label: api === 'data' ? 'API YouTube Data' : 'API YouTube Analytics',
+            status: 'problem',
+            detail: `Jeton refusé : ${error.message}`,
+            action: 'Onglet « Données » › reconnecte le compte Google.',
+          };
+        if (error instanceof GoogleApiError) {
+          const actions: Record<string, string> = {
+            disabled:
+              api === 'data'
+                ? 'Google Cloud › API et services › Bibliothèque › « YouTube Data API v3 » › Activer (même projet que l’ID client).'
+                : 'Google Cloud › API et services › Bibliothèque › « YouTube Analytics API » › Activer (même projet que l’ID client).',
+            scope: 'Onglet « Données » › « Autoriser les statistiques ».',
+            quota: 'Attendre la remise à zéro du quota (minuit, heure de Californie).',
+          };
+          return {
+            id: api,
+            label: api === 'data' ? 'API YouTube Data' : 'API YouTube Analytics',
+            status: 'problem',
+            detail: error.message,
+            action: actions[error.kind] ?? null,
+          };
+        }
+        return {
+          id: api,
+          label: api === 'data' ? 'API YouTube Data' : 'API YouTube Analytics',
+          status: 'problem',
+          detail: isNetworkError(error)
+            ? `Pas de connexion à Google (réseau) : ${error instanceof Error ? error.message : String(error)}.`
+            : `Erreur : ${error instanceof Error ? error.message : String(error)}.`,
+          action: isNetworkError(error)
+            ? 'Vérifie la connexion Internet (ou le pare-feu), puis relance.'
+            : null,
+        };
+      };
+      let dataOk = false;
+      try {
+        await client.data('channels', { part: 'id', mine: 'true' });
+        dataOk = true;
+        add({
+          id: 'data',
+          label: 'API YouTube Data',
+          status: 'ok',
+          detail: 'Répond (compteurs en direct).',
+          action: null,
+        });
+      } catch (error) {
+        add(explain(error, 'data'));
+      }
+      try {
+        const rows = await client.report({
+          startDate: addDay(today(), -10),
+          endDate: addDay(today(), -1),
+          dimensions: ['day'],
+          metrics: ['views'],
+          sort: 'day',
+        });
+        const available =
+          rows
+            .map((r) => String(r.day))
+            .sort()
+            .at(-1) ?? null;
+        add({
+          id: 'analytics',
+          label: 'API YouTube Analytics',
+          status: 'ok',
+          detail: 'Activée et autorisée.',
+          action: null,
+        });
+        const lag = available
+          ? Math.round((Date.parse(today()) - Date.parse(available)) / 86_400_000)
+          : null;
+        add({
+          id: 'delay',
+          label: 'Retard de YouTube',
+          status: lag === null ? 'warning' : lag <= 4 ? 'ok' : 'warning',
+          detail:
+            lag === null
+              ? 'Aucune donnée sur les 10 derniers jours (chaîne sans vues, ou YouTube en retard).'
+              : `YouTube a des données consolidées jusqu’au ${day(available!)} (${lag} jour(s) de retard${lag <= 4 ? ', normal' : ', plus que d’habitude'}).`,
+          action: null,
+        });
+      } catch (error) {
+        add(explain(error, 'analytics'));
+      }
+      const outlook = planner?.youtubeQuota() ?? null;
+      if (outlook) {
+        const reserve = ctx.settings.get<number>('quotaReserve') ?? 1000;
+        const left = outlook.unitsPerDay - outlook.used.total - reserve;
+        add(
+          outlook.uploadsActive > 0
+            ? {
+                id: 'priority',
+                label: 'Priorité aux envois',
+                status: 'warning',
+                detail: `${outlook.uploadsActive} envoi(s) YouTube en cours : la synchronisation est reportée (le Planning passe en premier), nouvel essai toutes les 30 minutes.`,
+                action: null,
+              }
+            : outlook.uploadsSoon > 0
+              ? {
+                  id: 'priority',
+                  label: 'Priorité aux envois',
+                  status: 'warning',
+                  detail: `${outlook.uploadsSoon} envoi(s) YouTube prévu(s) dans les 24 h : synchronisation minimale (chaîne et liste des vidéos, sans le détail par vidéo).`,
+                  action: null,
+                }
+              : {
+                  id: 'priority',
+                  label: 'Priorité aux envois',
+                  status: 'ok',
+                  detail: 'Aucun envoi en cours ni prévu dans les 24 h.',
+                  action: null,
+                },
+        );
+        add(
+          outlook.exhausted || left <= 0
+            ? {
+                id: 'quota',
+                label: 'Quota YouTube Data',
+                status: 'problem',
+                detail: outlook.exhausted
+                  ? `Épuisé aujourd’hui. ${planner!.quotaOrigin()}`
+                  : `Il ne reste rien hors de la réserve des envois (${reserve} unités). ${planner!.quotaOrigin()}`,
+                action:
+                  'Attendre minuit (heure de Californie), ou baisser la réserve dans les réglages du module.',
+              }
+            : {
+                id: 'quota',
+                label: 'Quota YouTube Data',
+                status: 'ok',
+                detail: `${left} unité(s) disponibles pour les statistiques aujourd’hui (réserve des envois : ${reserve}).`,
+                action: null,
+              },
+        );
+      } else if (dataOk) {
+        add({
+          id: 'quota',
+          label: 'Quota YouTube Data',
+          status: 'ok',
+          detail: 'Pas d’erreur de quota.',
+          action: null,
+        });
+      }
+      const last = store.meta<{
+        at: string;
+        ok: boolean;
+        message: string | null;
+        postponed?: boolean;
+        minimal?: boolean;
+        report?: string | null;
+        summary: SyncSummary | null;
+      }>('lastSync');
+      const hours = ctx.settings.get<number>('syncHours') ?? 6;
+      if (!last)
+        add({
+          id: 'sync',
+          label: 'Dernière synchronisation',
+          status: 'warning',
+          detail: 'Jamais.',
+          action: 'Bouton « Synchroniser maintenant ».',
+        });
+      else {
+        const when = new Date(last.at).toLocaleString('fr-FR', { timeZone: timeZone() });
+        const noNew = last.ok && last.summary && (last.summary.newDays ?? 1) === 0;
+        add({
+          id: 'sync',
+          label: 'Dernière synchronisation',
+          status: !last.ok
+            ? 'problem'
+            : last.postponed || last.minimal
+              ? 'warning'
+              : noNew
+                ? 'info'
+                : 'ok',
+          detail:
+            `${when} — ${last.postponed ? 'reportée' : last.minimal ? 'minimale' : last.ok ? 'réussie' : 'échec'}. ${last.message ?? ''} ${last.report ?? ''}`.trim(),
+          action: last.ok
+            ? null
+            : 'Corrige le point en rouge ci-dessus, puis « Synchroniser maintenant ».',
+        });
+        const next = new Date(Date.parse(last.at) + hours * 3_600_000);
+        add({
+          id: 'auto',
+          label: 'Synchronisation automatique',
+          status: 'info',
+          detail: `Toutes les ${hours} h (au démarrage puis vérifié toutes les 30 min) : prochaine vers ${next.toLocaleString('fr-FR', { timeZone: timeZone() })}, si l’app est ouverte.`,
+          action: null,
+        });
+      }
+      const sources = store.sources();
+      const unattributed = store.unattributedCsv();
+      add({
+        id: 'csv',
+        label: 'Imports CSV',
+        status: unattributed.days + unattributed.videos > 0 ? 'info' : 'ok',
+        detail: `Les données de l’API passent toujours avant celles d’un CSV (un CSV ne donne que les impressions et le taux de clics). ${store.imports().length} import(s)${sources.csvOnlyDays ? `, ${sources.csvOnlyDays} jour(s)-vidéo connus seulement par un CSV` : ''}${unattributed.days + unattributed.videos > 0 ? ` ; des données d’imports d’avant la v0.18 ne peuvent pas être rattachées à un import précis` : ''}.`,
+        action:
+          unattributed.days + unattributed.videos > 0
+            ? 'Onglet « Données » › « Supprimer toutes les données CSV » si tu veux repartir des seules données de l’API.'
+            : null,
+      });
+      if (store.meta<string>('fullResync') !== null)
+        add({
+          id: 'repair',
+          label: 'Réparation',
+          status: 'info',
+          detail:
+            'La prochaine synchronisation reprend tout l’historique (des jours avaient été pris pour connus à cause d’un import CSV).',
+          action: null,
+        });
+      return { checks, at: new Date().toISOString() };
+    };
   },
 });

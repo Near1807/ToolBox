@@ -1,0 +1,68 @@
+# Analyse du master (`master-analysis`)
+
+Mesure un master **pendant la production**, sans jamais le modifier : sonie, crêtes, bandes, stéréo et mono, sections, versions comparées, références, normalisation des plateformes. **Informatif seulement** : des chiffres et des écarts (« sub : −3,1 dB par rapport à la moyenne des références »), jamais de conseil.
+
+## Ce qu'il fait
+
+- **Projets** : un morceau de la Bibliothèque (si elle est là) ou une « analyse libre » nommée. Chaque projet a ses **versions** (v1, v2… nommées et datées, renommables). Glisser-déposer WAV / FLAC / AIFF / MP3, « Ajouter une version… », ou « Analyser le fichier de la Bibliothèque » (nouvelle version seulement si le fichier a changé).
+- **Copie, jamais de modification** : le fichier est copié dans le dossier du module (`ctx.outputs`, type `source`, rattaché au projet), supprimable vers la Corbeille ; l'original n'est jamais touché.
+- **Analyse en tâche de fond** (progression, annulation dans Tâches), **mise en cache par contenu** (empreinte SHA-256 : un fichier identique n'est jamais réanalysé). Durée mesurée : ~6 s pour 4 min de 44,1 kHz / 24 bits (conteneur Linux, à vérifier sur le PC).
+- **Ligne de temps** commune, zoomable (boutons, Ctrl + molette, vue d'ensemble à faire glisser), curseur de lecture synchronisé, clic = lecture à cet instant, survol = toutes les valeurs exactes : forme d'onde ; sonie momentanée et court terme ; énergie des 7 bandes (sub 20–60, graves 60–250, bas-médium 250–500, médium 500–2 k, haut-médium 2–6 k, aigus 6–12 k, air 12–20 k Hz), superposées ou empilées ; spectrogramme logarithmique ; facteur de crête (1 s) et PLR (3 s) ; largeur stéréo (globale ou d'une bande) ; corrélation de phase ; compatibilité mono ; repères (crête vraie au-dessus d'un seuil réglable, −1 dBTP par défaut ; écrêtages ; problèmes de phase ; silences).
+- **Sections** : découpage automatique (Intro, Montée, Drop, Pause, Outro, Partie) d'après sonie, bas et haut du spectre, densité, largeur ; modifiable (renommer, déplacer une limite, couper au curseur, fusionner, revenir à l'automatique). Par section : sonie, PLR, LRA, largeur, densité (attaques/s), et contrastes avec le morceau entier.
+- **Mesures globales** : sonie intégrée (BS.1770-4), LRA (EBU 3342), crête vraie maximale, PLR, facteur de crête, liste des dépassements et écrêtages avec leur instant, normalisation des plateformes, corrélation et largeur, perte au mono globale et par bande, équilibre tonal (bandes + spectre lissé au tiers d'octave), hygiène (silences début/fin, DC, fréquence, résolution, canaux, durée, format).
+- **Versions** : deux versions alignées dans le temps (décalage trouvé automatiquement, réglable et gardé), écarts globaux, par section, par bande, sonie superposée et **carte des différences** seconde par seconde.
+- **Références** : profils nommés (copies, jamais modifiées) ; comparaison à **sonie égale** (bandes, tiers d'octave, sections de même nom, global) ; **écoute A/B à volume égal** : seul le volume de **lecture** de la référence change.
+- **Export** HTML autonome (imprimable en PDF), enregistré comme fichier du projet.
+- **Dossier surveillé** (désactivé par défaut) : un fichier audio nouveau ou réécrit (taille stable entre deux passages d'une minute) est copié et analysé comme nouvelle version du projet de même nom (« Obsidian v3.wav » → projet « Obsidian ») ; le morceau est **proposé** d'après le nom du fichier (« Rattacher ») ; notification à la fin avec la comparaison à la version précédente. **Lecture seule** : rien n'est jamais modifié, déplacé ni supprimé dans le dossier. Un fichier identique à une version existante est ignoré.
+
+## Mesures : précision et choix
+
+- **Sonie** : filtre K et portes de BS.1770-4 (coefficients calculés pour la fréquence du fichier, comme libebur128), blocs de 100 ms. Vérifié contre `ebur128` de FFmpeg à ±0,1 LU (sinus, bruit rose, deux niveaux, mono, 44,1 kHz, morceau de synthèse).
+- **Crête vraie** : suréchantillonnage ×4 (×2 à 96 kHz) par un sinc fenêtré Kaiser de 48 points par phase. Lit la vraie crête d'un sinus à 0,01 dB près jusqu'à 19 kHz (le filtre court d'exemple de BS.1770 lit jusqu'à +0,2 dB de trop dans les aigus). Les passages calmes (sous −12 dBFS et sous la moitié de la plus haute crête) gardent la valeur de l'échantillon (vitesse).
+- **Largeur** = part du côté (S) dans l'énergie (0 mono, 0,5 décorrélé, 1 opposition) ; **perte au mono** = niveau de M par rapport à M + S.
+- **Normalisation** : réglage « Nom:cible:mode:plafond ». Spotify (−14, baissé et monté jusqu'à −1 dBTP) et SoundCloud (−14) : pages d'aide officielles ; YouTube (−14, seulement baissé), Apple Music (−16), Deezer (−15, seulement baissé) : **non publiés officiellement**, valeurs de la profession, modifiables.
+
+## Intégrations (toutes facultatives)
+
+| Module                                 | Ce qu'il en fait                                                                                                                                                                       |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Bibliothèque                           | Carte « Analyse du master » sur la page du morceau : dernière version, badge (`−9,1 LUFS · +0,3 dBTP`), « Analyser », « Voir l'analyse »                                               |
+| Vidéo YouTube, Pack Insta, Reels perso | Avant « Générer » : vérification rapide **non bloquante** (crête vraie > 0 dBTP, écrêtage, long silence, problème de mono) → « Générer quand même » / « Voir l'analyse » / « Annuler » |
+| Assistant vocal                        | Lecture seule : « comment est le master d'Obsidian », « où sont les crêtes », « compare les deux dernières versions »                                                                  |
+
+Sans la Bibliothèque : analyses libres seulement. Sans ce module : rien n'est bloqué ailleurs (`precheckTrack` du SDK répond « rien à signaler »). Pour les Reels perso, la vérification porte sur le fichier du morceau (même quand le Reel garde le son de la vidéo).
+
+## Service `masterAnalysis` (`contract.ts`)
+
+`analyseTrack(trackId)`, `trackStatus(trackId)`, `quickCheck(audioPath, trackId?)` (mis en cache par contenu ; réglage « Vérification rapide » désactivable), `pagePath(trackId)`.
+
+## Données
+
+| Élément         | Détail                                                                                                                                                                                                               |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tables          | `master_analysis__groups` (projets : morceau ou libre, morceau proposé) · `__versions` · `__analyses` (résumé par empreinte) · `__profiles` · `__refs` · `__watch` (fichiers vus dans le dossier) — migration 1      |
+| Fichiers        | `files/` (copies des versions), `references/` (copies des références) : dans la sauvegarde ; `analyses/` (courbes, recalculables) : **hors sauvegarde** (`backup.exclude`) ; rapports HTML dans le dossier de sortie |
+| Réglages        | `overThreshold` (−1 dBTP), `platforms`, `precheck` (oui), `watchEnabled` (**non**), `watchFolder`, `watchNotify` (oui)                                                                                               |
+| Tâche           | `analyse` (une à la fois, reprise au démarrage si l'app a été fermée pendant)                                                                                                                                        |
+| Planificateur   | `watch-folder` toutes les minutes, sans effet tant que le dossier surveillé est désactivé                                                                                                                            |
+| Sujets (projet) | morceau `music-library:track:<id>` ; analyse libre `master-analysis:group:<id>` ; référence `master-analysis:profile:<id>`. `onReattach` déplace les versions (une référence reste dans son profil)                  |
+
+## API
+
+| Méthode             | Route                                                                          | Rôle                                                        |
+| ------------------- | ------------------------------------------------------------------------------ | ----------------------------------------------------------- |
+| GET                 | `/state`                                                                       | Projets, versions, morceaux non analysés, profils, réglages |
+| POST                | `/versions` `{ paths, groupId? \| trackId? \| groupName? }`                    | Nouvelle(s) version(s) (copie + analyse)                    |
+| POST                | `/tracks/:id/analyse`                                                          | Fichier actuel d'un morceau de la Bibliothèque              |
+| GET                 | `/versions/:id/analysis`                                                       | Analyse complète (courbes en base64), sections, plateformes |
+| PUT / POST / DELETE | `/versions/:id` · `/versions/:id/retry` · `/versions/:id`                      | Renommer · relancer · supprimer (Corbeille)                 |
+| PUT · POST          | `/versions/:id/sections` · `/versions/:id/sections/reset`                      | Sections modifiées · retour à l'automatique                 |
+| GET · PUT           | `/compare?a=&b=&offset=` · `/versions/:id/offset`                              | Comparaison alignée · décalage gardé                        |
+| PUT · POST          | `/groups/:id` · `/groups/:id/attach`                                           | Renommer un projet libre · le rattacher à un morceau        |
+| POST/PUT/DELETE     | `/profiles` · `/profiles/:id` · `/profiles/:id/references` · `/references/:id` | Profils et références                                       |
+| GET                 | `/references/compare?version=&profile=`                                        | Comparaison à sonie égale, gains A/B                        |
+| POST                | `/versions/:id/export` · `/quick-check` · `/watch/scan`                        | Rapport HTML · vérification rapide · passage du dossier     |
+
+## Tests
+
+`tests/engine.test.ts` (signaux connus : sinus, bruit rose et blanc, deux niveaux, mono, 44,1 kHz, crête entre échantillons, écrêtage à un instant précis, opposition de phase, décorrélé, DC, silences, montée et drop, deux versions décalées de 0,5 s avec sub +6 dB ; contre `ebur128` de FFmpeg à ±0,1 ; normalisation), `tests/module.test.ts` (socle réel : import, cache, Bibliothèque factice, sections, comparaison, références, export, vérification rapide, assistant, rattachement, dossier surveillé en lecture seule, suppression, sans la Bibliothèque). Fichiers de test fabriqués à la volée (`tests/signals.ts`).

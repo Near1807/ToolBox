@@ -7,6 +7,7 @@ import {
   idParam,
   matchByName,
   type ModuleContext,
+  NotFoundError,
 } from '@hub/sdk/backend';
 import {
   MUSIC_LIBRARY_SERVICE,
@@ -18,6 +19,7 @@ import {
   type ProjectStatusEntry,
   type ProjectStatusProvider,
 } from '../contract';
+import type { MasterAnalysisService } from '../../master-analysis/contract';
 import { Library } from './library';
 
 const PROJECT_PREFIXES = [
@@ -100,6 +102,11 @@ export default defineBackendModule({
           PRIMARY KEY (module_id, ref)
         );
       `,
+    },
+    {
+      version: 3,
+      description: 'nicknames of a track (voice assistant)',
+      up: `ALTER TABLE music_library__tracks ADD COLUMN nicknames TEXT NOT NULL DEFAULT '[]';`,
     },
   ],
 
@@ -192,9 +199,14 @@ export default defineBackendModule({
 
     // Assistant actions (MODULES.md §5.15): read only, plus opening a track page.
     const findTrack = (name: string) => {
-      const match = matchByName(library.list(), name, (t) => t.title);
+      const match = matchByName(library.list(), name, (t) => [t.title, ...(t.nicknames ?? [])]);
       if (match.kind === 'none')
-        throw new HttpError(404, `Aucun morceau ne s’appelle « ${name} ».`);
+        throw new NotFoundError(
+          'track',
+          'le morceau',
+          name,
+          match.suggestions.map((t) => t.title),
+        );
       if (match.kind === 'ambiguous') {
         throw new HttpError(
           409,
@@ -310,7 +322,23 @@ export default defineBackendModule({
         // Files generated from this track by every module (ctx.outputs, checked on disk).
         outputs: ctx.outputs.bySubject(trackSubject(track.id)),
         infos: trackInfos(track.id),
+        master: masterOf(track.id),
       };
+    });
+
+    // « Analyse du master » (optional): its state for the track, and « Analyser ».
+    const masterService = () => ctx.services.optional<MasterAnalysisService>('masterAnalysis');
+    const masterOf = (trackId: number) => {
+      const service = masterService();
+      return service
+        ? { available: true, status: service.trackStatus(trackId), path: service.pagePath(trackId) }
+        : { available: false, status: null, path: '' };
+    };
+    ctx.routes.post('/tracks/:id/analyse-master', async (request) => {
+      const track = library.require(idParam(request.params));
+      const service = masterService();
+      if (!service) throw new HttpError(409, 'Le module « Analyse du master » n’est pas là.');
+      return service.analyseTrack(track.id);
     });
 
     // Project page: everything generated from the track, grouped in the UI.

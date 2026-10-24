@@ -2,15 +2,18 @@
   "id": "youtube-video",
   "name": "Vidéo YouTube",
   "description": "Transforme un morceau en vidéo 16:9 pour YouTube, avec sa description prête à copier.",
-  "version": "1.3.2",
+  "version": "1.4.0",
   "section": "Musique",
   "icon": "📺",
   "order": 20,
   "dependsOn": {
     "modules": ["music-library", "video-engine"],
-    "services": ["musicLibrary", "videoEngine"]
+    "services": ["musicLibrary", "videoEngine"],
+    "optionalServices": ["masterAnalysis"]
   },
-  "provides": { "services": ["youtubeVideo"] },
+  "provides": {
+    "services": ["youtubeVideo"]
+  },
   "settings": [
     {
       "key": "titleTemplate",
