@@ -22,11 +22,20 @@ export function Overlay() {
   const idle = state.state === 'idle';
   if (idle && !state.text) return null;
   return (
-    <div className={`as-hud as-hud--${state.state}`} role="status">
+    <div
+      className={`as-hud as-hud--${state.state}${state.state === 'listening' && !state.ready ? ' as-hud--opening' : ''}`}
+      role="status"
+    >
       <span className="as-hud__dot" aria-hidden />
       <div className="as-hud__text">
         <strong>
-          {idle ? 'Assistant' : LABELS[state.state]}
+          {idle
+            ? 'Assistant'
+            : state.state === 'listening'
+              ? state.ready
+                ? 'Parle, je t’écoute'
+                : 'Micro…'
+              : LABELS[state.state]}
           <span className={`as-hud__ai${state.ai ? ' as-hud__ai--on' : ''}`}>
             {state.ai ? 'IA' : 'sans IA'}
           </span>

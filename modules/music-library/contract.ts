@@ -15,6 +15,11 @@ export interface Track {
   releaseDate: string | null;
   notes: string;
   tags: string[];
+  /**
+   * Other names Thomas uses for the track (« le gros caillou » for GrosKaillou):
+   * matched like the title by the voice assistant. Possibly absent in old data.
+   */
+  nicknames: string[];
   durationSec: number | null;
   audioFormat: string | null;
   sampleRate: number | null;

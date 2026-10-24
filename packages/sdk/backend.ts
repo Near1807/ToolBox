@@ -5,7 +5,14 @@ import type { ModuleManifest, SettingValue } from './manifest';
 
 export type { FastifyReply, FastifyRequest } from 'fastify';
 export type * from './manifest';
-export { matchByName, nameScore, normaliseName, type NameMatch } from './match';
+export {
+  matchByName,
+  nameScore,
+  normaliseName,
+  phoneticKey,
+  soundScore,
+  type NameMatch,
+} from './match';
 export { ELEMENT_STATES, listPhrase } from './assistant-texts';
 export {
   cleanUtterance,
@@ -269,6 +276,25 @@ export class HttpError extends Error {
   }
 }
 
+/**
+ * « Je ne trouve pas le morceau « obsidienne ». » with the closest names: the
+ * assistant then offers « Tu voulais dire « Obsidian » ? » and, on « oui »,
+ * runs the same action with that value (same rights and confirmations).
+ */
+export class NotFoundError extends HttpError {
+  constructor(
+    /** The parameter of the action that matched nothing (« track »). */
+    readonly param: string,
+    /** What it is, with its article: « le morceau », « la tâche », « l’outil ». */
+    readonly what: string,
+    readonly value: string,
+    /** Closest existing names, best first. */
+    readonly suggestions: string[] = [],
+  ) {
+    super(404, `Je ne trouve pas ${what} « ${value} ».`);
+  }
+}
+
 /** The `:id` of a route (a positive integer); answers 400 otherwise. */
 export function idParam(params: unknown): number {
   const id = Number((params as { id?: string }).id);
@@ -494,6 +520,8 @@ export interface AssistantActionDefinition {
    * natural wordings (« ajoute une tâche finir le mix pour vendredi »). The
    * assistant recognises a request by its meaning against these phrases.
    */
+  /** Short French label shown and said (« Tu voulais dire : … ? », page Commandes). */
+  label?: string;
   examples?: string[];
   /**
    * Parameters taken from the request by code (title, tag, track, date,
@@ -523,6 +551,8 @@ export interface AssistantActionInfo {
   /** Full UI route of a sensitive action's page. */
   page: string | null;
   /** Example phrases of the module (standardised command). */
+  /** Short label (the description when none was given). */
+  label: string;
   examples: string[];
   /** True when the module extracts the parameters itself (extract()). */
   extracts: boolean;
@@ -548,7 +578,13 @@ export type AssistantOutcome =
   | { status: 'forbidden'; id: string; message: string; right: { id: string; label: string } }
   /** Unknown action or bad parameters (French message, for the model to fix or ask). */
   | { status: 'invalid'; id: string; message: string }
-  | { status: 'error'; id: string; message: string };
+  | {
+      status: 'error';
+      id: string;
+      message: string;
+      /** A parameter matched nothing (NotFoundError): its value and the closest names. */
+      notFound?: { param: string; what: string; value: string; suggestions: string[] };
+    };
 
 export interface ModuleAssistant {
   /** Declares an action of this module. */
@@ -571,6 +607,11 @@ export interface ModuleAssistant {
   }[];
   /** Turns a right on or off: only from a click of the user (permissions.assistant). */
   setRight(id: string, granted: boolean): void;
+  /**
+   * Other names of the tools and pages for « ouvre … » (key: module id or page
+   * route, e.g. { todo: ['mes tâches'] }), kept by the voice assistant.
+   */
+  setToolNicknames(nicknames: Record<string, string[]>): void;
 }
 
 // ---------------------------------------------------------------------------

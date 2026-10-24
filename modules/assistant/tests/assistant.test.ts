@@ -83,11 +83,17 @@ describe('assistant', () => {
   const overlay: boolean[] = [];
   let listener: ((event: HostKeyEvent) => void) | null = null;
   let heard = 'ajoute finir le mix pour demain';
+  const prompts: string[] = [];
 
   beforeAll(async () => {
     setAssistantTestHooks({
       chatModel: model,
-      transcriber: { transcribe: async () => heard },
+      transcriber: {
+        transcribe: async (_wav, options) => {
+          prompts.push(options?.prompt ?? '');
+          return heard;
+        },
+      },
       embedder: null,
       synthesizer: {
         speak: async (text) => {
@@ -510,7 +516,7 @@ describe('assistant', () => {
         `${API}/commands/import`,
         { file: { ...file, phrases: [...file.phrases, { action: 'nope.x', text: 'y' }] } },
       );
-      expect(imported.body).toEqual({ added: 1, hidden: 1, skipped: 1 });
+      expect(imported.body).toMatchObject({ added: 1, hidden: 1, skipped: 1 });
       const after = (
         await hub.request<{ phrases: { text: string }[] }>('GET', `${API}/commands/export`)
       ).body;
@@ -628,6 +634,97 @@ describe('assistant', () => {
     expect(await state()).toBe('idle');
   });
 
+  it('corrects what the ear wrote, then recognises the command; expected words sent', async () => {
+    const wav = Buffer.alloc(44 + 32_000).toString('base64');
+    heard = 'Ouvre la tout doux.';
+    const { body } = await hub.request<{ turn: TurnDto }>('POST', `${API}/turn/audio`, {
+      audio: wav,
+    });
+    expect(body.turn).toMatchObject({
+      heard: 'Ouvre la to-do.',
+      rawHeard: 'Ouvre la tout doux.',
+      mode: 'command',
+      reply: 'J’ouvre To-do.',
+    });
+    expect(opened.at(-1)).toBe('/m/todo');
+    // The words given to whisper.cpp: the app, the English words, the tools and their nicknames.
+    const prompt = prompts.at(-1)!;
+    expect(prompt.startsWith('ToolBox, ')).toBe(true);
+    for (const word of ['to-do', 'sidechain', 'Assistant vocal', 'mes tâches'])
+      expect(prompt).toContain(word);
+    expect(prompt.length).toBeLessThanOrEqual(700);
+    // A correction added from the history counts at once.
+    const added = await hub.request('POST', `${API}/vocabulary/corrections`, {
+      heard: 'la liste à faire',
+      replacement: 'la to-do',
+    });
+    expect(added.status).toBe(200);
+    heard = 'ouvre la liste à faire';
+    const next = await hub.request<{ turn: TurnDto }>('POST', `${API}/turn/audio`, { audio: wav });
+    expect(next.body.turn).toMatchObject({ heard: 'ouvre la to-do', reply: 'J’ouvre To-do.' });
+    // Typed text is never corrected (only what the ear wrote).
+    expect((await say('ouvre la tout doux')).rawHeard).toBeNull();
+  });
+
+  it('words page: corrections, expected words, nicknames, test, export / import', async () => {
+    type Vocabulary = {
+      corrections: { id: number; heard: string }[];
+      words: { id: number; word: string }[];
+      nicknames: Record<string, { id: number; nickname: string }[]>;
+      expected: string;
+    };
+    const get = async () => (await hub.request<Vocabulary>('GET', `${API}/vocabulary`)).body;
+    let state = await get();
+    expect(state.corrections.map((c) => c.heard)).toContain('tout doux');
+    expect(state.nicknames.todo!.map((n) => n.nickname)).toContain('mes tâches');
+    // Same heard text twice: refused.
+    expect(
+      (
+        await hub.request('POST', `${API}/vocabulary/corrections`, {
+          heard: 'Tout Doux',
+          replacement: 'x',
+        })
+      ).status,
+    ).toBe(400);
+    // Test: corrected and recognised, nothing runs.
+    const test = await hub.request<{ corrected: string; verdict: string }>(
+      'POST',
+      `${API}/vocabulary/test`,
+      { text: 'ouvre la tout doux' },
+    );
+    expect(test.body).toMatchObject({ corrected: 'ouvre la to-do', verdict: 'recognised' });
+    // A word added counts at once in the expected words; removed, it is gone.
+    await hub.request('POST', `${API}/vocabulary/words`, { word: 'Obsidian' });
+    state = await get();
+    expect(state.expected).toContain('Obsidian');
+    const obsidian = state.words.find((w) => w.word === 'Obsidian')!;
+    await hub.request('DELETE', `${API}/vocabulary/words/${obsidian.id}`);
+    expect((await get()).expected).not.toContain('Obsidian');
+    // A nickname of a tool: « ouvre … » finds it at once.
+    await hub.request('POST', `${API}/vocabulary/nicknames`, {
+      target: 'todo',
+      nickname: 'ma liste',
+    });
+    expect((await say('ouvre ma liste')).reply).toBe('J’ouvre To-do.');
+    // Export, then import into the same dictionary: nothing duplicated, nothing removed.
+    const file = (
+      await hub.request<{ version: number; vocabulary: { corrections: unknown[] } }>(
+        'GET',
+        `${API}/commands/export`,
+      )
+    ).body;
+    expect(file.version).toBe(2);
+    expect(file.vocabulary.corrections.length).toBeGreaterThan(0);
+    const imported = await hub.request<{ vocabulary: { corrections: number; skipped: number } }>(
+      'POST',
+      `${API}/commands/import`,
+      { file },
+    );
+    expect(imported.body.vocabulary.corrections).toBe(0);
+    const ids = state.nicknames.todo!.map((n) => n.id);
+    expect((await get()).nicknames.todo!.map((n) => n.id)).toEqual(expect.arrayContaining(ids));
+  });
+
   it('transcribes the recorded speech, refuses too short or silent recordings', async () => {
     const wav = Buffer.alloc(44 + 32_000).toString('base64');
     heard = 'ajoute finir le mix pour demain';
@@ -655,6 +752,7 @@ describe('assistant', () => {
     expect(body.settings).toEqual({
       ai: true,
       speakReplies: true,
+      readySound: true,
       speed: 1,
       // « Automatique » and no dedicated graphics card: direct replies.
       directReads: true,

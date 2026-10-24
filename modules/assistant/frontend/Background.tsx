@@ -14,6 +14,9 @@ export function Background() {
 
   useEffect(() => {
     const recorder = new Recorder();
+    // The audio engine is prepared once the page has been used (no microphone).
+    const warm = () => recorder.warm();
+    window.addEventListener('pointerdown', warm, { once: true });
     const queue: SpeechEvent[] = [];
     let playing: HTMLAudioElement | null = null;
     let ended: { turnId: number; count: number } | null = null;
@@ -65,11 +68,20 @@ export function Background() {
         if (action === 'start') {
           stopAudio();
           live.micError = null;
-          recorder.start().catch((error: unknown) => {
-            live.micError = `Micro indisponible : ${errorMessage(error)}`;
-            live.emit();
-            void api.post('/listen/cancel').catch(() => {});
-          });
+          recorder
+            .start(() => {
+              void api
+                .post<{ ok: boolean; sound?: boolean }>('/listen/ready')
+                .then((r) => {
+                  if (r.ok && r.sound) recorder.beep();
+                })
+                .catch(() => {});
+            })
+            .catch((error: unknown) => {
+              live.micError = `Micro indisponible : ${errorMessage(error)}`;
+              live.emit();
+              void api.post('/listen/cancel').catch(() => {});
+            });
         } else if (action === 'cancel') {
           void recorder.cancel();
         } else if (recorder.active) {
@@ -99,6 +111,7 @@ export function Background() {
     });
     return () => {
       close();
+      window.removeEventListener('pointerdown', warm);
       stopAudio();
       void recorder.cancel();
     };

@@ -6,8 +6,9 @@ import {
   extractNumber,
   HttpError,
   matchByName,
-  normaliseUtterance,
   type ModuleContext,
+  normaliseUtterance,
+  NotFoundError,
 } from '@hub/sdk/backend';
 import type { Dataset } from './dataset';
 import type { LabResult } from './lab';
@@ -124,12 +125,13 @@ export function registerAssistantActions(
       if (empty(data)) return noData;
       const tracks = trackList(data, lab);
       const match = matchByName(tracks, String(params.track), (t) => t.title);
-      if (match.kind === 'none') {
-        throw new HttpError(
-          404,
-          `Aucune vidéo YouTube liée à un morceau qui s’appelle « ${String(params.track)} ».`,
+      if (match.kind === 'none')
+        throw new NotFoundError(
+          'track',
+          'de vidéo YouTube liée au morceau',
+          String(params.track),
+          match.suggestions.map((t) => t.title),
         );
-      }
       if (match.kind === 'ambiguous') {
         throw new HttpError(
           409,

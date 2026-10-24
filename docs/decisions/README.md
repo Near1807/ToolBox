@@ -50,3 +50,4 @@ Modèle :
 | 0029 | [Assistant vocal local : whisper.cpp, Ollama, Piper](0029-assistant-vocal-local.md)                                                  |
 | 0030 | [Commandes standardisées de l'assistant, interrupteur « IA », droits un par un](0030-commandes-standardisees.md)                     |
 | 0031 | [Quota YouTube partagé : le Planning passe avant les Stats](0031-quota-youtube-planning-avant-stats.md)                              |
+| 0032 | [Mots de l'assistant : mots attendus, corrections, surnoms, noms au son](0032-mots-de-l-assistant.md)                                |

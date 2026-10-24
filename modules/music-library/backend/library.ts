@@ -14,6 +14,7 @@ interface TrackRow {
   release_date: string | null;
   notes: string;
   tags: string;
+  nicknames: string;
   audio_file: string;
   audio_original_name: string;
   audio_format: string | null;
@@ -44,6 +45,7 @@ export interface TrackUpdate {
   releaseDate?: unknown;
   notes?: unknown;
   tags?: unknown;
+  nicknames?: unknown;
 }
 
 function extensionOf(file: string): string {
@@ -69,6 +71,7 @@ export function validateTrackUpdate(update: TrackUpdate): Partial<{
   release_date: string | null;
   notes: string;
   tags: string;
+  nicknames: string;
 }> {
   const result: ReturnType<typeof validateTrackUpdate> = {};
   if (update.title !== undefined) {
@@ -116,6 +119,19 @@ export function validateTrackUpdate(update: TrackUpdate): Partial<{
     ].slice(0, 30);
     result.tags = JSON.stringify(tags);
   }
+  if (update.nicknames !== undefined) {
+    if (!Array.isArray(update.nicknames) || update.nicknames.some((t) => typeof t !== 'string')) {
+      throw new HttpError(400, 'Surnoms invalides');
+    }
+    const nicknames = [
+      ...new Set(
+        (update.nicknames as string[])
+          .map((t) => t.replace(/\s+/g, ' ').trim().slice(0, 80))
+          .filter((t) => t !== ''),
+      ),
+    ].slice(0, 20);
+    result.nicknames = JSON.stringify(nicknames);
+  }
   return result;
 }
 
@@ -142,6 +158,7 @@ export class Library {
       releaseDate: row.release_date,
       notes: row.notes,
       tags: JSON.parse(row.tags) as string[],
+      nicknames: JSON.parse(row.nicknames ?? '[]') as string[],
       durationSec: row.duration_sec,
       audioFormat: row.audio_format,
       sampleRate: row.sample_rate,

@@ -349,6 +349,10 @@ ctx.assistant.define({
 - `message` dit exactement ce qui a été fait : l'assistant ne doit jamais affirmer plus que le résultat de l'action.
 - `open` (facultatif) : une route de l'interface à ouvrir (« ouvre la fiche du morceau »).
 - Les dates en langage naturel, les noms approximatifs (« boumboum ») se résolvent **dans le module** (code testé), pas par le modèle.
+- **Noms** : `matchByName(éléments, ce qui a été dit, (e) => [titre, ...surnoms])` compare l'écriture **et le son** (clé phonétique française, `phoneticKey` / `soundScore` : « obsidienne » → Obsidian, « gros caillou » → GrosKaillou), signale l'ambiguïté, et renvoie `{ kind: 'none', suggestions }` quand rien ne correspond. Les morceaux ont des **surnoms** (`Track.nicknames`, réglés sur leur fiche) : les passer avec le titre.
+- **Valeur introuvable** : lever `NotFoundError(param, quoi, valeur, suggestions)` (ex. `new NotFoundError('track', 'le morceau', 'obsidienne', ['Obsidian'])`). Le message est « Je ne trouve pas le morceau « obsidienne ». » ; l'assistant propose « Tu voulais dire « Obsidian » ? » et, sur « oui », relance la **même** action avec cette valeur (mêmes droits, mêmes confirmations).
+- `label` (facultatif) : libellé court en français de l'action, montré et dit (« Tu voulais dire : … ou … ? », page Commandes). À défaut, la description.
+- `ctx.assistant.setToolNicknames({ todo: ['mes tâches'] })` (permission `assistant`) : surnoms des outils et des pages pour « ouvre … » (utilisé par l'assistant vocal, qui les rend modifiables).
 - Consommer le catalogue : `permissions.assistant: true`, puis `ctx.assistant.actions()`, `run(id, params, { confirmed })`, `undo(undoId)`. Les annulations vivent en mémoire (1 h, fin à la fermeture de l'app).
 - Le socle fournit ses propres actions (`core.list-jobs`, `core.list-modules`, `core.open`).
 

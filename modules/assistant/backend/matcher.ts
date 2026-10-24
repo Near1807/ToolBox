@@ -74,6 +74,11 @@ export interface MatchResult {
   semantic: boolean;
   /** Not recognised, but a command came close: « Tu voulais dire … ? » (never run). */
   suggestion: Candidate | null;
+  /**
+   * Two commands about as close (« Tu voulais dire : … ou … ? »), both with
+   * their required parameters: Thomas picks one, the code never does.
+   */
+  choices: Candidate[];
   ms: number;
 }
 
@@ -124,7 +129,13 @@ export function maskParams(text: string, params: AssistantParams | null): string
   // Tags: « avec le tag mix » → the tag word goes with its value.
   if (Array.isArray(params.tags) || typeof params.tag === 'string')
     masked = masked.replace(/ (?:avec )?(?:les |le )?(?:tags?|etiquettes?) /g, ' ');
-  return masked.replace(/\s+/g, ' ').trim();
+  // What the values leave dangling (« rappelle-moi d'… » → « rappelle moi d »):
+  // an elision or a little word at the end says nothing about the command.
+  return masked
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/(?: (?:d|l|de|du|des|le|la|les|a|au|aux|pour|sur|avec|dans|en|que|qu))+$/g, '')
+    .trim();
 }
 
 interface IndexedPhrase {
@@ -266,6 +277,16 @@ export class CommandIndex {
         ranking,
         semantic: this.semantic,
         suggestion: verdict !== 'recognised' && close ? best : null,
+        choices:
+          verdict !== 'recognised' &&
+          best &&
+          second &&
+          best.complete &&
+          second.complete &&
+          best.score >= settings.threshold - 0.1 &&
+          best.score - second.score < settings.margin
+            ? [best, second]
+            : [],
         ms: Date.now() - started,
       };
     };

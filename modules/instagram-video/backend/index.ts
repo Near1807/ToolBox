@@ -11,8 +11,9 @@ import {
   idParam,
   listPhrase,
   matchByName,
-  requestBody,
   type ModuleContext,
+  NotFoundError,
+  requestBody,
 } from '@hub/sdk/backend';
 import type { MusicLibraryService, Track } from '../../music-library/contract';
 import type { VideoEngineService } from '../../video-engine/contract';
@@ -833,9 +834,17 @@ export default defineBackendModule({
           };
         };
         if (params.track) {
-          const match = matchByName(library.listTracks(), String(params.track), (t) => t.title);
+          const match = matchByName(library.listTracks(), String(params.track), (t) => [
+            t.title,
+            ...(t.nicknames ?? []),
+          ]);
           if (match.kind === 'none')
-            throw new HttpError(404, `Aucun morceau ne s’appelle « ${String(params.track)} ».`);
+            throw new NotFoundError(
+              'track',
+              'le morceau',
+              String(params.track),
+              match.suggestions.map((t) => t.title),
+            );
           if (match.kind === 'ambiguous') {
             throw new HttpError(
               409,

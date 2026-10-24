@@ -8,8 +8,17 @@ import { existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { createServer } from 'node:net';
 import path from 'node:path';
 
+export interface TranscribeOptions {
+  /**
+   * Expected words (names of the tracks, of the tools, English words) given to
+   * whisper.cpp as its « initial prompt »: they are then written as expected.
+   */
+  prompt?: string;
+  signal?: AbortSignal;
+}
+
 export interface Transcriber {
-  transcribe(wav: Buffer, signal?: AbortSignal): Promise<string>;
+  transcribe(wav: Buffer, options?: TranscribeOptions): Promise<string>;
 }
 
 export interface Synthesizer {
@@ -131,7 +140,8 @@ export class WhisperServer implements Transcriber {
     this.url = base;
   }
 
-  async transcribe(wav: Buffer, signal?: AbortSignal): Promise<string> {
+  async transcribe(wav: Buffer, options: TranscribeOptions = {}): Promise<string> {
+    const { signal, prompt } = options;
     await this.start();
     const form = new FormData();
     form.set('file', new Blob([new Uint8Array(wav)], { type: 'audio/wav' }), 'speech.wav');
@@ -139,6 +149,8 @@ export class WhisperServer implements Transcriber {
     form.set('language', this.options.language ?? 'fr');
     form.set('temperature', '0.0');
     form.set('no_timestamps', 'true');
+    // whisper-server reads it per request (field « prompt », whisper.cpp v1.9 server).
+    if (prompt) form.set('prompt', prompt);
     const response = await fetch(`${this.url}/inference`, { method: 'POST', body: form, signal });
     if (!response.ok)
       throw new Error(`Transcription en échec (${response.status}) : ${await response.text()}`);

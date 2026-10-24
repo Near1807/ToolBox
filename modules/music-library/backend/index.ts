@@ -7,6 +7,7 @@ import {
   idParam,
   matchByName,
   type ModuleContext,
+  NotFoundError,
 } from '@hub/sdk/backend';
 import {
   MUSIC_LIBRARY_SERVICE,
@@ -101,6 +102,11 @@ export default defineBackendModule({
         );
       `,
     },
+    {
+      version: 3,
+      description: 'nicknames of a track (voice assistant)',
+      up: `ALTER TABLE music_library__tracks ADD COLUMN nicknames TEXT NOT NULL DEFAULT '[]';`,
+    },
   ],
 
   register(ctx) {
@@ -192,9 +198,14 @@ export default defineBackendModule({
 
     // Assistant actions (MODULES.md §5.15): read only, plus opening a track page.
     const findTrack = (name: string) => {
-      const match = matchByName(library.list(), name, (t) => t.title);
+      const match = matchByName(library.list(), name, (t) => [t.title, ...(t.nicknames ?? [])]);
       if (match.kind === 'none')
-        throw new HttpError(404, `Aucun morceau ne s’appelle « ${name} ».`);
+        throw new NotFoundError(
+          'track',
+          'le morceau',
+          name,
+          match.suggestions.map((t) => t.title),
+        );
       if (match.kind === 'ambiguous') {
         throw new HttpError(
           409,

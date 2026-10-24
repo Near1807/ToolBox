@@ -1,4 +1,10 @@
-import { extractName, HttpError, type AssistantActionDefinition } from '../../packages/sdk/backend';
+import {
+  extractName,
+  HttpError,
+  matchByName,
+  NotFoundError,
+  type AssistantActionDefinition,
+} from '../../packages/sdk/backend';
 import type { Hub } from './hub';
 
 // Actions of the hub itself (module id "core"): tasks in progress, list of the
@@ -6,7 +12,12 @@ import type { Hub } from './hub';
 
 const SHELL_PAGES: { route: string; label: string; words: string[] }[] = [
   { route: '/', label: 'l’accueil', words: ['accueil', 'home', 'debut'] },
-  { route: '/jobs', label: 'les tâches en cours', words: ['taches', 'rendus', 'jobs', 'file'] },
+  // Not « tâches » alone: that is the To-do (« ouvre mes tâches »).
+  {
+    route: '/jobs',
+    label: 'les tâches en cours',
+    words: ['taches en cours', 'taches de fond', 'rendus', 'jobs', 'file d attente'],
+  },
   { route: '/outputs', label: 'les fichiers générés', words: ['fichiers', 'corbeille', 'sorties'] },
   { route: '/settings', label: 'les réglages', words: ['reglages', 'parametres', 'options'] },
   { route: '/logs', label: 'les journaux', words: ['journaux', 'logs'] },
@@ -25,6 +36,9 @@ export function normaliseWords(text: string): string {
 const OPEN_PREFIXES = [
   /(?:ouvre|ouvrir|affiche|montre|va dans|va sur|va à|va a|aller dans|aller sur|emmène-moi dans|emmène-moi sur|passe sur|passe à)(?:[- ]moi)?(?![\p{L}])/iu,
 ];
+
+/** The app itself (« ouvre l'application ») rather than one of its tools. */
+const APP_WORDS = /^(?:l |la |le )?(?:application|app|appli|toolbox|tool box|fenetre|fenêtre)$/i;
 
 const STATUS_LABELS: Record<string, string> = {
   queued: 'en attente',
@@ -92,8 +106,53 @@ export function registerCoreActions(hub: Hub): void {
     },
   });
 
+  type Target = { route: string; label: string; names: string[] };
+  /** Pages of the shell and loaded tools, with their nicknames (set by the assistant). */
+  const targets = (): Target[] => {
+    const nicknames = hub.assistant.toolNicknames();
+    return [
+      ...SHELL_PAGES.map((p) => ({
+        route: p.route,
+        label: p.label,
+        names: [
+          p.label.replace(/^(?:l’|les |la |le )/, ''),
+          ...p.words,
+          ...(nicknames[p.route] ?? []),
+        ],
+      })),
+      ...hub
+        .moduleInfos()
+        .filter((m) => m.status === 'loaded')
+        .map((m) => ({
+          route: `/m/${m.id}`,
+          label: m.manifest.name,
+          names: [m.manifest.name, m.id.replace(/-/g, ' '), ...(nicknames[m.id] ?? [])],
+        })),
+    ];
+  };
+  /** A page or a tool from what was said (spelling, sound, nicknames). */
+  const findTarget = (said: string): Target => {
+    const match = matchByName(targets(), said, (t) => t.names);
+    if (match.kind === 'match') return match.item;
+    if (match.kind === 'ambiguous')
+      throw new HttpError(
+        409,
+        `Plusieurs outils correspondent : ${match.items
+          .slice(0, 4)
+          .map((t) => t.label)
+          .join(', ')}. Lequel ?`,
+      );
+    throw new NotFoundError(
+      'target',
+      'l’outil',
+      said,
+      match.suggestions.map((t) => t.label),
+    );
+  };
+
   define({
     name: 'open',
+    label: 'Ouvrir un outil ou une page',
     description:
       'Ouvre un outil de ToolBox (par son nom, ex. « Planning », « Stats YouTube », « To-do ») ou une page : accueil, tâches, fichiers générés, réglages, journaux.',
     parameters: {
@@ -111,32 +170,46 @@ export function registerCoreActions(hub: Hub): void {
     ],
     extract: (utterance) => {
       const target = extractName(utterance, OPEN_PREFIXES);
-      return target ? { target } : null;
+      // « ouvre l'application » is show-app, not a tool.
+      if (!target || APP_WORDS.test(target)) return null;
+      return { target };
     },
     risk: 'read',
     run: (params) => {
-      const wanted = normaliseWords(String(params.target));
-      const page = SHELL_PAGES.find((p) => p.words.some((w) => wanted.includes(w)));
-      if (page) return { message: `J’ouvre ${page.label}.`, open: page.route };
-      const modules = hub.moduleInfos().filter((m) => m.status === 'loaded');
-      const score = (name: string) => {
-        const words = normaliseWords(name)
-          .split(' ')
-          .filter((w) => w.length > 2);
-        return words.filter((w) => wanted.includes(w)).length / Math.max(1, words.length);
-      };
-      const best = modules
-        .map((m) => ({
-          m,
-          s: Math.max(
-            score(m.manifest.name),
-            normaliseWords(m.id).replace(/ /g, '') === wanted.replace(/ /g, '') ? 1 : 0,
-          ),
-        }))
-        .sort((a, b) => b.s - a.s)[0];
-      if (!best || best.s === 0)
-        throw new HttpError(404, `Aucun outil ne correspond à « ${String(params.target)} ».`);
-      return { message: `J’ouvre ${best.m.manifest.name}.`, open: `/m/${best.m.id}` };
+      const target = findTarget(String(params.target));
+      return { message: `J’ouvre ${target.label}.`, open: target.route };
+    },
+  });
+
+  // « ouvre l'application » : the main window shown and brought to the front
+  // (restored when minimised or in the notification area), on a page if asked.
+  define({
+    name: 'show-app',
+    label: 'Afficher l’application',
+    description:
+      'Affiche la fenêtre de ToolBox au premier plan (restaurée si réduite ou cachée), sur l’accueil ou sur la page demandée.',
+    parameters: {
+      target: { type: 'string', description: 'Page ou outil à ouvrir (facultatif)' },
+    },
+    examples: [
+      'ouvre l’application',
+      'ouvre ToolBox',
+      'montre l’application',
+      'affiche la fenêtre',
+      'reviens sur l’app',
+    ],
+    extract: (utterance) => {
+      const said = normaliseWords(utterance);
+      if (!/\b(?:application|app|toolbox|tool box|fenetre)\b/.test(said)) return null;
+      // « ouvre l'application sur le planning » → the page.
+      const page = /\b(?:sur|dans|a|au)\s+(?:l |le |la |les )?(.+)$/.exec(said);
+      return page && !APP_WORDS.test(page[1]!) ? { target: page[1]! } : {};
+    },
+    risk: 'read',
+    run: (params) => {
+      if (!params.target) return { message: 'C’est ouvert.', open: '/' };
+      const target = findTarget(String(params.target));
+      return { message: 'C’est ouvert.', open: target.route };
     },
   });
 }

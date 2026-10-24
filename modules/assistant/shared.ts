@@ -18,8 +18,10 @@ export interface TurnDto {
   id: number;
   at: string;
   source: 'voice' | 'text';
-  /** What was understood (transcript), or typed. */
+  /** What was understood (transcript after the corrections), or typed. */
   heard: string;
+  /** What the ear wrote before the corrections (voice only; null when unchanged). */
+  rawHeard: string | null;
   /** « commande standardisée », « IA », not understood, or an answer (oui / non). */
   mode: 'command' | 'ai' | 'not-understood' | 'answer' | null;
   /** What the standardised commands found. */
@@ -37,9 +39,16 @@ export interface TurnDto {
   reply: string;
   actions: TurnActionDto[];
   /** A pending question (« Je supprime la tâche … ? ») answered by Oui / Non. */
-  pending: { kind: 'confirm' | 'open'; question: string } | null;
+  pending: {
+    kind: 'confirm' | 'open' | 'retry' | 'choose' | 'learn';
+    question: string;
+    /** The two commands of « Tu voulais dire : … ou … ? » (buttons). */
+    options?: string[];
+  } | null;
   error: string | null;
   latency: {
+    /** Key pressed → microphone ready (ms). */
+    micOpenMs: number | null;
     /** Speech to text (ms). */
     transcribeMs: number | null;
     /** Recognition of the commands (ms). */
@@ -64,6 +73,8 @@ export interface StateEvent {
   text: string | null;
   /** Recording in « tap to start, tap to stop » mode. */
   toggle: boolean;
+  /** Listening and the microphone really receives sound (« Parle »). */
+  ready: boolean;
   /** The « IA » switch (recalled in the floating indicator). */
   ai: boolean;
 }
@@ -101,6 +112,7 @@ export interface StatusDto {
   settings: {
     ai: boolean;
     speakReplies: boolean;
+    readySound: boolean;
     speed: number;
     /** Effective (setting resolved, « auto » included). */
     directReads: boolean;
@@ -188,4 +200,18 @@ export interface PromptDto {
   /** Tools sent to the model (names). */
   tools: string[];
   length: { chars: number; tokens: number; autoTokens: number; toolsTokens: number };
+}
+
+// --- Words page -----------------------------------------------------------------
+
+export interface VocabularyDto {
+  /** « When the ear writes X, understand Y ». */
+  corrections: { id: number; heard: string; replacement: string }[];
+  /** English words and words of the trade given to the speech recognition. */
+  words: { id: number; word: string }[];
+  /** Nicknames by tool (module id) or page (route). */
+  nicknames: Record<string, { id: number; nickname: string }[]>;
+  tools: { key: string; label: string }[];
+  /** What is sent to whisper.cpp with each recording (expected words). */
+  expected: string;
 }

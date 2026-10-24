@@ -29,6 +29,7 @@ interface FormState {
   artist: string;
   releaseDate: string;
   tags: string;
+  nicknames: string;
   notes: string;
 }
 
@@ -38,6 +39,7 @@ function toForm(track: TrackDto): FormState {
     artist: track.artistOverride ?? '',
     releaseDate: track.releaseDate ?? '',
     tags: track.tags.join(', '),
+    nicknames: (track.nicknames ?? []).join(', '),
     notes: track.notes,
   };
 }
@@ -247,6 +249,7 @@ function InfoForm(props: { track: TrackDto; onSaved: () => void }) {
         releaseDate: form.releaseDate || null,
         notes: form.notes,
         tags: form.tags.split(',').map((tag) => tag.trim()),
+        nicknames: form.nicknames.split(',').map((name) => name.trim()),
       });
       props.onSaved();
     } catch (err) {
@@ -302,6 +305,20 @@ function InfoForm(props: { track: TrackDto; onSaved: () => void }) {
             onChange={(e) => update('tags', e.target.value)}
           />
           <p className="muted settings-form__help">Séparés par des virgules.</p>
+        </div>
+        <div className="settings-form__field">
+          <label htmlFor="ml-nicknames">Surnoms</label>
+          <input
+            id="ml-nicknames"
+            className="input"
+            value={form.nicknames}
+            placeholder="le gros caillou, GK"
+            onChange={(e) => update('nicknames', e.target.value)}
+          />
+          <p className="muted settings-form__help">
+            Autres noms que tu utilises pour ce morceau, séparés par des virgules : l’assistant
+            vocal les reconnaît comme le titre.
+          </p>
         </div>
         <div className="settings-form__field">
           <label htmlFor="ml-notes">Notes</label>
