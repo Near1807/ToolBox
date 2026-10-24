@@ -185,6 +185,14 @@ function QuickAdd(props: { data: TasksResponse; onAdded: (task: TaskDto) => void
   );
 }
 
+/** Time spent on a task: « 45 min », « 2 h 05 ». */
+function spentText(seconds: number): string {
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${Math.max(1, minutes)} min`;
+  const rest = minutes % 60;
+  return `${Math.floor(minutes / 60)} h${rest ? ` ${String(rest).padStart(2, '0')}` : ''}`;
+}
+
 function TaskRow(props: {
   task: TaskDto;
   data: TasksResponse;
@@ -279,6 +287,11 @@ function TaskRow(props: {
               ♪ {task.track.title}
             </Link>
           )}
+          {task.timeSpent > 0 && (
+            <span className="td-time" title="Temps de travail enregistré par le Timer">
+              ⏱ {spentText(task.timeSpent)}
+            </span>
+          )}
           <span className="faint">
             créée le {shortDate(task.createdAt.slice(0, 10), data.today)}
           </span>
@@ -351,6 +364,16 @@ function TaskRow(props: {
         {error && <ErrorMessage>{error}</ErrorMessage>}
       </div>
       <div className="td-task__actions">
+        {data.timer && !task.done && (
+          <Link
+            className="icon-button"
+            title="Lancer un timer sur cette tâche"
+            aria-label="Lancer un timer"
+            to={`/m/timer?task=${task.id}`}
+          >
+            ⏱
+          </Link>
+        )}
         <button
           type="button"
           className="icon-button"

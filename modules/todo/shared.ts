@@ -11,6 +11,8 @@ export interface TaskDto {
   createdAt: string;
   /** Track of the library the task belongs to (null when none, or the library is absent). */
   track: { id: number; title: string } | null;
+  /** Seconds of work recorded by the Timer on this task (0 without the Timer module). */
+  timeSpent: number;
 }
 
 export interface TasksResponse {
@@ -20,6 +22,8 @@ export interface TasksResponse {
   /** True when the music library is there (tasks can be linked to a track). */
   library: boolean;
   tracks: { id: number; title: string }[];
+  /** True when the Timer module is there (« Lancer un timer » on each task). */
+  timer: boolean;
 }
 
 /** Tags are lower case, without « # », spaces turned into dashes. */

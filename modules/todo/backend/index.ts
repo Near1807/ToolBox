@@ -13,6 +13,8 @@ import {
   requestBody,
 } from '@hub/sdk/backend';
 import type { MusicLibraryService } from '../../music-library/contract';
+import type { TimerService } from '../../timer/contract';
+import type { TodoService, TodoTask } from '../contract';
 import { formatDue, localToday, parseDue, spokenDue, daysBetween, addDays } from '../dates';
 import { cleanTags, type TaskDto, type TasksResponse } from '../shared';
 import {
@@ -71,6 +73,8 @@ export default defineBackendModule({
   register(ctx: ModuleContext) {
     const tasks = ctx.db.table('tasks');
     const library = () => ctx.services.optional<MusicLibraryService>('musicLibrary');
+    // Optional both ways with the Timer: asked at the time of use (MODULES.md §5.8).
+    const timer = () => ctx.services.optional<TimerService>('timer');
     /** Deleted rows kept a while for « Annuler » (in memory only). */
     const deleted = new Map<number, { row: TaskRow; at: number }>();
 
@@ -82,7 +86,7 @@ export default defineBackendModule({
       return track ? { id: track.id, title: track.title } : null;
     };
 
-    const dto = (row: TaskRow): TaskDto => ({
+    const dto = (row: TaskRow, times = timer()?.timeByTask() ?? {}): TaskDto => ({
       id: row.id,
       title: row.title,
       tags: JSON.parse(row.tags) as string[],
@@ -91,6 +95,7 @@ export default defineBackendModule({
       doneAt: row.done_at,
       createdAt: row.created_at,
       track: trackOf(row),
+      timeSpent: Math.round(times[row.id] ?? 0),
     });
 
     const get = (id: number): TaskRow => {
@@ -235,12 +240,14 @@ export default defineBackendModule({
 
     ctx.routes.get('/tasks', (): TasksResponse => {
       const service = library();
+      const times = timer()?.timeByTask() ?? {};
       return {
         today: localToday(),
-        tasks: sorted(all()).map(dto),
+        tasks: sorted(all()).map((row) => dto(row, times)),
         tags: tagCounts(),
         library: Boolean(service),
         tracks: service ? service.listTracks().map((t) => ({ id: t.id, title: t.title })) : [],
+        timer: Boolean(timer()),
       };
     });
 
@@ -274,8 +281,30 @@ export default defineBackendModule({
       return {
         today,
         open: open.length,
-        due: open.filter((r) => r.due_date !== null && r.due_date <= today).map(dto),
+        due: open.filter((r) => r.due_date !== null && r.due_date <= today).map((r) => dto(r)),
       };
+    });
+
+    // --- Service for the other modules (the Timer) ------------------------------
+
+    const summary = (row: TaskRow): TodoTask => ({
+      id: row.id,
+      title: row.title,
+      tags: JSON.parse(row.tags) as string[],
+      due: row.due_date,
+      done: row.done_at !== null,
+    });
+    ctx.services.provide<TodoService>('todo', {
+      listOpenTasks: () =>
+        sorted(all())
+          .filter((r) => r.done_at === null)
+          .map(summary),
+      getTask: (id) => {
+        const row = ctx.db.prepare(`SELECT * FROM ${tasks} WHERE id = ?`).get(id) as
+          TaskRow | undefined;
+        return row ? summary(row) : null;
+      },
+      completeTask: (id) => summary(update(id, { done: true })),
     });
 
     // --- Track page of the library -------------------------------------------

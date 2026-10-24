@@ -31,7 +31,7 @@ const app = await _electron.launch({
 const shots = {};
 try {
   const page = await app.firstWindow();
-  await page.setViewportSize({ width: 1400, height: 2400 });
+  await page.setViewportSize({ width: 1280, height: 2600 });
   await page.waitForSelector('.module-card', { timeout: 60_000 });
   const api = (method, url, body) =>
     page.evaluate(
@@ -83,7 +83,7 @@ try {
     page.locator('section.card', { has: page.locator(`h3:has-text("${title}")`) });
   /** The views panel, from its top down to the bottom of `last`. */
   const down = async (last) => {
-    const top = await boxOf('.ma-panels');
+    const top = await boxOf('.ma-groups');
     const b = await boxOf(last);
     return { x: top.x, y: top.y, width: top.width, height: b.y + b.height - top.y };
   };
@@ -142,6 +142,7 @@ try {
       projects: '.ui-tracks',
       add: 'button:has-text("Ajouter une version")',
       versions: '.ma-versions',
+      figures: '.ma-analysis > .ma-figures',
       player: '.ma-player',
       tabs: '.ma-tabs',
       guide: '.page__actions button:has-text("Guide")',
@@ -161,52 +162,55 @@ try {
     sections: '.ma-sections',
     lanes: '.ma-lanes-wrap',
     tip: '.ma-tip',
-    toggles: page.locator('.ma-timeline > .toolbar').last(),
+    toggles: '.ma-timeline .ma-choice',
   });
   await page.mouse.move(0, 0);
 
-  // 3. Global measures, down to the platforms (the list of markers below can be long).
+  // 3. Global measures, down to « Stéréo et mono » (structure and file below).
   await page.click('button[role=tab]:has-text("Mesures globales")');
   await page.waitForTimeout(600);
-  const platforms = card('Normalisation des plateformes');
-  await capture('mesures-globales', await down(platforms), {
-    loudness: card('Sonie et dynamique'),
-    stereo: card('Stéréo et mono'),
-    tonal: card('Équilibre tonal'),
-    platforms,
+  const stereo = card('Stéréo et mono');
+  await capture('mesures-globales', await down(stereo), {
+    volume: card('Volume et dynamique'),
+    peaks: card('Crêtes et saturation'),
+    freq: card('Fréquences'),
+    stereo,
+    detail: page.locator('.ma-details__toggle').first(),
   });
 
   // 4. Sections.
   await page.click('button[role=tab]:has-text("Sections")');
   await page.waitForTimeout(600);
-  await capture('sections', await boxOf('.ma-panels'), {
-    tools: page.locator('.ma-panels .toolbar').first(),
-    table: page.locator('.ma-panels .ma-table').first(),
+  await capture('sections', await boxOf('.ma-groups'), {
+    figures: page.locator('.ma-group .ma-figures').first(),
+    tools: page.locator('.ma-group .toolbar').first(),
+    columns: '.ma-group .ma-choice',
+    table: '.ma-table--stack',
     contrasts: card('Contrastes entre sections'),
   });
 
-  // 5. Versions (down to the overlaid loudness).
+  // 5. Versions (down to the bands).
   await page.click('button[role=tab]:has-text("Versions")');
-  await page.waitForSelector('.ma-map__grid', { timeout: 20_000 });
+  await page.waitForSelector('text=Sonie court terme superposée', { timeout: 20_000 });
   await page.waitForTimeout(600);
-  const overlay = card('Sonie court terme superposée');
-  await capture('versions', await down(overlay), {
-    pick: page.locator('.ma-panels .toolbar').first(),
-    global: card('Différences globales'),
-    bands: card('Énergie par bande'),
-    overlay,
+  const versionBands = card('Fréquences');
+  await capture('versions', await down(versionBands), {
+    pick: page.locator('.ma-group .toolbar').first(),
+    figures: page.locator('.ma-group .ma-figures').first(),
+    overlay: card('Volume et dynamique'),
+    bands: versionBands,
   });
 
-  // 6. References (down to the global table).
+  // 6. References (down to the bands).
   await page.click('button[role=tab]:has-text("Références")');
   await page.waitForSelector('text=Écoute A/B', { timeout: 20_000 });
   await page.waitForTimeout(600);
-  const global = card('Global');
-  await capture('references', await down(global), {
-    profile: page.locator('.ma-panels .toolbar').first(),
+  const refBands = card('Fréquences');
+  await capture('references', await down(refBands), {
+    profile: page.locator('.ma-group .toolbar').first(),
+    figures: page.locator('.ma-group .ma-figures').first(),
     ab: card('Écoute A/B'),
-    bands: card('Équilibre par bande'),
-    global,
+    bands: refBands,
   });
 
   writeFileSync(path.join(OUT, 'shots.json'), `${JSON.stringify(shots, null, 2)}\n`);

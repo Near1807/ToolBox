@@ -196,3 +196,12 @@
 .td-widget--late {
   color: var(--danger);
 }
+
+.td-time {
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.td-task__actions a.icon-button {
+  text-decoration: none;
+}

@@ -7,6 +7,7 @@ import { clock, fr, pct } from '../shared/format';
 import { BANDS, type Measures } from '../shared/types';
 import { DiffBars } from './charts';
 import { Help } from './guide/Help';
+import { Choice, emphasis, Group, KeyFigures, useStoredChoice } from './layout';
 import { BAND_TOKENS, useColors } from './theme';
 import type { CompareDto, VersionDto } from './types';
 
@@ -26,6 +27,11 @@ const ROWS: {
   { key: 'monoLoss', label: 'Perte au mono', unit: 'dB' },
 ];
 
+const SECTION_COLUMNS = [
+  { id: 'width', label: 'Largeur' },
+  { id: 'bands', label: 'Bandes' },
+] as const;
+
 export function Versions(props: {
   versions: VersionDto[];
   current: VersionDto;
@@ -41,6 +47,7 @@ export function Versions(props: {
   const [aId, setA] = useState<number | null>(previous?.id ?? null);
   const [manual, setManual] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
+  const columns = useStoredChoice('versions-columns', []);
   const query =
     aId !== null
       ? `/compare?a=${aId}&b=${props.current.id}${manual !== '' ? `&offset=${manual}` : ''}`
@@ -64,9 +71,15 @@ export function Versions(props: {
       setError(errorMessage(err));
     }
   };
+  const diff = (key: keyof Measures) => {
+    const a = c?.measures.a[key] as number | null | undefined;
+    const b = c?.measures.b[key] as number | null | undefined;
+    return a === null || b === null || a === undefined || b === undefined ? null : b - a;
+  };
+  const show = (id: string) => columns.shown.has(id);
   return (
-    <div className="ma-panels">
-      <section className="card ma-panels__wide">
+    <div className="ma-groups">
+      <Group title="Versions comparées" topic="vue-versions" wide>
         <div className="toolbar">
           <label className="small">
             Comparer <strong>{props.current.name}</strong> à{' '}
@@ -122,49 +135,116 @@ export function Versions(props: {
         </div>
         {error && <ErrorMessage>{error}</ErrorMessage>}
         {data.error && <ErrorMessage>{data.error}</ErrorMessage>}
-      </section>
+        {c && (
+          <>
+            <p className="ma-note">
+              Écarts de {c.b.name} par rapport à {c.a.name}. En gras : écart de 3 ou plus ; en gris
+              : moins de 1.
+            </p>
+            <KeyFigures
+              label="Écarts entre les versions"
+              items={[
+                {
+                  label: 'Sonie intégrée',
+                  value: fr(diff('integrated'), 1, true),
+                  unit: 'LU',
+                  tone: emphasis(diff('integrated')),
+                  topic: 'sonie',
+                },
+                {
+                  label: 'Crête vraie',
+                  value: fr(diff('truePeak'), 1, true),
+                  unit: 'dB',
+                  tone: emphasis(diff('truePeak')),
+                  topic: 'crete-vraie',
+                },
+                {
+                  label: 'PLR',
+                  value: fr(diff('plr'), 1, true),
+                  unit: 'LU',
+                  tone: emphasis(diff('plr')),
+                  topic: 'plr',
+                },
+                {
+                  label: 'LRA',
+                  value: fr(diff('lra'), 1, true),
+                  unit: 'LU',
+                  tone: emphasis(diff('lra')),
+                  topic: 'lra',
+                },
+                {
+                  label: 'Perte au mono',
+                  value: fr(diff('monoLoss'), 1, true),
+                  unit: 'dB',
+                  tone: emphasis(diff('monoLoss')),
+                  topic: 'mono',
+                },
+              ]}
+            />
+          </>
+        )}
+      </Group>
       {c && (
         <>
-          <section className="card">
-            <h3>
-              Différences globales <Help topic="vue-versions" />
-            </h3>
-            <table className="ma-table">
-              <thead>
-                <tr>
-                  <th />
-                  <th className="num">{c.a.name}</th>
-                  <th className="num">{c.b.name}</th>
-                  <th className="num">Écart</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ROWS.map((r) => {
-                  const format = r.format ?? ((v: number | null) => `${fr(v)} ${r.unit}`);
-                  const a = c.measures.a[r.key] as number | null;
-                  const b = c.measures.b[r.key] as number | null;
-                  return (
-                    <tr key={r.key}>
-                      <th>{r.label}</th>
-                      <td className="num">{format(a)}</td>
-                      <td className="num">{format(b)}</td>
-                      <td className="num">
-                        {a === null || b === null
-                          ? '—'
-                          : r.key === 'width'
-                            ? `${fr((b - a) * 100, 1, true)} pts`
-                            : `${fr(b - a, r.key === 'correlation' ? 2 : 1, true)} ${r.unit === 'LUFS' ? 'LU' : r.unit === 'dBTP' ? 'dB' : r.unit}`}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </section>
-          <section className="card">
-            <h3>
-              Énergie par bande ({c.b.name} − {c.a.name}) <Help topic="bandes" />
-            </h3>
+          <Group
+            title="Volume et dynamique"
+            topic="sonie-superposee"
+            wide
+            detailLabel="toutes les différences globales"
+            detail={
+              <table className="ma-table">
+                <thead>
+                  <tr>
+                    <th />
+                    <th className="num">{c.a.name}</th>
+                    <th className="num">{c.b.name}</th>
+                    <th className="num">Écart</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ROWS.map((r) => {
+                    const format = r.format ?? ((v: number | null) => `${fr(v)} ${r.unit}`);
+                    const a = c.measures.a[r.key] as number | null;
+                    const b = c.measures.b[r.key] as number | null;
+                    const tone =
+                      a === null || b === null
+                        ? ''
+                        : r.key === 'width'
+                          ? emphasis((b - a) * 100, 10, 3)
+                          : r.key === 'correlation'
+                            ? emphasis(b - a, 0.3, 0.1)
+                            : emphasis(b - a);
+                    return (
+                      <tr key={r.key}>
+                        <th>{r.label}</th>
+                        <td className="num">{format(a)}</td>
+                        <td className="num">{format(b)}</td>
+                        <td className={`num ${tone}`}>
+                          {a === null || b === null
+                            ? '—'
+                            : r.key === 'width'
+                              ? `${fr((b - a) * 100, 1, true)} pts`
+                              : `${fr(b - a, r.key === 'correlation' ? 2 : 1, true)} ${r.unit === 'LUFS' ? 'LU' : r.unit === 'dBTP' ? 'dB' : r.unit}`}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            }
+          >
+            <h4>
+              Sonie court terme superposée (versions alignées) <Help topic="sonie-superposee" />
+            </h4>
+            <Overlay
+              points={c.overlay}
+              a={c.a.name}
+              b={c.b.name}
+              colorA={colors['series-2']}
+              colorB={colors['series-1']}
+            />
+          </Group>
+          <Group title={`Fréquences (${c.b.name} − ${c.a.name})`} topic="bandes">
             <DiffBars
               ariaLabel="Écart par bande"
               unit="dB"
@@ -174,76 +254,78 @@ export function Versions(props: {
                 color: colors[BAND_TOKENS[i]!],
               }))}
             />
-          </section>
-          <section className="card ma-panels__wide">
-            <h3>
-              Sonie court terme superposée (versions alignées) <Help topic="sonie-superposee" />
-            </h3>
-            <Overlay
-              points={c.overlay}
-              a={c.a.name}
-              b={c.b.name}
-              colorA={colors['series-2']}
-              colorB={colors['series-1']}
-            />
-          </section>
-          <section className="card ma-panels__wide">
-            <h3>
-              Par section (sections de {c.a.name}) <Help topic="vue-versions" />
-            </h3>
-            <table className="ma-table">
-              <thead>
-                <tr>
-                  <th>Section</th>
-                  <th className="num">Sonie</th>
-                  <th className="num">Crête vraie</th>
-                  <th className="num">PLR</th>
-                  <th className="num">Largeur</th>
-                  {BANDS.map((b) => (
-                    <th key={b.id} className="num">
-                      {b.label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {c.sections.map(({ section, difference: d }, i) => (
-                  <tr key={i}>
-                    <td>
-                      <button
-                        type="button"
-                        className="ma-link"
-                        onClick={() => props.onSeek(section.start)}
-                      >
-                        {section.label}
-                      </button>{' '}
-                      <span className="small muted">{clock(section.start, 0)}</span>
-                    </td>
-                    <td className="num">{fr(d.integrated, 1, true)}</td>
-                    <td className="num">{fr(d.truePeak, 1, true)}</td>
-                    <td className="num">{fr(d.plr, 1, true)}</td>
-                    <td className="num">
-                      {d.width === null ? '—' : `${fr(d.width * 100, 1, true)} pts`}
-                    </td>
-                    {d.bands.map((b) => (
-                      <td key={b.id} className="num">
-                        {fr(b.db, 1, true)}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <p className="small muted">
-              Écarts de {c.b.name} par rapport à {c.a.name}, en LU ou dB.
+          </Group>
+          <Group title="Structure et sections" topic="vue-versions" wide>
+            <p className="ma-note">
+              Sections de {c.a.name} ; écarts de {c.b.name} (LU ou dB).
             </p>
-          </section>
-          <section className="card ma-panels__wide">
-            <h3>
-              Carte des différences dans le temps <Help topic="carte-differences" />
-            </h3>
-            <DifferenceMap map={c.map} onSeek={props.onSeek} />
-          </section>
+            <Choice
+              label="Colonnes"
+              options={SECTION_COLUMNS}
+              shown={columns.shown}
+              onToggle={columns.toggle}
+            />
+            <div className="ma-scroll">
+              <table className="ma-table">
+                <thead>
+                  <tr>
+                    <th>Section</th>
+                    <th className="num">Sonie (LU)</th>
+                    <th className="num">Crête vraie (dB)</th>
+                    <th className="num">PLR (LU)</th>
+                    {show('width') && <th className="num">Largeur (pts)</th>}
+                    {show('bands') &&
+                      BANDS.map((b) => (
+                        <th key={b.id} className="num">
+                          {b.label} (dB)
+                        </th>
+                      ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {c.sections.map(({ section, difference: d }, i) => (
+                    <tr key={i}>
+                      <th>
+                        <button
+                          type="button"
+                          className="ma-link"
+                          onClick={() => props.onSeek(section.start)}
+                        >
+                          {section.label}
+                        </button>{' '}
+                        <span className="small muted">{clock(section.start, 0)}</span>
+                      </th>
+                      <td className={`num ${emphasis(d.integrated)}`}>
+                        {fr(d.integrated, 1, true)}
+                      </td>
+                      <td className={`num ${emphasis(d.truePeak)}`}>{fr(d.truePeak, 1, true)}</td>
+                      <td className={`num ${emphasis(d.plr)}`}>{fr(d.plr, 1, true)}</td>
+                      {show('width') && (
+                        <td
+                          className={`num ${d.width === null ? '' : emphasis(d.width * 100, 10, 3)}`}
+                        >
+                          {d.width === null ? '—' : fr(d.width * 100, 1, true)}
+                        </td>
+                      )}
+                      {show('bands') &&
+                        d.bands.map((b) => (
+                          <td key={b.id} className={`num ${emphasis(b.db)}`}>
+                            {fr(b.db, 1, true)}
+                          </td>
+                        ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Group>
+          <Group
+            title="Dans le temps"
+            topic="carte-differences"
+            wide
+            detailLabel="la carte des différences, seconde par seconde"
+            detail={<DifferenceMap map={c.map} onSeek={props.onSeek} />}
+          />
         </>
       )}
     </div>

@@ -41,7 +41,7 @@ export const GUIDE: GuideChapter[] = [
           {
             shot: 'apercu',
             caption:
-              'La page : projets à gauche, versions du projet, puis l’analyse de la version choisie.',
+              'La page : projets à gauche, versions du projet, puis, en pleine largeur, l’analyse de la version choisie.',
             marks: [
               {
                 id: 'projects',
@@ -52,6 +52,7 @@ export const GUIDE: GuideChapter[] = [
                 id: 'versions',
                 label: 'Versions du projet, avec leur résumé (sonie, crête vraie, PLR)',
               },
+              { id: 'figures', label: 'Les chiffres clés de la version, en grand' },
               { id: 'player', label: 'Lecteur et seuil des dépassements' },
               { id: 'tabs', label: 'Les cinq vues de l’analyse' },
               { id: 'guide', label: 'Ce guide' },
@@ -62,6 +63,7 @@ export const GUIDE: GuideChapter[] = [
               '**Choisis un morceau** dans la liste de gauche (ou « Nouvelle analyse libre… » en haut à droite pour un fichier sans morceau).',
               '**Ajoute ton master** : glisse le fichier WAV, FLAC, AIFF ou MP3 sur la page, ou « Ajouter une version… ». Pour un morceau de la Bibliothèque, « Analyser le fichier de la Bibliothèque » prend son fichier actuel.',
               '**Attends l’analyse** (quelques secondes pour un morceau de 4 min ; la progression est dans le badge et dans Tâches). Un fichier déjà analysé n’est pas refait.',
+              '**Lis les chiffres clés** en grand, sous la liste : sonie intégrée, crête vraie, LRA, PLR, perte au mono, dépassements (voir [[lecture|Lire la page]]).',
               '**Lis la [[vue-ligne-de-temps|Ligne de temps]]** : clic = écouter à cet instant, survol = toutes les valeurs à cet instant. Les repères en bas montrent les crêtes, écrêtages, problèmes de phase et silences.',
               '**Passe aux [[vue-mesures-globales|Mesures globales]]** pour les chiffres du morceau entier (sonie intégrée, crête vraie, PLR…) et ce que feront les plateformes à la lecture.',
               'À la version suivante, ajoute le nouveau fichier au **même projet** : la vue [[vue-versions|Versions]] montre ce qui a changé, section par section.',
@@ -114,25 +116,54 @@ export const GUIDE: GuideChapter[] = [
         ],
       },
       {
+        id: 'lecture',
+        title: 'Lire la page : résumé, détail, écarts',
+        keywords: 'résumé chiffres clés détail replié colonnes gras gris écart mise en avant',
+        blocks: [
+          'Sous la liste des projets, l’analyse de la version choisie occupe toute la largeur. Elle se lit de haut en bas :',
+          {
+            list: [
+              '**Les chiffres clés en grand** : sonie intégrée, crête vraie, LRA, PLR, perte au mono, nombre de dépassements (au seuil choisi) et d’écrêtages. Toujours visibles, quelle que soit la vue.',
+              '**Les vues**, rangées par question (Volume et dynamique, Crêtes et saturation, Fréquences, Stéréo et mono, Structure et sections, Fichier) : quelques chiffres d’abord, le reste sous « Voir le détail », replié par défaut.',
+              '**Colonnes** et **Pistes affichées** : un clic ajoute ou retire une colonne ou une piste ; ton choix est retenu sur cet ordinateur.',
+              '**Unités dans les en-têtes**, valeurs alignées à droite, une décimale en général (deux pour la corrélation, aucune pour les pourcentages).',
+            ],
+          },
+          {
+            terms: [
+              [
+                'En gras',
+                'Un écart de 3 LU ou dB ou plus (10 points ou plus pour la largeur, 0,3 ou plus pour la corrélation).',
+              ],
+              [
+                'En gris',
+                'Un écart de moins de 1 (moins de 3 points de largeur, 0,1 de corrélation), ou une valeur manquante.',
+              ],
+            ],
+          },
+          'Cette mise en avant ne dit rien de plus que le chiffre : elle aide seulement l’œil à trouver les grands écarts. Elle concerne les écarts (« vs morceau », versions, références), jamais les valeurs elles-mêmes.',
+        ],
+      },
+      {
         id: 'vue-ligne-de-temps',
         title: 'Ligne de temps',
-        keywords: 'timeline zoom molette curseur survol pistes lecture',
+        keywords: 'timeline zoom molette curseur survol pistes lecture afficher masquer',
         blocks: [
-          'Toutes les courbes de l’analyse sur le même axe du temps, du début à la fin du fichier, avec le curseur de lecture.',
+          'Toutes les courbes de l’analyse sur le même axe du temps, du début à la fin du fichier, avec le curseur de lecture. Par défaut, quatre pistes seulement : forme d’onde, sonie, énergie par bande et repères. Les autres s’affichent d’un clic sur leur nom ; ton choix est **retenu** sur cet ordinateur.',
           {
             shot: 'ligne-de-temps',
             caption: 'La ligne de temps, valeurs affichées au survol.',
             marks: [
               { id: 'zoom', label: 'Zoom +, Zoom −, Tout' },
+              { id: 'toggles', label: 'Pistes affichées : un clic affiche ou masque une piste' },
               {
                 id: 'overview',
                 label:
                   'Vue d’ensemble : le fichier entier ; faire glisser la fenêtre pour se déplacer',
               },
               { id: 'sections', label: 'Sections (voir la vue Sections)' },
-              { id: 'lanes', label: 'Les pistes, chacune avec sa légende' },
+              { id: 'lanes', label: 'Les pistes, chacune avec son unité et sa légende' },
               { id: 'tip', label: 'Valeurs exactes à l’instant survolé' },
-              { id: 'toggles', label: 'Afficher ou masquer chaque piste' },
             ],
           },
           {
@@ -145,43 +176,45 @@ export const GUIDE: GuideChapter[] = [
               ['Ctrl + molette', 'Zoom autour du pointeur (jusqu’à 1 s à l’écran).'],
               ['Maj + molette', 'Défiler dans le temps.'],
               ['Vue d’ensemble', 'Cliquer ou faire glisser pour déplacer la fenêtre du zoom.'],
+              ['Pistes affichées', 'Un clic sur un nom affiche ou masque la piste (choix retenu).'],
               [
                 'Bandes empilées',
-                'Montre la part de chaque bande dans l’énergie au lieu de leurs niveaux.',
+                'Avec la piste Bandes : la part de chaque bande dans l’énergie au lieu de leurs niveaux.',
               ],
               [
                 'Largeur d’une bande',
-                'Ajoute la largeur stéréo d’une seule bande (en pointillés) à la piste Largeur.',
+                'Avec la piste Largeur : ajoute la largeur stéréo d’une seule bande (en pointillés).',
               ],
             ],
           },
-          'Pistes : [[forme-onde|forme d’onde]], [[sonie|sonie]], [[bandes|énergie par bande]], [[spectrogramme|spectrogramme]], [[facteur-crete|dynamique]], [[largeur|largeur stéréo]], [[correlation|corrélation de phase]], [[mono|compatibilité mono]], [[reperes|repères]].',
+          'Pistes : [[forme-onde|forme d’onde]], [[sonie|sonie]], [[bandes|énergie par bande]], [[spectrogramme|spectrogramme]], [[facteur-crete|dynamique]], [[largeur|largeur stéréo]], [[correlation|corrélation de phase]], [[mono|compatibilité mono]], [[reperes|repères]] (légende des repères sous la ligne de temps).',
         ],
       },
       {
         id: 'vue-mesures-globales',
         title: 'Mesures globales',
-        keywords: 'chiffres tableau morceau entier',
+        keywords: 'chiffres tableau morceau entier groupes volume crêtes fréquences stéréo fichier',
         blocks: [
-          'Les chiffres du morceau entier, en six cartes.',
+          'Les chiffres du morceau entier, rangés par question. Chaque groupe montre d’abord quelques chiffres en grand ; le reste est replié sous « Voir le détail ».',
           {
             shot: 'mesures-globales',
-            caption: 'Mesures globales.',
+            caption: 'Mesures globales, groupées par question.',
             marks: [
-              { id: 'loudness', label: 'Sonie et dynamique' },
-              { id: 'stereo', label: 'Stéréo et mono, globales et par bande' },
-              { id: 'tonal', label: 'Équilibre tonal : bandes et spectre moyen' },
-              { id: 'platforms', label: 'Normalisation des plateformes' },
+              { id: 'volume', label: 'Volume et dynamique, avec la normalisation des plateformes' },
+              { id: 'peaks', label: 'Crêtes et saturation' },
+              { id: 'freq', label: 'Fréquences' },
+              { id: 'stereo', label: 'Stéréo et mono' },
+              { id: 'detail', label: '« Voir le détail » : le reste, replié par défaut' },
             ],
           },
           {
             list: [
-              '**Sonie et dynamique** : [[sonie|sonie intégrée]], [[lra|LRA]], [[crete-vraie|crête vraie]], [[ecretage|crête d’échantillon]], [[plr|PLR]], [[facteur-crete|facteur de crête et RMS]].',
-              '**Stéréo et mono** : [[correlation|corrélation]], [[largeur|largeur]], [[mono|perte au mono]], puis les mêmes par bande.',
-              '**Équilibre tonal** : l’énergie de chaque [[bandes|bande]], seule et par rapport à la sonie, et le [[spectre|spectre moyen]].',
-              '**Normalisation des plateformes** : voir [[normalisation|Normalisation]].',
-              '**Hygiène technique** : voir [[hygiene|Hygiène technique]].',
-              '**Dépassements et écrêtages** : la liste des [[reperes|repères]] avec leur instant ; « Écouter » lit une seconde avant.',
+              '**Volume et dynamique** : [[sonie|sonie intégrée]], [[lra|LRA]], [[plr|PLR]], [[facteur-crete|facteur de crête]] ; la [[normalisation|normalisation des plateformes]] ; en détail, le RMS et les normes de mesure.',
+              '**Crêtes et saturation** : [[crete-vraie|crête vraie]], [[ecretage|crête d’échantillon]], nombre de dépassements et d’écrêtages ; en détail, la liste des [[reperes|repères]] avec « Écouter » (une seconde avant).',
+              '**Fréquences** : l’énergie de chaque [[bandes|bande]], seule et par rapport à la sonie ; en détail, le [[spectre|spectre moyen]].',
+              '**Stéréo et mono** : [[correlation|corrélation]], [[largeur|largeur]], [[mono|perte au mono]] ; en détail, les mêmes par bande.',
+              '**Structure et sections** : les sections avec leur début et leur sonie ; « Ouvrir la vue Sections » pour les modifier.',
+              '**Fichier** : format, fréquence, résolution, canaux ; en détail, durée, silences, décalage continu ([[hygiene|hygiène technique]]).',
             ],
           },
         ],
@@ -189,15 +222,17 @@ export const GUIDE: GuideChapter[] = [
       {
         id: 'vue-sections',
         title: 'Sections',
-        keywords: 'intro montée drop pause outro partie couper fusionner découpage',
+        keywords: 'intro montée drop pause outro partie couper fusionner découpage colonnes',
         blocks: [
           'Le morceau découpé en parties : Intro, Montée, Drop, Pause, Outro ou Partie. Le découpage automatique part de la sonie, du bas et du haut du spectre, de la [[densite|densité]] et de la largeur. C’est un **point de départ** : tout se modifie.',
           {
             shot: 'sections',
             caption: 'Sections et contrastes.',
             marks: [
+              { id: 'figures', label: 'Nombre de sections, la plus forte, la plus calme' },
               { id: 'tools', label: 'Couper au curseur, revenir à l’automatique' },
-              { id: 'table', label: 'Une ligne par section : nom, limites, mesures' },
+              { id: 'columns', label: 'Colonnes : afficher PLR, LRA, largeur ou densité' },
+              { id: 'table', label: 'Une ligne par section : nom, limites, sonie, écart' },
               { id: 'contrasts', label: 'Contrastes de chaque section avec le morceau entier' },
             ],
           },
@@ -214,9 +249,13 @@ export const GUIDE: GuideChapter[] = [
               ],
               ['Fusionner avec la suivante', 'Réunit deux sections.'],
               ['Revenir au découpage automatique', 'Oublie les modifications.'],
+              [
+                'Colonnes',
+                'Par défaut : nom, début, fin, sonie et écart avec le morceau (« vs morceau », en LU). [[plr|PLR]], [[lra|LRA]], [[largeur|largeur]] et [[densite|densité]] s’ajoutent d’un clic (choix retenu).',
+              ],
             ],
           },
-          'Colonnes : sonie de la section, son écart avec le morceau entier (« vs morceau », en LU), [[plr|PLR]], [[lra|LRA]], [[largeur|largeur]], [[densite|densité]]. Voir aussi [[contrastes|Contrastes entre sections]].',
+          'Sur un écran étroit, le tableau devient une carte par section. Les **contrastes** sont un tableau (sections × sonie et bandes) ; les mêmes en barres sous « Voir les contrastes en barres ». Voir [[contrastes|Contrastes entre sections]] et [[lecture|Lire les écarts]].',
         ],
       },
       {
@@ -224,24 +263,24 @@ export const GUIDE: GuideChapter[] = [
         title: 'Versions',
         keywords: 'comparer comparaison écart différence avant après',
         blocks: [
-          'Compare la version affichée à une autre version du même projet, **alignées dans le temps** (voir [[alignement|Alignement]]).',
+          'Compare la version affichée à une autre version du même projet, **alignées dans le temps** (voir [[alignement|Alignement]]). Tous les écarts sont « version affichée moins version comparée ».',
           {
             shot: 'versions',
             caption: 'Deux versions comparées.',
             marks: [
-              { id: 'pick', label: 'Version comparée et décalage trouvé' },
-              { id: 'global', label: 'Différences globales' },
-              { id: 'bands', label: 'Énergie par bande : écart' },
+              { id: 'pick', label: 'Version comparée, décalage trouvé, réglage à la main' },
+              { id: 'figures', label: 'Les écarts principaux, en grand' },
               { id: 'overlay', label: 'Sonie court terme des deux versions superposées' },
+              { id: 'bands', label: 'Fréquences : écart de chaque bande' },
             ],
           },
           {
             list: [
-              '**Différences globales** : chaque mesure pour les deux versions et l’écart (version affichée moins version comparée).',
-              '**Énergie par bande** : l’écart de chaque bande, en dB.',
-              '**Sonie superposée** : voir [[sonie-superposee|Sonie court terme superposée]].',
-              '**Par section** : les écarts section par section (sections de la version comparée). Cliquer un nom pour écouter.',
-              '**Carte des différences** : voir [[carte-differences|Carte des différences]].',
+              '**Écarts en grand** : sonie intégrée, crête vraie, PLR, LRA, perte au mono.',
+              '**Volume et dynamique** : [[sonie-superposee|sonie court terme superposée]] ; « Voir toutes les différences globales » : chaque mesure des deux versions et l’écart.',
+              '**Fréquences** : l’écart de chaque bande, en dB.',
+              '**Structure et sections** : les écarts section par section (sections de la version comparée) ; largeur et bandes s’ajoutent par « Colonnes ». Cliquer un nom pour écouter.',
+              '**Dans le temps** : la [[carte-differences|carte des différences]], repliée par défaut.',
             ],
           },
         ],
@@ -257,16 +296,19 @@ export const GUIDE: GuideChapter[] = [
             caption: 'Un profil de références.',
             marks: [
               { id: 'profile', label: 'Profil, nouveau profil, ajouter des références' },
+              {
+                id: 'figures',
+                label: 'Le master en grand, la moyenne des références en dessous',
+              },
               { id: 'ab', label: 'Écoute A/B à volume égal' },
-              { id: 'bands', label: 'Équilibre par bande, à sonie égale' },
-              { id: 'global', label: 'Mesures du master et moyenne des références' },
+              { id: 'bands', label: 'Fréquences : écart par bande, à sonie égale' },
             ],
           },
           {
             list: [
+              '**Chiffres** : sonie, crête vraie, PLR, LRA, largeur et corrélation du master (en grand) et de la moyenne des références (en dessous), sans mise à niveau.',
               '**Écoute A/B** : voir [[ecoute-ab|Écoute A/B]].',
-              '**Équilibre par bande**, **spectre au tiers d’octave** et **par section** : voir [[equilibre-references|Comparaison à sonie égale]].',
-              '**Global** : sonie, crête vraie, PLR, LRA, largeur et corrélation du master et de la moyenne des références (sans mise à niveau).',
+              '**Fréquences** (spectre au tiers d’octave sous « Voir le détail ») et **Structure et sections** (PLR, largeur, bandes par « Colonnes ») : voir [[equilibre-references|Comparaison à sonie égale]].',
             ],
           },
         ],
@@ -512,7 +554,7 @@ export const GUIDE: GuideChapter[] = [
         title: 'Contrastes entre sections',
         keywords: 'section drop montée écart barres',
         blocks: [
-          'Pour chaque section, des barres d’écart avec le **morceau entier** : la sonie (LU) et l’énergie de chaque bande (dB). Barre vers la droite = plus que la moyenne du morceau. Voir le flux [[flux-sections|Sections et contrastes]].',
+          'Pour chaque section, l’écart avec le **morceau entier** : la sonie (LU) et l’énergie de chaque bande (dB), en tableau (une ligne par section). Valeur positive = plus que la moyenne du morceau. Les grands écarts sont en gras, les petits en gris (voir [[lecture|Lire les écarts]]). « Voir les contrastes en barres » montre les mêmes chiffres en barres (vers la droite = plus). Voir le flux [[flux-sections|Sections et contrastes]].',
         ],
       },
       {
@@ -572,8 +614,8 @@ export const GUIDE: GuideChapter[] = [
             steps: [
               'Dans [[vue-sections|Sections]], vérifie le découpage : renomme ou déplace les limites pour avoir une « Montée » et un « Drop » justes.',
               'Compare la colonne **Sonie** des deux : l’écart en LU est le saut de volume perçu.',
-              'Dans **Contrastes**, regarde les bandes du Drop : sub et graves au-dessus de la moyenne du morceau, ou pas.',
-              'Compare **Largeur** et **Densité** : une montée étroite qui s’ouvre au drop, une partie plus chargée.',
+              'Dans **Contrastes**, lis la ligne du Drop : sub et graves au-dessus de la moyenne du morceau, ou pas.',
+              'Ajoute les colonnes **Largeur** et **Densité** (bouton « Colonnes ») : une montée étroite qui s’ouvre au drop, une partie plus chargée.',
               'Après une retouche, [[vue-versions|Versions]] › « Par section » montre l’écart du Drop d’une version à l’autre.',
             ],
           },
