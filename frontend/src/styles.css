@@ -45,14 +45,29 @@ body {
   background: transparent;
 }
 
-.overlay {
-  display: flex;
-  height: 100%;
-  align-items: center;
-  justify-content: center;
-  padding: 8px;
+.overlay-window body {
   overflow: hidden;
+}
+
+/* The floating window takes the size of this column (MODULES.md §5.16). */
+.overlay {
+  position: fixed;
+  left: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: max-content;
+  max-width: 520px;
+  padding: 8px;
   user-select: none;
+}
+
+.floating-panel {
+  display: flex;
+  justify-content: center;
+  max-width: 100%;
 }
 
 button,

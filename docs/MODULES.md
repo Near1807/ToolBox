@@ -370,11 +370,18 @@ ctx.assistant.define({
 - Une action sans `examples` ni `extract` reste disponible pour l'IA seulement (interrupteur « IA » de l'assistant).
 - Tester l'extracteur sur des phrases réalistes, hésitations comprises (`modules/todo/tests/commands.test.ts`).
 
-### 5.16 `ctx.hotkeys` et `ctx.ui` — touche globale, fenêtre, indicateur flottant
+### 5.16 `ctx.hotkeys` et `ctx.ui` — touche globale, fenêtre, fenêtre flottante
 
 - `ctx.hotkeys` (avec `permissions.globalKeys`) : `hold(key, { onPress, onRelease })` écoute une touche **maintenue** dans tout Windows (crochet clavier `uiohook-napi`, ADR 0028), `capture()` attend « la touche voulue », `status()` dit si c'est possible. Le crochet ne tourne que pendant qu'un module écoute ; seul le code de la touche choisie est regardé, rien n'est enregistré. Absent hors de l'app de bureau (le module propose alors un bouton).
 - `ctx.ui.open(route)` : montre la fenêtre (même réduite ou dans la zone de notification) sur une page (`/m/todo`, `/jobs`).
-- `ctx.ui.setOverlay(visible)` : montre ou cache l'**indicateur flottant** (petite fenêtre transparente, toujours au premier plan, sans focus ni clic), qui affiche le composant `Overlay` du module (§7).
+- `ctx.ui.setOverlay(visible)` : demande ou libère la **fenêtre flottante** du socle, qui affiche le composant `Overlay` du module (§7). Le socle compte les demandes : la fenêtre est là tant qu'un module au moins la demande. ADR 0036.
+
+**La fenêtre flottante (une seule, partagée).** Toujours au premier plan, par-dessus l'application en cours (même ToolBox réduite), fond transparent, en bas au centre de l'écran principal. Règles :
+
+- Chaque élément est un **`FloatingPanel`** du SDK (`label`, `interactive`, `focus`) ; les panneaux de tous les modules sont **empilés en colonne** (jamais superposés) et la fenêtre prend la taille du contenu (bord bas fixe ; 560 × 640 au plus).
+- Sans option, un panneau laisse passer les clics et ne prend jamais le clavier (indicateur, mini-timer, message bref). `interactive` : il a des boutons ; la fenêtre prend la souris sans s'activer. `focus` : il a un champ de texte (barre écrite) ; la fenêtre prend le clavier jusqu'à la disparition du panneau, puis le rend à l'application en dessous. Réserver `focus` à un geste explicite de l'utilisateur (raccourci).
+- Petit, couleurs et arrondis du thème, composants partagés (`Button`…). Un message bref (« Pause — 5 min ») reste ~5 s ; le module garde la fenêtre demandée pendant ce temps.
+- La fenêtre **propose, n'agit pas seule** : un bouton y appelle les mêmes routes que la page, avec les mêmes règles (« Contrôle et sécurité »). Ce qui modifie s'y confirme à l'écran (message bref). Chaque élément a son réglage pour ne pas s'afficher.
 
 ## 6. Migrations et sécurité des données
 
@@ -439,12 +446,12 @@ export default defineFrontendModule({
   nav: { label: 'Bibliothèque' }, // défaut : manifest.name ; hidden: true pour masquer
   HomeWidget, // facultatif : contenu de la carte d'accueil
   Background, // facultatif : composant invisible monté toute la session (micro, lecture audio)
-  Overlay, // facultatif : contenu de l'indicateur flottant (ctx.ui.setOverlay)
+  Overlay, // facultatif : panneaux de la fenêtre flottante (ctx.ui.setOverlay, §5.16)
 });
 ```
 
 - `Background` est monté une seule fois dans la fenêtre principale, même page du module fermée, fenêtre réduite ou dans la zone de notification (la fenêtre ne ralentit pas en arrière-plan). Il ne rend rien ; une erreur n'affiche rien et ne touche pas le reste.
-- `Overlay` est rendu dans la fenêtre de l'indicateur (route `#/overlay`, fond transparent) : petit, couleurs du thème, `null` quand il n'y a rien à montrer.
+- `Overlay` est rendu dans la fenêtre flottante (route `#/overlay`, fond transparent) : un ou plusieurs `FloatingPanel` (§5.16), `null` quand il n'y a rien à montrer.
 - Le micro : seule permission matérielle accordée à l'interface (`getUserMedia({ audio: true })`) ; caméra et écran sont refusés.
 
 - Le shell n'affiche un module que si le backend l'a chargé (`GET /api/core/modules` fait foi). Un module en erreur apparaît sur l'accueil avec son état et renvoie vers Réglages.

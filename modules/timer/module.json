@@ -42,6 +42,20 @@
       "label": "Mini-timer flottant",
       "description": "Petit indicateur toujours visible (même app réduite) avec le temps restant et la phase, pendant une session.",
       "default": true
+    },
+    {
+      "key": "overlayQuestion",
+      "type": "boolean",
+      "label": "« Tâche terminée ? » dans la fenêtre flottante",
+      "description": "À la fin d'une session, la question s'affiche par-dessus l'application en cours (sans ouvrir ToolBox). Rien n'est coché sans ton clic sur « Oui, la cocher ».",
+      "default": true
+    },
+    {
+      "key": "overlayTransitions",
+      "type": "boolean",
+      "label": "Changements de phase dans la fenêtre flottante",
+      "description": "Affiche quelques secondes « Pause — 5 min » ou « Au travail — 8 min », en plus de la notification.",
+      "default": true
     }
   ]
 }

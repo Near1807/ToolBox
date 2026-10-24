@@ -11,18 +11,24 @@ Un timer pour se mettre au travail : **timer simple**, **sessions avec pauses** 
 - **Préréglages** enregistrables (« Enregistrer comme préréglage… »), lancés d'un clic, modifiables, supprimables (avec confirmation). Livrés : « Pomodoro classique 25/5 » (4 cycles, pause longue de 15 min tous les 4) et « Démarrage doux 2 h » (5 min +3 min, plafond 25, pause 5, 2 h).
 - **Tâche de la To-do** (facultatif) : choisie dans la page, ou bouton ⏱ « Lancer un timer » sur la tâche dans la To-do. À la fin : notification, son, et **« Tâche terminée ? »** : « Oui, la cocher » coche la tâche (ton clic) ; « Non » propose de relancer une session (même programme ou autre durée) ou « Plus tard ».
 - **Toujours juste** : le temps est calculé depuis l'heure réelle (début, pauses), jamais par un compteur. Il continue si tu changes de page, et reprend correctement au relancement si l'app était fermée (une session finie pendant la fermeture attend sa question).
-- **Mini-timer flottant** (indicateur flottant du socle, toujours au premier plan, même app réduite) : phase et temps restant. Désactivable.
+- **Fenêtre flottante** (celle du socle, partagée, MODULES.md §5.16 ; par-dessus l'application en cours, ToolBox réduite) : `frontend/Floating.tsx`.
+  - mini-timer : phase et temps restant ;
+  - changements de phase quelques secondes : « Pause — 5 min », « Au travail — 8 min » (en plus de la notification) ;
+  - à la fin, **« Tâche terminée : [titre] ? »** avec « Oui, la cocher » / « Non » : mêmes effets que sur la page (« Oui » coche par le service `todo`, sur ton clic, puis « Tâche cochée dans la To-do : … » s'affiche) ; « Non » → « Relancer (même programme) » / « Plus tard ». La question reste aussi sur la page du Timer tant qu'elle n'a pas de réponse ; après « Non », « Relancer » est proposé aux deux endroits (gardé en mémoire jusqu'à « Plus tard » ; un redémarrage de l'app vaut « Plus tard »). Sans tâche : « Session terminée » avec « Relancer » / « Fermer ».
+  - Chaque élément a son réglage.
 - **Historique** : date, session, tâche, travail fait (et prévu si arrêtée), terminée ou arrêtée, réponse à « Tâche terminée ? » ; **temps passé par tâche** (aussi sur la tâche dans la To-do).
 - **Accueil** : la session en cours (phase, temps restant), sinon des boutons de lancement rapide (15, 25, 45 min et les deux premiers préréglages).
 
 ## Réglages
 
-| Réglage   | Défaut       | Effet                                                                |
-| --------- | ------------ | -------------------------------------------------------------------- |
-| `sound`   | Cloche douce | Son à chaque changement de phase et à la fin : cloche, bips ou aucun |
-| `volume`  | 70 %         | Volume de ce son                                                     |
-| `notify`  | oui          | Notification Windows à chaque changement de phase                    |
-| `overlay` | oui          | Mini-timer flottant pendant une session                              |
+| Réglage              | Défaut       | Effet                                                                                       |
+| -------------------- | ------------ | ------------------------------------------------------------------------------------------- |
+| `sound`              | Cloche douce | Son à chaque changement de phase et à la fin : cloche, bips ou aucun                        |
+| `volume`             | 70 %         | Volume de ce son                                                                            |
+| `notify`             | oui          | Notification Windows à chaque changement de phase                                           |
+| `overlay`            | oui          | Mini-timer flottant pendant une session                                                     |
+| `overlayQuestion`    | oui          | « Tâche terminée ? » et « Relancer » dans la fenêtre flottante (rien n'est coché sans clic) |
+| `overlayTransitions` | oui          | Changements de phase affichés ~5 s dans la fenêtre flottante                                |
 
 ## Assistant (actions, MODULES.md §5.15)
 

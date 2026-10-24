@@ -1,12 +1,13 @@
 // Frontend of the Timer: its page, the sound of the transitions (Background,
-// mounted for the whole session), the mini-timer of the floating indicator
-// and the home widget (session in progress, or quick start).
+// mounted for the whole session), its panels of the floating window
+// (Floating.tsx) and the home widget (session in progress, or quick start).
 import { Link } from 'react-router';
 import { api, Button, defineFrontendModule, useApi, useModule } from '@hub/sdk/frontend';
-import { clock, PHASE_LABELS } from '../shared/plan';
+import { clock, phaseLabel } from '../shared/plan';
 import type { StateDto } from '../shared/types';
 import { useLiveSession } from './live';
 import { playSound } from './sound';
+import { Overlay } from './Floating';
 import { TimerPage } from './TimerPage';
 import './timer.css';
 
@@ -14,27 +15,6 @@ import './timer.css';
 function Background() {
   useLiveSession((event) => playSound(event.sound, event.volume));
   return null;
-}
-
-/** The mini-timer: phase and time left, always visible during a session. */
-function Overlay() {
-  const { session, state } = useLiveSession();
-  if (!session || !state) return null;
-  const phase = state.phase;
-  const tone = !phase ? 'end' : phase.kind === 'work' ? 'work' : 'break';
-  return (
-    <div className={`tm-hud tm-hud--${tone}`} role="status">
-      <span className="tm-hud__dot" aria-hidden />
-      <span className="tm-hud__phase">
-        {session.status === 'ended'
-          ? 'Terminé'
-          : session.status === 'paused'
-            ? 'En pause'
-            : PHASE_LABELS[phase!.kind]}
-      </span>
-      {session.status !== 'ended' && <span className="tm-hud__time">{clock(state.remaining)}</span>}
-    </div>
-  );
 }
 
 function HomeWidget() {
@@ -47,7 +27,7 @@ function HomeWidget() {
         <Link to={module.path()}>
           {session.status === 'ended'
             ? `${session.name} : terminé`
-            : `${session.status === 'paused' ? 'En pause' : PHASE_LABELS[state.phase!.kind]} · ${clock(state.remaining)}`}
+            : `${phaseLabel(session.status, state.phase)} · ${clock(state.remaining)}`}
         </Link>
         {session.taskTitle && <span className="small muted"> · {session.taskTitle}</span>}
       </p>

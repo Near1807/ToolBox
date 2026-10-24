@@ -324,3 +324,33 @@
 .tm-form label {
   white-space: nowrap;
 }
+
+/* Floating window: the question at the end, the phase changes (MODULES.md §5.16). */
+.tm-hud__label {
+  font-weight: 600;
+}
+.tm-float {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 480px;
+  padding: 12px 16px;
+  border-radius: var(--radius-lg);
+  background: var(--surface-solid);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow);
+  color: var(--text);
+}
+.tm-float__question {
+  margin: 0;
+}
+.tm-float__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.tm-float__error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 0.85rem;
+}

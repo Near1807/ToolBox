@@ -54,3 +54,4 @@ Modèle :
 | 0033 | [Stats YouTube : deux sources dites, l'API avant le CSV, imports supprimables](0033-stats-youtube-sources-et-imports.md)             |
 | 0034 | [Analyse du master : mesures vérifiées contre ebur128, cache par contenu, intégrations facultatives](0034-analyse-du-master.md)      |
 | 0035 | [Timer : temps tiré de l'heure réelle, une seule session, To-do facultative](0035-timer.md)                                          |
+| 0036 | [Une seule fenêtre flottante, partagée, à panneaux empilés](0036-fenetre-flottante-partagee.md)                                      |

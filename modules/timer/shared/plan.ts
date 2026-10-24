@@ -246,3 +246,13 @@ export const PHASE_LABELS: Record<PhaseKind, string> = {
   break: 'Pause',
   'long-break': 'Pause longue',
 };
+
+/**
+ * The phase as the mini-timer and the home widget say it. The clock can pass
+ * the end a moment before the backend marks the session ended: no phase then.
+ */
+export function phaseLabel(status: 'running' | 'paused' | 'ended', phase: Phase | null): string {
+  if (status === 'ended' || !phase) return 'Terminé';
+  if (status === 'paused') return 'En pause';
+  return PHASE_LABELS[phase.kind];
+}

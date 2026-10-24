@@ -38,6 +38,9 @@ import type {
   SessionStatus,
   StateDto,
   TransitionEvent,
+  FloatingDto,
+  LiveDto,
+  ToastEvent,
 } from '../shared/types';
 import {
   extractPause,
@@ -82,6 +85,8 @@ interface SessionRow {
 const ACTIVE = "('running', 'paused', 'ended')";
 /** A transition announced more than this late (app closed meanwhile) is not notified. */
 const LATE_NOTIFY_MS = 60_000;
+/** How long a phase change stays in the floating window. */
+const TOAST_MS = 5_000;
 const MAX_HISTORY = 50;
 const DEFAULT_PRESETS: { name: string; config: PlanConfig }[] = [
   {
@@ -157,6 +162,15 @@ export default defineBackendModule({
     const todo = () => ctx.services.optional<TodoService>('todo');
     const streams = new Set<EventStream>();
     let timeout: ReturnType<typeof setTimeout> | null = null;
+    /**
+     * After « Non » to « Tâche terminée ? »: « Relancer (même programme) » or
+     * « Plus tard » waits on the page and in the floating window (memory only:
+     * a restart of the app counts as « Plus tard »).
+     */
+    let followUp: SessionDto | null = null;
+    /** A phase change shown briefly in the floating window, until this time. */
+    let toastUntil = 0;
+    let toastTimer: ReturnType<typeof setTimeout> | null = null;
 
     const setting = <T extends SettingValue>(key: string, fallback: T): T =>
       ctx.settings.get<T>(key) ?? fallback;
@@ -235,13 +249,48 @@ export default defineBackendModule({
     const broadcast = (event: string, data: unknown) => {
       for (const stream of streams) stream.send(event, data);
     };
-    const publish = () => {
+    /** What the floating window shows (settings of the module). */
+    const floating = (): FloatingDto => ({
+      timer: setting<boolean>('overlay', true),
+      question: setting<boolean>('overlayQuestion', true),
+      transitions: setting<boolean>('overlayTransitions', true),
+    });
+    const liveDto = (): LiveDto => {
       const row = active();
-      broadcast('session', { session: row ? sessionDto(row) : null });
-      ctx.ui.setOverlay(Boolean(row) && setting<boolean>('overlay', true));
+      return { session: row ? sessionDto(row) : null, followUp, floating: floating() };
     };
-    const announce = (kind: TransitionEvent['kind']) =>
+    /** The floating window is asked for while it has something to show. */
+    const overlayWanted = () => {
+      const row = active();
+      const f = floating();
+      if (Date.now() < toastUntil) return true;
+      if (followUp) return f.question;
+      if (!row) return false;
+      return f.timer || (row.status === 'ended' && f.question);
+    };
+    const publish = () => {
+      broadcast('session', liveDto());
+      ctx.ui.setOverlay(overlayWanted());
+    };
+    /** A short message shown a few seconds in the floating window (and on the page). */
+    const toast = (label: string, tone: ToastEvent['tone']) => {
+      broadcast('toast', { label, tone } satisfies ToastEvent);
+      toastUntil = Date.now() + TOAST_MS;
+      if (toastTimer) clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        toastTimer = null;
+        publish();
+      }, TOAST_MS + 100);
+    };
+    const announce = (kind: TransitionEvent['kind'], seconds: number | null = null) => {
       broadcast('transition', { kind, sound: sound(), volume: volume() } satisfies TransitionEvent);
+      // The end has its own question; the phase changes are shown if wanted.
+      if (kind !== null && floating().transitions)
+        toast(
+          `${kind === 'work' ? 'Au travail' : PHASE_LABELS[kind]} — ${duration(seconds ?? 0)}`,
+          kind === 'work' ? 'work' : 'break',
+        );
+    };
     const notify = (title: string, body: string) => {
       if (setting<boolean>('notify', true)) ctx.notifications.notify({ title, body, path: '' });
     };
@@ -295,7 +344,7 @@ export default defineBackendModule({
         set(row.id, { last_index: state.index });
         const lateMs = (elapsed - (phaseEnd(phases, state.index - 1) || 0)) * 1000;
         if (lateMs <= LATE_NOTIFY_MS || announceLate) {
-          announce(state.phase!.kind);
+          announce(state.phase!.kind, state.phase!.seconds);
           const work = phases.slice(0, state.index + 1).filter((p) => p.kind === 'work').length;
           notify(
             state.phase!.kind === 'work'
@@ -344,6 +393,7 @@ export default defineBackendModule({
       if (running && running.status !== 'ended')
         throw new HttpError(409, 'Un timer est déjà en cours : arrête-le d’abord.');
       dismissEnded();
+      followUp = null;
       let normal: PlanConfig;
       let phases: Phase[];
       try {
@@ -433,9 +483,15 @@ export default defineBackendModule({
     // Resume after a restart: catch up with the real time (transitions missed
     // while the app was closed are not notified).
     tick();
-    if (active()) ctx.ui.setOverlay(setting<boolean>('overlay', true));
+    if (active()) ctx.ui.setOverlay(overlayWanted());
+    // A switch of the floating window changed: shown or hidden at once.
+    const offSettings = ctx.settings.onChange((key) => {
+      if (key.startsWith('overlay')) publish();
+    });
     ctx.onShutdown(() => {
       if (timeout) clearTimeout(timeout);
+      if (toastTimer) clearTimeout(toastTimer);
+      offSettings();
       for (const stream of streams) stream.close();
     });
 
@@ -454,9 +510,8 @@ export default defineBackendModule({
           `SELECT task_id, MAX(task_title) AS title, SUM(work_sec) AS seconds FROM ${sessions} WHERE task_id IS NOT NULL AND work_sec IS NOT NULL GROUP BY task_id ORDER BY seconds DESC`,
         )
         .all() as { task_id: number; title: string; seconds: number }[];
-      const row = active();
       return {
-        session: row ? sessionDto(row) : null,
+        ...liveDto(),
         presets: presetList(),
         todo: Boolean(service),
         tasks: service?.listOpenTasks().map((t) => ({ id: t.id, title: t.title })) ?? [],
@@ -508,12 +563,16 @@ export default defineBackendModule({
         }
       }
       set(row.id, { status: 'done', answer: done ? 'yes' : 'no' });
+      // « Non »: the task is not finished, « Relancer » is offered.
+      followUp = !done && row.task_id !== null ? sessionDto(row) : null;
+      if (ticked) toast(`Tâche cochée dans la To-do : ${row.task_title ?? ''}`, 'done');
       publish();
       return { ok: true, ticked };
     });
     /** « Plus tard » / « Fermer »: the ended session goes to the history without answer. */
     ctx.routes.post('/dismiss', () => {
       dismissEnded();
+      followUp = null;
       publish();
       return { ok: true };
     });
@@ -546,8 +605,7 @@ export default defineBackendModule({
         const stream = openEventStream(request, reply);
         streams.add(stream);
         stream.onClose(() => streams.delete(stream));
-        const row = active();
-        stream.send('session', { session: row ? sessionDto(row) : null });
+        stream.send('session', liveDto());
       },
       { streamTicket: true },
     );
