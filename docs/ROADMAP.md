@@ -24,6 +24,7 @@ Légende : ✅ fait · 🚧 en cours · ⏳ prévu
 | 5 bis       | **Outils : To-do et Assistant vocal V1** (section Outils) : To-do (tags, échéances en langage naturel, morceau facultatif, « Annuler ») ; assistant 100 % local (whisper.cpp, Ollama, Piper), talkie-walkie (touche Copilot par défaut), indicateur flottant ; socle `ctx.assistant` (chaque module expose ses actions, niveaux de risque), `ctx.hotkeys`, `ctx.ui` ; actions de lecture dans les modules Musique ; ADR 0028–0029                                                                                                              | ✅ (v0.16.0) |
 | 5 ter       | **Assistant : commandes standardisées et contrôle** : commandes reconnues sans IA (phrases d'exemple + extracteurs en code des modules, petit modèle d'embeddings local, seuil strict), interrupteur « IA » désactivé par défaut, dictionnaire modifiable (page Commandes, tester une phrase, conflits, « C'était… », export / import), droits de modification un par un (désactivés par défaut), IA simplifiée et instructions modifiables ; quota YouTube : les envois du Planning passent avant les Stats ; ADR 0030–0031                   | ✅ (v0.17.0) |
 | 5 quater    | **Analyse du master** (module `master-analysis`, sans modifier l'audio : sonie, crêtes, bandes, stéréo, sections, versions, références, dossier surveillé désactivé, vérification rapide non bloquante avant les générations) ; **Stats YouTube fiables** (en direct / consolidé, API avant CSV, imports supprimables, diagnostic, synchro 4× plus rapide) ; **assistant** (mots attendus, corrections, surnoms, noms au son, « Tu voulais dire », semaine du calendrier, « ouvre l'application ») ; sauvegarde allégée ; ADR 0032–0034        | ✅ (v0.18.0) |
+| 5 quinquies | **Nettoyage et audit** (code mort, robustesse de l'Analyse du master, test instable, docs, dépendances) ; écoute A/B qui ne monte jamais le volume ; sauvegardes avant migration et avant suppression en rotations séparées ; vérification des Reels perso selon le mode de son ; **guide intégré de l'Analyse du master** (page séparée, recherche, « ? », captures annotées) et règle du guide pour les modules complexes                                                                                                                    | ✅ (v0.19.0) |
 | 6           | Finitions, test du `.exe` installé, doc complète, v1.0.0                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | ⏳           |
 
 ## Maintenance décidée (audit v0.14.1)
@@ -32,6 +33,12 @@ Légende : ✅ fait · 🚧 en cours · ⏳ prévu
 
 - **electron-builder** (outil de fabrication de l'installateur, rien d'embarqué dans l'app ; 26.15.3 installé, 26.18 disponible) : les vulnérabilités « modérées » signalées en v0.14.1 ont disparu de `npm audit` (0 en v0.19.0, après correctifs des dépendances transitives) ; la mise à jour reste à faire dans une session dédiée, avec un test d'installation du `.exe` sur Windows.
 - **Versions majeures**, une à la fois, avec rendus de référence et captures avant / après : Electron 45, react-router 8, TypeScript 7 (quand typescript-eslint le prendra en charge), `@types/node` 26 ; aussi `@napi-rs/canvas` 1.0.13 (rendu des Reels), polices `@fontsource` 5.3 et `lucide-react` 1.61 (interface).
+
+Proposé par l'audit v0.19.0 (à décider, une session chacun ; détail dans `docs/rapports/2026-10-24-v0.19.0.md`) :
+
+- Décodage et analyse audio communs (moteur vidéo, Pack Insta, Analyse du master) dans le SDK.
+- Composants de graphes communs (Stats YouTube, Analyse du master) dans le SDK.
+- Guide intégré pour les autres modules complexes (Stats YouTube, Assistant, Reels perso).
 
 Écarté (gain trop faible pour le risque) :
 
