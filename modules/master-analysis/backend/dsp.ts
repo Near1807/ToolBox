@@ -56,13 +56,6 @@ export function kWeighting(rate: number): [Biquad, Biquad] {
   return [shelf, highPass];
 }
 
-/** Loudness of a mean square (sum over channels, weights 1): -0.691 + 10·log10. */
-export const lufs = (power: number) => (power > 0 ? -0.691 + 10 * Math.log10(power) : -Infinity);
-
-export const db = (power: number) => (power > 0 ? 10 * Math.log10(power) : -Infinity);
-export const dbAmp = (amplitude: number) =>
-  amplitude > 0 ? 20 * Math.log10(amplitude) : -Infinity;
-
 /** Modified Bessel function of order 0 (Kaiser window). */
 function bessel0(x: number): number {
   let sum = 1;

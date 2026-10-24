@@ -24,7 +24,6 @@ import {
   anomalies as findAnomalies,
   bootstrapDiff,
   confidence,
-  dayDiff,
   evergreen,
   halfLife,
   holm,
@@ -753,9 +752,4 @@ export function runLab(data: Dataset): LabResult {
     sections: sectionStats,
     sectionTest,
   };
-}
-
-/** Days since a video was published, by its id (for the theories' wording). */
-export function ageDays(data: Dataset, video: StatVideo): number {
-  return dayDiff(youtubeDay(video.publishedAt), data.lastDay);
 }

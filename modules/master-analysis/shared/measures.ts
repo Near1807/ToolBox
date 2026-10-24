@@ -143,8 +143,6 @@ export const blocksOf = (start: number, end: number): [number, number] => [
   Math.round(end / BLOCK),
 ];
 
-export const durationOf = (a: Analysis) => a.blocks * BLOCK;
-
 /**
  * Markers of the timeline: true peak above `threshold` (dBTP), clipping,
  * phase problems (correlation below −0.2 for 300 ms with sound), silences

@@ -485,7 +485,7 @@ export default defineBackendModule({
       }
     });
 
-    const enqueueItem = (pack: PackRow, item: ItemRow, track: Track) => {
+    const enqueueItem = (item: ItemRow, track: Track) => {
       const job = ctx.jobs.enqueue(
         'render-item',
         { itemId: item.id },
@@ -685,7 +685,7 @@ export default defineBackendModule({
       const todo = store
         .listItems(pack.id)
         .filter((item) => ['draft', 'outdated', 'failed', 'missing'].includes(store.state(item)));
-      for (const item of todo) enqueueItem(pack, item, track);
+      for (const item of todo) enqueueItem(item, track);
       return { queued: todo.length, pack: packDto(store.pack(pack.id)!) };
     });
 
@@ -771,7 +771,7 @@ export default defineBackendModule({
       if (store.state(item) === 'rendering') throw new HttpError(409, 'Rendu déjà en cours');
       const { pack, track } = packOfItem(item);
       requireCover(track);
-      enqueueItem(pack, item, track);
+      enqueueItem(item, track);
       return itemDto(pack, store.item(item.id)!);
     });
 
@@ -933,9 +933,9 @@ export default defineBackendModule({
         const item = store.item(itemId);
         if (!item) throw new Error('Élément du pack introuvable');
         if (store.state(item) === 'rendering') throw new Error('Rendu déjà en cours');
-        const { pack, track } = packOfItem(item);
+        const { track } = packOfItem(item);
         if (!track.coverPath) throw new Error('Ce morceau n’a pas de cover');
-        return { jobId: enqueueItem(pack, item, track).id };
+        return { jobId: enqueueItem(item, track).id };
       },
     };
     ctx.services.provide(INSTAGRAM_PACK_SERVICE, service);
