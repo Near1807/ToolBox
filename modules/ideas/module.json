@@ -1,0 +1,19 @@
+{
+  "id": "ideas",
+  "name": "Boîte à idées",
+  "description": "Tes idées, notées vite : titre, texte libre facultatif, tags, morceau lié. Recherche, une idée au hasard, archives ; « Transformer en tâche » si la To-do est là.",
+  "version": "1.0.0",
+  "section": "Outils",
+  "icon": "💡",
+  "order": 15,
+  "dependsOn": { "optionalServices": ["musicLibrary", "todo"] },
+  "settings": [
+    {
+      "key": "homeWidget",
+      "type": "boolean",
+      "label": "Carte d'accueil",
+      "description": "Le nombre d'idées et les dernières notées, sur la page d'accueil.",
+      "default": true
+    }
+  ]
+}

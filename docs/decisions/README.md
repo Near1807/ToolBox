@@ -56,3 +56,4 @@ Modèle :
 | 0035 | [Timer : temps tiré de l'heure réelle, une seule session, To-do facultative](0035-timer.md)                                          |
 | 0036 | [Une seule fenêtre flottante, partagée, à panneaux empilés](0036-fenetre-flottante-partagee.md)                                      |
 | 0037 | [Barre de commande écrite de l'assistant : même chemin que la voix, touche partagée possible](0037-barre-de-commande-ecrite.md)      |
+| 0038 | [Boîte à idées : un module à part, pas une variante de la To-do](0038-boite-a-idees.md)                                              |

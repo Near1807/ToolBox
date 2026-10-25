@@ -20,4 +20,16 @@ export interface TodoService {
    * calling module (e.g. « Tâche terminée ? » → « Oui » of the Timer).
    */
   completeTask(id: number): TodoTask;
+  /**
+   * Adds a task (tags cleaned, due date « YYYY-MM-DD » or natural French).
+   * Only on an explicit click of the user in the calling module (e.g.
+   * « Transformer en tâche » of the Boîte à idées). `trackId`: a track of
+   * the library, ignored when the library is absent.
+   */
+  createTask(fields: {
+    title: string;
+    tags?: string[];
+    due?: string | null;
+    trackId?: number | null;
+  }): TodoTask;
 }
