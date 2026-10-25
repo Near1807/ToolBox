@@ -54,9 +54,10 @@ export function TimerPage() {
     name: string;
     taskId: number | null;
   } | null>(null);
-  const [followUp, setFollowUp] = useState<SessionDto | null>(null);
   const s = data.data;
   const session = live.connected ? live.session : (s?.session ?? null);
+  // After « Non » (here or in the floating window): « Relancer » until « Plus tard ».
+  const followUp = live.followUp;
   const run = async (action: () => Promise<unknown>) => {
     setError(null);
     try {
@@ -90,7 +91,6 @@ export function TimerPage() {
           session={session}
           todo={s?.todo ?? false}
           run={run}
-          onDeclined={() => setFollowUp(session)}
           onRestart={(config, name) => void start(config, name, session.taskId)}
         />
       )}
@@ -100,11 +100,8 @@ export function TimerPage() {
           <Restart
             session={followUp}
             withTask
-            onRestart={(config, name) => {
-              setFollowUp(null);
-              void start(config, name, followUp.taskId);
-            }}
-            onLater={() => setFollowUp(null)}
+            onRestart={(config, name) => void start(config, name, followUp.taskId)}
+            onLater={() => void run(() => module.api.post('/dismiss'))}
           />
         </Card>
       )}
@@ -228,7 +225,6 @@ function Ended(props: {
   session: SessionDto;
   todo: boolean;
   run: (action: () => Promise<unknown>) => Promise<void>;
-  onDeclined: () => void;
   onRestart: (config: PlanConfig, name: string | null) => void;
 }) {
   const module = useModule();
@@ -259,10 +255,7 @@ function Ended(props: {
                 </Button>
                 <Button
                   variant="secondary"
-                  onClick={() => {
-                    props.onDeclined();
-                    void props.run(() => module.api.post('/answer', { done: false }));
-                  }}
+                  onClick={() => void props.run(() => module.api.post('/answer', { done: false }))}
                 >
                   Non
                 </Button>
@@ -283,7 +276,7 @@ function Ended(props: {
 }
 
 /** « Relancer une session » : same program, another length, or later. */
-function Restart(props: {
+export function Restart(props: {
   session: SessionDto;
   withTask: boolean;
   onRestart: (config: PlanConfig, name: string | null) => void;

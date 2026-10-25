@@ -440,3 +440,37 @@
     animation: none !important;
   }
 }
+
+/* The written command bar (floating window, MODULES.md §5.16). */
+.as-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 480px;
+  max-width: 100%;
+  padding: 12px;
+  border-radius: var(--radius-lg);
+  background: var(--surface-solid);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow);
+  color: var(--text);
+  font-family: var(--font-sans);
+}
+.as-bar__input {
+  width: 100%;
+  font-size: 1rem;
+}
+.as-bar__answer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.as-bar__line {
+  margin: 0;
+  font-size: 0.9rem;
+}
+.as-bar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

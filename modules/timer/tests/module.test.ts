@@ -10,12 +10,17 @@ import type { StateDto } from '../shared/types';
 const MODULES = path.resolve(__dirname, '..', '..');
 const API = '/api/modules/timer';
 
-async function open(options: { todo?: boolean; dataDir?: string; notes?: string[] } = {}) {
+async function open(
+  options: { todo?: boolean; dataDir?: string; notes?: string[]; overlay?: boolean[] } = {},
+) {
   const ids = options.todo === false ? ['timer'] : ['todo', 'timer'];
   return createTestHub({
     modules: await Promise.all(ids.map((id) => loadModuleFolder(path.join(MODULES, id)))),
     dataDir: options.dataDir,
-    host: createTestHost({ notify: (n) => options.notes?.push(n.title) }),
+    host: createTestHost({
+      notify: (n) => options.notes?.push(n.title),
+      setOverlayVisible: (visible) => options.overlay?.push(visible),
+    }),
   });
 }
 
@@ -182,6 +187,72 @@ describe('timer', () => {
     ).body;
     expect(tasks.tasks[0]!.done).toBe(false);
     expect((await state()).history[0]).toMatchObject({ taskDone: false });
+  });
+
+  it('floating window: the question waits there, « Non » offers « Relancer », « Plus tard » closes', async () => {
+    const overlay: boolean[] = [];
+    hub = await open({ overlay });
+    const task = (
+      await hub.request<{ id: number }>('POST', '/api/modules/todo/tasks', { title: 'Mix' })
+    ).body;
+    // Mini-timer off: the window is asked for by the question only.
+    await hub.request('PUT', '/api/core/settings/timer', { overlay: false });
+    await hub.request('POST', `${API}/start`, {
+      config: { mode: 'simple', workMin: 5 },
+      taskId: task.id,
+    });
+    expect(overlay.at(-1) ?? false).toBe(false);
+    ago(hub.dataDir, 6 * 60);
+    const ended = await state();
+    expect(ended.session).toMatchObject({ status: 'ended', taskTitle: 'Mix' });
+    expect(ended.floating).toEqual({ timer: false, question: true, transitions: true });
+    expect(overlay.at(-1)).toBe(true);
+    // « Non »: nothing ticked, the session to restart waits (page and window).
+    await hub.request('POST', `${API}/answer`, { done: false });
+    const declined = await state();
+    expect(declined.session).toBeNull();
+    expect(declined.followUp).toMatchObject({ taskTitle: 'Mix' });
+    expect(overlay.at(-1)).toBe(true);
+    // « Relancer (même programme) » = the same /start, which clears it.
+    await hub.request('POST', `${API}/start`, {
+      config: declined.followUp!.config,
+      name: declined.followUp!.name,
+      taskId: declined.followUp!.taskId,
+    });
+    expect((await state()).followUp).toBeNull();
+    ago(hub.dataDir, 6 * 60);
+    expect((await state()).session!.status).toBe('ended');
+    await hub.request('POST', `${API}/answer`, { done: false });
+    // « Plus tard »: closed, the window is no longer asked for (mini-timer off).
+    await hub.request('POST', `${API}/dismiss`);
+    expect((await state()).followUp).toBeNull();
+    expect(overlay.at(-1)).toBe(false);
+    const tasks = (
+      await hub.request<{ tasks: { done: boolean }[] }>('GET', '/api/modules/todo/tasks')
+    ).body;
+    expect(tasks.tasks[0]!.done).toBe(false);
+  });
+
+  it('floating window: off by setting, and phase changes shown briefly', async () => {
+    const overlay: boolean[] = [];
+    hub = await open({ overlay });
+    await hub.request('PUT', '/api/core/settings/timer', {
+      overlay: false,
+      overlayQuestion: false,
+      overlayTransitions: false,
+    });
+    await hub.request('POST', `${API}/start`, {
+      config: { mode: 'pomodoro', workMin: 1, breakMin: 1, cycles: 2 },
+    });
+    ago(hub.dataDir, 61);
+    await state();
+    // Everything off: the window is never asked for.
+    expect(overlay.filter(Boolean)).toEqual([]);
+    await hub.request('PUT', '/api/core/settings/timer', { overlayTransitions: true });
+    await hub.request('POST', `${API}/skip`);
+    await state();
+    // « Au travail — 1 min » for a few seconds: the window is asked for.
+    expect(overlay.at(-1)).toBe(true);
   });
 
   it('works without the To-do: nothing blocked, no task to link', async () => {

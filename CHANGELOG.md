@@ -4,6 +4,32 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.21.0] — 2026-10-24
+
+Quatre chantiers : les exports de l'Analyse du master (et le bouton « Exporter en HTML » qui ne donnait rien), la barre de commande écrite de l'assistant, la Boîte à idées, et le Timer qui pose « Tâche terminée ? » sans ouvrir l'app. Un seul système de fenêtre flottante pour tout.
+
+### Ajouté
+
+- **Analyse du master, exports** (ligne « Exporter » sous les chiffres clés, version comparée et profil de références au choix ; aucune mesure ne change) :
+  - « Exporter le rapport (HTML)… » : un seul fichier, ouvrable partout, imprimable en PDF ; tous les chiffres en texte et tableaux (mesures, plateformes, sections et contrastes, repères regroupés en zones et liste complète en annexe, écarts entre versions et avec les références) ; graphes en images PNG intégrées (ligne de temps, spectrogramme, équilibre tonal, stéréo/mono, contrastes, versions) ; aucune interprétation ;
+  - « Copier le résumé » : Markdown compact avec tous les chiffres clés ;
+  - « Exporter les données complètes… » : zip `courbes.csv` (une ligne par 100 ms) + `analyse.json` ;
+  - via « Enregistrer sous », dans le dossier de ton choix (socle : `ctx.files.saveAs`).
+- **Assistant, barre de commande écrite** (désactivée tant qu'aucune touche n'est choisie) : par-dessus l'application en cours, sans afficher ToolBox ; Entrée envoie, Échap ferme ; même chemin que la voix (corrections, commandes, IA si activée, mêmes droits et confirmations, « Tu voulais dire … ? » et « Annuler » dans la barre) ; réponse affichée, lue à voix haute seulement avec le réglage (désactivé) ; déclencheur « Double appui » (délai réglable) ou « Appui simple », touche ou combinaison au choix, la même que le micro possible (avertissement en appui simple). ADR 0037.
+- **Boîte à idées** (nouveau module, section Outils) : titre, texte en mise en forme simple, tags (suggestions, filtre multi-tags, couleurs, renommer, fusionner), morceau facultatif ; recherche sans accents, tri, « Une idée au hasard », archives, suppression avec « Annuler » ; « Transformer en tâche » si la To-do est là ; export Markdown ; carte d'accueil ; assistant : « idée : … #tag », « montre mes idées », « une idée au hasard » (ajout derrière le droit « L'assistant peut ajouter des idées », désactivé). ADR 0038.
+- **Timer dans la fenêtre flottante** : « Tâche terminée : [titre] ? » avec « Oui, la cocher » / « Non » puis « Relancer (même programme) » / « Plus tard », sans ouvrir l'app (la question reste aussi sur la page) ; « Pause — 5 min » / « Au travail — 8 min » quelques secondes ; chaque élément désactivable.
+- **Socle** : une seule fenêtre flottante partagée, panneaux empilés sans chevauchement (`FloatingPanel` : clics, clavier seulement pour un champ de texte) (ADR 0036) ; `ctx.hotkeys` : combinaisons de touches et plusieurs touches par module ; `ctx.files.saveAs` ; service `todo` : `createTask`.
+
+### Modifié
+
+- Reconnaissance des commandes : un tag écrit « #tag » est traité comme « avec le tag … » (« ajoute une tâche finir le mix #studio vendredi » est mieux reconnue).
+- La To-do ne prend plus « note une idée … » pour une tâche.
+
+### Corrigé
+
+- **Analyse du master** : « Exporter (HTML) » écrivait le rapport dans le dossier de sortie sans rien montrer (ni boîte, ni message, ni fichier ouvert). Il passe maintenant par « Enregistrer sous » et affiche le chemin.
+- **Timer** : le mini-timer plantait quand l'horloge passait la fin d'une session un instant avant le backend, et restait vide ensuite (aussi sur la carte d'accueil).
+
 ## [0.20.0] — 2026-10-24
 
 L'Analyse du master devient lisible d'un coup d'œil (mêmes mesures, au chiffre près), et un nouvel outil : le Timer, avec le pomodoro incrémental pour briser la barrière du démarrage.

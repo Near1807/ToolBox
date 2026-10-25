@@ -402,6 +402,53 @@ describe('ctx.hotkeys', () => {
     expect(events).toEqual([]);
   });
 
+  it('combinations: captured with the modifiers held, fired only with them', async () => {
+    const { host, keyboard } = fakeKeyboard();
+    const { ctx } = await start(host);
+    // Ctrl (29) + Space (57).
+    const captured = ctx.hotkeys.capture(1000);
+    keyboard.press(29);
+    keyboard.press(57);
+    expect(await captured).toEqual({
+      code: 57,
+      label: 'Ctrl + Touche 57',
+      modifiers: ['ctrl'],
+    });
+    keyboard.release(57);
+    keyboard.release(29);
+    // A modifier alone: pressed and released.
+    const alone = ctx.hotkeys.capture(1000);
+    keyboard.press(3613);
+    keyboard.release(3613);
+    expect(await alone).toEqual({ code: 3613, label: 'Touche 3613' });
+    const events: string[] = [];
+    ctx.hotkeys.hold(
+      { code: 57, label: 'Ctrl + Espace', modifiers: ['ctrl'] },
+      { onPress: () => events.push('bar'), onRelease() {} },
+      'bar',
+    );
+    // Several bindings of the same module, by name.
+    ctx.hotkeys.hold(
+      { code: 106, label: 'Touche Copilot' },
+      { onPress: () => events.push('mic'), onRelease() {} },
+      'mic',
+    );
+    keyboard.press(57); // Space alone: nothing
+    keyboard.release(57);
+    keyboard.press(3613); // right Ctrl counts as Ctrl
+    keyboard.press(57);
+    keyboard.release(57);
+    keyboard.release(3613);
+    keyboard.press(42); // Shift + Copilot: a single key fires whatever is held
+    keyboard.press(106);
+    keyboard.release(106);
+    keyboard.release(42);
+    expect(events).toEqual(['bar', 'mic']);
+    ctx.hotkeys.hold(null, { onPress() {}, onRelease() {} }, 'bar');
+    ctx.hotkeys.hold(null, { onPress() {}, onRelease() {} }, 'mic');
+    expect(keyboard.running).toBe(false);
+  });
+
   it('is unavailable outside the desktop app', async () => {
     const { ctx } = await start();
     expect(ctx.hotkeys.status().available).toBe(false);

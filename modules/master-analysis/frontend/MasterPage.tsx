@@ -25,6 +25,7 @@ import { decodeAnalysis } from '../shared/codec';
 import { markers, measures } from '../shared/measures';
 import { fr } from '../shared/format';
 import type { Analysis, Section } from '../shared/types';
+import { Exports } from './Exports';
 import { Global } from './Global';
 import { Help, HelpHints, useGuidePath } from './guide/Help';
 import { KeyFigures } from './layout';
@@ -437,17 +438,6 @@ function Project(props: {
                         Relancer
                       </Button>
                     )}
-                    {v.status === 'done' && (
-                      <Button
-                        variant="secondary"
-                        small
-                        onClick={() =>
-                          void props.run(() => module.api.post(`/versions/${v.id}/export`))
-                        }
-                      >
-                        Exporter (HTML)
-                      </Button>
-                    )}
                     <Button
                       variant="danger"
                       small
@@ -547,6 +537,7 @@ function AnalysisView(props: {
           },
         ]}
       />
+      <Exports version={props.version} versions={props.versions} state={props.state} />
       <div className="toolbar ma-player">
         <audio ref={audio} src={props.version.audioUrl ?? undefined} controls preload="metadata" />
         <label className="small">

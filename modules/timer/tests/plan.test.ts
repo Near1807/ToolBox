@@ -8,6 +8,7 @@ import {
   incrementalWork,
   normaliseConfig,
   phaseEnd,
+  phaseLabel,
   stateAt,
   totalSeconds,
   workCount,
@@ -158,5 +159,18 @@ describe('formatting', () => {
     expect(duration(45)).toBe('45 s');
     expect(duration(27 * 60)).toBe('27 min');
     expect(duration(125 * 60)).toBe('2 h 05');
+  });
+});
+
+describe('phase label (mini-timer, home widget)', () => {
+  it('says « Terminé » when the clock passed the end before the backend did', () => {
+    const phases = buildPlan({ mode: 'simple', workMin: 1 });
+    // 61 s of a 60 s session, still « running » for a moment: no phase.
+    const state = stateAt(phases, 61);
+    expect(state.phase).toBeNull();
+    expect(phaseLabel('running', state.phase)).toBe('Terminé');
+    expect(phaseLabel('running', stateAt(phases, 10).phase)).toBe('Travail');
+    expect(phaseLabel('paused', stateAt(phases, 10).phase)).toBe('En pause');
+    expect(phaseLabel('ended', null)).toBe('Terminé');
   });
 });

@@ -51,3 +51,13 @@ describe('standardised commands of the To-do (parameters taken by code)', () => 
     expect(extractDelete('supprime')).toBeNull();
   });
 });
+
+describe('ideas are not tasks', () => {
+  it('« note une idée … » is left to the Boîte à idées', () => {
+    expect(extractAdd('note une idée faire un clip', '2026-10-24')).toBeNull();
+    expect(extractAdd('ajoute une nouvelle idée pochette', '2026-10-24')).toBeNull();
+    expect(extractAdd('note de rappeler Paul', '2026-10-24')).toMatchObject({
+      title: 'rappeler Paul',
+    });
+  });
+});

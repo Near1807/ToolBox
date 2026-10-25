@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { ModuleFiles } from '../../packages/sdk/backend';
 import type { HostAdapter } from './host';
@@ -41,6 +41,22 @@ export function createModuleFiles(options: {
       const dir = path.join(options.getOutputRoot(), options.moduleId);
       mkdirSync(dir, { recursive: true });
       return dir;
+    },
+    saveAs: async ({ title, defaultName, filters, data }) => {
+      // Characters Windows refuses in a file name (control characters included).
+      const safeName = [...defaultName]
+        .map((c) => (c.charCodeAt(0) < 32 || '<>:"/\\|?*'.includes(c) ? '_' : c))
+        .join('')
+        .slice(0, 150);
+      const target = await options.host.selectSaveFile({
+        title,
+        defaultPath: path.join(options.getOutputRoot(), safeName),
+        filters,
+      });
+      if (!target) return null;
+      mkdirSync(path.dirname(target), { recursive: true });
+      writeFileSync(target, data);
+      return target;
     },
     open: (target) => options.host.openPath(target),
     reveal: (target) => options.host.showItemInFolder(target),

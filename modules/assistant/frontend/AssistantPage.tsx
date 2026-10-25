@@ -260,7 +260,11 @@ function TurnView(props: { turn: TurnDto; latest: boolean; onChange: () => void 
     <li className="as-turn">
       <div className="as-turn__you">
         <span className="small muted">
-          {turn.source === 'voice' ? '🎙️ Tu as dit' : '⌨️ Tu as écrit'}
+          {turn.source === 'voice'
+            ? '🎙️ Tu as dit'
+            : turn.source === 'bar'
+              ? '⌨️ Écrit dans la barre'
+              : '⌨️ Tu as écrit'}
         </span>
         <p className="as-heard">{turn.heard}</p>
         {turn.rawHeard && (
@@ -893,6 +897,98 @@ function Setup(props: { status: StatusDto; reload: () => void }) {
             choisir une autre touche (Ctrl droit, F13…).
           </p>
         </details>
+      </Step>
+
+      <Step
+        ok={status.bar.key !== null}
+        title={`Barre de commande écrite : ${status.bar.key ? status.bar.key.label : 'désactivée (aucune touche)'}`}
+      >
+        <p className="small muted">
+          Une petite barre par-dessus l’application en cours, sans afficher ToolBox : tu écris la
+          commande, Entrée l’envoie, Échap ferme. Mêmes commandes, mêmes droits et mêmes
+          confirmations qu’à la voix ; la réponse s’affiche dans la barre.
+        </p>
+        {status.hotkey.available ? (
+          <>
+            <div className="as-row">
+              <Button
+                variant="secondary"
+                small
+                disabled={capturing}
+                onClick={() => {
+                  setCapturing(true);
+                  void act(() => module.api.post('/hotkey/capture', { target: 'bar' })).finally(
+                    () => setCapturing(false),
+                  );
+                }}
+              >
+                {capturing
+                  ? 'Appuie sur la touche ou la combinaison voulue…'
+                  : status.bar.key
+                    ? 'Changer la touche'
+                    : 'Choisir la touche'}
+              </Button>
+              {status.bar.key && (
+                <Button
+                  variant="secondary"
+                  small
+                  onClick={() => void act(() => module.api.post('/hotkey/clear-bar'))}
+                >
+                  Désactiver
+                </Button>
+              )}
+            </div>
+            <div className="as-row">
+              <label className="as-inline">
+                <input
+                  type="radio"
+                  name="bar-mode"
+                  checked={status.bar.mode === 'double'}
+                  onChange={() => void choose({ barMode: 'double' })}
+                />{' '}
+                Double appui
+              </label>
+              <label className="as-inline">
+                <input
+                  type="radio"
+                  name="bar-mode"
+                  checked={status.bar.mode === 'single'}
+                  onChange={() => void choose({ barMode: 'single' })}
+                />{' '}
+                Appui simple
+              </label>
+              {status.bar.mode === 'double' && (
+                <label className="as-inline">
+                  Délai du double appui{' '}
+                  <input
+                    type="range"
+                    min={150}
+                    max={1000}
+                    step={50}
+                    value={status.bar.doubleMs}
+                    onChange={(e) => void choose({ barDoubleMs: Number(e.target.value) })}
+                  />{' '}
+                  <span className="num">{status.bar.doubleMs} ms</span>
+                </label>
+              )}
+            </div>
+            {status.bar.conflict && (
+              <p className={`small ${status.bar.conflict.warning ? 'error' : 'muted'}`}>
+                {status.bar.conflict.text}
+              </p>
+            )}
+            <label className="as-inline">
+              <input
+                type="checkbox"
+                checked={status.bar.speak}
+                onChange={(e) => void choose({ speakTyped: e.target.checked })}
+              />{' '}
+              Lire aussi la réponse à voix haute
+            </label>
+          </>
+        ) : (
+          <p className="small">{status.hotkey.reason}</p>
+        )}
       </Step>
 
       <details className="as-advanced">

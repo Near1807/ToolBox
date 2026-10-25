@@ -1,0 +1,233 @@
+/* Boîte à idées: theme tokens only (docs/THEMES.md). */
+.ib-form {
+  display: grid;
+  gap: 8px;
+}
+.ib-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.ib-form__title {
+  flex: 1;
+  min-width: 220px;
+  font-size: 1rem;
+}
+.ib-form__body {
+  width: 100%;
+  resize: vertical;
+  font-family: var(--font-sans);
+}
+.ib-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 12px 0 8px;
+}
+.ib-search {
+  flex: 1;
+  min-width: 240px;
+}
+.ib-tags,
+.ib-suggest {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.ib-tags-input {
+  display: grid;
+  gap: 6px;
+}
+.ib-suggest {
+  font-size: 0.75rem;
+}
+.ib-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font: inherit;
+  font-size: 0.78rem;
+  line-height: 1.7;
+}
+button.ib-tag {
+  cursor: pointer;
+}
+button.ib-tag:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+.ib-tag--active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text);
+}
+.ib-tag__count {
+  color: var(--text-3);
+  font-size: 0.7rem;
+}
+.ib-tag__remove {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--text-3);
+  cursor: pointer;
+  font: inherit;
+}
+.ib-tag--c1 {
+  border-color: var(--series-1);
+  box-shadow: inset 3px 0 0 var(--series-1);
+}
+.ib-swatch.ib-tag--c1 {
+  background: var(--series-1);
+}
+.ib-tag--c2 {
+  border-color: var(--series-2);
+  box-shadow: inset 3px 0 0 var(--series-2);
+}
+.ib-swatch.ib-tag--c2 {
+  background: var(--series-2);
+}
+.ib-tag--c3 {
+  border-color: var(--series-3);
+  box-shadow: inset 3px 0 0 var(--series-3);
+}
+.ib-swatch.ib-tag--c3 {
+  background: var(--series-3);
+}
+.ib-tag--c4 {
+  border-color: var(--series-4);
+  box-shadow: inset 3px 0 0 var(--series-4);
+}
+.ib-swatch.ib-tag--c4 {
+  background: var(--series-4);
+}
+.ib-tag--c5 {
+  border-color: var(--series-5);
+  box-shadow: inset 3px 0 0 var(--series-5);
+}
+.ib-swatch.ib-tag--c5 {
+  background: var(--series-5);
+}
+.ib-tag--c6 {
+  border-color: var(--series-6);
+  box-shadow: inset 3px 0 0 var(--series-6);
+}
+.ib-swatch.ib-tag--c6 {
+  background: var(--series-6);
+}
+.ib-tag--c7 {
+  border-color: var(--series-7);
+  box-shadow: inset 3px 0 0 var(--series-7);
+}
+.ib-swatch.ib-tag--c7 {
+  background: var(--series-7);
+}
+.ib-tag--c8 {
+  border-color: var(--series-8);
+  box-shadow: inset 3px 0 0 var(--series-8);
+}
+.ib-swatch.ib-tag--c8 {
+  background: var(--series-8);
+}
+.ib-list {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+.ib-idea {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+.ib-idea--random {
+  border-color: var(--accent);
+  box-shadow: var(--glow);
+}
+.ib-idea__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.ib-idea__head h3 {
+  margin: 0;
+  font-size: 1.02rem;
+}
+.ib-text p,
+.ib-text ul {
+  margin: 0 0 6px;
+}
+.ib-text {
+  color: var(--text-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ib-text ul {
+  white-space: normal;
+  padding-left: 20px;
+}
+.ib-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.ib-manage {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ib-manage li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.ib-swatches {
+  display: inline-flex;
+  gap: 4px;
+}
+.ib-swatch {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  cursor: pointer;
+}
+.ib-swatch--on {
+  outline: 2px solid var(--text);
+  outline-offset: 1px;
+}
+.ib-link {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.ib-home {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+.ib-sort {
+  width: auto;
+}

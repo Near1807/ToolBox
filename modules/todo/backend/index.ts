@@ -305,6 +305,18 @@ export default defineBackendModule({
         return row ? summary(row) : null;
       },
       completeTask: (id) => summary(update(id, { done: true })),
+      createTask: (fields) =>
+        summary(
+          insert({
+            title: titleFrom(fields.title),
+            tags: tagsFrom(fields.tags ?? []),
+            due: dueFrom(fields.due ?? null),
+            subject:
+              fields.trackId != null && library()?.getTrack(fields.trackId)
+                ? TRACK_SUBJECT(fields.trackId)
+                : null,
+          }),
+        ),
     });
 
     // --- Track page of the library -------------------------------------------

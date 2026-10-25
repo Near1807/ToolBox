@@ -43,9 +43,12 @@ export interface FrontendModule {
    */
   Background?: ComponentType;
   /**
-   * Content of the floating indicator (small always-on-top window, transparent
-   * background), shown while the module's backend asks for it with
-   * ctx.ui.setOverlay(true). Return null when there is nothing to show.
+   * Content of the module in the floating window (always on top, transparent
+   * background, shown over the application in use even when ToolBox is
+   * minimised), while the module's backend asks for it with
+   * ctx.ui.setOverlay(true). Return null when there is nothing to show. Wrap
+   * each element in <FloatingPanel>: the panels of all modules are stacked
+   * (never overlap) and the window takes the size of its content. MODULES.md §5.16.
    */
   Overlay?: ComponentType;
 }
@@ -76,8 +79,61 @@ declare global {
       };
       /** Called with a UI route when a desktop notification is clicked. */
       onNavigate?: (listener: (target: string) => void) => () => void;
+      /** Floating window only: its size and what it accepts (the shell sends it). */
+      overlay?: { layout: (layout: FloatingLayout) => void };
     };
   }
+}
+
+// ---------------------------------------------------------------------------
+// Floating window (MODULES.md §5.16)
+// ---------------------------------------------------------------------------
+
+/** What the floating window needs, from the panels shown. */
+export interface FloatingLayout {
+  width: number;
+  height: number;
+  /** A panel has buttons: the window takes the mouse (else clicks go through). */
+  interactive: boolean;
+  /** A panel has a text field: the window takes the keyboard focus. */
+  focus: boolean;
+}
+
+type FloatingReport = (id: object, needs: { interactive: boolean; focus: boolean } | null) => void;
+const FloatingContext = createContext<FloatingReport | null>(null);
+/** Provided by the shell's floating window (collects the needs of the panels). */
+export const FloatingProvider = FloatingContext.Provider;
+
+/**
+ * One element of the floating window (indicator, question, command bar). The
+ * panels are stacked one under the other, so they never overlap. `interactive`:
+ * it has buttons; `focus`: it has a text field that takes the keyboard (the
+ * window is then focused, the application in use loses the keys until the
+ * panel goes). Without either, the panel lets the clicks through.
+ */
+export function FloatingPanel(props: {
+  label: string;
+  interactive?: boolean;
+  focus?: boolean;
+  className?: string;
+  children: ReactNode;
+}) {
+  const report = useContext(FloatingContext);
+  const [id] = useState(() => ({}));
+  const interactive = props.interactive === true || props.focus === true;
+  const focus = props.focus === true;
+  useEffect(() => {
+    report?.(id, { interactive, focus });
+    return () => report?.(id, null);
+  }, [report, id, interactive, focus]);
+  return (
+    <section
+      className={`floating-panel${props.className ? ` ${props.className}` : ''}`}
+      aria-label={props.label}
+    >
+      {props.children}
+    </section>
+  );
 }
 
 export class ApiError extends Error {
@@ -467,11 +523,15 @@ export function ProgressBar(props: { value: number | null }) {
 
 /** Catches rendering errors of a module so the rest of the shell keeps working. */
 export class ErrorBoundary extends Component<
-  /** `silent`: render nothing on error (invisible components: Background, Overlay). */
-  { label: string; silent?: boolean; children: ReactNode },
+  /**
+   * `silent`: render nothing on error (invisible components: Background, Overlay).
+   * `retryMs`: try again after that long (the floating window has no « Réessayer »).
+   */
+  { label: string; silent?: boolean; retryMs?: number; children: ReactNode },
   { error: Error | null }
 > {
   override state: { error: Error | null } = { error: null };
+  private retry: ReturnType<typeof setTimeout> | null = null;
 
   static getDerivedStateFromError(error: Error) {
     return { error };
@@ -479,6 +539,15 @@ export class ErrorBoundary extends Component<
 
   override componentDidCatch(error: Error, info: ErrorInfo) {
     console.error(`[${this.props.label}]`, error, info.componentStack);
+    if (this.props.retryMs && !this.retry)
+      this.retry = setTimeout(() => {
+        this.retry = null;
+        this.setState({ error: null });
+      }, this.props.retryMs);
+  }
+
+  override componentWillUnmount() {
+    if (this.retry) clearTimeout(this.retry);
   }
 
   override render() {

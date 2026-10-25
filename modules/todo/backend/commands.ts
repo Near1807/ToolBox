@@ -60,6 +60,8 @@ const ADD_PREFIXES = [
 export function extractAdd(utterance: string, today: string): AssistantParams | null {
   const body = stripCommand(utterance, ADD_PREFIXES);
   if (body === null) return null;
+  // « note une idée … » belongs to the Boîte à idées, never a task.
+  if (/^(?:une |l’|l'|cette |mon |ma )?(?:nouvelle )?id[ée]es?\b/iu.test(body)) return null;
   const { tags, rest: withoutTags } = extractTags(body);
   const { value: track, rest: withoutTrack } = extractAfter(
     withoutTags,

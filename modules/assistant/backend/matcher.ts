@@ -123,6 +123,8 @@ export function maskParams(text: string, params: AssistantParams | null): string
     const normal = normaliseUtterance(value);
     if (normal.length < 2) continue;
     masked = masked.split(` ${normal} `).join(' ');
+    // A tag typed or said with « # » (« #mix ») is a value too.
+    masked = masked.split(` #${normal} `).join(' ');
   }
   // A date was read (ISO value): its words are a value too (« pour vendredi »).
   if (values.some((v) => /^\d{4}-\d{2}-\d{2}/.test(v))) masked = masked.replace(DATE_WORDS, ' ');
