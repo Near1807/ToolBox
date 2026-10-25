@@ -2,7 +2,7 @@
   "id": "todo",
   "name": "To-do",
   "description": "Tes tâches : tags, échéance en langage naturel (« vendredi »), case « Fait », rattachement facultatif à un morceau. Pilotable à la voix par l'assistant.",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "section": "Outils",
   "icon": "✅",
   "order": 10,

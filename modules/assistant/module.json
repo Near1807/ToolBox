@@ -2,7 +2,7 @@
   "id": "assistant",
   "name": "Assistant vocal",
   "description": "Parle à ToolBox en maintenant une touche : tâches de la To-do, ce qu'il faut publier, stats, état des morceaux. 100 % local et gratuit (Whisper, Ollama, Piper).",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "section": "Outils",
   "icon": "🎙️",
   "order": 20,

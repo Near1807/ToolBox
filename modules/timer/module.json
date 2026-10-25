@@ -2,7 +2,7 @@
   "id": "timer",
   "name": "Timer",
   "description": "Timer simple, sessions avec pauses (pomodoro) et pomodoro incrémental pour briser la barrière du démarrage. Basé sur l'heure réelle, reprend après une fermeture ; tâche de la To-do facultative.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "section": "Outils",
   "icon": "⏱️",
   "order": 20,
