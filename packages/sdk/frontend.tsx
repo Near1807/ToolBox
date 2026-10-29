@@ -455,11 +455,22 @@ export function Page(props: {
   actions?: ReactNode;
   children: ReactNode;
 }) {
+  const module = useContext(ModuleReactContext);
   return (
     <div className="page">
       <header className="page__header">
         <div>
-          <h1>{props.title}</h1>
+          <h1>
+            {props.title}
+            {module?.manifest.experimental && (
+              <span
+                className="badge badge--warning page__experimental"
+                title="Pas encore validé à l’usage"
+              >
+                Expérimental
+              </span>
+            )}
+          </h1>
           {props.subtitle && <p className="muted">{props.subtitle}</p>}
         </div>
         {props.actions && <div className="page__actions">{props.actions}</div>}

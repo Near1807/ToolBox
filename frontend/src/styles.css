@@ -1621,3 +1621,18 @@ input[type='range'] {
   margin: 6px 0;
   padding-left: 18px;
 }
+
+/* « Expérimental » (manifest experimental: true): not validated by Thomas yet. */
+.page__experimental {
+  margin-left: 10px;
+  vertical-align: middle;
+  font-size: 0.7rem;
+}
+.nav-link__tag {
+  margin-left: auto;
+  padding: 0 6px;
+  border-radius: 999px;
+  border: 1px solid var(--warning);
+  color: var(--warning);
+  font-size: 0.7rem;
+}

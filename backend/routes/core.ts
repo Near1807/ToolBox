@@ -55,6 +55,21 @@ export function registerCoreRoutes(app: FastifyInstance, hub: Hub, appVersion: s
 
   app.get('/api/core/modules', async () => hub.moduleInfos());
 
+  // « Prêt pour le calendrier » (MODULES.md §5.17): every module's dated items for a period.
+  app.get<{ Querystring: { from?: string; to?: string } }>(
+    '/api/core/calendar',
+    async (request, reply) => {
+      const { from, to } = request.query;
+      const day = /^\d{4}-\d{2}-\d{2}$/;
+      if (!from || !to || !day.test(from) || !day.test(to) || from > to)
+        return reply.code(400).send({ error: 'Période invalide (from, to : AAAA-MM-JJ)' });
+      return {
+        sources: hub.calendar.list(),
+        events: await hub.calendar.events(from, to, hub.logger),
+      };
+    },
+  );
+
   app.put<{ Params: { id: string }; Body: { enabled?: unknown } }>(
     '/api/core/modules/:id/enabled',
     async (request, reply) => {

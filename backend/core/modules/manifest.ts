@@ -66,6 +66,7 @@ const manifestSchema = z.strictObject({
   section: z.string().min(1),
   icon: z.string().min(1),
   order: z.number().optional(),
+  experimental: z.boolean().optional(),
   dependsOn: z
     .strictObject({
       modules: z.array(id).optional(),

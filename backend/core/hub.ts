@@ -1,3 +1,4 @@
+import { CalendarRegistry } from './calendar';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
@@ -123,6 +124,7 @@ export class Hub {
   readonly outputs: OutputStore;
   readonly accounts: AccountManager;
   readonly assistant = new AssistantRegistry();
+  readonly calendar = new CalendarRegistry();
   readonly hotkeys: HotkeyManager;
   /** Modules currently asking for the floating indicator. */
   private readonly overlayRequests = new Set<string>();
@@ -469,6 +471,7 @@ export class Hub {
       accounts: this.accounts.forModule(manifest),
       notifications: createModuleNotifications(id, this.host, logger),
       assistant: this.assistant.forModule(manifest, logger, (off) => disposers.push(off)),
+      calendar: this.calendar.forModule(id, (off) => disposers.push(off)),
       hotkeys: this.hotkeys.forModule(id, manifest.permissions?.globalKeys === true, (off) =>
         disposers.push(off),
       ),
