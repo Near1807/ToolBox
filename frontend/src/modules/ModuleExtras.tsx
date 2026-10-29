@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ErrorBoundary, FloatingProvider, ModuleProvider } from '@hub/sdk/frontend';
 import { useModules } from './ModulesContext';
 
@@ -42,7 +42,8 @@ export function OverlayPage() {
     if (!el) return;
     const rect = el.getBoundingClientRect();
     const all = [...needs.current.values()];
-    const empty = el.children.length === 0;
+    // Only the grip left: nothing to show.
+    const empty = el.querySelectorAll(':scope > :not(.overlay__grip)').length === 0;
     const layout = {
       width: empty ? 0 : Math.ceil(rect.width),
       height: empty ? 0 : Math.ceil(rect.height),
@@ -62,6 +63,8 @@ export function OverlayPage() {
     },
     [send],
   );
+  const [locked, setLocked] = useState(true);
+  useEffect(() => window.toolbox?.overlay?.onPrefs((prefs) => setLocked(prefs.locked)), []);
   useEffect(() => {
     document.documentElement.classList.add('overlay-window');
     const el = root.current;
@@ -80,6 +83,29 @@ export function OverlayPage() {
   return (
     <FloatingProvider value={report}>
       <div className="overlay" ref={root}>
+        {!locked && (
+          <div
+            className="overlay__grip"
+            title="Glisser pour déplacer (Réglages > Fenêtre flottante pour verrouiller)"
+            aria-label="Déplacer la fenêtre flottante"
+            onPointerEnter={() => window.toolbox?.overlay?.hover(true)}
+            onPointerLeave={(e) => {
+              if (!e.currentTarget.hasPointerCapture(e.pointerId))
+                window.toolbox?.overlay?.hover(false);
+            }}
+            onPointerDown={(e) => {
+              e.currentTarget.setPointerCapture(e.pointerId);
+              window.toolbox?.overlay?.drag('start');
+            }}
+            onPointerUp={(e) => {
+              e.currentTarget.releasePointerCapture(e.pointerId);
+              window.toolbox?.overlay?.drag('end');
+              window.toolbox?.overlay?.hover(false);
+            }}
+          >
+            ⠿
+          </div>
+        )}
         {modules
           .filter((m) => m.status === 'loaded' && m.frontend?.Overlay)
           .map((m) => {

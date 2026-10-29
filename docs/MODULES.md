@@ -380,7 +380,9 @@ ctx.assistant.define({
 
 - Chaque élément est un **`FloatingPanel`** du SDK (`label`, `interactive`, `focus`) ; les panneaux de tous les modules sont **empilés en colonne** (jamais superposés) et la fenêtre prend la taille du contenu (bord bas fixe ; 560 × 640 au plus).
 - Sans option, un panneau laisse passer les clics et ne prend jamais le clavier (indicateur, mini-timer, message bref). `interactive` : il a des boutons ; la fenêtre prend la souris sans s'activer. `focus` : il a un champ de texte (barre écrite) ; la fenêtre prend le clavier jusqu'à la disparition du panneau, puis le rend à l'application en dessous. Réserver `focus` à un geste explicite de l'utilisateur (raccourci).
-- Petit, couleurs et arrondis du thème, composants partagés (`Button`…). Un message bref (« Pause — 5 min ») reste ~5 s ; le module garde la fenêtre demandée pendant ce temps.
+- Petit, couleurs et arrondis du thème, composants partagés (`Button`…).
+- **Chaque panneau a sa durée de vie** : une confirmation, une transition ou un message s'efface seul après quelques secondes (`lifetimeMs`, relancé quand `contentKey` change), sauf une question qui attend sa réponse ; ce qui doit rester (mini-timer) n'en a pas. La disparition d'un panneau réduit la fenêtre.
+- **Position** : choisie par Thomas (Réglages > Fenêtre flottante : 4 coins, bas centre, haut centre) ou par glisser sa poignée ⠿ ; retenue (`<userData>/overlay-position.json`), ramenée dans l'écran si la résolution change, « Verrouiller la position » cache la poignée. Un module ne choisit jamais la position.
 - La fenêtre **propose, n'agit pas seule** : un bouton y appelle les mêmes routes que la page, avec les mêmes règles (« Contrôle et sécurité »). Ce qui modifie s'y confirme à l'écran (message bref). Chaque élément a son réglage pour ne pas s'afficher.
 
 ### 5.17 `ctx.calendar` — « Prêt pour le calendrier » (règle du contrat)

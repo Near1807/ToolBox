@@ -64,6 +64,21 @@ body {
   user-select: none;
 }
 
+.overlay__grip {
+  padding: 0 10px;
+  border-radius: 999px;
+  background: var(--surface-solid);
+  border: 1px solid var(--border);
+  color: var(--text-3);
+  font-size: 0.8rem;
+  line-height: 1.2;
+  cursor: grab;
+  opacity: 0.75;
+}
+.overlay__grip:hover {
+  opacity: 1;
+  color: var(--text);
+}
 .floating-panel {
   display: flex;
   justify-content: center;
@@ -1635,4 +1650,88 @@ input[type='range'] {
   border: 1px solid var(--warning);
   color: var(--warning);
   font-size: 0.7rem;
+}
+
+/* Réglages: menu of sections on the left, one section at a time on the right. */
+.settings-layout {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+.settings-nav {
+  position: sticky;
+  top: 12px;
+  display: grid;
+  gap: 10px;
+  max-height: calc(100vh - 140px);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.settings-nav__search {
+  width: 100%;
+}
+.settings-nav__group {
+  display: grid;
+  gap: 2px;
+}
+.settings-nav__title {
+  margin: 6px 0 2px;
+  color: var(--text-3);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.settings-nav__item,
+.settings-nav__results button {
+  display: block;
+  width: 100%;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+}
+.settings-nav__item:hover,
+.settings-nav__results button:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+.settings-nav__item--active {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+.settings-nav__results {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.settings-content {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.settings-hit {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: var(--radius-sm);
+}
+@media (max-width: 860px) {
+  .settings-layout {
+    grid-template-columns: 1fr;
+  }
+  .settings-nav {
+    position: static;
+    max-height: none;
+  }
+}
+.page__settings-link {
+  text-decoration: none;
 }

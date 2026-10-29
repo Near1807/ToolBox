@@ -4,6 +4,16 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+### Ajouté
+
+- Règles « Prêt pour la synchro » et « Prêt pour le calendrier » : socle `ctx.calendar` et `GET /api/core/calendar` ; SDK `SyncStore` (UUID, dates, suppression logique, journal). Badge « Expérimental » (manifest `experimental`).
+- Fenêtre flottante **déplaçable** (poignée ⠿) ou placée au choix (4 coins, bas centre, haut centre), position retenue et ramenée dans l'écran, « Verrouiller la position ». *Expérimental.*
+- **Réglages** en sections : « Général » (général, apparence, fenêtre flottante, droits de l'assistant, comptes, modules, sauvegardes, à propos) puis une section par outil, groupées comme la barre latérale ; recherche dans tous les réglages (accents ignorés) qui mène au réglage ; bouton ⚙ sur la page de chaque outil ; dernière section retenue.
+
+### Corrigé
+
+- Fenêtre flottante : la dernière réponse de l'assistant restait affichée en permanence au-dessus du mini-timer. Chaque panneau a maintenant sa durée de vie (6 s pour une réponse, sauf une question).
+
 ## [0.21.0] — 2026-10-24
 
 Quatre chantiers : les exports de l'Analyse du master (et le bouton « Exporter en HTML » qui ne donnait rien), la barre de commande écrite de l'assistant, la Boîte à idées, et le Timer qui pose « Tâche terminée ? » sans ouvrir l'app. Un seul système de fenêtre flottante pour tout.

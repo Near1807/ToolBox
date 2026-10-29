@@ -15,6 +15,9 @@ const LABELS: Record<StateEvent['state'], string> = {
   speaking: 'Je réponds',
 };
 
+/** The last answer stays this long in the floating window. */
+const ANSWER_MS = 6_000;
+
 export function Overlay() {
   const module = useModule();
   const url = module.url('/events');
@@ -42,8 +45,15 @@ export function Overlay() {
   if (!state) return null;
   const idle = state.state === 'idle';
   if (idle && !state.text) return null;
+  // Listening / thinking / speaking stays; the last answer goes after a few
+  // seconds (a question waits), so that it never sits above the mini-timer.
+  const question = idle && /\?\s*$/.test(state.text ?? '');
   return (
-    <FloatingPanel label="Assistant">
+    <FloatingPanel
+      label="Assistant"
+      lifetimeMs={idle && !question ? ANSWER_MS : undefined}
+      contentKey={`${state.state}|${state.text ?? ''}`}
+    >
       <div
         className={`as-hud as-hud--${state.state}${state.state === 'listening' && !state.ready ? ' as-hud--opening' : ''}`}
         role="status"
