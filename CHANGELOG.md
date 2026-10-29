@@ -7,6 +7,7 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 ### Ajouté
 
 - Sport (expérimental) : bibliothèque d'exercices (autocomplétion, fusion des doublons) ; liste ordonnée d'exercices par séance de la semaine type (séries × répétitions, charge, repos, note), copiée dans chaque séance et modifiable pour elle seule ; affichage rapide au clic (semaine, mois, accueil) ; une séance ajoutée à la main se supprime (confirmation, « Annuler ») ; export CSV / Markdown avec commentaire et exercices ; assistant « c'est quoi les exos de ma séance d'aujourd'hui » (lecture).
+- Courses (expérimental) : démarre vide ; import / export JSON documenté (aperçu avant écriture, rien d'écrasé sans confirmation, ingrédients inconnus proposés à la création, sauvegarde avant import, aller-retour sans perte, exemple téléchargeable) ; nutrition facultative par ingrédient (pour 100 g / 100 ml) et calcul par portion, par jour et par période (incomplet signalé) ; prix de référence et coût estimé (par portion, tri et filtre « moins chers », période, liste) ; onglet « Résumé de la semaine » (moyennes, graphes, objectifs facultatifs, aucun conseil) ; une liste par période avec historique réutilisable ; pièces ↔ poids avec le poids d'une pièce. Migration 2 du module.
 
 ### Corrigé
 
