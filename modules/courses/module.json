@@ -1,0 +1,11 @@
+{
+  "id": "courses",
+  "name": "Courses",
+  "description": "Ta liste de courses faite à partir des repas : une bibliothèque de repas et d'ingrédients, le planning des repas d'une période, la liste générée (quantités additionnées, par rayon) et les extras.",
+  "version": "0.1.0",
+  "section": "Vie perso",
+  "icon": "🛒",
+  "order": 20,
+  "experimental": true,
+  "settings": []
+}

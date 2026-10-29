@@ -4,6 +4,10 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.22.0] — 2026-10-29
+
+Session prototype : deux règles pour la suite (synchro Android, calendrier général), la fenêtre flottante déplaçable, les Réglages en sections, et deux outils « Vie perso » à tester : Sport et Courses.
+
 ### Ajouté
 
 - Règles « Prêt pour la synchro » et « Prêt pour le calendrier » : socle `ctx.calendar` et `GET /api/core/calendar` ; SDK `SyncStore` (UUID, dates, suppression logique, journal). Badge « Expérimental » (manifest `experimental`).
@@ -11,6 +15,9 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 - **Réglages** en sections : « Général » (général, apparence, fenêtre flottante, droits de l'assistant, comptes, modules, sauvegardes, à propos) puis une section par outil, groupées comme la barre latérale ; recherche dans tous les réglages (accents ignorés) qui mène au réglage ; bouton ⚙ sur la page de chaque outil ; dernière section retenue.
 
 - **Sport** (nouveau module, catégorie Vie perso, *expérimental*) : semaine type appliquée aux semaines à venir (une modification vaut à partir de demain), séances « Fait » / « Pas fait », humeur, commentaire, heure et durée par séance, déplacement dans la semaine (glisser-déposer), séances ponctuelles, annulation ; vues semaine et mois, séances passées à valider en évidence ; bilan (semaine, mois, série de semaines complètes, humeur moyenne) ; export CSV / Markdown ; carte d'accueil ; assistant (lecture ; validation, humeur, commentaire, déplacement derrière « L'assistant peut valider et modifier les séances », désactivé). Prêt pour la synchro et pour le calendrier.
+
+- **Courses** (nouveau module, catégorie Vie perso, *expérimental*) : ingrédients (unité, rayon, sans doublon, fusion), bibliothèque de repas (portions, ingrédients, tags, note, recherche), planning des repas d'une période par jour et moment (moments configurables), liste générée (quantités ajustées aux portions, additionnées, g ↔ kg et ml ↔ cl ↔ l, par rayon) + extras habituels ou à la main, cochable, copier / exporter ; carte d'accueil ; assistant (lecture ; « ajoute café aux extras », « mets risotto mardi soir » derrière « L'assistant peut modifier les repas et la liste de courses », désactivé). Prêt pour la synchro et pour le calendrier.
+- To-do : laisse « … aux extras / à la liste de courses » aux Courses.
 
 ### Corrigé
 
