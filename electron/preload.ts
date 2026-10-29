@@ -30,7 +30,6 @@ contextBridge.exposeInMainWorld('toolbox', {
   overlay: {
     layout: (layout: unknown): void => ipcRenderer.send('toolbox:overlay-layout', layout),
     hover: (over: boolean): void => ipcRenderer.send('toolbox:overlay-hover', over),
-    drag: (phase: 'start' | 'end'): void => ipcRenderer.send('toolbox:overlay-drag', phase),
     onPrefs: (listener: (prefs: { locked: boolean }) => void): (() => void) => {
       const handler = (_event: unknown, prefs: unknown) => listener(prefs as { locked: boolean });
       ipcRenderer.on('toolbox:overlay-prefs', handler);

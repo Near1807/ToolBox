@@ -19,7 +19,9 @@ import {
 // until the panel goes. It goes where Thomas wants it: a corner or a centre
 // chosen in the Settings, or dragged by its grip (position kept in
 // <userData>/overlay-position.json, brought back on screen when the
-// resolution changes; « Verrouiller » hides the grip). ADR 0028, 0036; MODULES.md §5.16.
+// resolution changes; « Verrouiller » hides the grip). The grip is a native
+// drag region (-webkit-app-region: drag): the system moves the window, so the
+// move follows the mouse exactly, whatever the display scaling. ADR 0028, 0036; MODULES.md §5.16.
 
 let appUrl: string | null = null;
 let overlay: BrowserWindow | null = null;
@@ -27,7 +29,13 @@ let wanted = false;
 let layout: OverlayLayout = { width: 0, height: 0, interactive: false, focus: false };
 let focused = false;
 let hovering = false;
-let drag: { timer: ReturnType<typeof setInterval>; dx: number; dy: number } | null = null;
+/** The grip is hovered: checked every 200 ms until the cursor leaves the window. */
+let hoverWatch: ReturnType<typeof setInterval> | null = null;
+/** The system is moving the window (native drag); ends when the moves stop. */
+let moving = false;
+let moveEnd: ReturnType<typeof setTimeout> | null = null;
+/** The bounds the hub gave the window last: a `move` elsewhere is a drag. */
+let placed: { x: number; y: number } | null = null;
 
 const positionFile = () => path.join(app.getPath('userData'), 'overlay-position.json');
 let position: OverlayPosition = (() => {
@@ -45,6 +53,8 @@ function savePosition(next: OverlayPosition): void {
     // Not saved: the window still goes there for this session.
   }
   overlay?.webContents.send('toolbox:overlay-prefs', { locked: position.locked });
+  overlay?.setMovable(!position.locked);
+  if (position.locked) stopHover();
   apply();
 }
 /** The screen of the window: the one nearest to where it was dragged, else the main one. */
@@ -61,7 +71,7 @@ function create(url: string): BrowserWindow {
     frame: false,
     transparent: true,
     resizable: false,
-    movable: false,
+    movable: !position.locked,
     minimizable: false,
     maximizable: false,
     fullscreenable: false,
@@ -85,12 +95,29 @@ function create(url: string): BrowserWindow {
   window.webContents.on('did-finish-load', () =>
     window.webContents.send('toolbox:overlay-prefs', { locked: position.locked }),
   );
+  // Native drag by the grip: `will-move` / `moved` on Windows and macOS, a
+  // pause in the `move` events elsewhere. The window ends where it was dropped
+  // (brought back inside the screen, at the size of its content).
+  window.on('will-move', () => {
+    moving = true;
+  });
+  window.on('move', () => {
+    const b = window.getBounds();
+    // Ours (a pixel of rounding at 125 % or 150 % allowed): not a drag.
+    if (!moving && placed && Math.abs(b.x - placed.x) <= 2 && Math.abs(b.y - placed.y) <= 2) return;
+    moving = true;
+    if (moveEnd) clearTimeout(moveEnd);
+    moveEnd = setTimeout(endMove, 600);
+  });
+  window.on('moved', () => endMove());
   window.webContents.on('will-navigate', (event) => event.preventDefault());
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   void window.loadURL(`${url}#/overlay`);
   window.on('closed', () => {
     overlay = null;
     focused = false;
+    moving = false;
+    stopHover();
   });
   return window;
 }
@@ -107,10 +134,14 @@ function apply(): void {
   // Nothing to show yet: 1 × 1 transparent pixel, kept shown so that the page
   // lays out and measures its content (a hidden window may not).
   const empty = layout.width === 0 || layout.height === 0;
-  if (!drag) overlay.setBounds(overlayBounds(workArea(), layout, position));
+  if (!moving) {
+    const bounds = overlayBounds(workArea(), layout, position);
+    placed = { x: bounds.x, y: bounds.y };
+    overlay.setBounds(bounds);
+  }
   // Clicks go through, except over a panel with buttons or the grip
   // (mouse moves are still forwarded, so that the page sees the grip hovered).
-  const takeMouse = !empty && (layout.interactive || hovering || drag !== null);
+  const takeMouse = !empty && (layout.interactive || hovering || moving);
   overlay.setIgnoreMouseEvents(!takeMouse, { forward: true });
   if (empty && focused) {
     release(overlay);
@@ -147,37 +178,39 @@ ipcMain.on('toolbox:overlay-layout', (event, value: unknown) => {
   apply();
 });
 
-// The grip: hovered (the window takes the mouse), dragged (it follows the cursor).
+// The grip hovered: the window takes the mouse, so that the system can drag it
+// by the grip. Not given back by the page (a drag region gets no mouse events):
+// the main process checks that the cursor is still over the window.
 ipcMain.on('toolbox:overlay-hover', (event, value: unknown) => {
   if (!overlay || event.sender !== overlay.webContents) return;
-  hovering = value === true && !position.locked;
+  if (value !== true || position.locked || hovering) return;
+  hovering = true;
+  const window = overlay;
+  hoverWatch = setInterval(() => {
+    if (moving || window.isDestroyed()) return;
+    const c = screen.getCursorScreenPoint();
+    const b = window.getBounds();
+    if (c.x >= b.x && c.x < b.x + b.width && c.y >= b.y && c.y < b.y + b.height) return;
+    stopHover();
+    apply();
+  }, 200);
   apply();
 });
-ipcMain.on('toolbox:overlay-drag', (event, phase: unknown) => {
-  if (!overlay || event.sender !== overlay.webContents || position.locked) return;
-  const window = overlay;
-  if (phase === 'start' && !drag) {
-    const cursor = screen.getCursorScreenPoint();
-    const bounds = window.getBounds();
-    drag = {
-      dx: cursor.x - bounds.x,
-      dy: cursor.y - bounds.y,
-      timer: setInterval(() => {
-        if (!drag) return;
-        const c = screen.getCursorScreenPoint();
-        const b = window.getBounds();
-        window.setBounds({ x: c.x - drag.dx, y: c.y - drag.dy, width: b.width, height: b.height });
-      }, 16),
-    };
-    apply();
-  } else if (phase === 'end' && drag) {
-    clearInterval(drag.timer);
-    drag = null;
-    const bounds = window.getBounds();
-    const area = screen.getDisplayMatching(bounds).workArea;
-    savePosition(draggedPosition(area, bounds, position.locked));
-  }
-});
+function stopHover(): void {
+  hovering = false;
+  if (hoverWatch) clearInterval(hoverWatch);
+  hoverWatch = null;
+}
+/** The drag is over: the position is kept, and the window placed again. */
+function endMove(): void {
+  if (moveEnd) clearTimeout(moveEnd);
+  moveEnd = null;
+  if (!moving || !overlay) return;
+  moving = false;
+  const bounds = overlay.getBounds();
+  const area = screen.getDisplayMatching(bounds).workArea;
+  savePosition(draggedPosition(area, bounds, position.locked));
+}
 // The Settings page (main window): read or change the position.
 ipcMain.handle('toolbox:overlay-position', (event, value: unknown) => {
   if (overlay && event.sender === overlay.webContents) return position;

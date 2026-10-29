@@ -4,6 +4,10 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+### Corrigé
+
+- Fenêtre flottante : la poignée utilise le déplacement natif du système (précis, sans dérive, correct à 125 / 150 %) au lieu du suivi du curseur (ADR 0036, révision v0.23).
+
 ## [0.22.0] — 2026-10-29
 
 Session prototype : deux règles pour la suite (synchro Android, calendrier général), la fenêtre flottante déplaçable, les Réglages en sections, et deux outils « Vie perso » à tester : Sport et Courses.
