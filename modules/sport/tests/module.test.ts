@@ -4,14 +4,17 @@
 import Database from 'better-sqlite3';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { createTestHub, loadModuleFolder, type TestHub } from '@hub/sdk/testing';
+import { createTestHost, createTestHub, loadModuleFolder, type TestHub } from '@hub/sdk/testing';
+import { mkdtempSync, readFileSync } from 'node:fs';
+import os from 'node:os';
 import { addDays, localToday, mondayOf } from '../shared/plan';
 import type { WeekDto } from '../shared/types';
 
 const API = '/api/modules/sport';
-const open = async () =>
+const open = async (saveTo: string | null = null) =>
   createTestHub({
     loadExamples: false,
+    host: createTestHost({ selectSaveFile: () => Promise.resolve(saveTo) }),
     modules: [await loadModuleFolder(path.resolve(__dirname, '..'))],
   });
 
@@ -171,5 +174,125 @@ describe('sport', () => {
       status: 'done',
       message: expect.stringMatching(/^Séance 2 déplacée de mardi à jeudi/),
     });
+  });
+
+  it('exercises: template list copied to sessions, own list per session, library, merge', async () => {
+    hub = await open();
+    await hub.request('PUT', `${API}/template`, {
+      items: items.map((it) =>
+        it.weekday === 1
+          ? {
+              ...it,
+              exercises: [
+                { name: 'Squat', sets: 4, reps: '8', load: '60 kg', restSec: 90 },
+                { name: 'Gainage', sets: 3, reps: '30 s' },
+              ],
+            }
+          : it,
+      ),
+    });
+    const lib = async () =>
+      (
+        await hub.request<{ exercises: { id: string; name: string; uses: number }[] }>(
+          'GET',
+          `${API}/exercises`,
+        )
+      ).body.exercises;
+    expect((await lib()).map((e) => e.name)).toEqual(['Gainage', 'Squat']);
+    // Same name, other spelling: no duplicate.
+    expect((await hub.request('POST', `${API}/exercises`, { name: 'squat' })).status).toBe(409);
+    const w = await week(addDays(monday, 7));
+    const mon = w.days[0]!.sessions[0]!;
+    expect(mon.exercises.map((e) => `${e.name} ${e.sets}×${e.reps}`)).toEqual([
+      'Squat 4×8',
+      'Gainage 3×30 s',
+    ]);
+    // A list for that session alone: the template keeps its own.
+    const squats = (
+      await hub.request<{ id: string }>('POST', `${API}/exercises`, { name: 'Squats barre' })
+    ).body;
+    await hub.request('PATCH', `${API}/sessions/${mon.id}`, {
+      exercises: [{ exerciseId: squats.id, sets: 5, reps: '5', load: '70 kg' }],
+    });
+    const after = await week(addDays(monday, 7));
+    expect(after.days[0]!.sessions[0]!.exercises.map((e) => e.name)).toEqual(['Squats barre']);
+    expect(after.days[0]!.sessions[0]!.custom).toBe(true);
+    expect(after.template.find((t) => t.weekday === 1)!.exercises.map((e) => e.name)).toEqual([
+      'Squat',
+      'Gainage',
+    ]);
+    // Merge « Squats barre » into « Squat »: the session follows; the duplicate goes.
+    const squat = (await lib()).find((e) => e.name === 'Squat')!;
+    expect((await hub.request('DELETE', `${API}/exercises/${squat.id}`)).status).toBe(400); // used
+    await hub.request('POST', `${API}/exercises/merge`, { from: squats.id, into: squat.id });
+    expect((await lib()).map((e) => e.name)).toEqual(['Gainage', 'Squat']);
+    const merged = (await week(addDays(monday, 7))).days[0]!.sessions[0]!;
+    expect(merged.exercises.map((e) => `${e.name} ${e.load}`)).toEqual(['Squat 70 kg']);
+    // Read by the assistant.
+    expect((await hub.hub.assistant.run('sport.today-exercises', {})).status).toBe('done');
+  });
+
+  it('a session added by hand is deleted (and restored); one of the template is not', async () => {
+    hub = await open();
+    await hub.request('PUT', `${API}/template`, { items });
+    const next = addDays(monday, 7);
+    const added = (
+      await hub.request<{ id: string }>('POST', `${API}/sessions`, {
+        date: next,
+        name: 'Course',
+        start: '07:00',
+        durationMin: 30,
+      })
+    ).body;
+    const fromTemplate = (await week(next)).days[0]!.sessions.find((s) => s.templateId)!;
+    expect((await hub.request('DELETE', `${API}/sessions/${fromTemplate.id}`)).status).toBe(400);
+    expect((await hub.request('DELETE', `${API}/sessions/${added.id}`)).status).toBe(200);
+    expect((await week(next)).days[0]!.sessions.map((s) => s.name)).toEqual(['Séance 1']);
+    await hub.request('POST', `${API}/sessions/${added.id}/restore`);
+    expect((await week(next)).days[0]!.sessions.map((s) => s.name).sort()).toEqual([
+      'Course',
+      'Séance 1',
+    ]);
+  });
+
+  it('export: the comment and the exercises are in the CSV and the Markdown', async () => {
+    const dir = mkdtempSync(path.join(os.tmpdir(), 'sport-export-'));
+    const csvPath = path.join(dir, 'sport.csv');
+    hub = await open(csvPath);
+    await hub.request('PUT', `${API}/template`, {
+      items: [{ ...items[0]!, exercises: [{ name: 'Squat', sets: 4, reps: '8', load: '60 kg' }] }],
+    });
+    const s = (await week()).days[0]!.sessions[0]!;
+    await hub.request('PATCH', `${API}/sessions/${s.id}`, {
+      status: 'done',
+      comment: 'Bonne séance; genou "ok"\nà surveiller',
+    });
+    await hub.request('POST', `${API}/export`, {
+      format: 'csv',
+      from: monday,
+      to: addDays(monday, 6),
+    });
+    const csv = readFileSync(csvPath, 'utf8');
+    expect(csv.split('\n')[0]).toBe(
+      'date;séance;début;durée_min;état;humeur;commentaire;exercices',
+    );
+    expect(csv).toContain('"Bonne séance; genou ""ok""\nà surveiller";Squat 4 × 8 · 60 kg');
+    await hub.close();
+    const mdPath = path.join(dir, 'sport.md');
+    hub = await open(mdPath);
+    // A new hub starts empty: same template again.
+    await hub.request('PUT', `${API}/template`, {
+      items: [{ ...items[0]!, exercises: [{ name: 'Squat', sets: 4, reps: '8', load: '60 kg' }] }],
+    });
+    const s2 = (await week()).days[0]!.sessions[0]!;
+    await hub.request('PATCH', `${API}/sessions/${s2.id}`, { comment: 'RAS' });
+    await hub.request('POST', `${API}/export`, {
+      format: 'md',
+      from: monday,
+      to: addDays(monday, 6),
+    });
+    const md = readFileSync(mdPath, 'utf8');
+    expect(md).toContain('  - Commentaire : RAS');
+    expect(md).toContain('    - Squat 4 × 8 · 60 kg');
   });
 });

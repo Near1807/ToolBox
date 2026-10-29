@@ -21,6 +21,11 @@ export interface TodoService {
    */
   completeTask(id: number): TodoTask;
   /**
+   * Unticks a task (back to « à faire »). Only to undo a tick the calling
+   * module made itself, on an explicit click (« Annuler » of the Timer).
+   */
+  uncompleteTask(id: number): TodoTask;
+  /**
    * Adds a task (tags cleaned, due date « YYYY-MM-DD » or natural French).
    * Only on an explicit click of the user in the calling module (e.g.
    * « Transformer en tâche » of the Boîte à idées). `trackId`: a track of

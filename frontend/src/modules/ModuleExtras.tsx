@@ -84,26 +84,20 @@ export function OverlayPage() {
     <FloatingProvider value={report}>
       <div className="overlay" ref={root}>
         {!locked && (
+          // The handle is a native drag region: the system moves the window.
+          // Its rim (not a drag region) sees the pointer coming, so that the
+          // window takes the mouse in time.
           <div
             className="overlay__grip"
-            title="Glisser pour déplacer (Réglages > Fenêtre flottante pour verrouiller)"
-            aria-label="Déplacer la fenêtre flottante"
             onPointerEnter={() => window.toolbox?.overlay?.hover(true)}
-            onPointerLeave={(e) => {
-              if (!e.currentTarget.hasPointerCapture(e.pointerId))
-                window.toolbox?.overlay?.hover(false);
-            }}
-            onPointerDown={(e) => {
-              e.currentTarget.setPointerCapture(e.pointerId);
-              window.toolbox?.overlay?.drag('start');
-            }}
-            onPointerUp={(e) => {
-              e.currentTarget.releasePointerCapture(e.pointerId);
-              window.toolbox?.overlay?.drag('end');
-              window.toolbox?.overlay?.hover(false);
-            }}
           >
-            ⠿
+            <span
+              className="overlay__grip-handle"
+              title="Glisser pour déplacer (Réglages > Fenêtre flottante pour verrouiller)"
+              aria-label="Déplacer la fenêtre flottante"
+            >
+              ⠿
+            </span>
           </div>
         )}
         {modules

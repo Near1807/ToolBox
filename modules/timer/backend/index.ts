@@ -168,6 +168,8 @@ export default defineBackendModule({
      * a restart of the app counts as « Plus tard »).
      */
     let followUp: SessionDto | null = null;
+    /** The last « Oui, la cocher » (for « Annuler »). */
+    let lastTick: { sessionId: number; taskId: number; wasDone: boolean } | null = null;
     /** A phase change shown briefly in the floating window, until this time. */
     let toastUntil = 0;
     let toastTimer: ReturnType<typeof setTimeout> | null = null;
@@ -394,6 +396,7 @@ export default defineBackendModule({
         throw new HttpError(409, 'Un timer est déjà en cours : arrête-le d’abord.');
       dismissEnded();
       followUp = null;
+      lastTick = null;
       let normal: PlanConfig;
       let phases: Phase[];
       try {
@@ -554,12 +557,15 @@ export default defineBackendModule({
       const done = requestBody(request).done === true;
       const row = requireActive(['ended']);
       let ticked = false;
+      lastTick = null;
       if (done && row.task_id !== null) {
         const service = todo();
         if (!service) throw new HttpError(409, 'La To-do n’est pas disponible : rien n’est coché.');
-        if (service.getTask(row.task_id)) {
+        const task = service.getTask(row.task_id);
+        if (task) {
           service.completeTask(row.task_id);
           ticked = true;
+          lastTick = { sessionId: row.id, taskId: row.task_id, wasDone: task.done };
         }
       }
       set(row.id, { status: 'done', answer: done ? 'yes' : 'no' });
@@ -568,6 +574,24 @@ export default defineBackendModule({
       if (ticked) toast(`Tâche cochée dans la To-do : ${row.task_title ?? ''}`, 'done');
       publish();
       return { ok: true, ticked };
+    });
+    /**
+     * « Annuler » after « Oui, la cocher »: the task is unticked (unless it
+     * was already done before) and the question comes back. Only for the
+     * last answer, before another session starts.
+     */
+    ctx.routes.post('/answer/undo', () => {
+      const tick = lastTick;
+      if (!tick) throw new HttpError(409, 'Plus rien à annuler.');
+      if (active()) throw new HttpError(409, 'Une autre session a commencé : rien n’est annulé.');
+      const service = todo();
+      if (!service) throw new HttpError(409, 'La To-do n’est pas disponible : rien n’est décoché.');
+      if (!tick.wasDone && service.getTask(tick.taskId)) service.uncompleteTask(tick.taskId);
+      lastTick = null;
+      set(tick.sessionId, { status: 'ended', answer: null });
+      followUp = null;
+      publish();
+      return { ok: true };
     });
     /** « Plus tard » / « Fermer »: the ended session goes to the history without answer. */
     ctx.routes.post('/dismiss', () => {

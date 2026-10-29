@@ -305,6 +305,7 @@ export default defineBackendModule({
         return row ? summary(row) : null;
       },
       completeTask: (id) => summary(update(id, { done: true })),
+      uncompleteTask: (id) => summary(update(id, { done: false })),
       createTask: (fields) =>
         summary(
           insert({

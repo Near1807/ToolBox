@@ -83,7 +83,6 @@ declare global {
       overlay?: {
         layout: (layout: FloatingLayout) => void;
         hover: (over: boolean) => void;
-        drag: (phase: 'start' | 'end') => void;
         onPrefs: (listener: (prefs: { locked: boolean }) => void) => () => void;
         position: (value?: FloatingPosition) => Promise<FloatingPosition>;
       };

@@ -599,11 +599,25 @@ export function markdownSummary(input: ExportInput): string {
 // Complete data: curves (CSV, every 100 ms) + everything (JSON), in a zip
 // ---------------------------------------------------------------------------
 
-const num = (v: number | null | undefined, digits = 3) =>
+const fixed = (v: number | null | undefined, digits = 3) =>
   v === null || v === undefined || !Number.isFinite(v) ? '' : v.toFixed(digits);
 
-/** One row per 100 ms block. Decimal point « . » and « ; » separator (opens in Excel FR). */
-export function curvesCsv(a: Analysis): string {
+/** How the CSV writes its numbers. */
+export interface CsvOptions {
+  /** « 1,5 » instead of « 1.5 » (Excel in French reads the numbers); the separator stays « ; ». */
+  decimalComma?: boolean;
+}
+
+/**
+ * One row per 100 ms block, « ; » separator. Decimal point « . » by default;
+ * decimal comma « , » with `decimalComma` (the « ; » separator is what
+ * makes it possible).
+ */
+export function curvesCsv(a: Analysis, options: CsvOptions = {}): string {
+  const num = (v: number | null | undefined, digits = 3) => {
+    const text = fixed(v, digits);
+    return options.decimalComma ? text.replace('.', ',') : text;
+  };
   const momentary = loudnessCurve(a, 'momentary');
   const short = loudnessCurve(a, 'short');
   const { crest, plr } = dynamicsCurves(a);
@@ -696,16 +710,16 @@ export function exportJson(input: ExportInput) {
 }
 
 /** The zip: courbes.csv + analyse.json + LISEZMOI.txt. */
-export function dataZip(input: ExportInput): Promise<Buffer> {
+export function dataZip(input: ExportInput, csv: CsvOptions = {}): Promise<Buffer> {
   const zip = new yazl.ZipFile();
-  zip.addBuffer(Buffer.from(curvesCsv(input.analysis), 'utf8'), 'courbes.csv');
+  zip.addBuffer(Buffer.from(curvesCsv(input.analysis, csv), 'utf8'), 'courbes.csv');
   zip.addBuffer(Buffer.from(JSON.stringify(exportJson(input), null, 2), 'utf8'), 'analyse.json');
   zip.addBuffer(
     Buffer.from(
       [
         `Analyse du master — ${input.title} — ${input.version.name} (ToolBox)`,
         '',
-        'courbes.csv : une ligne par bloc de 100 ms (séparateur « ; », point décimal).',
+        `courbes.csv : une ligne par bloc de 100 ms (séparateur « ; », ${csv.decimalComma ? 'virgule décimale' : 'point décimal'}).`,
         '  Sonie momentanée et court terme (LUFS), crêtes (dBTP, dBFS), facteur de crête (1 s) et PLR (3 s),',
         '  énergie des 7 bandes (dB, sans lissage), largeur (0 mono, 0,5 sans lien, 1 opposition),',
         '  corrélation (−1 à +1), perte au mono (dB), densité (attaques par seconde).',

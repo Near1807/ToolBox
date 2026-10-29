@@ -168,6 +168,31 @@ describe('timer', () => {
     expect(s.history[0]).toMatchObject({ taskDone: true, completed: true });
   });
 
+  it('« Annuler » after « Oui, la cocher »: the task is unticked and the question comes back', async () => {
+    hub = await open();
+    const task = (
+      await hub.request<{ id: number }>('POST', '/api/modules/todo/tasks', { title: 'Mix' })
+    ).body;
+    await hub.request('POST', `${API}/start`, {
+      config: { mode: 'simple', workMin: 1 },
+      taskId: task.id,
+    });
+    const dataDir = hub.dataDir;
+    await hub.close({ keepData: true });
+    ago(dataDir, 2 * 60);
+    hub = await open({ dataDir });
+    expect((await hub.request('POST', `${API}/answer/undo`)).status).toBe(409); // nothing yet
+    await hub.request('POST', `${API}/answer`, { done: true });
+    const done = async () =>
+      (await hub.request<{ tasks: { done: boolean }[] }>('GET', '/api/modules/todo/tasks')).body
+        .tasks[0]!.done;
+    expect(await done()).toBe(true);
+    expect((await hub.request('POST', `${API}/answer/undo`)).status).toBe(200);
+    expect(await done()).toBe(false);
+    expect((await state()).session).toMatchObject({ status: 'ended' });
+    expect((await hub.request('POST', `${API}/answer/undo`)).status).toBe(409); // once only
+  });
+
   it('« Non » records the answer and leaves the task open', async () => {
     hub = await open();
     const task = (

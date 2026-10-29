@@ -3,7 +3,13 @@
 // ingredient lines, tags, note), the meals planned per day and moment for a
 // period, and the list generated for that period (quantities added up and
 // converted, scaled to the portions, by aisle) plus the extras; ticked while
-// shopping. « Prêt pour la synchro » and « Prêt pour le calendrier ».
+// shopping; one list per period (the earlier ones kept as history). Optional
+// facts per ingredient (piece weight, nutrition for 100 g / 100 ml, reference
+// price) give the nutrition and the estimated cost of recipes, days, weeks
+// and of the list, and the week's summary. Import / export of ingredients and
+// recipes in JSON (preview first, nothing overwritten without a yes, backup
+// before). Starts empty: no ingredient nor recipe shipped.
+// « Prêt pour la synchro » and « Prêt pour le calendrier ».
 // The assistant reads freely and changes only with its own right (off).
 import {
   changesTableSql,
@@ -17,14 +23,46 @@ import {
   SyncStore,
 } from '@hub/sdk/backend';
 import { addDays, localToday, mondayOf, weekdayOf } from '../shared/dates';
-import { addUp, fold, formatAmount, plannedLines, type MealRecipe } from '../shared/quantities';
+import {
+  addUp,
+  fold,
+  formatAmount,
+  plannedLines,
+  type MealRecipe,
+  type PieceWeights,
+} from '../shared/quantities';
+import {
+  costOf,
+  defaultNutritionPer,
+  NUTRIENT_KEYS,
+  nutritionOf,
+  PRICE_PER,
+  sumFacts,
+  type IngredientFacts,
+  type Nutrition,
+  type PricePer,
+} from '../shared/nutrition';
+import {
+  EXAMPLE,
+  FORMAT,
+  FORMAT_VERSION,
+  parseExchange,
+  previewImport,
+  type ExchangeFile,
+  type ExchangeIngredient,
+  type ExchangeRecipe,
+} from '../shared/exchange';
 import type {
+  DayFacts,
+  Goals,
   IngredientDto,
   ListDto,
   MealDto,
   MomentDto,
+  PastListDto,
   PlanDto,
   StateDto,
+  SummaryDto,
 } from '../shared/types';
 import {
   extractAddExtra,
@@ -46,6 +84,11 @@ interface IngredientRow extends Base {
   name: string;
   unit: string;
   aisle: string;
+  piece_g: number | null;
+  nutrition: string;
+  nutrition_per: string;
+  price: number | null;
+  price_per: string;
 }
 interface MealRow extends Base {
   name: string;
@@ -78,6 +121,8 @@ interface ExtraRow extends Base {
 interface ListRow extends Base {
   date_from: string;
   date_to: string;
+  closed_at: string | null;
+  snapshot: string | null;
 }
 interface ListExtraRow extends Base {
   list_id: string;
@@ -122,6 +167,20 @@ export default defineBackendModule({
         ${changesTableSql('courses__changes')}
       `,
     },
+    {
+      version: 2,
+      description:
+        'ingredient facts (piece weight, nutrition, price); one list per period, with history',
+      up: `
+        ALTER TABLE courses__ingredients ADD COLUMN piece_g REAL;
+        ALTER TABLE courses__ingredients ADD COLUMN nutrition TEXT NOT NULL DEFAULT '{}';
+        ALTER TABLE courses__ingredients ADD COLUMN nutrition_per TEXT NOT NULL DEFAULT '';
+        ALTER TABLE courses__ingredients ADD COLUMN price REAL;
+        ALTER TABLE courses__ingredients ADD COLUMN price_per TEXT NOT NULL DEFAULT '';
+        ALTER TABLE courses__lists ADD COLUMN closed_at TEXT;
+        ALTER TABLE courses__lists ADD COLUMN snapshot TEXT;
+      `,
+    },
   ],
 
   register(ctx: ModuleContext) {
@@ -141,10 +200,44 @@ export default defineBackendModule({
 
     // --- Reading -------------------------------------------------------------------
 
+    const parseNutrition = (json: string): Nutrition => {
+      try {
+        const v = JSON.parse(json) as Record<string, unknown>;
+        const out: Nutrition = {};
+        for (const k of NUTRIENT_KEYS) if (typeof v[k] === 'number') out[k] = v[k];
+        return out;
+      } catch {
+        return {};
+      }
+    };
+    const toIngredient = (r: IngredientRow): IngredientDto => ({
+      id: r.id,
+      name: r.name,
+      unit: r.unit,
+      aisle: r.aisle,
+      pieceG: r.piece_g,
+      nutrition: parseNutrition(r.nutrition),
+      nutritionPer:
+        r.nutrition_per === '100ml' || r.nutrition_per === '100g'
+          ? r.nutrition_per
+          : defaultNutritionPer(r.unit),
+      price: r.price,
+      pricePer: PRICE_PER.includes(r.price_per as PricePer) ? (r.price_per as PricePer) : null,
+    });
     const ingredients = (): IngredientDto[] =>
       live<IngredientRow>('ingredients')
-        .map((r) => ({ id: r.id, name: r.name, unit: r.unit, aisle: r.aisle }))
+        .map(toIngredient)
         .sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+    /** Facts of every ingredient (deleted ones included: an old line still counts). */
+    const allFacts = (): Map<string, IngredientFacts> =>
+      new Map(
+        (ctx.db.prepare(`SELECT * FROM ${T('ingredients')}`).all() as IngredientRow[]).map((r) => [
+          r.id,
+          toIngredient(r),
+        ]),
+      );
+    const pieceWeights = (facts: Map<string, IngredientFacts>): PieceWeights =>
+      new Map([...facts].map(([id, f]) => [id, { unit: f.unit, pieceG: f.pieceG }]));
     const moments = (): MomentDto[] =>
       live<MomentRow>('moments')
         .sort((a, b) => a.position - b.position)
@@ -154,19 +247,24 @@ export default defineBackendModule({
           time: r.default_time,
           durationMin: r.duration_min,
         }));
-    const meals = (): MealDto[] => {
+    const meals = (facts = allFacts()): MealDto[] => {
       const items = live<ItemRow>('meal_items');
       return live<MealRow>('meals')
-        .map((r) => ({
-          id: r.id,
-          name: r.name,
-          servings: r.servings,
-          tags: JSON.parse(r.tags) as string[],
-          note: r.note,
-          items: items
+        .map((r) => {
+          const lines = items
             .filter((i) => i.meal_id === r.id)
-            .map((i) => ({ id: i.id, ingredientId: i.ingredient_id, qty: i.qty, unit: i.unit })),
-        }))
+            .map((i) => ({ id: i.id, ingredientId: i.ingredient_id, qty: i.qty, unit: i.unit }));
+          const one = lines.map((l) => ({ ...l, qty: l.qty / r.servings }));
+          return {
+            id: r.id,
+            name: r.name,
+            servings: r.servings,
+            tags: JSON.parse(r.tags) as string[],
+            note: r.note,
+            items: lines,
+            perServing: { nutrition: nutritionOf(one, facts), cost: costOf(one, facts) },
+          };
+        })
         .sort((a, b) => a.name.localeCompare(b.name, 'fr'));
     };
     const planBetween = (from: string, to: string): PlanDto[] =>
@@ -179,17 +277,25 @@ export default defineBackendModule({
           servings: r.servings,
         }))
         .sort((a, b) => a.date.localeCompare(b.date));
+    /** The list in use: the open one (the others are closed, kept as history). */
     const currentList = (): ListRow => {
-      const lists = live<ListRow>('lists').sort((a, b) => b.created_at.localeCompare(a.created_at));
+      const lists = live<ListRow>('lists', 'closed_at IS NULL').sort((a, b) =>
+        b.created_at.localeCompare(a.created_at),
+      );
       if (lists[0]) return lists[0];
       const monday = mondayOf(today());
-      return store.create<ListRow>('lists', { date_from: monday, date_to: addDays(monday, 6) });
+      return store.create<ListRow>('lists', {
+        date_from: monday,
+        date_to: addDays(monday, 6),
+        closed_at: null,
+        snapshot: null,
+      });
     };
 
-    const listDto = (): ListDto => {
-      const list = currentList();
+    const listDto = (list = currentList()): ListDto => {
+      const facts = allFacts();
       const ing = new Map(ingredients().map((i) => [i.id, i]));
-      const recipes = new Map<string, MealRecipe>(meals().map((m) => [m.id, m]));
+      const recipes = new Map<string, MealRecipe>(meals(facts).map((m) => [m.id, m]));
       const plan = planBetween(list.date_from, list.date_to);
       const checks = new Map(
         live<CheckRow>('list_checks', 'list_id = ?', list.id).map((c) => [
@@ -197,7 +303,8 @@ export default defineBackendModule({
           c.checked === 1,
         ]),
       );
-      const totals = addUp(plannedLines(plan, recipes));
+      const lines = plannedLines(plan, recipes);
+      const totals = addUp(lines, pieceWeights(facts));
       const generated = totals
         .map((t) => {
           const i = ing.get(t.ingredientId);
@@ -229,6 +336,7 @@ export default defineBackendModule({
         from: list.date_from,
         to: list.date_to,
         mealsPlanned: plan.length,
+        cost: costOf(lines, facts),
         groups: aisles.map((aisle) => ({ aisle, items: all.filter((x) => x.aisle === aisle) })),
         habitual: live<ExtraRow>('extras')
           .map((e) => ({ id: e.id, name: e.name, aisle: e.aisle }))
@@ -243,12 +351,127 @@ export default defineBackendModule({
         )
         .join('\n')}\n`;
 
+    /**
+     * Another period, another list (the ticks belong to a list): the list in
+     * use is kept in the history if something was ticked or added to it
+     * (else it goes: the meals stay in the planning); coming back to a period
+     * of the history reopens its list as it was.
+     */
+    const changePeriod = (from: string, to: string) => {
+      const list = currentList();
+      if (list.date_from === from && list.date_to === to) return;
+      const used =
+        live<CheckRow>('list_checks', 'list_id = ? AND checked = 1', list.id).length > 0 ||
+        live<ListExtraRow>('list_extras', 'list_id = ?', list.id).length > 0;
+      const dto = listDto(list);
+      const earlier = live<ListRow>(
+        'lists',
+        'closed_at IS NOT NULL AND date_from = ? AND date_to = ?',
+        from,
+        to,
+      ).sort((x, y) => y.closed_at!.localeCompare(x.closed_at!))[0];
+      ctx.db.transaction(() => {
+        if (used)
+          store.update('lists', list.id, {
+            closed_at: new Date().toISOString(),
+            snapshot: JSON.stringify({ groups: dto.groups, cost: dto.cost }),
+          });
+        else store.remove('lists', list.id);
+        if (earlier) store.update('lists', earlier.id, { closed_at: null, snapshot: null });
+        else
+          store.create('lists', { date_from: from, date_to: to, closed_at: null, snapshot: null });
+      });
+    };
+    const pastLists = (): PastListDto[] =>
+      live<ListRow>('lists', 'closed_at IS NOT NULL')
+        .sort((a, b) => b.closed_at!.localeCompare(a.closed_at!))
+        .map((l) => {
+          let snap: { groups?: ListDto['groups']; cost?: ListDto['cost'] } = {};
+          try {
+            snap = JSON.parse(l.snapshot ?? '{}') as typeof snap;
+          } catch {
+            // Damaged: shown empty.
+          }
+          return {
+            id: l.id,
+            from: l.date_from,
+            to: l.date_to,
+            closedAt: l.closed_at!,
+            groups: snap.groups ?? [],
+            cost: snap.cost ?? null,
+          };
+        });
+
+    const goals = (): Goals => ({
+      proteinPerDay: Number(ctx.settings.get<number>('goalProteinPerDay') ?? 0) || 0,
+      kcalPerDay: Number(ctx.settings.get<number>('goalKcalPerDay') ?? 0) || 0,
+      budgetPerWeek: Number(ctx.settings.get<number>('goalBudgetPerWeek') ?? 0) || 0,
+    });
+    /** The period's facts: per day, total, averages, meals by protein. Facts only. */
+    const summaryDto = (): SummaryDto => {
+      const list = currentList();
+      const facts = allFacts();
+      const all = meals(facts);
+      const recipes = new Map<string, MealRecipe>(all.map((m) => [m.id, m]));
+      const plan = planBetween(list.date_from, list.date_to);
+      const days: DayFacts[] = [];
+      for (let d = list.date_from; d <= list.date_to; d = addDays(d, 1)) {
+        const dayPlan = plan.filter((p) => p.date === d);
+        const lines = plannedLines(dayPlan, recipes);
+        days.push({
+          date: d,
+          meals: dayPlan.length,
+          nutrition: nutritionOf(lines, facts),
+          cost: costOf(lines, facts),
+        });
+      }
+      const filled = days.filter((d) => d.meals > 0);
+      const total = sumFacts(days.map((d) => d.nutrition));
+      const cost = {
+        euros: Math.round(days.reduce((n, d) => n + d.cost.euros, 0) * 100) / 100,
+        missing: [...new Set(days.flatMap((d) => d.cost.missing))].sort((a, b) =>
+          a.localeCompare(b, 'fr'),
+        ),
+      };
+      const n = filled.length || 1;
+      const average = Object.fromEntries(
+        NUTRIENT_KEYS.map((k) => [
+          k,
+          Math.round((filled.reduce((x, d) => x + d.nutrition.values[k], 0) / n) * 10) / 10,
+        ]),
+      ) as SummaryDto['average']['nutrition'];
+      const planned = [...new Set(plan.map((p) => p.mealId))]
+        .map((id) => all.find((m) => m.id === id))
+        .filter((m): m is MealDto => Boolean(m))
+        .map((m) => ({
+          id: m.id,
+          name: m.name,
+          proteinPerServing: m.perServing.nutrition.values.protein,
+          missing: m.perServing.nutrition.missing.length > 0,
+        }))
+        .sort((a, b) => b.proteinPerServing - a.proteinPerServing);
+      return {
+        from: list.date_from,
+        to: list.date_to,
+        days,
+        total: { nutrition: total, cost },
+        average: {
+          nutrition: average,
+          cost: Math.round((cost.euros / n) * 100) / 100,
+          days: filled.length,
+        },
+        meals: planned,
+        goals: goals(),
+      };
+    };
+
     const state = (): StateDto => {
       const list = currentList();
+      const facts = allFacts();
       return {
         today: today(),
         ingredients: ingredients(),
-        meals: meals(),
+        meals: meals(facts),
         moments: moments(),
         plan: planBetween(list.date_from, list.date_to),
         list: listDto(),
@@ -264,6 +487,39 @@ export default defineBackendModule({
         .slice(0, max);
       if (!v) throw new HttpError(400, `${label} vide`);
       return v;
+    };
+    /** Piece weight, nutrition and price sent by the page (each optional; empty = unknown). */
+    const factFields = (body: Record<string, unknown>) => {
+      const fields: Record<string, string | number | null> = {};
+      const optional = (v: unknown, label: string, max: number) => {
+        if (v === null || v === undefined || v === '') return null;
+        const n = Number(v);
+        if (!(Number.isFinite(n) && n >= 0 && n <= max))
+          throw new HttpError(400, `${label} invalide`);
+        return n;
+      };
+      if ('pieceG' in body) {
+        const w = optional(body.pieceG, 'Poids d’une pièce', 100_000);
+        fields.piece_g = w === 0 ? null : w;
+      }
+      if ('nutrition' in body) {
+        const raw = (body.nutrition ?? {}) as Record<string, unknown>;
+        const n: Nutrition = {};
+        for (const k of NUTRIENT_KEYS) {
+          const v = optional(raw[k], 'Valeur nutritionnelle', 10_000);
+          if (v !== null) n[k] = v;
+        }
+        fields.nutrition = JSON.stringify(n);
+      }
+      if ('nutritionPer' in body)
+        fields.nutrition_per =
+          body.nutritionPer === '100ml' ? '100ml' : body.nutritionPer === '100g' ? '100g' : '';
+      if ('price' in body) fields.price = optional(body.price, 'Prix', 100_000);
+      if ('pricePer' in body)
+        fields.price_per = PRICE_PER.includes(body.pricePer as PricePer)
+          ? String(body.pricePer)
+          : '';
+      return fields;
     };
     const ingredientByName = (name: string) =>
       live<IngredientRow>('ingredients').find((i) => fold(i.name) === fold(name));
@@ -342,12 +598,19 @@ export default defineBackendModule({
       const name = text(body.name, 'Nom de l’ingrédient');
       const existing = ingredientByName(name);
       if (existing) throw new HttpError(409, `« ${existing.name} » existe déjà`);
+      const unit = text(body.unit ?? 'g', 'Unité', 20);
       return store.create('ingredients', {
         name,
-        unit: text(body.unit ?? 'g', 'Unité', 20),
+        unit,
         aisle: String(body.aisle ?? '')
           .trim()
           .slice(0, 40),
+        piece_g: null,
+        nutrition: '{}',
+        nutrition_per: '',
+        price: null,
+        price_per: '',
+        ...factFields(body),
       });
     });
     ctx.routes.patch('/ingredients/:id', (request) => {
@@ -367,7 +630,7 @@ export default defineBackendModule({
         fields.aisle = String(body.aisle ?? '')
           .trim()
           .slice(0, 40);
-      return store.update('ingredients', id, fields);
+      return store.update('ingredients', id, { ...fields, ...factFields(body) });
     });
     /** Two ingredients that are the same: the lines of `from` go to `into`, `from` is removed (tombstone). */
     ctx.routes.post('/ingredients/merge', (request) => {
@@ -471,8 +734,7 @@ export default defineBackendModule({
       if (!DAY.test(from) || !DAY.test(to) || from > to)
         throw new HttpError(400, 'Période invalide');
       if (addDays(from, 62) < to) throw new HttpError(400, 'Deux mois au plus');
-      const list = currentList();
-      store.update('lists', list.id, { date_from: from, date_to: to });
+      changePeriod(from, to);
       return listDto();
     });
     ctx.routes.post('/list/check', (request) => {
@@ -538,6 +800,205 @@ export default defineBackendModule({
       });
       return saved ? { path: saved } : { cancelled: true };
     });
+    // --- History of the lists ------------------------------------------------------
+
+    ctx.routes.get('/lists/history', () => ({ lists: pastLists() }));
+    /** An earlier list as a base: its articles added as extras of the list in use (those not already in it). */
+    ctx.routes.post('/lists/:id/reuse', (request) => {
+      const past = pastLists().find((l) => l.id === (request.params as { id: string }).id);
+      if (!past) throw new HttpError(404, 'Liste introuvable');
+      const now = listDto();
+      const there = new Set(now.groups.flatMap((g) => g.items.map((i) => fold(i.name))));
+      let added = 0;
+      ctx.db.transaction(() => {
+        for (const g of past.groups)
+          for (const item of g.items) {
+            if (there.has(fold(item.name))) continue;
+            there.add(fold(item.name));
+            addListExtra(item.name, item.amount.slice(0, 30), g.aisle === NO_AISLE ? '' : g.aisle);
+            added++;
+          }
+      });
+      return { added, list: listDto() };
+    });
+
+    // --- Summary of the period, goals -----------------------------------------------
+
+    ctx.routes.get('/summary', () => summaryDto());
+    ctx.routes.put('/goals', (request) => {
+      const b = requestBody(request);
+      const value = (v: unknown, max: number) => {
+        const n = Number(v ?? 0);
+        if (!(Number.isFinite(n) && n >= 0 && n <= max))
+          throw new HttpError(400, 'Objectif invalide');
+        return n;
+      };
+      if ('proteinPerDay' in b) ctx.settings.set('goalProteinPerDay', value(b.proteinPerDay, 1000));
+      if ('kcalPerDay' in b) ctx.settings.set('goalKcalPerDay', value(b.kcalPerDay, 20_000));
+      if ('budgetPerWeek' in b)
+        ctx.settings.set('goalBudgetPerWeek', value(b.budgetPerWeek, 100_000));
+      return goals();
+    });
+
+    // --- Import / export (JSON) -------------------------------------------------------
+
+    const toExchangeIngredient = (i: IngredientDto): ExchangeIngredient => ({
+      name: i.name,
+      unit: i.unit,
+      aisle: i.aisle,
+      pieceWeightG: i.pieceG,
+      nutritionPer: i.nutritionPer,
+      nutrition: i.nutrition,
+      price: i.price !== null && i.pricePer ? { amount: i.price, per: i.pricePer } : null,
+    });
+    const exchangeData = (): ExchangeFile => {
+      const ing = ingredients();
+      const names = new Map(ing.map((i) => [i.id, i.name]));
+      return {
+        format: FORMAT,
+        version: FORMAT_VERSION,
+        ingredients: ing.map(toExchangeIngredient),
+        recipes: meals().map((m): ExchangeRecipe => ({
+          name: m.name,
+          servings: m.servings,
+          tags: m.tags,
+          note: m.note,
+          ingredients: m.items.map((it) => ({
+            name: names.get(it.ingredientId) ?? 'Ingrédient supprimé',
+            qty: it.qty,
+            unit: it.unit,
+          })),
+        })),
+      };
+    };
+    const existing = () => {
+      const data = exchangeData();
+      return { ingredients: data.ingredients, recipes: data.recipes };
+    };
+    const MAX_IMPORT = 5 * 1024 * 1024;
+    const importText = (body: Record<string, unknown>) => {
+      const textValue = typeof body.text === 'string' ? body.text : '';
+      if (!textValue.trim()) throw new HttpError(400, 'Fichier vide');
+      return textValue;
+    };
+    ctx.routes.post(
+      '/import/preview',
+      (request) => previewImport(parseExchange(importText(requestBody(request))), existing()),
+      { bodyLimit: MAX_IMPORT },
+    );
+    /**
+     * The import itself, after the preview: new ingredients and recipes are
+     * added; an existing one is changed only if named in `overwrite` /
+     * `replaceRecipes`; unknown ingredients of recipes are created only if
+     * named in `create` (else their recipes are skipped). Backup first.
+     */
+    ctx.routes.post(
+      '/import/apply',
+      (request) => {
+        const body = requestBody(request);
+        const parsed = parseExchange(importText(body));
+        const preview = previewImport(parsed, existing());
+        const names = (v: unknown) =>
+          new Set(Array.isArray(v) ? v.map((x) => fold(String(x))) : []);
+        const overwrite = names(body.overwrite);
+        const replace = names(body.replaceRecipes);
+        const create = names(body.create);
+        const backup = ctx.db.backup('avant import Courses');
+        const done = {
+          ingredientsAdded: 0,
+          ingredientsUpdated: 0,
+          ingredientsCreated: 0,
+          recipesAdded: 0,
+          recipesReplaced: 0,
+          recipesSkipped: [] as string[],
+          backup,
+        };
+        const facts = (i: ExchangeIngredient) => ({
+          unit: i.unit,
+          aisle: i.aisle,
+          piece_g: i.pieceWeightG,
+          nutrition: JSON.stringify(i.nutrition),
+          nutrition_per: i.nutritionPer,
+          price: i.price?.amount ?? null,
+          price_per: i.price?.per ?? '',
+        });
+        ctx.db.transaction(() => {
+          for (const i of parsed.ingredients) {
+            const before = ingredientByName(i.name);
+            if (!before) {
+              store.create('ingredients', { name: i.name, ...facts(i) });
+              done.ingredientsAdded++;
+            } else if (overwrite.has(fold(i.name))) {
+              store.update('ingredients', before.id, facts(i));
+              done.ingredientsUpdated++;
+            }
+          }
+          for (const c of preview.toCreate)
+            if (create.has(fold(c.name))) {
+              store.create('ingredients', {
+                name: c.name,
+                unit: c.unit,
+                aisle: '',
+                piece_g: null,
+                nutrition: '{}',
+                nutrition_per: '',
+                price: null,
+                price_per: '',
+              });
+              done.ingredientsCreated++;
+            }
+          for (const r of parsed.recipes) {
+            const p = preview.recipes.find((x) => fold(x.name) === fold(r.name))!;
+            if (p.unknown.some((u) => !create.has(fold(u)))) {
+              done.recipesSkipped.push(r.name);
+              continue;
+            }
+            const before = live<MealRow>('meals').find((m) => fold(m.name) === fold(r.name));
+            if (before && !replace.has(fold(r.name))) continue;
+            const items = r.ingredients.map((it) => ({
+              ingredientId: ingredientByName(it.name)!.id,
+              qty: it.qty,
+              unit: it.unit,
+            }));
+            const fields = mealFields({
+              name: r.name,
+              servings: r.servings,
+              tags: r.tags,
+              note: r.note,
+            });
+            if (before) {
+              store.update('meals', before.id, fields);
+              saveItems(before.id, items);
+              done.recipesReplaced++;
+            } else {
+              const meal = store.create<MealRow>('meals', fields);
+              saveItems(meal.id, items);
+              done.recipesAdded++;
+            }
+          }
+        });
+        ctx.logger.info(`Import Courses : ${JSON.stringify(done)}`);
+        return done;
+      },
+      { bodyLimit: MAX_IMPORT },
+    );
+    const saveJson = async (title: string, name: string, data: unknown) => {
+      const saved = await ctx.files.saveAs({
+        title,
+        defaultName: name,
+        filters: [{ name: 'JSON', extensions: ['json'] }],
+        data: `${JSON.stringify(data, null, 2)}\n`,
+      });
+      return saved ? { path: saved } : { cancelled: true };
+    };
+    ctx.routes.post('/export-json', () =>
+      saveJson('Exporter ingrédients et recettes', `Courses ${today()}.json`, exchangeData()),
+    );
+    ctx.routes.post('/example-json', () =>
+      saveJson('Enregistrer le fichier d’exemple', 'Courses exemple.json', EXAMPLE),
+    );
+    ctx.routes.get('/example-json', () => EXAMPLE);
+
     ctx.routes.get('/home', () => {
       const m = moments();
       const plan = planBetween(today(), today());

@@ -51,17 +51,19 @@ Proposé par l'audit v0.19.0 (à décider, une session chacun ; détail dans `do
 
 ## Vie perso (prototypes, à valider à l'usage)
 
-| Étape | Contenu                                                                                                                             | État                      |
-| ----- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
-| 6     | Règles « Prêt pour la synchro » et « Prêt pour le calendrier » ; fenêtre flottante déplaçable ; Réglages en sections avec recherche | ✅ (v0.22.0)              |
-| 6 bis | **Sport** (semaine type, séances, bilan, export, assistant)                                                                         | 🧪 expérimental (v0.22.0) |
-| 6 ter | **Courses** (ingrédients, repas, planning des repas, liste générée, extras, assistant)                                              | 🧪 expérimental (v0.22.0) |
+| Étape    | Contenu                                                                                                                                                                                                                                                                                                                             | État                      |
+| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
+| 6        | Règles « Prêt pour la synchro » et « Prêt pour le calendrier » ; fenêtre flottante déplaçable ; Réglages en sections avec recherche                                                                                                                                                                                                 | ✅ (v0.22.0)              |
+| 6 bis    | **Sport** (semaine type, séances, bilan, export, assistant)                                                                                                                                                                                                                                                                         | 🧪 expérimental (v0.22.0) |
+| 6 ter    | **Courses** (ingrédients, repas, planning des repas, liste générée, extras, assistant)                                                                                                                                                                                                                                              | 🧪 expérimental (v0.22.0) |
+| 6 quater | Bêta : glissement natif de la fenêtre flottante ; Sport (exercices, suppression d'une séance ajoutée, export complet) ; Courses (import / export JSON, nutrition, prix, résumé de la semaine, une liste par période et historique, pièces ↔ poids) ; To-do « décocher » et « Annuler » du Timer ; CSV du master en virgule décimale | 🧪 expérimental (v0.23.0) |
 
 ## Plus tard (hors V1, la structure doit le permettre)
 
 - **Version Android synchronisée** avec le PC sur le réseau local : les nouveaux modules sont déjà « Prêts pour la synchro » (UUID, dates, suppressions logiques, journal `<module>__changes`, MODULES.md §6 bis) ; les modules existants seront adaptés dans une session dédiée.
 - **Calendrier général** : interroge toutes les sources `ctx.calendar` (`GET /api/core/calendar`, MODULES.md §5.17). Déjà branchés : Sport, Courses. À brancher : Planning de sortie, To-do (échéances), Timer (sessions).
-- **Sport** : exercices et tags par séance, statistiques par type de séance.
+- **Sport** : tags par séance, statistiques par type de séance et par exercice.
+- **Courses** : arrondi « à l'achat » (paquets), prix des extras, assistant sur la nutrition et le coût.
 
 - **Assistant vocal V2** :
   - mot de réveil (« Hé ToolBox », détection locale, sans touche) ;

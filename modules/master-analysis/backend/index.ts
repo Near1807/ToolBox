@@ -817,7 +817,9 @@ export default defineBackendModule({
               title: 'Exporter les données complètes',
               defaultName: `${name} - données.zip`,
               filters: [{ name: 'Archive zip', extensions: ['zip'] }],
-              data: await dataZip(input),
+              data: await dataZip(input, {
+                decimalComma: ctx.settings.get<boolean>('csvDecimalComma') === true,
+              }),
             });
       if (saved) ctx.logger.info(`Export ${format} : ${saved}`);
       return saved ? { path: saved } : { cancelled: true };

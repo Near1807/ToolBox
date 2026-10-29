@@ -458,6 +458,20 @@ describe('master-analysis on a hub', () => {
     expect(Math.max(...peaks)).toBeCloseTo(json.measures.truePeak, 2);
   });
 
+  it('export: « virgule décimale » writes 1,5 instead of 1.5 (separator « ; »)', async () => {
+    const v = (await state()).projects.find((p) => p.trackId === 1)!.versions[1]!;
+    await hub.request('PUT', '/api/core/settings/master-analysis', { csvDecimalComma: true });
+    saveTarget = path.join(dir, 'exports-user', 'données-fr.zip');
+    await hub.request('POST', `${API}/versions/${v.id}/export`, { format: 'data' });
+    await hub.request('PUT', '/api/core/settings/master-analysis', { csvDecimalComma: false });
+    const files = await unzip(saveTarget);
+    const row = files['courbes.csv']!.split('\n')[11]!.split(';');
+    expect(row[0]).toBe('1,0');
+    expect(row.every((cell) => !cell.includes('.'))).toBe(true);
+    expect(row.some((cell) => /^-?\d+,\d{3}$/.test(cell))).toBe(true);
+    expect(files['LISEZMOI.txt']).toContain('virgule décimale');
+  });
+
   it('the assistant reads the measures (read only)', async () => {
     const status = await hub.hub.assistant.run('master-analysis.master-status', {
       track: 'obsidian',

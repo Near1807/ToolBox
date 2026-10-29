@@ -4,6 +4,22 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.23.0] — 2026-10-29
+
+Session bêta : Sport et Courses améliorés d'après les essais réels (toujours expérimentaux), la fenêtre flottante glissée par le système, et les petits points en attente.
+
+### Ajouté
+
+- Sport (expérimental) : bibliothèque d'exercices (autocomplétion, fusion des doublons) ; liste ordonnée d'exercices par séance de la semaine type (séries × répétitions, charge, repos, note), copiée dans chaque séance et modifiable pour elle seule ; affichage rapide au clic (semaine, mois, accueil) ; une séance ajoutée à la main se supprime (confirmation, « Annuler ») ; export CSV / Markdown avec commentaire et exercices ; assistant « c'est quoi les exos de ma séance d'aujourd'hui » (lecture).
+- Courses (expérimental) : démarre vide ; import / export JSON documenté (aperçu avant écriture, rien d'écrasé sans confirmation, ingrédients inconnus proposés à la création, sauvegarde avant import, aller-retour sans perte, exemple téléchargeable) ; nutrition facultative par ingrédient (pour 100 g / 100 ml) et calcul par portion, par jour et par période (incomplet signalé) ; prix de référence et coût estimé (par portion, tri et filtre « moins chers », période, liste) ; onglet « Résumé de la semaine » (moyennes, graphes, objectifs facultatifs, aucun conseil) ; une liste par période avec historique réutilisable ; pièces ↔ poids avec le poids d'une pièce. Migration 2 du module.
+
+- To-do : service `uncompleteTask` (décocher, sur un clic dans le module appelant). Timer : « Annuler » juste après « Oui, la cocher », dans la fenêtre flottante et sur la page.
+- Analyse du master : réglage « Export des données : virgule décimale (Excel en français) » pour `courbes.csv` (désactivé par défaut ; séparateur « ; »).
+
+### Corrigé
+
+- Fenêtre flottante : la poignée utilise le déplacement natif du système (précis, sans dérive, correct à 125 / 150 %) au lieu du suivi du curseur (ADR 0036, révision v0.23).
+
 ## [0.22.0] — 2026-10-29
 
 Session prototype : deux règles pour la suite (synchro Android, calendrier général), la fenêtre flottante déplaçable, les Réglages en sections, et deux outils « Vie perso » à tester : Sport et Courses.

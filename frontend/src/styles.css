@@ -65,6 +65,12 @@ body {
 }
 
 .overlay__grip {
+  /* Rim around the handle: it sees the pointer before the drag region does. */
+  padding: 6px 10px;
+}
+.overlay__grip-handle {
+  display: block;
+  -webkit-app-region: drag;
   padding: 0 10px;
   border-radius: 999px;
   background: var(--surface-solid);
@@ -75,7 +81,7 @@ body {
   cursor: grab;
   opacity: 0.75;
 }
-.overlay__grip:hover {
+.overlay__grip:hover .overlay__grip-handle {
   opacity: 1;
   color: var(--text);
 }
