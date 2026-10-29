@@ -80,7 +80,13 @@ declare global {
       /** Called with a UI route when a desktop notification is clicked. */
       onNavigate?: (listener: (target: string) => void) => () => void;
       /** Floating window only: its size and what it accepts (the shell sends it). */
-      overlay?: { layout: (layout: FloatingLayout) => void };
+      overlay?: {
+        layout: (layout: FloatingLayout) => void;
+        hover: (over: boolean) => void;
+        drag: (phase: 'start' | 'end') => void;
+        onPrefs: (listener: (prefs: { locked: boolean }) => void) => () => void;
+        position: (value?: FloatingPosition) => Promise<FloatingPosition>;
+      };
     };
   }
 }
@@ -88,6 +94,22 @@ declare global {
 // ---------------------------------------------------------------------------
 // Floating window (MODULES.md §5.16)
 // ---------------------------------------------------------------------------
+
+/** Where the floating window goes (Settings > Général > Fenêtre flottante). */
+export interface FloatingPosition {
+  anchor:
+    | 'bottom-center'
+    | 'top-center'
+    | 'top-left'
+    | 'top-right'
+    | 'bottom-left'
+    | 'bottom-right'
+    | 'custom';
+  locked: boolean;
+  x?: number;
+  y?: number;
+  edge?: 'top' | 'bottom';
+}
 
 /** What the floating window needs, from the panels shown. */
 export interface FloatingLayout {
@@ -112,6 +134,33 @@ export const FloatingProvider = FloatingContext.Provider;
  * panel goes). Without either, the panel lets the clicks through.
  */
 export function FloatingPanel(props: {
+  label: string;
+  interactive?: boolean;
+  focus?: boolean;
+  /**
+   * A message, a confirmation, a transition: gone by itself after this long
+   * (the window shrinks), until `contentKey` changes. Leave it out for what
+   * stays (mini-timer) or waits for an answer (a question).
+   */
+  lifetimeMs?: number;
+  /** What the panel shows (a new value shows it again for `lifetimeMs`). */
+  contentKey?: string | number;
+  className?: string;
+  children: ReactNode;
+}) {
+  const key = String(props.contentKey ?? '');
+  const [expired, setExpired] = useState<string | null>(null);
+  const { lifetimeMs } = props;
+  useEffect(() => {
+    if (!lifetimeMs) return;
+    const timer = setTimeout(() => setExpired(key), lifetimeMs);
+    return () => clearTimeout(timer);
+  }, [lifetimeMs, key]);
+  if (lifetimeMs && expired === key) return null;
+  return <FloatingPanelBody {...props} />;
+}
+
+function FloatingPanelBody(props: {
   label: string;
   interactive?: boolean;
   focus?: boolean;
@@ -455,14 +504,39 @@ export function Page(props: {
   actions?: ReactNode;
   children: ReactNode;
 }) {
+  const module = useContext(ModuleReactContext);
   return (
     <div className="page">
       <header className="page__header">
         <div>
-          <h1>{props.title}</h1>
+          <h1>
+            {props.title}
+            {module?.manifest.experimental && (
+              <span
+                className="badge badge--warning page__experimental"
+                title="Pas encore validé à l’usage"
+              >
+                Expérimental
+              </span>
+            )}
+          </h1>
           {props.subtitle && <p className="muted">{props.subtitle}</p>}
         </div>
-        {props.actions && <div className="page__actions">{props.actions}</div>}
+        {(props.actions || module) && (
+          <div className="page__actions">
+            {props.actions}
+            {module && (
+              <a
+                className="button button--secondary page__settings-link"
+                href={`#/settings?s=${encodeURIComponent(module.id)}`}
+                title={`Réglages de ${module.manifest.name}`}
+                aria-label={`Réglages de ${module.manifest.name}`}
+              >
+                ⚙
+              </a>
+            )}
+          </div>
+        )}
       </header>
       {props.children}
     </div>

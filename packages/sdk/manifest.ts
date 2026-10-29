@@ -60,6 +60,8 @@ export interface ModuleManifest {
   icon: string;
   /** Sort order inside the section (lower first). Default 100. */
   order?: number;
+  /** Not validated by Thomas yet: « Expérimental » is shown on its page, card and sidebar entry. */
+  experimental?: boolean;
   dependsOn?: {
     /** Modules that must be present and loaded. */
     modules?: string[];

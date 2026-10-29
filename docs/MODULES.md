@@ -380,8 +380,25 @@ ctx.assistant.define({
 
 - Chaque élément est un **`FloatingPanel`** du SDK (`label`, `interactive`, `focus`) ; les panneaux de tous les modules sont **empilés en colonne** (jamais superposés) et la fenêtre prend la taille du contenu (bord bas fixe ; 560 × 640 au plus).
 - Sans option, un panneau laisse passer les clics et ne prend jamais le clavier (indicateur, mini-timer, message bref). `interactive` : il a des boutons ; la fenêtre prend la souris sans s'activer. `focus` : il a un champ de texte (barre écrite) ; la fenêtre prend le clavier jusqu'à la disparition du panneau, puis le rend à l'application en dessous. Réserver `focus` à un geste explicite de l'utilisateur (raccourci).
-- Petit, couleurs et arrondis du thème, composants partagés (`Button`…). Un message bref (« Pause — 5 min ») reste ~5 s ; le module garde la fenêtre demandée pendant ce temps.
+- Petit, couleurs et arrondis du thème, composants partagés (`Button`…).
+- **Chaque panneau a sa durée de vie** : une confirmation, une transition ou un message s'efface seul après quelques secondes (`lifetimeMs`, relancé quand `contentKey` change), sauf une question qui attend sa réponse ; ce qui doit rester (mini-timer) n'en a pas. La disparition d'un panneau réduit la fenêtre.
+- **Position** : choisie par Thomas (Réglages > Fenêtre flottante : 4 coins, bas centre, haut centre) ou par glisser sa poignée ⠿ ; retenue (`<userData>/overlay-position.json`), ramenée dans l'écran si la résolution change, « Verrouiller la position » cache la poignée. Un module ne choisit jamais la position.
 - La fenêtre **propose, n'agit pas seule** : un bouton y appelle les mêmes routes que la page, avec les mêmes règles (« Contrôle et sécurité »). Ce qui modifie s'y confirme à l'écran (message bref). Chaque élément a son réglage pour ne pas s'afficher.
+
+### 5.17 `ctx.calendar` — « Prêt pour le calendrier » (règle du contrat)
+
+Tout module qui a des **éléments datés** déclare une source pour le futur calendrier général : `ctx.calendar.provide({ events(from, to) })`. Pour une période (dates locales `AAAA-MM-JJ`, incluses), elle renvoie ses événements (`CalendarEvent`) :
+
+| Champ         | Contenu                                                                          |
+| ------------- | -------------------------------------------------------------------------------- |
+| `id`          | identifiant stable dans le module (UUID pour un module « Prêt pour la synchro ») |
+| `title`       | titre affiché                                                                    |
+| `start`       | date et heure de début locales `AAAA-MM-JJTHH:mm` (ou une date pour la journée)  |
+| `durationMin` | durée en minutes (0 pour un instant)                                             |
+| `open`        | route qui ouvre l'élément (« /m/sport?week=2026-10-26 »)                         |
+| `status`      | facultatif : détail court (« fait », « 2 portions »)                             |
+
+Le socle ajoute `moduleId` et réunit toutes les sources : `GET /api/core/calendar?from=&to=` (lecture seule ; une source en erreur est journalisée, les autres répondent). Une source ne modifie **jamais** rien quand on l'interroge. Appliqué à : Sport, Courses. À brancher plus tard : Planning, To-do, Timer.
 
 ## 6. Migrations et sécurité des données
 
@@ -426,6 +443,17 @@ migrations: [
 | Une migration du socle échoue                                                   | Restauration de la sauvegarde, puis l'app refuse de démarrer avec un message clair                                                                                                                                                                                                                                                               |
 
 L'utilisateur peut aussi, à tout moment, **exporter une sauvegarde complète** (Réglages > Sauvegardes) : un `.zip` contenant une copie cohérente de `hub.db` et tous les dossiers `modules/*` de `userData`.
+
+## 6 bis. « Prêt pour la synchro » (règle du contrat, tout NOUVEAU module)
+
+Une future version Android se synchronisera avec le PC sur le réseau local. Tout **nouveau** module stocke donc ses données ainsi (les modules existants seront adaptés dans une session dédiée) :
+
+- **identifiants uniques globaux** : UUID (`newId()`), jamais d'auto-incrément ;
+- chaque élément a `created_at` et `updated_at` (ISO) ;
+- **suppression logique** : `deleted_at` (« tombstone »), jamais d'effacement silencieux ; les listes ignorent les lignes supprimées, « Annuler » efface le `deleted_at` ;
+- **journal des modifications** : table `<module>__changes` (`id`, `at`, `entity`, `entity_id`, `op` = create / update / delete / restore, `data` JSON des champs écrits).
+
+Le SDK le fait pour toi (`@hub/sdk/backend`) : `SYNC_COLUMNS` en tête de chaque `CREATE TABLE`, `changesTableSql('<module>__changes')` dans la première migration, et `SyncStore` (`create`, `update`, `remove`, `restore`, `get`, `changesSince`) qui écrit la ligne et son journal dans la même transaction. Les tables de liaison (ex. ingrédients d'un repas) suivent la même règle.
 
 ## 7. Frontend : `frontend/index.tsx`
 
@@ -544,6 +572,9 @@ L'état de chaque module est visible dans **Réglages > Modules** (avec bouton D
 - [ ] `id` = nom du dossier, manifest complet et valide
 - [ ] N'importe que `@hub/sdk/*` (et npm/Node) — `npm run lint` passe
 - [ ] Tables préfixées, schéma uniquement par migrations, aucune suppression de données hors migration explicite
+- [ ] Nouveau module : « Prêt pour la synchro » (§6 bis : UUID, dates, tombstones, journal)
+- [ ] Éléments datés : source `ctx.calendar` (« Prêt pour le calendrier », §5.17)
+- [ ] Nouveauté non validée par Thomas marquée « Expérimental » (manifest `experimental: true` ou badge dans la page)
 - [ ] Fichiers uniquement dans `ctx.files.dataDir` / `outputDir()`
 - [ ] Chaque fichier généré enregistré dans `ctx.outputs` (avec `onRemoved` pour nettoyer ses données et `onReattach` pour suivre un rattachement) ; dans l'interface : « Supprimer » avec confirmation, sélection multiple, « Fichier introuvable », « Nettoyer les éléments introuvables »
 - [ ] Dépendances et services déclarés dans le manifest ; types publics dans `contract.ts`

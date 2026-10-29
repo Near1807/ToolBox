@@ -329,6 +329,11 @@ export function Sidebar(props: { fullscreen: boolean }) {
                   >
                     <span className="nav-link__icon">{tool.module.manifest.icon}</span>
                     <span className="nav-link__label">{tool.name}</span>
+                    {tool.module.manifest.experimental && (
+                      <span className="nav-link__tag" title="Expérimental">
+                        β
+                      </span>
+                    )}
                   </NavLink>
                 ))}
               {!collapsed && category.tools.length === 0 && (

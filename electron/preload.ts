@@ -29,6 +29,16 @@ contextBridge.exposeInMainWorld('toolbox', {
   // (checked by the main process, which ignores it from any other window).
   overlay: {
     layout: (layout: unknown): void => ipcRenderer.send('toolbox:overlay-layout', layout),
+    hover: (over: boolean): void => ipcRenderer.send('toolbox:overlay-hover', over),
+    drag: (phase: 'start' | 'end'): void => ipcRenderer.send('toolbox:overlay-drag', phase),
+    onPrefs: (listener: (prefs: { locked: boolean }) => void): (() => void) => {
+      const handler = (_event: unknown, prefs: unknown) => listener(prefs as { locked: boolean });
+      ipcRenderer.on('toolbox:overlay-prefs', handler);
+      return () => ipcRenderer.removeListener('toolbox:overlay-prefs', handler);
+    },
+    /** Settings page: the position (read, or changed when `value` is given). */
+    position: (value?: unknown): Promise<unknown> =>
+      ipcRenderer.invoke('toolbox:overlay-position', value),
   },
   // A notification was clicked: the shell opens this route (e.g. "/m/release-planner").
   onNavigate: (listener: (target: string) => void): (() => void) => {

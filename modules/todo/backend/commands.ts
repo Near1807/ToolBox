@@ -62,6 +62,13 @@ export function extractAdd(utterance: string, today: string): AssistantParams | 
   if (body === null) return null;
   // « note une idée … » belongs to the Boîte à idées, never a task.
   if (/^(?:une |l’|l'|cette |mon |ma )?(?:nouvelle )?id[ée]es?\b/iu.test(body)) return null;
+  // « ajoute café aux extras » belongs to Courses.
+  if (
+    /(?:^|\s)(?:aux extras?|(?:à|a) la liste de courses|dans (?:les|mes|la liste de) courses)\s*[.!?]?$/iu.test(
+      body,
+    )
+  )
+    return null;
   const { tags, rest: withoutTags } = extractTags(body);
   const { value: track, rest: withoutTrack } = extractAfter(
     withoutTags,

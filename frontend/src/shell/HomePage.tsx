@@ -16,6 +16,7 @@ function ModuleCard({ module }: { module: ShellModule }) {
       <div className="module-card__header">
         <span className="module-card__icon">{module.manifest.icon}</span>
         <span className="module-card__name">{module.manifest.name}</span>
+        {module.manifest.experimental && <span className="badge badge--warning">Expérimental</span>}
         {module.status !== 'loaded' && (
           <span className="badge badge--warning">{STATUS_BADGES[module.status]}</span>
         )}

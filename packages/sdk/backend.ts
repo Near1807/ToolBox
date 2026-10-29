@@ -15,6 +15,15 @@ export {
 } from './match';
 export { ELEMENT_STATES, listPhrase } from './assistant-texts';
 export {
+  changesTableSql,
+  newId,
+  SYNC_COLUMNS,
+  SyncStore,
+  syncStamp,
+  type SyncOp,
+  type SyncRow,
+} from './sync';
+export {
   cleanUtterance,
   extractAfter,
   extractName,
@@ -86,6 +95,8 @@ export interface ModuleContext {
   readonly hotkeys: ModuleHotkeys;
   /** The desktop window: open a page, ask for the floating window. */
   readonly ui: ModuleUi;
+  /** « Prêt pour le calendrier »: the module's dated items, for the general calendar (§5.17). */
+  readonly calendar: ModuleCalendar;
   readonly binaries: ModuleBinaries;
   readonly logger: ModuleLogger;
   /** Called when the hub shuts down (close watchers, kill processes…). */
@@ -405,6 +416,33 @@ export interface ModuleEvents {
   emit(name: string, payload?: unknown): void;
   /** Listens to a fully-qualified event, e.g. "music-library:track.created". */
   on(event: string, handler: (payload: unknown) => void | Promise<void>): () => void;
+}
+
+/** One dated item, as the general calendar shows it (« Prêt pour le calendrier », §5.17). */
+export interface CalendarEvent {
+  /** Stable id inside the module (a UUID for « Prêt pour la synchro » modules). */
+  id: string;
+  title: string;
+  /** Local date-time « YYYY-MM-DDTHH:mm » (or a date « YYYY-MM-DD » for an all-day item). */
+  start: string;
+  /** Minutes (0 for a moment). */
+  durationMin: number;
+  /** Set by the hub: the module the event comes from. */
+  moduleId?: string;
+  /** UI route that opens the item (« /m/sport?week=2026-10-26 »). */
+  open: string;
+  /** Free details for the calendar (« fait », « 2 portions »…). */
+  status?: string;
+}
+
+export interface CalendarSource {
+  /** Events between two local dates (inclusive, « YYYY-MM-DD »). Read only. */
+  events(from: string, to: string): CalendarEvent[] | Promise<CalendarEvent[]>;
+}
+
+export interface ModuleCalendar {
+  /** Registers the module's source (one per module; replaces the previous one). */
+  provide(source: CalendarSource): void;
 }
 
 export interface ModuleServices {

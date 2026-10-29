@@ -204,7 +204,11 @@ export function SettingsForm(props: { section: SettingsSectionData; onSaved: () 
             break;
         }
         return (
-          <div key={field.key} className="settings-form__field">
+          <div
+            key={field.key}
+            className="settings-form__field"
+            id={`setting-${section.scope}-${field.key}`}
+          >
             <label htmlFor={id}>{field.label}</label>
             {input}
             {field.description && <p className="muted settings-form__help">{field.description}</p>}

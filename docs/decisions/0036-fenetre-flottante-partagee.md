@@ -20,3 +20,8 @@ Thomas travaille dans FL Studio, ToolBox réduite. Plusieurs éléments doivent 
 - Sur la zone des panneaux interactifs, les clics vont à ToolBox ; ailleurs ils passent à l'application en dessous.
 - La fenêtre reste affichée (1 × 1 pixel transparent) tant qu'un module la demande, même vide : une fenêtre cachée peut ne plus calculer sa mise en page.
 - Non vérifiable dans le conteneur Linux : le comportement exact du focus sous Windows (retour du clavier à FL Studio) est à confirmer sur le PC de Thomas.
+
+## Révision (v0.22)
+
+- Chaque panneau a sa propre durée de vie (`FloatingPanel` : `lifetimeMs`, `contentKey`) : la dernière réponse de l'assistant restait au-dessus du mini-timer tant que celui-ci gardait la fenêtre ouverte.
+- La fenêtre n'est plus fixée en bas au centre : position au choix ou glissée par une poignée, retenue par le process principal (fichier dans `userData`, pas une donnée de module), ramenée dans l'écran. La poignée prend la souris seulement quand elle est survolée (événements de souris transmis à la page, `setIgnoreMouseEvents(true, { forward: true })`).
