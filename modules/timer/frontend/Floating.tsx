@@ -9,6 +9,8 @@ import type { SessionDto, StateDto, ToastEvent } from '../shared/types';
 import { useLiveSession } from './live';
 
 const TOAST_MS = 5_000;
+/** How long « Annuler » stays after « Oui, la cocher ». */
+const UNDO_MS = 8_000;
 
 export function Overlay() {
   const module = useModule();
@@ -25,15 +27,23 @@ export function Overlay() {
   const data = useApi<StateDto>(ended ? module.url(`/state?end=${session.id}`) : null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // « Oui, la cocher » done: « Annuler » for a few seconds.
+  const [undo, setUndo] = useState<{ title: string } | null>(null);
+  useEffect(() => {
+    if (!undo) return;
+    const id = setTimeout(() => setUndo(null), UNDO_MS);
+    return () => clearTimeout(id);
+  }, [undo]);
   if (!floating) return null;
 
-  const post = async (path: string, body?: unknown) => {
+  const post = async <T,>(path: string, body?: unknown): Promise<T | null> => {
     setBusy(true);
     setError(null);
     try {
-      await module.api.post(path, body);
+      return await module.api.post<T>(path, body);
     } catch (err) {
       setError(errorMessage(err));
+      return null;
     } finally {
       setBusy(false);
     }
@@ -44,7 +54,33 @@ export function Overlay() {
 
   return (
     <>
-      {toast && (
+      {undo && (
+        <FloatingPanel label="Timer : annuler" interactive>
+          <div className="tm-float tm-float--undo" role="status">
+            <p className="tm-float__question">
+              Cochée : <strong>{undo.title}</strong>
+            </p>
+            <div className="tm-float__actions">
+              <Button
+                variant="secondary"
+                small
+                disabled={busy}
+                onClick={() =>
+                  void post('/answer/undo').then(() => {
+                    setUndo(null);
+                    // « Tâche cochée… » is no longer true.
+                    setToast(null);
+                  })
+                }
+              >
+                Annuler
+              </Button>
+            </div>
+            {errorLine}
+          </div>
+        </FloatingPanel>
+      )}
+      {toast && !(undo && toast.tone === 'done') && (
         <FloatingPanel label="Timer : changement">
           <div
             className={`tm-hud tm-hud--${toast.tone === 'work' ? 'work' : toast.tone === 'break' ? 'break' : 'end'}`}
@@ -67,7 +103,11 @@ export function Overlay() {
                   <Button
                     small
                     disabled={busy || !data.data}
-                    onClick={() => void post('/answer', { done: true })}
+                    onClick={() =>
+                      void post<{ ticked: boolean }>('/answer', { done: true }).then(
+                        (r) => r?.ticked && setUndo({ title: session.taskTitle ?? '' }),
+                      )
+                    }
                   >
                     Oui, la cocher
                   </Button>

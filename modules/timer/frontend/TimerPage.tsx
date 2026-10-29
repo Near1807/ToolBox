@@ -12,6 +12,7 @@ import {
   ErrorMessage,
   errorMessage,
   Page,
+  UndoToast,
   useApi,
   useModule,
 } from '@hub/sdk/frontend';
@@ -58,6 +59,7 @@ export function TimerPage() {
   const session = live.connected ? live.session : (s?.session ?? null);
   // After « Non » (here or in the floating window): « Relancer » until « Plus tard ».
   const followUp = live.followUp;
+  const [ticked, setTicked] = useState<string | null>(null);
   const run = async (action: () => Promise<unknown>) => {
     setError(null);
     try {
@@ -92,6 +94,14 @@ export function TimerPage() {
           todo={s?.todo ?? false}
           run={run}
           onRestart={(config, name) => void start(config, name, session.taskId)}
+          onTicked={setTicked}
+        />
+      )}
+      {ticked !== null && (
+        <UndoToast
+          message={`Tâche cochée dans la To-do : « ${ticked} »`}
+          onUndo={() => void run(() => module.api.post('/answer/undo'))}
+          onDismiss={() => setTicked(null)}
         />
       )}
       {!session && followUp && (
@@ -226,6 +236,7 @@ function Ended(props: {
   todo: boolean;
   run: (action: () => Promise<unknown>) => Promise<void>;
   onRestart: (config: PlanConfig, name: string | null) => void;
+  onTicked?: (title: string) => void;
 }) {
   const module = useModule();
   const { session } = props;
@@ -249,7 +260,14 @@ function Ended(props: {
               </p>
               <div className="tm-actions">
                 <Button
-                  onClick={() => void props.run(() => module.api.post('/answer', { done: true }))}
+                  onClick={() =>
+                    void props.run(async () => {
+                      const r = await module.api.post<{ ticked: boolean }>('/answer', {
+                        done: true,
+                      });
+                      if (r.ticked) props.onTicked?.(session.taskTitle ?? '');
+                    })
+                  }
                 >
                   Oui, la cocher
                 </Button>

@@ -43,6 +43,13 @@
       "default": true
     },
     {
+      "key": "csvDecimalComma",
+      "type": "boolean",
+      "label": "Export des données : virgule décimale (Excel en français)",
+      "description": "Dans courbes.csv, les nombres s'écrivent « 1,5 » au lieu de « 1.5 », pour qu'Excel en français les lise comme des nombres. Le séparateur reste « ; ». Désactivé : point décimal, comme avant.",
+      "default": false
+    },
+    {
       "key": "watchEnabled",
       "type": "boolean",
       "label": "Surveiller un dossier",

@@ -707,6 +707,10 @@ export const GUIDE: GuideChapter[] = [
                 'Vérification rapide avant de générer une vidéo',
                 'Oui par défaut. Avant une vidéo YouTube, un Pack Insta ou des Reels perso, signale sans bloquer une crête vraie au-dessus de 0 dBTP, un écrêtage, un long silence ou un problème de mono. En Reels perso « Son de la vidéo », le master n’est pas vérifié (il n’est pas entendu) et c’est dit.',
               ],
+              [
+                'Export des données : virgule décimale (Excel en français)',
+                'Non par défaut. Dans courbes.csv (« Données complètes »), écrit « 1,5 » au lieu de « 1.5 » pour qu’Excel en français lise des nombres ; le séparateur reste « ; ».',
+              ],
               ['Surveiller un dossier', 'Non par défaut. Voir [[flux-dossier|Dossier surveillé]].'],
               ['Dossier surveillé', 'Le chemin du dossier.'],
               ['Notification à la fin d’une analyse du dossier surveillé', 'Oui par défaut.'],
