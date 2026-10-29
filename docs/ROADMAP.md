@@ -49,7 +49,19 @@ Proposé par l'audit v0.19.0 (à décider, une session chacun ; détail dans `do
 - Analyse audio du Pack Insta sur le décodage du moteur : le choix des extraits proposés pourrait changer.
 - Réenregistrement des fichiers au démarrage (`created_at` réécrit à ±1 ms, compteur d'identifiants qui avance) : aucun effet visible, toucher au registre des fichiers serait plus risqué que le défaut.
 
+## Vie perso (prototypes, à valider à l'usage)
+
+| Étape | Contenu                                                                                                                             | État                      |
+| ----- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
+| 6     | Règles « Prêt pour la synchro » et « Prêt pour le calendrier » ; fenêtre flottante déplaçable ; Réglages en sections avec recherche | ✅ (v0.22.0)              |
+| 6 bis | **Sport** (semaine type, séances, bilan, export, assistant)                                                                         | 🧪 expérimental (v0.22.0) |
+| 6 ter | **Courses** (ingrédients, repas, planning des repas, liste générée, extras, assistant)                                              | 🧪 expérimental (v0.22.0) |
+
 ## Plus tard (hors V1, la structure doit le permettre)
+
+- **Version Android synchronisée** avec le PC sur le réseau local : les nouveaux modules sont déjà « Prêts pour la synchro » (UUID, dates, suppressions logiques, journal `<module>__changes`, MODULES.md §6 bis) ; les modules existants seront adaptés dans une session dédiée.
+- **Calendrier général** : interroge toutes les sources `ctx.calendar` (`GET /api/core/calendar`, MODULES.md §5.17). Déjà branchés : Sport, Courses. À brancher : Planning de sortie, To-do (échéances), Timer (sessions).
+- **Sport** : exercices et tags par séance, statistiques par type de séance.
 
 - **Assistant vocal V2** :
   - mot de réveil (« Hé ToolBox », détection locale, sans touche) ;
