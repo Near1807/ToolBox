@@ -4,6 +4,10 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.23.0] — 2026-10-29
+
+Session bêta : Sport et Courses améliorés d'après les essais réels (toujours expérimentaux), la fenêtre flottante glissée par le système, et les petits points en attente.
+
 ### Ajouté
 
 - Sport (expérimental) : bibliothèque d'exercices (autocomplétion, fusion des doublons) ; liste ordonnée d'exercices par séance de la semaine type (séries × répétitions, charge, repos, note), copiée dans chaque séance et modifiable pour elle seule ; affichage rapide au clic (semaine, mois, accueil) ; une séance ajoutée à la main se supprime (confirmation, « Annuler ») ; export CSV / Markdown avec commentaire et exercices ; assistant « c'est quoi les exos de ma séance d'aujourd'hui » (lecture).
