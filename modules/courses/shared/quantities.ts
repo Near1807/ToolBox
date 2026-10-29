@@ -1,6 +1,7 @@
 // Quantities of the shopping list, pure (tested in tests/quantities.test.ts):
 // units and their conversions (g ↔ kg, ml ↔ cl ↔ l), quantities scaled to
-// the portions planned, added up per ingredient, grouped by aisle.
+// the portions planned, added up per ingredient, grouped by aisle; pieces
+// and weight added together when the ingredient has a piece weight.
 
 export const UNITS = [
   'g',
@@ -55,26 +56,55 @@ export interface Line {
   unit: Unit;
 }
 
+export interface Amount {
+  qty: number;
+  unit: string;
+  /** The same in weight, for pieces counted from a weight (« ≈ 300 g »). */
+  approx?: { qty: number; unit: string };
+}
 export interface Total {
   ingredientId: string;
-  /** One amount per family of units (« 1,2 kg » and « 2 pièce » stay apart). */
-  amounts: { qty: number; unit: string }[];
+  /** One amount per family of units (« 1,2 kg » and « 2 pièce » stay apart without a piece weight). */
+  amounts: Amount[];
 }
 
-/** Lines added up per ingredient, converting compatible units. */
-export function addUp(lines: Line[]): Total[] {
+/** What turns pieces into weight for an ingredient: its unit and the weight of one piece (g). */
+export type PieceWeights = Map<string, { unit: string; pieceG: number | null }>;
+
+const isWeightOrVolume = (unit: string) => ['g', 'ml'].includes(baseOf(unit).base);
+
+/**
+ * Lines added up per ingredient, converting compatible units. With a piece
+ * weight, pieces (or the ingredient's own count unit: boîte, sachet…) and
+ * weights add up; the total is shown in the ingredient's unit (« 2,5 pièces
+ * (≈ 300 g) », or « 300 g »).
+ */
+export function addUp(lines: Line[], pieces?: PieceWeights): Total[] {
   const byIngredient = new Map<string, Map<string, number>>();
   for (const l of lines) {
     if (!(l.qty > 0)) continue;
-    const { base, factor } = baseOf(l.unit);
+    const p = pieces?.get(l.ingredientId);
+    const weighed =
+      p?.pieceG &&
+      p.pieceG > 0 &&
+      !isWeightOrVolume(l.unit) &&
+      (l.unit === 'pièce' || l.unit === p.unit);
+    const { base, factor } = weighed ? { base: 'g', factor: p.pieceG! } : baseOf(l.unit);
     const families = byIngredient.get(l.ingredientId) ?? new Map<string, number>();
     families.set(base, (families.get(base) ?? 0) + l.qty * factor);
     byIngredient.set(l.ingredientId, families);
   }
-  return [...byIngredient].map(([ingredientId, families]) => ({
-    ingredientId,
-    amounts: [...families].map(([base, qty]) => display(qty, base)),
-  }));
+  return [...byIngredient].map(([ingredientId, families]) => {
+    const p = pieces?.get(ingredientId);
+    return {
+      ingredientId,
+      amounts: [...families].map(([base, qty]): Amount => {
+        if (base === 'g' && p?.pieceG && p.pieceG > 0 && !isWeightOrVolume(p.unit))
+          return { qty: round(qty / p.pieceG), unit: p.unit, approx: display(qty, 'g') };
+        return display(qty, base);
+      }),
+    };
+  });
 }
 
 export interface PlannedMeal {
@@ -99,11 +129,11 @@ export function plannedLines(plan: PlannedMeal[], meals: Map<string, MealRecipe>
   return lines;
 }
 
-/** « 1,5 kg », « 2 pièces », « 3 c. à s. ». */
-export function formatAmount(a: { qty: number; unit: string }): string {
+/** « 1,5 kg », « 2 pièces », « 3 c. à s. », « 2,5 pièces (≈ 300 g) ». */
+export function formatAmount(a: Amount): string {
   const qty = String(a.qty).replace('.', ',');
   const unit = a.unit === 'pièce' && a.qty > 1 ? 'pièces' : a.unit;
-  return `${qty} ${unit}`;
+  return `${qty} ${unit}${a.approx ? ` (≈ ${formatAmount(a.approx)})` : ''}`;
 }
 
 /** Lower case, accents removed (search, duplicates). */

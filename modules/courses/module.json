@@ -1,11 +1,42 @@
 {
   "id": "courses",
   "name": "Courses",
-  "description": "Ta liste de courses faite à partir des repas : une bibliothèque de repas et d'ingrédients, le planning des repas d'une période, la liste générée (quantités additionnées, par rayon) et les extras.",
-  "version": "0.1.0",
+  "description": "Ta liste de courses faite à partir des repas : ingrédients (nutrition et prix facultatifs) et recettes importables en JSON, le planning des repas d'une période, la liste générée (quantités additionnées, par rayon), les extras et le résumé de la semaine.",
+  "version": "0.2.0",
   "section": "Vie perso",
   "icon": "🛒",
   "order": 20,
   "experimental": true,
-  "settings": []
+  "settings": [
+    {
+      "key": "goalProteinPerDay",
+      "type": "number",
+      "label": "Objectif : protéines par jour (g)",
+      "description": "Facultatif (0 = aucun). Le résumé de la semaine montre les jours au-dessus et en dessous. Aucun conseil n'est donné.",
+      "min": 0,
+      "max": 1000,
+      "step": 1,
+      "default": 0
+    },
+    {
+      "key": "goalKcalPerDay",
+      "type": "number",
+      "label": "Objectif : calories par jour (kcal)",
+      "description": "Facultatif (0 = aucun).",
+      "min": 0,
+      "max": 20000,
+      "step": 10,
+      "default": 0
+    },
+    {
+      "key": "goalBudgetPerWeek",
+      "type": "number",
+      "label": "Objectif : budget par semaine (€)",
+      "description": "Facultatif (0 = aucun). Comparé au coût estimé des repas de la période, ramené à 7 jours.",
+      "min": 0,
+      "max": 100000,
+      "step": 1,
+      "default": 0
+    }
+  ]
 }
