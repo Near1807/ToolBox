@@ -4,6 +4,10 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+### Ajouté
+
+- Sport (expérimental) : bibliothèque d'exercices (autocomplétion, fusion des doublons) ; liste ordonnée d'exercices par séance de la semaine type (séries × répétitions, charge, repos, note), copiée dans chaque séance et modifiable pour elle seule ; affichage rapide au clic (semaine, mois, accueil) ; une séance ajoutée à la main se supprime (confirmation, « Annuler ») ; export CSV / Markdown avec commentaire et exercices ; assistant « c'est quoi les exos de ma séance d'aujourd'hui » (lecture).
+
 ### Corrigé
 
 - Fenêtre flottante : la poignée utilise le déplacement natif du système (précis, sans dérive, correct à 125 / 150 %) au lieu du suivi du curseur (ADR 0036, révision v0.23).

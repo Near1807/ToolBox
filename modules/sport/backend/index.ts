@@ -2,7 +2,9 @@
 // and a duration) applied to the weeks to come; each session validated
 // (« Fait » / « Pas fait »), with a mood and a comment, its time or duration
 // changed, moved to another day of its week, cancelled; sessions added by
-// hand; a summary; export. « Prêt pour la synchro » (UUIDs, dates,
+// hand (deletable); exercises (a library, and an ordered list per template
+// session, copied to each session and changeable for it alone); a summary;
+// export. « Prêt pour la synchro » (UUIDs, dates,
 // tombstones, journal) and « Prêt pour le calendrier » (ctx.calendar).
 // The assistant reads freely and changes only with its own right (off).
 import {
@@ -36,6 +38,15 @@ import {
   type TemplateItem,
   type Weekday,
 } from '../shared/plan';
+import {
+  cleanLines,
+  fold,
+  linesText,
+  parseLines,
+  type Exercise,
+  type ExerciseLine,
+  type ExerciseLineDto,
+} from '../shared/exercises';
 import type { WeekDto } from '../shared/types';
 import {
   COMMENT_EXAMPLES,
@@ -45,6 +56,7 @@ import {
   extractMood,
   extractMove,
   MOOD_EXAMPLES,
+  EXERCISES_EXAMPLES,
   MOVE_EXAMPLES,
   SUMMARY_EXAMPLES,
   TODAY_EXAMPLES,
@@ -59,6 +71,13 @@ interface TemplateRow {
   name: string;
   start_time: string;
   duration_min: number;
+  exercises: string;
+}
+interface ExerciseRow {
+  id: string;
+  deleted_at: string | null;
+  name: string;
+  note: string;
 }
 interface SessionRow {
   id: string;
@@ -75,6 +94,7 @@ interface SessionRow {
   comment: string;
   template_id: string | null;
   custom: number;
+  exercises: string;
 }
 
 const STATUSES: SessionStatus[] = ['planned', 'done', 'missed', 'cancelled'];
@@ -97,6 +117,15 @@ export default defineBackendModule({
         ${changesTableSql('sport__changes')}
       `,
     },
+    {
+      version: 2,
+      description: 'exercises: a library, and a list per template session and per session',
+      up: `
+        CREATE TABLE sport__exercises (${SYNC_COLUMNS}, name TEXT NOT NULL, note TEXT NOT NULL DEFAULT '');
+        ALTER TABLE sport__templates ADD COLUMN exercises TEXT NOT NULL DEFAULT '[]';
+        ALTER TABLE sport__sessions ADD COLUMN exercises TEXT NOT NULL DEFAULT '[]';
+      `,
+    },
   ],
 
   register(ctx: ModuleContext) {
@@ -105,8 +134,97 @@ export default defineBackendModule({
       templates: ctx.db.table('templates'),
       sessions: ctx.db.table('sessions'),
       weeks: ctx.db.table('weeks'),
+      exercises: ctx.db.table('exercises'),
     };
     const today = () => localToday();
+
+    // --- Exercises ---------------------------------------------------------------
+
+    /** Every exercise, deleted ones included (an old session still shows its names). */
+    const exerciseRows = (): ExerciseRow[] =>
+      ctx.db
+        .prepare(`SELECT id, deleted_at, name, note FROM ${t.exercises} ORDER BY name`)
+        .all() as ExerciseRow[];
+    const named = (lines: ExerciseLine[]): ExerciseLineDto[] => {
+      const names = new Map(exerciseRows().map((e) => [e.id, e.name]));
+      return lines.map((l) => ({ ...l, name: names.get(l.exerciseId) ?? 'Exercice supprimé' }));
+    };
+    const stored = (lines: ExerciseLine[]) =>
+      JSON.stringify(
+        lines.map(({ exerciseId, sets, reps, load, restSec, note }) => ({
+          exerciseId,
+          sets,
+          reps,
+          load,
+          restSec,
+          note,
+        })),
+      );
+    /** The exercise of that name (accents and case ignored), created if new. */
+    const exerciseNamed = (name: string): string => {
+      const found = exerciseRows().find((e) => !e.deleted_at && fold(e.name) === fold(name));
+      return found ? found.id : store.create('exercises', { name, note: '' }).id;
+    };
+    const linesFrom = (raw: unknown): ExerciseLine[] => {
+      const live = new Set(
+        exerciseRows()
+          .filter((e) => !e.deleted_at)
+          .map((e) => e.id),
+      );
+      try {
+        return cleanLines(raw, (id) => live.has(id), exerciseNamed);
+      } catch (err) {
+        throw new HttpError(400, (err as Error).message);
+      }
+    };
+    const exerciseList = (): Exercise[] => {
+      const uses = new Map<string, number>();
+      const count = (json: string) => {
+        for (const l of parseLines(json)) uses.set(l.exerciseId, (uses.get(l.exerciseId) ?? 0) + 1);
+      };
+      for (const r of ctx.db
+        .prepare(
+          `SELECT exercises FROM ${t.templates} WHERE deleted_at IS NULL UNION ALL SELECT exercises FROM ${t.sessions} WHERE deleted_at IS NULL`,
+        )
+        .all() as { exercises: string }[])
+        count(r.exercises);
+      return exerciseRows()
+        .filter((e) => !e.deleted_at)
+        .map((e) => ({ id: e.id, name: e.name, note: e.note, uses: uses.get(e.id) ?? 0 }));
+    };
+    const exerciseName = (raw: unknown, except?: string): string => {
+      const name = String(raw ?? '')
+        .trim()
+        .slice(0, 80);
+      if (!name) throw new HttpError(400, 'Nom d’exercice vide');
+      if (
+        exerciseRows().some((e) => !e.deleted_at && e.id !== except && fold(e.name) === fold(name))
+      )
+        throw new HttpError(409, `« ${name} » existe déjà (fusionner plutôt)`);
+      return name;
+    };
+    /** `from` becomes `into` everywhere (template and sessions, past ones included), then goes. */
+    const mergeExercises = (from: string, into: string) => {
+      const live = exerciseList();
+      if (from === into || !live.some((e) => e.id === from) || !live.some((e) => e.id === into))
+        throw new HttpError(400, 'Deux exercices différents de la bibliothèque');
+      ctx.db.transaction(() => {
+        for (const table of ['templates', 'sessions'] as const) {
+          const rows = ctx.db
+            .prepare(
+              `SELECT id, exercises FROM ${t[table]} WHERE deleted_at IS NULL AND exercises LIKE ?`,
+            )
+            .all(`%${from}%`) as { id: string; exercises: string }[];
+          for (const r of rows) {
+            const lines = parseLines(r.exercises).map((l) =>
+              l.exerciseId === from ? { ...l, exerciseId: into } : l,
+            );
+            store.update(table, r.id, { exercises: stored(lines) });
+          }
+        }
+        store.remove('exercises', from);
+      });
+    };
 
     const toTemplate = (r: TemplateRow): TemplateItem => ({
       id: r.id,
@@ -114,6 +232,7 @@ export default defineBackendModule({
       name: r.name,
       start: r.start_time,
       durationMin: r.duration_min,
+      exercises: named(parseLines(r.exercises)),
     });
     const toSession = (r: SessionRow): Session => ({
       id: r.id,
@@ -126,6 +245,7 @@ export default defineBackendModule({
       comment: r.comment,
       templateId: r.template_id,
       custom: r.custom === 1,
+      exercises: named(parseLines(r.exercises)),
     });
     const template = (): TemplateItem[] =>
       (
@@ -153,6 +273,7 @@ export default defineBackendModule({
         comment: '',
         template_id: p.templateId,
         custom: 0,
+        exercises: stored(p.exercises),
       });
     /**
      * The weeks from the current one on get their sessions from the template
@@ -265,6 +386,10 @@ export default defineBackendModule({
         fields.date = String(body.date);
         custom = true;
       }
+      if ('exercises' in body) {
+        fields.exercises = stored(linesFrom(body.exercises));
+        custom = true;
+      }
       if (custom) fields.custom = 1;
       return toSession(store.update<SessionRow>('sessions', id, fields));
     };
@@ -294,8 +419,20 @@ export default defineBackendModule({
           comment: '',
           template_id: null,
           custom: 1,
+          exercises: stored(linesFrom(body.exercises)),
         }),
       );
+    };
+
+    /** Only a session added by hand is deleted (logically, it can come back). */
+    const deleteSession = (id: string) => {
+      const row = getSession(id);
+      if (row.template_id !== null)
+        throw new HttpError(
+          400,
+          'Une séance de la semaine type s’annule (elle ne se supprime pas).',
+        );
+      store.remove('sessions', id);
     };
 
     /** A new template: saved, then applied to the weeks already on the calendar (after today). */
@@ -320,6 +457,7 @@ export default defineBackendModule({
           name,
           start: i.start,
           durationMin: duration,
+          exercises: i.exercises,
         };
       });
       ctx.db.transaction(() => {
@@ -331,6 +469,7 @@ export default defineBackendModule({
             name: c.name,
             start_time: c.start,
             duration_min: c.durationMin,
+            exercises: stored(linesFrom(c.exercises)),
           };
           if (c.id && before.has(c.id)) {
             keep.add(c.id);
@@ -339,7 +478,8 @@ export default defineBackendModule({
               b.weekday !== c.weekday ||
               b.name !== c.name ||
               b.start !== c.start ||
-              b.durationMin !== c.durationMin
+              b.durationMin !== c.durationMin ||
+              stored(b.exercises) !== fields.exercises
             )
               store.update('templates', c.id, fields);
           } else keep.add(store.create('templates', fields).id);
@@ -381,6 +521,59 @@ export default defineBackendModule({
     ctx.routes.patch('/sessions/:id', (request) =>
       patchSession((request.params as { id: string }).id, requestBody(request)),
     );
+    ctx.routes.delete('/sessions/:id', (request) => {
+      deleteSession((request.params as { id: string }).id);
+      return { ok: true };
+    });
+    ctx.routes.post('/sessions/:id/restore', (request) => {
+      const id = (request.params as { id: string }).id;
+      store.restore('sessions', id);
+      return toSession(getSession(id));
+    });
+    ctx.routes.get('/exercises', () => ({ exercises: exerciseList() }));
+    ctx.routes.post('/exercises', (request) => {
+      const body = requestBody(request);
+      return store.create('exercises', {
+        name: exerciseName(body.name),
+        note: String(body.note ?? '')
+          .trim()
+          .slice(0, 500),
+      });
+    });
+    ctx.routes.patch('/exercises/:id', (request) => {
+      const id = (request.params as { id: string }).id;
+      const body = requestBody(request);
+      if (!exerciseList().some((e) => e.id === id))
+        throw new HttpError(404, 'Exercice introuvable');
+      const fields: Record<string, string> = {};
+      if ('name' in body) fields.name = exerciseName(body.name, id);
+      if ('note' in body)
+        fields.note = String(body.note ?? '')
+          .trim()
+          .slice(0, 500);
+      return store.update('exercises', id, fields);
+    });
+    ctx.routes.delete('/exercises/:id', (request) => {
+      const id = (request.params as { id: string }).id;
+      const e = exerciseList().find((x) => x.id === id);
+      if (!e) throw new HttpError(404, 'Exercice introuvable');
+      if (e.uses)
+        throw new HttpError(
+          400,
+          `« ${e.name} » sert encore dans ${e.uses} séance(s) : fusionne-le plutôt.`,
+        );
+      store.remove('exercises', id);
+      return { ok: true };
+    });
+    ctx.routes.post('/exercises/:id/restore', (request) => {
+      store.restore('exercises', (request.params as { id: string }).id);
+      return { exercises: exerciseList() };
+    });
+    ctx.routes.post('/exercises/merge', (request) => {
+      const body = requestBody(request);
+      mergeExercises(String(body.from), String(body.into));
+      return { exercises: exerciseList() };
+    });
     ctx.routes.get('/home', () => {
       const day = today();
       ensureWeek(mondayOf(day));
@@ -403,8 +596,12 @@ export default defineBackendModule({
         missed: 'pas faite',
         cancelled: 'annulée',
       };
+      const field = (v: string | number) => {
+        const text = String(v);
+        return /[;"\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+      };
       const data = csv
-        ? `date;séance;début;durée_min;état;humeur;commentaire\n${list
+        ? `date;séance;début;durée_min;état;humeur;commentaire;exercices\n${list
             .map((s) =>
               [
                 s.date,
@@ -413,15 +610,24 @@ export default defineBackendModule({
                 s.durationMin,
                 STATUS_FR[s.status],
                 s.mood ?? '',
-                s.comment.replace(/[\r\n;]+/g, ' '),
-              ].join(';'),
+                s.comment,
+                linesText(s.exercises),
+              ]
+                .map(field)
+                .join(';'),
             )
             .join('\n')}\n`
         : `# Sport — du ${from} au ${to}\n\n${list
-            .map(
-              (s) =>
-                `- ${s.date} ${s.start} · **${s.name}** (${s.durationMin} min) — ${STATUS_FR[s.status]}${s.mood ? ` ${MOODS[s.mood - 1]}` : ''}${s.comment ? ` — ${s.comment}` : ''}`,
-            )
+            .map((s) => {
+              const head = `- ${s.date} ${s.start} · **${s.name}** (${s.durationMin} min) — ${STATUS_FR[s.status]}${s.mood ? ` ${MOODS[s.mood - 1]}` : ''}`;
+              const comment = s.comment
+                ? `\n  - Commentaire : ${s.comment.replace(/\r?\n/g, '\n    ')}`
+                : '';
+              const exercises = s.exercises.length
+                ? `\n  - Exercices :\n${s.exercises.map((l) => `    - ${linesText([l])}`).join('\n')}`
+                : '';
+              return head + comment + exercises;
+            })
             .join('\n')}\n`;
       const saved = await ctx.files.saveAs({
         title: 'Exporter les séances',
@@ -452,6 +658,7 @@ export default defineBackendModule({
                 mood: null,
                 comment: '',
                 custom: false,
+                exercises: p.exercises,
               });
         }
         return [...stored, ...virtual].map((s) => ({
@@ -504,6 +711,24 @@ export default defineBackendModule({
             : 'Pas de séance prévue aujourd’hui.',
           data: { sessions: list },
         };
+      },
+    });
+    ctx.assistant.define({
+      name: 'today-exercises',
+      examples: EXERCISES_EXAMPLES,
+      extract: () => ({}),
+      description: 'Dit les exercices de la séance de sport du jour.',
+      risk: 'read',
+      run: () => {
+        ensureWeek(mondayOf(today()));
+        const list = sessionsBetween(today(), today()).filter((s) => s.status !== 'cancelled');
+        if (!list.length) return { message: 'Pas de séance prévue aujourd’hui.', data: {} };
+        const said = list.map((s) =>
+          s.exercises.length
+            ? `${s.name} : ${linesText(s.exercises, ', ')}`
+            : `${s.name} : pas d’exercice noté`,
+        );
+        return { message: `${said.join('. ')}.`, data: { sessions: list } };
       },
     });
     ctx.assistant.define({

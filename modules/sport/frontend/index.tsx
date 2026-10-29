@@ -1,7 +1,8 @@
 // Sport: the week (by default) with drag-and-drop inside it, the month, the
 // weekly template, a session's details (Fait / Pas fait, mood, comment, time,
-// duration, day), sessions added by hand, the summary, export. Home card:
-// today's sessions.
+// duration, day, exercises), sessions added by hand (deletable), the
+// exercise library, the summary, export. A click on a session (week, month,
+// home card) shows its exercises. Home card: today's sessions.
 import { useState, type DragEvent } from 'react';
 import { useSearchParams } from 'react-router';
 import {
@@ -12,9 +13,17 @@ import {
   errorMessage,
   Page,
   StateBadge,
+  UndoToast,
   useApi,
   useModule,
 } from '@hub/sdk/frontend';
+import {
+  formatLine,
+  fold,
+  type Exercise,
+  type ExerciseLineDto,
+  type ExerciseLineInput,
+} from '../shared/exercises';
 import {
   addDays,
   endTime,
@@ -45,6 +54,163 @@ const STATUS: Record<
 };
 
 type Run = (action: () => Promise<unknown>) => Promise<boolean>;
+
+/** The exercises of a session, read only (the quick view). */
+function ExerciseLines(props: { lines: ExerciseLineDto[]; empty?: string }) {
+  if (!props.lines.length)
+    return <p className="small muted">{props.empty ?? 'Pas d’exercice noté.'}</p>;
+  return (
+    <ol className="sp-exercises">
+      {props.lines.map((l, i) => (
+        <li key={i}>
+          <strong>{l.name}</strong>
+          {formatLine(l) && <span className="muted"> · {formatLine(l)}</span>}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+const LIBRARY_LIST = 'sport-exercise-library';
+
+/** Names of the library, offered while typing (autocompletion). */
+function LibraryOptions(props: { library: Exercise[] }) {
+  return (
+    <datalist id={LIBRARY_LIST}>
+      {props.library.map((e) => (
+        <option key={e.id} value={e.name} />
+      ))}
+    </datalist>
+  );
+}
+
+/**
+ * An ordered list of exercises, edited: a name from the library (or a new
+ * one, added to the library when saved), sets × reps, load, rest, note.
+ */
+function ExerciseLinesEditor(props: {
+  lines: ExerciseLineInput[];
+  library: Exercise[];
+  onChange: (lines: ExerciseLineInput[]) => void;
+}) {
+  const { lines } = props;
+  const set = (i: number, patch: Partial<ExerciseLineInput>) =>
+    props.onChange(lines.map((l, j) => (j === i ? { ...l, ...patch } : l)));
+  const swap = (i: number, j: number) => {
+    const next = [...lines];
+    [next[i], next[j]] = [next[j]!, next[i]!];
+    props.onChange(next);
+  };
+  return (
+    <div className="sp-lines">
+      {lines.map((l, i) => {
+        const known = props.library.some((e) => fold(e.name) === fold(l.name ?? ''));
+        return (
+          <div key={i} className="sp-line">
+            <span className="small muted num">{i + 1}.</span>
+            <input
+              className="input sp-line__name"
+              list={LIBRARY_LIST}
+              value={l.name ?? ''}
+              placeholder="Exercice (ex. Squat)"
+              aria-label={`Exercice ${i + 1}`}
+              onChange={(e) => {
+                const found = props.library.find((x) => fold(x.name) === fold(e.target.value));
+                set(i, { name: e.target.value, exerciseId: found?.id });
+              }}
+            />
+            <input
+              className="input input--tiny num"
+              type="number"
+              min={1}
+              max={50}
+              value={l.sets ?? ''}
+              placeholder="séries"
+              aria-label="Séries"
+              onChange={(e) => set(i, { sets: e.target.value ? Number(e.target.value) : null })}
+            />
+            <span className="small muted">×</span>
+            <input
+              className="input input--tiny"
+              value={l.reps ?? ''}
+              placeholder="répét."
+              aria-label="Répétitions"
+              onChange={(e) => set(i, { reps: e.target.value })}
+            />
+            <input
+              className="input input--short"
+              value={l.load ?? ''}
+              placeholder="charge"
+              aria-label="Charge"
+              onChange={(e) => set(i, { load: e.target.value })}
+            />
+            <input
+              className="input input--tiny num"
+              type="number"
+              min={0}
+              max={3600}
+              step={15}
+              value={l.restSec ?? ''}
+              placeholder="repos s"
+              aria-label="Repos en secondes"
+              onChange={(e) => set(i, { restSec: e.target.value ? Number(e.target.value) : null })}
+            />
+            <input
+              className="input sp-line__note"
+              value={l.note ?? ''}
+              placeholder="note"
+              aria-label="Note"
+              onChange={(e) => set(i, { note: e.target.value })}
+            />
+            <span className="sp-line__tools">
+              <button
+                type="button"
+                className="icon-button"
+                aria-label="Monter"
+                disabled={i === 0}
+                onClick={() => swap(i, i - 1)}
+              >
+                ↑
+              </button>
+              <button
+                type="button"
+                className="icon-button"
+                aria-label="Descendre"
+                disabled={i === lines.length - 1}
+                onClick={() => swap(i, i + 1)}
+              >
+                ↓
+              </button>
+              <button
+                type="button"
+                className="icon-button"
+                aria-label="Retirer l’exercice"
+                onClick={() => props.onChange(lines.filter((_, j) => j !== i))}
+              >
+                ×
+              </button>
+            </span>
+            {l.name?.trim() && !known && (
+              <span className="small muted sp-line__new">
+                nouvel exercice (ajouté à la bibliothèque)
+              </span>
+            )}
+          </div>
+        );
+      })}
+      <button
+        type="button"
+        className="sp-link small"
+        onClick={() => props.onChange([...lines, { name: '', reps: '', load: '', note: '' }])}
+      >
+        + Exercice
+      </button>
+    </div>
+  );
+}
+
+/** Lines ready to send: empty ones dropped. */
+const linesToSend = (lines: ExerciseLineInput[]) => lines.filter((l) => l.name?.trim());
 
 function SummaryCard(props: { week: Summary; month: Summary; streak: number }) {
   const ratio = (s: Summary) => `${s.done} / ${s.planned}`;
@@ -115,9 +281,17 @@ function SessionCard(props: {
   );
 }
 
-function SessionEditor(props: { session: Session; week: WeekDto; run: Run; onClose: () => void }) {
+function SessionEditor(props: {
+  session: Session;
+  week: WeekDto;
+  library: Exercise[];
+  run: Run;
+  onClose: () => void;
+  onDeleted: (s: Session) => void;
+}) {
   const module = useModule();
   const { session: s } = props;
+  const [lines, setLines] = useState<ExerciseLineInput[] | null>(null);
   const [comment, setComment] = useState(s.comment);
   const [start, setStart] = useState(s.start);
   const [duration, setDuration] = useState(String(s.durationMin));
@@ -132,6 +306,37 @@ function SessionEditor(props: { session: Session; week: WeekDto; run: Run; onClo
       }
     >
       <div className="sp-editor">
+        <section className="sp-editor__exercises" aria-label="Exercices">
+          {lines === null ? (
+            <>
+              <ExerciseLines lines={s.exercises} />
+              <Button small variant="secondary" onClick={() => setLines(s.exercises)}>
+                {s.exercises.length ? 'Modifier les exercices' : 'Ajouter des exercices'} de cette
+                séance
+              </Button>
+            </>
+          ) : (
+            <>
+              <ExerciseLinesEditor lines={lines} library={props.library} onChange={setLines} />
+              <div className="ui-actions">
+                <Button
+                  small
+                  onClick={() =>
+                    void patch({ exercises: linesToSend(lines) }).then((ok) => ok && setLines(null))
+                  }
+                >
+                  Enregistrer pour cette séance
+                </Button>
+                <Button small variant="secondary" onClick={() => setLines(null)}>
+                  Annuler
+                </Button>
+              </div>
+              <p className="small muted">
+                Vaut pour cette séance seulement : la semaine type ne change pas.
+              </p>
+            </>
+          )}
+        </section>
         <div className="ui-actions">
           <Button
             small
@@ -155,6 +360,25 @@ function SessionEditor(props: { session: Session; week: WeekDto; run: Run; onClo
           {s.status !== 'cancelled' && (
             <Button small variant="danger" onClick={() => void patch({ status: 'cancelled' })}>
               Annuler la séance
+            </Button>
+          )}
+          {s.templateId === null && (
+            <Button
+              small
+              variant="danger"
+              onClick={() => {
+                if (
+                  !window.confirm(
+                    `Supprimer la séance « ${s.name} » du ${dayLabel(s.date, true)} ?\n\nTu pourras l’annuler juste après.`,
+                  )
+                )
+                  return;
+                void props
+                  .run(() => module.api.delete(`/sessions/${s.id}`))
+                  .then((ok) => ok && props.onDeleted(s));
+              }}
+            >
+              Supprimer (ajoutée à la main)
             </Button>
           )}
         </div>
@@ -360,8 +584,12 @@ function WeekView(props: {
 function MonthView(props: { month: string; onWeek: (monday: string) => void }) {
   const module = useModule();
   const data = useApi<MonthDto>(module.url(`/month?month=${props.month}`));
+  const [peek, setPeek] = useState<string | null>(null);
   if (!data.data) return <p className="muted">Chargement…</p>;
   const m = data.data;
+  const peeked = m.weeks
+    .flatMap((w) => w.days.flatMap((d) => d.sessions))
+    .find((s) => s.id === peek);
   return (
     <div className="sp-month">
       <div className="sp-month__head">
@@ -372,13 +600,7 @@ function MonthView(props: { month: string; onWeek: (monday: string) => void }) {
         ))}
       </div>
       {m.weeks.map((w) => (
-        <button
-          key={w.week}
-          type="button"
-          className="sp-month__week"
-          onClick={() => props.onWeek(w.week)}
-          title="Ouvrir la semaine"
-        >
+        <div key={w.week} className="sp-month__week">
           {w.days.map((d) => (
             <span
               key={d.date}
@@ -386,18 +608,42 @@ function MonthView(props: { month: string; onWeek: (monday: string) => void }) {
             >
               <span className="small muted num">{Number(d.date.slice(8))}</span>
               {d.sessions.map((s) => (
-                <span
+                <button
+                  type="button"
                   key={s.id}
-                  className={`sp-dot sp-dot--${s.status === 'planned' && s.date < m.today ? 'late' : s.status}`}
-                  title={`${s.name} · ${STATUS[s.status].label}`}
+                  className={`sp-dot sp-dot--${s.status === 'planned' && s.date < m.today ? 'late' : s.status}${peek === s.id ? ' sp-dot--on' : ''}`}
+                  title={`${s.name} · ${STATUS[s.status].label} (cliquer : exercices)`}
+                  onClick={() => setPeek(peek === s.id ? null : s.id)}
                 >
                   {s.name}
-                </span>
+                </button>
               ))}
             </span>
           ))}
-        </button>
+          <button
+            type="button"
+            className="sp-month__open icon-button"
+            onClick={() => props.onWeek(w.week)}
+            title="Ouvrir la semaine"
+            aria-label={`Ouvrir la semaine du ${dayLabel(w.week)}`}
+          >
+            ›
+          </button>
+        </div>
       ))}
+      {peeked && (
+        <Card
+          title={`${peeked.name} · ${dayLabel(peeked.date, true)} · ${peeked.start}`}
+          actions={
+            <Button small variant="secondary" onClick={() => props.onWeek(mondayOf(peeked.date))}>
+              Ouvrir la semaine
+            </Button>
+          }
+        >
+          <ExerciseLines lines={peeked.exercises} />
+          {peeked.comment && <p className="small">Commentaire : {peeked.comment}</p>}
+        </Card>
+      )}
       <p className="small muted">
         Ce mois-ci : {m.summary.done} / {m.summary.planned} séances faites
         {m.summary.toValidate ? ` · ${m.summary.toValidate} à valider` : ''}
@@ -406,11 +652,14 @@ function MonthView(props: { month: string; onWeek: (monday: string) => void }) {
   );
 }
 
-function TemplateEditor(props: { template: TemplateItem[]; run: Run }) {
+function TemplateEditor(props: { template: TemplateItem[]; library: Exercise[]; run: Run }) {
   const module = useModule();
-  const [items, setItems] = useState(props.template);
+  const [items, setItems] = useState<
+    (Omit<TemplateItem, 'exercises'> & { exercises: ExerciseLineInput[] })[]
+  >(props.template);
+  const [open, setOpen] = useState<number | null>(null);
   const [saved, setSaved] = useState(false);
-  const set = (index: number, patch: Partial<TemplateItem>) => {
+  const set = (index: number, patch: Partial<(typeof items)[number]>) => {
     setSaved(false);
     setItems(items.map((it, i) => (i === index ? { ...it, ...patch } : it)));
   };
@@ -427,39 +676,59 @@ function TemplateEditor(props: { template: TemplateItem[]; run: Run }) {
             {items.map(
               (it, i) =>
                 it.weekday === d + 1 && (
-                  <div key={it.id || i} className="sp-row">
-                    <input
-                      className="input"
-                      value={it.name}
-                      placeholder="Nom (ex. Dos + abdos)"
-                      aria-label={`Nom de la séance du ${day}`}
-                      onChange={(e) => set(i, { name: e.target.value })}
-                    />
-                    <input
-                      className="input input--short"
-                      type="time"
-                      value={it.start}
-                      aria-label="Début"
-                      onChange={(e) => set(i, { start: e.target.value })}
-                    />
-                    <input
-                      className="input input--short num"
-                      type="number"
-                      min={5}
-                      max={600}
-                      step={5}
-                      value={it.durationMin}
-                      aria-label="Durée en minutes"
-                      onChange={(e) => set(i, { durationMin: Number(e.target.value) })}
-                    />
-                    <span className="small muted">min</span>
-                    <Button
-                      variant="secondary"
-                      small
-                      onClick={() => setItems(items.filter((_, j) => j !== i))}
-                    >
-                      Retirer
-                    </Button>
+                  <div key={it.id || i} className="sp-template__item">
+                    <div className="sp-row">
+                      <input
+                        className="input"
+                        value={it.name}
+                        placeholder="Nom (ex. Dos + abdos)"
+                        aria-label={`Nom de la séance du ${day}`}
+                        onChange={(e) => set(i, { name: e.target.value })}
+                      />
+                      <input
+                        className="input input--short"
+                        type="time"
+                        value={it.start}
+                        aria-label="Début"
+                        onChange={(e) => set(i, { start: e.target.value })}
+                      />
+                      <input
+                        className="input input--short num"
+                        type="number"
+                        min={5}
+                        max={600}
+                        step={5}
+                        value={it.durationMin}
+                        aria-label="Durée en minutes"
+                        onChange={(e) => set(i, { durationMin: Number(e.target.value) })}
+                      />
+                      <span className="small muted">min</span>
+                      <Button
+                        variant="secondary"
+                        small
+                        aria-expanded={open === i}
+                        onClick={() => setOpen(open === i ? null : i)}
+                      >
+                        Exercices ({linesToSend(it.exercises).length})
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        small
+                        onClick={() => {
+                          setOpen(null);
+                          setItems(items.filter((_, j) => j !== i));
+                        }}
+                      >
+                        Retirer
+                      </Button>
+                    </div>
+                    {open === i && (
+                      <ExerciseLinesEditor
+                        lines={it.exercises}
+                        library={props.library}
+                        onChange={(exercises) => set(i, { exercises })}
+                      />
+                    )}
                   </div>
                 ),
             )}
@@ -475,6 +744,7 @@ function TemplateEditor(props: { template: TemplateItem[]; run: Run }) {
                     name: '',
                     start: '18:00',
                     durationMin: 60,
+                    exercises: [],
                   },
                 ])
               }
@@ -491,7 +761,11 @@ function TemplateEditor(props: { template: TemplateItem[]; run: Run }) {
             void props
               .run(() =>
                 module.api.put('/template', {
-                  items: items.map((it) => ({ ...it, id: it.id || undefined })),
+                  items: items.map((it) => ({
+                    ...it,
+                    id: it.id || undefined,
+                    exercises: linesToSend(it.exercises),
+                  })),
                 }),
               )
               .then((ok) => setSaved(ok))
@@ -505,10 +779,189 @@ function TemplateEditor(props: { template: TemplateItem[]; run: Run }) {
   );
 }
 
+/** The exercise library: add, rename, note, merge two duplicates, delete one no session uses. */
+function Library(props: { library: Exercise[]; run: Run; onDeleted: (e: Exercise) => void }) {
+  const module = useModule();
+  const [name, setName] = useState('');
+  const [query, setQuery] = useState('');
+  const [editing, setEditing] = useState<{ id: string; name: string; note: string } | null>(null);
+  const [merge, setMerge] = useState<{ from: string; into: string } | null>(null);
+  const similar = props.library.filter((e) => name.trim() && fold(e.name).includes(fold(name)));
+  const shown = props.library.filter((e) => fold(e.name).includes(fold(query)));
+  return (
+    <Card title="Bibliothèque d’exercices">
+      <form
+        className="sp-row"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void props
+            .run(() => module.api.post('/exercises', { name }))
+            .then((ok) => ok && setName(''));
+        }}
+      >
+        <input
+          className="input"
+          value={name}
+          placeholder="Nouvel exercice (ex. Tractions)"
+          aria-label="Nouvel exercice"
+          onChange={(e) => setName(e.target.value)}
+        />
+        <Button
+          small
+          type="submit"
+          disabled={!name.trim() || similar.some((x) => fold(x.name) === fold(name))}
+        >
+          Ajouter
+        </Button>
+        {similar.length > 0 && (
+          <span className="small muted">Déjà là : {similar.map((x) => x.name).join(', ')}</span>
+        )}
+      </form>
+      <p className="small muted">
+        Les exercices tapés dans une séance arrivent ici tout seuls. Deux noms pour le même exercice
+        : « Fusionner » remplace l’un par l’autre partout (semaine type et séances, passées
+        comprises).
+      </p>
+      {props.library.length > 6 && (
+        <input
+          className="input"
+          type="search"
+          value={query}
+          placeholder="Chercher un exercice"
+          aria-label="Chercher un exercice"
+          onChange={(e) => setQuery(e.target.value)}
+        />
+      )}
+      {!props.library.length && <p className="muted">Pas encore d’exercice.</p>}
+      <ul className="sp-library">
+        {shown.map((e) => (
+          <li key={e.id}>
+            {editing?.id === e.id ? (
+              <form
+                className="sp-row"
+                onSubmit={(ev) => {
+                  ev.preventDefault();
+                  void props
+                    .run(() =>
+                      module.api.patch(`/exercises/${e.id}`, {
+                        name: editing.name,
+                        note: editing.note,
+                      }),
+                    )
+                    .then((ok) => ok && setEditing(null));
+                }}
+              >
+                <input
+                  className="input"
+                  value={editing.name}
+                  aria-label="Nom"
+                  onChange={(ev) => setEditing({ ...editing, name: ev.target.value })}
+                />
+                <input
+                  className="input sp-line__note"
+                  value={editing.note}
+                  placeholder="Note (réglage de la machine, consigne…)"
+                  aria-label="Note"
+                  onChange={(ev) => setEditing({ ...editing, note: ev.target.value })}
+                />
+                <Button small type="submit">
+                  Enregistrer
+                </Button>
+                <Button small variant="secondary" type="button" onClick={() => setEditing(null)}>
+                  Annuler
+                </Button>
+              </form>
+            ) : merge?.from === e.id ? (
+              <div className="sp-row">
+                <span>
+                  Remplacer <strong>{e.name}</strong> partout par
+                </span>
+                <select
+                  className="input input--short"
+                  value={merge.into}
+                  aria-label="Exercice gardé"
+                  onChange={(ev) => setMerge({ ...merge, into: ev.target.value })}
+                >
+                  <option value="">choisir…</option>
+                  {props.library
+                    .filter((x) => x.id !== e.id)
+                    .map((x) => (
+                      <option key={x.id} value={x.id}>
+                        {x.name}
+                      </option>
+                    ))}
+                </select>
+                <Button
+                  small
+                  disabled={!merge.into}
+                  onClick={() =>
+                    void props
+                      .run(() => module.api.post('/exercises/merge', merge))
+                      .then((ok) => ok && setMerge(null))
+                  }
+                >
+                  Fusionner
+                </Button>
+                <Button small variant="secondary" onClick={() => setMerge(null)}>
+                  Annuler
+                </Button>
+              </div>
+            ) : (
+              <div className="sp-row">
+                <strong>{e.name}</strong>
+                {e.note && <span className="small muted">{e.note}</span>}
+                <span className="small muted">
+                  {e.uses ? `utilisé ${e.uses} fois` : 'inutilisé'}
+                </span>
+                <span className="sp-library__tools">
+                  <Button
+                    small
+                    variant="secondary"
+                    onClick={() => setEditing({ id: e.id, name: e.name, note: e.note })}
+                  >
+                    Modifier
+                  </Button>
+                  {props.library.length > 1 && (
+                    <Button
+                      small
+                      variant="secondary"
+                      onClick={() => setMerge({ from: e.id, into: '' })}
+                    >
+                      Fusionner…
+                    </Button>
+                  )}
+                  {e.uses === 0 && (
+                    <Button
+                      small
+                      variant="danger"
+                      onClick={() =>
+                        void props
+                          .run(() => module.api.delete(`/exercises/${e.id}`))
+                          .then((ok) => ok && props.onDeleted(e))
+                      }
+                    >
+                      Supprimer
+                    </Button>
+                  )}
+                </span>
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+}
+
+type Undo = { message: string; restore: string };
+
 function SportPage() {
   const module = useModule();
   const [params, setParams] = useSearchParams();
-  const [tab, setTab] = useState<'week' | 'month' | 'template'>('week');
+  const [tab, setTab] = useState<'week' | 'month' | 'template' | 'exercises'>('week');
+  const [undo, setUndo] = useState<Undo | null>(null);
+  const library = useApi<{ exercises: Exercise[] }>(module.url('/exercises'));
+  const exercises = library.data?.exercises ?? [];
   const [selected, setSelected] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -527,6 +980,7 @@ function SportPage() {
       return false;
     } finally {
       data.reload();
+      library.reload();
     }
   };
   const goWeek = (monday: string) => {
@@ -584,6 +1038,7 @@ function SportPage() {
                 ['week', 'Semaine'],
                 ['month', 'Mois'],
                 ['template', 'Semaine type'],
+                ['exercises', 'Exercices'],
               ] as const
             ).map(([id, label]) => (
               <button
@@ -622,11 +1077,19 @@ function SportPage() {
               <WeekView week={w} run={run} selected={selected} onSelect={setSelected} />
               {session && (
                 <SessionEditor
-                  key={`${session.id}|${session.start}|${session.durationMin}|${session.comment}`}
+                  key={`${session.id}|${session.start}|${session.durationMin}|${session.comment}|${JSON.stringify(session.exercises)}`}
                   session={session}
                   week={w}
+                  library={exercises}
                   run={run}
                   onClose={() => setSelected(null)}
+                  onDeleted={(d) => {
+                    setSelected(null);
+                    setUndo({
+                      message: `Séance supprimée : « ${d.name} »`,
+                      restore: `/sessions/${d.id}/restore`,
+                    });
+                  }}
                 />
               )}
             </>
@@ -658,10 +1121,31 @@ function SportPage() {
             <TemplateEditor
               key={w.template.map((t) => t.id).join()}
               template={w.template}
+              library={exercises}
               run={run}
             />
           )}
+          {tab === 'exercises' && (
+            <Library
+              library={exercises}
+              run={run}
+              onDeleted={(e) =>
+                setUndo({
+                  message: `Exercice supprimé : « ${e.name} »`,
+                  restore: `/exercises/${e.id}/restore`,
+                })
+              }
+            />
+          )}
+          <LibraryOptions library={exercises} />
         </>
+      )}
+      {undo && (
+        <UndoToast
+          message={undo.message}
+          onUndo={() => void run(() => module.api.post(undo.restore))}
+          onDismiss={() => setUndo(null)}
+        />
       )}
     </Page>
   );
@@ -675,16 +1159,33 @@ function addMonth(month: string, n: number): string {
 function HomeWidget() {
   const module = useModule();
   const { data } = useApi<{ today: string; sessions: Session[] }>(module.url('/home'));
+  const [open, setOpen] = useState<string | null>(null);
   if (!data) return null;
   if (!data.sessions.length) return <p className="small muted">Pas de séance aujourd’hui.</p>;
   return (
     <ul className="sp-home small">
       {data.sessions.map((s) => (
         <li key={s.id}>
-          <strong>{s.name}</strong> · {s.start} · {s.durationMin} min{' '}
+          <button
+            type="button"
+            className="sp-home__session"
+            aria-expanded={open === s.id}
+            title="Voir les exercices"
+            onClick={(e) => {
+              // The home card is a link to the module: this click only opens the list.
+              e.preventDefault();
+              e.stopPropagation();
+              setOpen(open === s.id ? null : s.id);
+            }}
+          >
+            <strong>{s.name}</strong> · {s.start} · {s.durationMin} min
+            {s.exercises.length > 0 &&
+              ` · ${s.exercises.length} exercice${s.exercises.length > 1 ? 's' : ''}`}
+          </button>{' '}
           {s.status !== 'planned' && (
             <StateBadge tone={STATUS[s.status].tone}>{STATUS[s.status].label}</StateBadge>
           )}
+          {open === s.id && <ExerciseLines lines={s.exercises} />}
         </li>
       ))}
     </ul>

@@ -1,6 +1,7 @@
 // The Sport calendar, pure (tested in tests/plan.test.ts): dates of a week,
 // the weekly template applied to a week, what a change of the template does
 // to the weeks to come, moving a session inside its week, the summary.
+import type { ExerciseLineDto } from './exercises';
 
 /** 1 = Monday … 7 = Sunday. */
 export type Weekday = 1 | 2 | 3 | 4 | 5 | 6 | 7;
@@ -16,6 +17,8 @@ export interface TemplateItem {
   /** « HH:MM ». */
   start: string;
   durationMin: number;
+  /** Ordered exercises of this template session. */
+  exercises: ExerciseLineDto[];
 }
 
 export interface Session {
@@ -31,8 +34,10 @@ export interface Session {
   comment: string;
   /** The template line it comes from (null: added by hand). */
   templateId: string | null;
-  /** Changed by hand (time, duration, day, name): a template change leaves it alone. */
+  /** Changed by hand (time, duration, day, name, exercises): a template change leaves it alone. */
   custom: boolean;
+  /** Its own list: copied from the template when planned, then changed for it alone. */
+  exercises: ExerciseLineDto[];
 }
 
 // --- Dates (local calendar days, « YYYY-MM-DD », no time zone involved) -------
@@ -93,6 +98,7 @@ export interface PlannedSession {
   name: string;
   start: string;
   durationMin: number;
+  exercises: ExerciseLineDto[];
 }
 
 /** The sessions of a week from the template, by day then time. */
@@ -104,6 +110,7 @@ export function planWeek(template: TemplateItem[], monday: string): PlannedSessi
       name: t.name,
       start: t.start,
       durationMin: t.durationMin,
+      exercises: t.exercises,
     }))
     .sort((a, b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start));
 }

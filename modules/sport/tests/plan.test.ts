@@ -16,9 +16,9 @@ import {
 } from '../shared/plan';
 
 const template: TemplateItem[] = [
-  { id: 't1', weekday: 1, name: 'Dos + abdos', start: '18:30', durationMin: 60 },
-  { id: 't3', weekday: 3, name: 'Push', start: '07:00', durationMin: 45 },
-  { id: 't5', weekday: 5, name: 'Jambes', start: '18:00', durationMin: 75 },
+  { id: 't1', weekday: 1, name: 'Dos + abdos', start: '18:30', durationMin: 60, exercises: [] },
+  { id: 't3', weekday: 3, name: 'Push', start: '07:00', durationMin: 45, exercises: [] },
+  { id: 't5', weekday: 5, name: 'Jambes', start: '18:00', durationMin: 75, exercises: [] },
 ];
 const session = (over: Partial<Session> & { id: string; date: string }): Session => ({
   name: 'S',
@@ -29,6 +29,7 @@ const session = (over: Partial<Session> & { id: string; date: string }): Session
   comment: '',
   templateId: 't1',
   custom: false,
+  exercises: [],
   ...over,
 });
 
@@ -66,9 +67,16 @@ describe('weekly template', () => {
       session({ id: 'sat', date: '2026-10-31', templateId: null }), // added by hand: stays
     ];
     const next: TemplateItem[] = [
-      { id: 't3', weekday: 3, name: 'Push', start: '07:00', durationMin: 45 },
-      { id: 't5', weekday: 5, name: 'Jambes + mollets', start: '19:00', durationMin: 90 },
-      { id: 't7', weekday: 7, name: 'Mobilité', start: '10:00', durationMin: 30 },
+      { id: 't3', weekday: 3, name: 'Push', start: '07:00', durationMin: 45, exercises: [] },
+      {
+        id: 't5',
+        weekday: 5,
+        name: 'Jambes + mollets',
+        start: '19:00',
+        durationMin: 90,
+        exercises: [],
+      },
+      { id: 't7', weekday: 7, name: 'Mobilité', start: '10:00', durationMin: 30, exercises: [] },
     ];
     const { remove, add } = reapplyTemplate(existing, next, '2026-10-26', today);
     expect(remove).toEqual(['fri']);

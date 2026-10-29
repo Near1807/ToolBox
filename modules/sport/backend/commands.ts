@@ -8,6 +8,13 @@ export const TODAY_EXAMPLES = [
   'qu’est-ce que j’ai comme sport aujourd’hui',
   'j’ai sport aujourd’hui',
 ];
+export const EXERCISES_EXAMPLES = [
+  'c’est quoi les exos de ma séance d’aujourd’hui',
+  'quels exercices aujourd’hui',
+  'c’est quoi mes exercices du jour',
+  'dis-moi les exos de ma séance',
+  'les exercices de ma séance',
+];
 export const SUMMARY_EXAMPLES = [
   'mon bilan sport de la semaine',
   'bilan sport',

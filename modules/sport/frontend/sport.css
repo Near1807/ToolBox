@@ -172,17 +172,11 @@
 .sp-month__head,
 .sp-month__week {
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr)) 28px;
   gap: 4px;
 }
-.sp-month__week {
-  padding: 0;
-  border: 0;
-  background: none;
-  font: inherit;
-  color: inherit;
-  cursor: pointer;
-  text-align: left;
+.sp-month__open {
+  align-self: center;
 }
 .sp-month__day {
   display: flex;
@@ -204,6 +198,15 @@
   border-color: var(--accent);
 }
 .sp-dot {
+  display: block;
+  width: 100%;
+  border-top: 0;
+  border-right: 0;
+  border-bottom: 0;
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
   overflow: hidden;
   padding: 0 4px;
   border-radius: 4px;
@@ -256,4 +259,85 @@
   .sp-week {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+
+.sp-dot--on {
+  outline: 2px solid var(--accent);
+}
+
+/* Exercises */
+.sp-exercises {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 2px;
+}
+.sp-editor__exercises {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.sp-lines {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+}
+.sp-line {
+  display: grid;
+  grid-template-columns: 22px minmax(150px, 2fr) 72px 12px 72px 110px 84px minmax(110px, 1.5fr) auto;
+  align-items: center;
+  gap: 6px;
+}
+.sp-line__tools {
+  display: inline-flex;
+  gap: 2px;
+}
+.sp-line__new {
+  grid-column: 2 / -1;
+}
+.sp-row label .input {
+  width: auto;
+}
+.sp-template__item {
+  display: grid;
+  gap: 6px;
+}
+.sp-template__item > .sp-lines {
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.sp-library {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+}
+.sp-library > li {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+.sp-library__tools {
+  display: inline-flex;
+  gap: 6px;
+  margin-left: auto;
+}
+.sp-home__session {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.sp-home__session:hover {
+  color: var(--accent);
+}
+.sp-library .input {
+  flex: 1 1 160px;
+  width: auto;
 }
