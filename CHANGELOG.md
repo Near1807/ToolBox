@@ -4,6 +4,21 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.24.0] — 2026-10-30
+
+Session « Thèmes » : purement visuel, aucune donnée ni aucun calcul ne change.
+
+### Ajouté
+
+- Système de thèmes enrichi : tokens facultatifs de relief (niveaux d'élévation, surface enfoncée, état pressé), texture de surface, lueur de l'élément actif, dégradés des graphes, anneau de focus, contrôles dessinés par le thème (cases, curseurs, onglets) ; les composants du shell et du SDK les utilisent (`useChartGradient` pour les graphes SVG). Les thèmes qui ne les donnent pas restent identiques (captures avant / après comparées au pixel).
+- Cinq thèmes (expérimentaux) : Argile (neumorphisme clair), Lilas, Lilas de nuit, Supervision (salle de contrôle), Cuivre (néo-skeuomorphisme). Polices libres embarquées : Nunito, Plus Jakarta Sans, Oswald, Chakra Petch.
+- Réglages › Apparence : galerie de miniatures dessinées avec les tokens de chaque thème ; « Thème du soir » (désactivé par défaut) ; raccourci « thème suivant » (aucun par défaut). La fenêtre flottante suit le thème.
+- Test de lisibilité de chaque thème sur ses tokens (WCAG AA, séries distinctes y compris en deutéranopie, bord des contrôles).
+
+### Modifié
+
+- Contrastes revus dans les anciens thèmes (WCAG AA) : badges et liens du thème Clair, texte sur le dégradé des boutons (Nebula, Minuit : texte foncé sur les boutons de Minuit), texte discret de Console, Studio et Nebula ; ligne d'objectif du résumé des Courses plus visible.
+
 ## [0.23.0] — 2026-10-29
 
 Session bêta : Sport et Courses améliorés d'après les essais réels (toujours expérimentaux), la fenêtre flottante glissée par le système, et les petits points en attente.

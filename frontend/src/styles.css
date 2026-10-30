@@ -4,8 +4,13 @@
  * in the modules (checked by `npm run lint`). Modules reuse these classes and tokens.
  */
 
-/* Compatibility names (kept for modules written before the themes). */
-:root {
+/*
+ * Compatibility names (kept for modules written before the themes) and the
+ * defaults of the optional tokens; also on a theme preview (gallery), so
+ * that its tokens are computed from the previewed theme.
+ */
+:root,
+[data-theme-preview] {
   --bg-elevated: var(--surface-solid);
   --bg-hover: var(--surface-hover);
   --text-muted: var(--text-2);
@@ -13,6 +18,46 @@
   --font: var(--font-sans);
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   --fast: 160ms;
+
+  /*
+   * Optional theme tokens (docs/THEMES.md, « Tokens facultatifs »): a theme
+   * that leaves them out looks exactly as before these tokens existed.
+   * « No shadow » is written `0 0 transparent` (never `none`): these
+   * shadows are combined in lists, where `none` would void the declaration.
+   */
+  /* Relief: elevation levels, a hollow surface, the pressed state. */
+  --elev-flat: 0 0 transparent;
+  --elev-hover: var(--glow);
+  --elev-raised: inset 0 1px 0 color-mix(in srgb, var(--text) 4%, transparent), var(--shadow);
+  --elev-modal: var(--shadow);
+  --elev-popover: var(--shadow);
+  --inset: 0 0 transparent;
+  --pressed: 0 0 transparent;
+  --press-scale: 0.97;
+  /* Controls at rest: primary button, secondary buttons and tabs. */
+  --button-shadow: var(--glow);
+  --control-shadow: 0 0 transparent;
+  --control-border: var(--border-strong);
+  /* `drawn`: checkboxes, radios, sliders and tabs drawn with the tokens (else native, as before). */
+  --controls: native;
+  /* Surface texture (an image or `none`; never a network address). */
+  --texture: none;
+  /* Glow of the active element (selected tab, current page, checked control). */
+  --glow-active: 0 0 transparent;
+  /* Selected tab: background and shadow. */
+  --tab-active-bg: transparent;
+  --tab-active-shadow: 0 0 transparent;
+  /* Focus ring, always visible on the keyboard. */
+  --focus-color: var(--accent-2);
+  --focus-width: 2px;
+  /* Charts: area under the series (opacity at the top, at the bottom), bars (opacity at the bottom). */
+  --chart-area-top: 0;
+  --chart-area-bottom: 0;
+  --chart-bar-bottom: 1;
+  --chart-grid: var(--border);
+  /* Section titles (h2, h3): letter case and spacing (technical themes). */
+  --title-transform: none;
+  --title-spacing: -0.015em;
 }
 
 * {
@@ -29,7 +74,8 @@ body,
 body {
   background:
     radial-gradient(900px 600px at 10% -10%, var(--bg-glow-1), transparent 60%),
-    radial-gradient(800px 500px at 110% 10%, var(--bg-glow-2), transparent 60%), var(--bg);
+    radial-gradient(800px 500px at 110% 10%, var(--bg-glow-2), transparent 60%), var(--texture),
+    var(--bg);
   background-attachment: fixed;
   color: var(--text);
   font-family: var(--font-sans);
@@ -100,7 +146,7 @@ textarea {
 }
 
 :focus-visible {
-  outline: 2px solid var(--accent-2);
+  outline: var(--focus-width) solid var(--focus-color);
   outline-offset: 2px;
 }
 
@@ -114,7 +160,12 @@ h3 {
   margin: 0 0 0.5rem;
   font-family: var(--font-display);
   font-weight: 650;
-  letter-spacing: -0.015em;
+  letter-spacing: var(--title-spacing);
+}
+
+h2,
+h3 {
+  text-transform: var(--title-transform);
 }
 
 h1 {
@@ -293,6 +344,7 @@ kbd {
   );
   border-color: color-mix(in srgb, var(--accent) 40%, transparent);
   color: var(--text);
+  box-shadow: var(--glow-active);
 }
 
 .nav-link.active svg {
@@ -417,15 +469,14 @@ kbd {
 /* ------------------------------------------------------------------ cards */
 .card {
   position: relative;
-  background: var(--surface);
+  background-color: var(--surface);
+  background-image: var(--texture);
   backdrop-filter: blur(var(--blur)) saturate(130%);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 18px 20px;
   margin-bottom: 14px;
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, var(--text) 4%, transparent),
-    var(--shadow);
+  box-shadow: var(--elev-raised);
 }
 
 .card__header {
@@ -489,20 +540,22 @@ kbd {
   text-decoration: none;
   cursor: pointer;
   white-space: nowrap;
-  box-shadow: var(--glow);
+  box-shadow: var(--button-shadow);
   transition:
     transform var(--fast) var(--ease),
     filter var(--fast),
     background var(--fast),
-    border-color var(--fast);
+    border-color var(--fast),
+    box-shadow var(--fast);
 }
 
 .button:hover {
   filter: brightness(1.08);
 }
 
-.button:active {
-  transform: scale(0.97);
+.button:active:not(:disabled) {
+  transform: scale(var(--press-scale));
+  box-shadow: var(--pressed);
 }
 
 .button:disabled {
@@ -515,8 +568,8 @@ kbd {
 .button--secondary {
   background: var(--surface-2);
   color: var(--text);
-  border-color: var(--border-strong);
-  box-shadow: none;
+  border-color: var(--control-border);
+  box-shadow: var(--control-shadow);
 }
 
 .button--secondary:hover {
@@ -528,7 +581,7 @@ kbd {
   background: color-mix(in srgb, var(--danger) 16%, transparent);
   color: var(--danger);
   border-color: color-mix(in srgb, var(--danger) 45%, transparent);
-  box-shadow: none;
+  box-shadow: var(--control-shadow);
 }
 
 .button--danger:hover {
@@ -595,6 +648,8 @@ kbd {
   padding: 16px 18px;
   color: var(--text);
   text-decoration: none;
+  background-image: var(--texture);
+  box-shadow: var(--elev-flat);
   transition:
     border-color var(--fast),
     box-shadow var(--fast),
@@ -603,8 +658,12 @@ kbd {
 
 .module-card--link:hover {
   border-color: color-mix(in srgb, var(--accent) 45%, transparent);
-  box-shadow: var(--glow);
+  box-shadow: var(--elev-hover);
   transform: translateY(-1px);
+}
+
+.module-card--link:active {
+  box-shadow: var(--pressed);
 }
 
 .module-card--disabled {
@@ -689,11 +748,12 @@ kbd {
 .input {
   background: var(--field);
   color: var(--text);
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--control-border);
   border-radius: var(--radius-sm);
   padding: 7px 10px;
   min-width: 0;
   width: 100%;
+  box-shadow: var(--inset);
   transition:
     border-color var(--fast),
     box-shadow var(--fast);
@@ -706,7 +766,9 @@ kbd {
 .input:focus {
   outline: none;
   border-color: color-mix(in srgb, var(--accent) 70%, transparent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
+  box-shadow:
+    var(--inset),
+    0 0 0 3px var(--accent-soft);
 }
 
 textarea.input {
@@ -726,6 +788,101 @@ input[type='checkbox'],
 input[type='radio'],
 input[type='range'] {
   accent-color: var(--accent);
+}
+
+/*
+ * Checkboxes, radios, sliders and tabs drawn with the tokens, for the themes
+ * that ask for it (--controls: drawn). Elsewhere they stay native, unchanged.
+ */
+@container style(--controls: drawn) {
+  input[type='checkbox'],
+  input[type='radio'] {
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    position: relative;
+    vertical-align: -0.25em;
+    margin: 0 3px;
+    border: 1px solid var(--control-border);
+    border-radius: 5px;
+    background: var(--field);
+    box-shadow: var(--inset);
+    cursor: pointer;
+    transition:
+      background var(--fast),
+      box-shadow var(--fast);
+  }
+
+  input[type='radio'] {
+    border-radius: 50%;
+  }
+
+  input[type='checkbox']:checked,
+  input[type='radio']:checked {
+    background: var(--accent);
+    border-color: var(--accent);
+    box-shadow: var(--glow-active);
+  }
+
+  input[type='checkbox']:checked::after {
+    content: '';
+    position: absolute;
+    left: 5px;
+    top: 1px;
+    width: 5px;
+    height: 10px;
+    border: solid var(--text-on-accent);
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+  }
+
+  input[type='radio']:checked::after {
+    content: '';
+    position: absolute;
+    inset: 4px;
+    border-radius: 50%;
+    background: var(--text-on-accent);
+  }
+
+  input[type='checkbox']:disabled,
+  input[type='radio']:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+
+  input[type='range'] {
+    appearance: none;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--field);
+    box-shadow: var(--inset);
+  }
+
+  input[type='range']::-webkit-slider-thumb {
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 1px solid var(--control-border);
+    background: var(--accent);
+    box-shadow: var(--control-shadow), var(--glow-active);
+    cursor: pointer;
+  }
+
+  /* Selected tab of every tab bar (modules keep their layout; the theme gives the relief). */
+  [role='tablist'] [role='tab'] {
+    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+    transition:
+      background var(--fast),
+      box-shadow var(--fast),
+      color var(--fast);
+  }
+
+  [role='tablist'] [role='tab'][aria-selected='true'] {
+    background: var(--tab-active-bg);
+    box-shadow: var(--tab-active-shadow);
+  }
 }
 
 .inline-form {
@@ -838,6 +995,7 @@ input[type='range'] {
   background: var(--surface-2);
   border-radius: 999px;
   overflow: hidden;
+  box-shadow: var(--inset);
 }
 
 .progress__bar {
@@ -954,6 +1112,7 @@ input[type='range'] {
   border-radius: var(--radius);
   overflow: hidden;
   background: var(--surface-2);
+  box-shadow: var(--elev-flat);
   transition:
     border-color var(--fast),
     box-shadow var(--fast);
@@ -965,7 +1124,7 @@ input[type='range'] {
 
 .ui-card--selected {
   border-color: color-mix(in srgb, var(--accent) 60%, transparent);
-  box-shadow: var(--glow);
+  box-shadow: var(--elev-hover);
 }
 
 .ui-card--dimmed {
@@ -1316,7 +1475,7 @@ input[type='range'] {
   background: var(--surface-solid);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
-  box-shadow: var(--shadow);
+  box-shadow: var(--elev-popover);
 }
 
 .ui-menu button {
@@ -1354,8 +1513,8 @@ input[type='range'] {
 /* Theme picker (Réglages › Apparence) */
 .theme-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 12px;
 }
 
 .theme-option {
@@ -1379,20 +1538,163 @@ input[type='range'] {
   box-shadow: var(--glow);
 }
 
-.theme-option__swatch {
+.theme-option__name {
   display: flex;
-  height: 34px;
-  border-radius: 8px;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+
+/* Miniature of a theme (data-theme-preview: the theme's own tokens). */
+.theme-preview {
+  display: flex;
+  gap: 6px;
+  height: 104px;
+  padding: 6px;
   overflow: hidden;
+  border-radius: 10px;
   border: 1px solid var(--border);
+  background-color: var(--bg);
+  background-image: var(--texture);
+  color: var(--text);
+  font-family: var(--font-display);
+  pointer-events: none;
 }
 
-.theme-option__swatch span {
+.theme-preview__side {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 26%;
+  padding: 5px;
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--elev-flat);
+}
+
+.theme-preview__brand {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  background: var(--accent-grad);
+}
+
+.theme-preview__nav {
+  height: 7px;
+  border-radius: 4px;
+  background: var(--surface-2);
+}
+
+.theme-preview__nav--on {
+  background: color-mix(in srgb, var(--accent) 45%, var(--surface-2));
+  box-shadow: var(--glow-active);
+}
+
+.theme-preview__main {
+  display: flex;
   flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
 }
 
-.theme-option__swatch span:first-child {
-  flex: 2;
+.theme-preview__title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.theme-preview__card {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 5px;
+  padding: 6px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background-color: var(--surface);
+  background-image: var(--texture);
+  box-shadow: var(--elev-raised);
+}
+
+.theme-preview__tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.theme-preview__tab {
+  width: 22px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--surface-2);
+}
+
+.theme-preview__tab--on {
+  background: var(--accent);
+  box-shadow: var(--tab-active-shadow);
+}
+
+.theme-preview__bars {
+  display: flex;
+  flex: 1;
+  align-items: flex-end;
+  gap: 4px;
+  border-bottom: 1px solid var(--chart-grid);
+}
+
+.theme-preview__bar {
+  width: 10px;
+  border-radius: 3px 3px 0 0;
+}
+
+.theme-preview__row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.theme-preview__button {
+  width: 30px;
+  height: 10px;
+  border-radius: 4px;
+  background: var(--accent-grad);
+  box-shadow: var(--button-shadow);
+}
+
+.theme-preview__button--secondary {
+  background: var(--surface-2);
+  border: 1px solid var(--control-border);
+  box-shadow: var(--control-shadow);
+}
+
+.theme-preview__check {
+  width: 10px;
+  height: 10px;
+  margin-left: auto;
+  border-radius: 3px;
+  background: var(--accent);
+}
+
+.appearance-options {
+  display: grid;
+  gap: 8px;
+}
+
+.appearance-options__line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.appearance-options__line .input {
+  flex: 0 0 auto;
+  width: auto;
+  max-width: 220px;
+}
+
+.appearance-options__record {
+  min-width: 260px;
 }
 
 /* ------------------------------------------------------------------ sidebar categories */
@@ -1626,7 +1928,7 @@ input[type='range'] {
   background: var(--surface-solid);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
-  box-shadow: var(--shadow);
+  box-shadow: var(--elev-modal);
   color: var(--text);
 }
 

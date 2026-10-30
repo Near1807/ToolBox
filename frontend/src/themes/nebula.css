@@ -18,12 +18,12 @@
   --border-strong: rgb(160 170 255 / 22%);
   --text: #eef0fb;
   --text-2: #a7acc9;
-  --text-3: #6c7194;
+  --text-3: #7278a0;
   --text-on-accent: #ffffff;
-  --accent: #8b5cf6;
+  --accent: #7c4ef0;
   --accent-2: #22d3ee;
   --accent-soft: rgb(139 92 246 / 16%);
-  --accent-grad: linear-gradient(135deg, #8b5cf6 0%, #22d3ee 100%);
+  --accent-grad: linear-gradient(135deg, #7c4ef0 0%, #0e7490 100%);
   --success: #34d399;
   --warning: #fbbf24;
   --danger: #f87171;

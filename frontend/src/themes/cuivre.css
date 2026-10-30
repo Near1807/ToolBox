@@ -1,0 +1,75 @@
+/* @theme id=cuivre; label=Cuivre; scheme=dark; swatch=#262626,#c4602f,#e8e2da; experimental=yes */
+/* Neo-skeuomorphism, audio gear spirit (console, rack): lightly grained anthracite, copper accents, raised buttons and switches, pressed state hollowed, copper glow on the active element, cream text. See docs/THEMES.md. */
+:root[data-theme='cuivre'] {
+  color-scheme: dark;
+  --bg: #262626;
+  --bg-glow-1: rgb(196 96 47 / 6%);
+  --bg-glow-2: rgb(232 226 218 / 3%);
+  --surface: #2e2e2e;
+  --surface-2: #353535;
+  --surface-hover: #3d3d3d;
+  --surface-solid: #2b2b2b;
+  --field: #1f1f1f;
+  --border: rgb(255 255 255 / 7%);
+  --border-strong: rgb(255 255 255 / 15%);
+  --text: #e8e2da;
+  --text-2: #bcb3a8;
+  --text-3: #938a80;
+  --text-on-accent: #1a0e07;
+  --accent: #c4602f;
+  --accent-2: #e5915c;
+  --accent-soft: rgb(196 96 47 / 18%);
+  --accent-grad: linear-gradient(180deg, #d9804a 0%, #c4602f 100%);
+  --success: #93c972;
+  --warning: #e4ad4f;
+  --danger: #ef7c6b;
+  --info: #dcae88;
+  --series-1: #e5915c;
+  --series-2: #6fa0e0;
+  --series-3: #e6d36a;
+  --series-4: #8fd3e0;
+  --series-5: #d9c29a;
+  --series-6: #c98bb9;
+  --series-7: #a3c46f;
+  --series-8: #ef7c6b;
+  --brand-youtube: #ff4e45;
+  --brand-instagram: #e1306c;
+  --overlay: rgb(10 10 10 / 72%);
+  --on-overlay: #ffffff;
+  --media-bg: #000000;
+  --shadow: 0 12px 30px rgb(0 0 0 / 55%), 0 2px 4px rgb(0 0 0 / 40%);
+  --glow: 0 0 18px rgb(196 96 47 / 35%);
+  --glow-2: 0 0 18px rgb(232 226 218 / 12%);
+  --radius-lg: 16px;
+  --radius: 12px;
+  --radius-sm: 9px;
+  --blur: 0px;
+  --font-sans: 'Inter Variable', system-ui, 'Segoe UI', sans-serif;
+  --font-display: 'Oswald Variable', 'Inter Variable', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, 'Cascadia Code', monospace;
+  /* Optional tokens (relief, controls, charts…). */
+  --texture: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  --elev-flat: inset 0 1px 0 rgb(255 255 255 / 5%), 0 3px 8px rgb(0 0 0 / 45%);
+  --elev-hover:
+    inset 0 1px 0 rgb(255 255 255 / 6%), 0 8px 20px rgb(0 0 0 / 55%), 0 0 0 1px rgb(196 96 47 / 40%);
+  --elev-raised:
+    inset 0 1px 0 rgb(255 255 255 / 5%), 0 10px 26px rgb(0 0 0 / 55%), 0 2px 4px rgb(0 0 0 / 40%);
+  --elev-modal: inset 0 1px 0 rgb(255 255 255 / 6%), 0 22px 54px rgb(0 0 0 / 70%);
+  --elev-popover: inset 0 1px 0 rgb(255 255 255 / 6%), 0 14px 34px rgb(0 0 0 / 65%);
+  --inset: inset 0 2px 5px rgb(0 0 0 / 60%), inset 0 -1px 0 rgb(255 255 255 / 4%);
+  --pressed: inset 0 3px 8px rgb(0 0 0 / 65%), inset 0 -1px 0 rgb(255 255 255 / 4%);
+  --press-scale: 0.98;
+  --button-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 22%), 0 4px 10px rgb(0 0 0 / 55%), 0 0 14px rgb(196 96 47 / 30%);
+  --control-shadow: inset 0 1px 0 rgb(255 255 255 / 7%), 0 3px 6px rgb(0 0 0 / 50%);
+  --control-border: rgb(255 255 255 / 13%);
+  --controls: drawn;
+  --tab-active-bg: #383838;
+  --tab-active-shadow: inset 0 1px 0 rgb(255 255 255 / 7%), 0 0 12px rgb(196 96 47 / 30%);
+  --glow-active: 0 0 14px rgb(196 96 47 / 50%);
+  --focus-color: #e5915c;
+  --focus-width: 3px;
+  --chart-area-top: 0.3;
+  --chart-area-bottom: 0;
+  --chart-bar-bottom: 0.65;
+}

@@ -4,6 +4,7 @@
 // frontend/src/styles.css, colours from the theme tokens only.
 import {
   useEffect,
+  useId,
   useRef,
   useState,
   type DragEvent,
@@ -880,4 +881,34 @@ export function usePrecheck(get: <T>(url: string) => Promise<T>) {
     </div>
   );
   return { guard, notice };
+}
+
+// ---------------------------------------------------------------------------
+// Chart gradients of the theme (docs/THEMES.md, « Graphes »)
+// ---------------------------------------------------------------------------
+
+/**
+ * SVG gradient of the theme for a chart: `area` fills under a series
+ * (opacities --chart-area-top → --chart-area-bottom, 0 by default: nothing
+ * drawn), `bar` fades a bar to --chart-bar-bottom (1 by default: solid).
+ * Returns the `fill` to use (`url(#…)`) and the <defs> to put in the <svg>.
+ */
+export function useChartGradient(
+  color: string,
+  kind: 'area' | 'bar',
+): { fill: string; defs: ReactNode } {
+  const id = `ui-grad-${useId().replace(/[^a-zA-Z0-9-]/g, '')}`;
+  const top = kind === 'area' ? 'var(--chart-area-top)' : '1';
+  const bottom = kind === 'area' ? 'var(--chart-area-bottom)' : 'var(--chart-bar-bottom)';
+  return {
+    fill: `url(#${id})`,
+    defs: (
+      <defs>
+        <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" style={{ stopColor: color, stopOpacity: top }} />
+          <stop offset="1" style={{ stopColor: color, stopOpacity: bottom }} />
+        </linearGradient>
+      </defs>
+    ),
+  };
 }
