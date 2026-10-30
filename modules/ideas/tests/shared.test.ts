@@ -76,7 +76,7 @@ describe('ideas said aloud', () => {
   it('exports in Markdown with tags, dates, track and task', () => {
     const md = markdownOf([
       {
-        id: 1,
+        id: '00000000-0000-4000-8000-000000000001',
         title: 'Break',
         body: 'Des **cordes**',
         tags: ['arrangement'],
@@ -84,7 +84,7 @@ describe('ideas said aloud', () => {
         updatedAt: '2026-10-21T10:00:00.000Z',
         archived: false,
         track: { id: 1, title: 'Nuit Blanche' },
-        task: { id: 3, title: 'Break' },
+        task: { id: '00000000-0000-4000-8000-000000000003', title: 'Break' },
       },
     ]);
     expect(md).toContain('## Break');

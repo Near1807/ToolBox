@@ -5,12 +5,16 @@
 // other modules. The assistant adds ideas only with its own right (off by
 // default) and reads them freely (MODULES.md §5.15).
 import {
+  changesTableSql,
   defineBackendModule,
   HttpError,
-  idParam,
   listPhrase,
+  type MigrationDatabase,
   type ModuleContext,
   requestBody,
+  SYNC_COLUMNS,
+  SyncStore,
+  uuidParam,
 } from '@hub/sdk/backend';
 import type { MusicLibraryService } from '../../music-library/contract';
 import type { TodoService } from '../../todo/contract';
@@ -33,23 +37,38 @@ import {
 } from './commands';
 
 interface IdeaRow {
-  id: number;
+  id: string;
   title: string;
   body: string;
   tags: string;
   subject: string | null;
   archived_at: string | null;
-  task_id: number | null;
+  /** The task of the To-do it became (its UUID), or null. */
+  task_id: string | null;
   task_title: string | null;
   created_at: string;
+  /** Last change of any kind (synchronisation). */
   updated_at: string;
+  deleted_at: string | null;
+  /** Last change of the idea itself (title, text, tags, track): « modifiée le »; null: never. */
+  edited_at: string | null;
+  /** Its number before v0.25 (migration 2), null for an idea noted since. */
+  legacy_id: number | null;
+}
+
+interface TagRow {
+  id: string;
+  name: string;
+  color: number;
+  deleted_at: string | null;
 }
 
 const TRACK_SUBJECT = (id: number) => `music-library:track:${id}`;
+/** « modifiée le »: the last change of the idea itself, else its creation. */
+const editedAt = (row: { created_at: string; edited_at: string | null }) =>
+  row.edited_at ?? row.created_at;
 const MAX_TITLE = 160;
 const MAX_BODY = 20_000;
-/** Deleted ideas kept this long in memory for « Annuler ». */
-const UNDO_MS = 3600_000;
 
 /** A spoken or typed idea: a short one is its title; a long one keeps the whole text below. */
 export function splitIdea(text: string): { title: string; body: string } {
@@ -85,6 +104,11 @@ export default defineBackendModule({
         );
       `,
     },
+    {
+      version: 2,
+      description: 'ready for sync: UUIDs, dates, tombstones, journal (old tables kept)',
+      up: (db) => migrateToSync(db),
+    },
   ],
 
   register(ctx: ModuleContext) {
@@ -92,7 +116,7 @@ export default defineBackendModule({
     const tagTable = ctx.db.table('tags');
     const library = () => ctx.services.optional<MusicLibraryService>('musicLibrary');
     const todo = () => ctx.services.optional<TodoService>('todo');
-    const deleted = new Map<number, { row: IdeaRow; at: number }>();
+    const store = new SyncStore(ctx.db);
 
     const tagsOf = (row: IdeaRow) => JSON.parse(row.tags) as string[];
     const trackOf = (row: IdeaRow): IdeaDto['track'] => {
@@ -108,29 +132,37 @@ export default defineBackendModule({
       body: row.body,
       tags: tagsOf(row),
       createdAt: row.created_at,
-      updatedAt: row.updated_at,
+      updatedAt: editedAt(row),
       archived: row.archived_at !== null,
       track: trackOf(row),
       task: row.task_id !== null ? { id: row.task_id, title: row.task_title ?? '' } : null,
     });
 
-    const get = (id: number): IdeaRow => {
-      const row = ctx.db.prepare(`SELECT * FROM ${ideas} WHERE id = ?`).get(id) as
-        IdeaRow | undefined;
+    const get = (id: string): IdeaRow => {
+      const row = store.get<IdeaRow>('ideas', id);
       if (!row) throw new HttpError(404, 'Idée introuvable');
       return row;
     };
-    const all = () => ctx.db.prepare(`SELECT * FROM ${ideas} ORDER BY id`).all() as IdeaRow[];
+    const all = () =>
+      ctx.db
+        .prepare(
+          `SELECT * FROM ${ideas} WHERE deleted_at IS NULL ORDER BY created_at, legacy_id, id`,
+        )
+        .all() as IdeaRow[];
+    /** Same creation date: the old order (number), then the id. */
+    const sameTime = (a: IdeaRow, b: IdeaRow) =>
+      (a.legacy_id ?? 0) - (b.legacy_id ?? 0) || a.id.localeCompare(b.id);
 
-    const colors = () =>
-      new Map(
-        (
-          ctx.db.prepare(`SELECT name, color FROM ${tagTable}`).all() as {
-            name: string;
-            color: number;
-          }[]
-        ).map((t) => [t.name, t.color]),
-      );
+    const tagRows = () =>
+      ctx.db.prepare(`SELECT * FROM ${tagTable} WHERE deleted_at IS NULL`).all() as TagRow[];
+    const tagRow = (name: string) => tagRows().find((t) => t.name === name) ?? null;
+    const colors = () => new Map(tagRows().map((t) => [t.name, t.color]));
+    /** The colour of a tag (a row created the first time). */
+    const setColor = (name: string, color: number) => {
+      const row = tagRow(name);
+      if (!row) store.create('tags', { name, color });
+      else if (row.color !== color) store.update('tags', row.id, { color });
+    };
     const tagList = (): TagDto[] => {
       const counts = new Map<string, number>();
       for (const row of all()) for (const t of tagsOf(row)) counts.set(t, (counts.get(t) ?? 0) + 1);
@@ -171,18 +203,24 @@ export default defineBackendModule({
       tags: string[];
       subject: string | null;
     }): IdeaRow => {
-      const now = new Date().toISOString();
-      const result = ctx.db
-        .prepare(
-          `INSERT INTO ${ideas} (title, body, tags, subject, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
-        )
-        .run(fields.title, fields.body, JSON.stringify(fields.tags), fields.subject, now, now);
-      return get(Number(result.lastInsertRowid));
+      const row = store.create<IdeaRow>('ideas', {
+        title: fields.title,
+        body: fields.body,
+        tags: JSON.stringify(fields.tags),
+        subject: fields.subject,
+        archived_at: null,
+        task_id: null,
+        task_title: null,
+        edited_at: null,
+        legacy_id: null,
+      });
+      return row;
     };
 
-    const update = (id: number, patch: Record<string, unknown>): IdeaRow => {
+    /** Only the fields that change are written (and journaled). */
+    const update = (id: string, patch: Record<string, unknown>): IdeaRow => {
       const row = get(id);
-      const next = { ...row };
+      const next: Partial<Record<keyof IdeaRow, string | null>> = {};
       if ('title' in patch) next.title = titleFrom(patch.title);
       if ('body' in patch) next.body = bodyFrom(patch.body);
       if ('tags' in patch) next.tags = JSON.stringify(tagsFrom(patch.tags));
@@ -190,51 +228,25 @@ export default defineBackendModule({
       if ('archived' in patch)
         next.archived_at = patch.archived ? (row.archived_at ?? new Date().toISOString()) : null;
       // Archiving is not a change of the idea itself: « modifiée » keeps its date.
-      const edited = ['title', 'body', 'tags', 'trackId'].some((k) => k in patch);
-      ctx.db
-        .prepare(
-          `UPDATE ${ideas} SET title = ?, body = ?, tags = ?, subject = ?, archived_at = ?, updated_at = ? WHERE id = ?`,
-        )
-        .run(
-          next.title,
-          next.body,
-          next.tags,
-          next.subject,
-          next.archived_at,
-          edited ? new Date().toISOString() : row.updated_at,
-          id,
-        );
-      return get(id);
+      if (['title', 'body', 'tags', 'trackId'].some((k) => k in patch))
+        next.edited_at = new Date().toISOString();
+      const changed = Object.fromEntries(
+        Object.entries(next).filter(([key, value]) => row[key as keyof IdeaRow] !== value),
+      ) as Record<string, string | null>;
+      return Object.keys(changed).length ? store.update<IdeaRow>('ideas', id, changed) : row;
     };
 
-    const remove = (id: number): IdeaRow => {
+    /** A tombstone (« Annuler » brings it back; the future sync sees the deletion). */
+    const remove = (id: string): IdeaRow => {
       const row = get(id);
-      ctx.db.prepare(`DELETE FROM ${ideas} WHERE id = ?`).run(id);
-      deleted.set(id, { row, at: Date.now() });
-      for (const [key, entry] of deleted) if (Date.now() - entry.at > UNDO_MS) deleted.delete(key);
+      store.remove('ideas', id);
       return row;
     };
-    const restore = (id: number): IdeaRow => {
-      const entry = deleted.get(id);
-      if (!entry) throw new HttpError(404, 'Plus rien à restaurer pour cette idée');
-      const r = entry.row;
-      ctx.db
-        .prepare(
-          `INSERT INTO ${ideas} (id, title, body, tags, subject, archived_at, task_id, task_title, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        )
-        .run(
-          r.id,
-          r.title,
-          r.body,
-          r.tags,
-          r.subject,
-          r.archived_at,
-          r.task_id,
-          r.task_title,
-          r.created_at,
-          r.updated_at,
-        );
-      deleted.delete(id);
+    const restore = (id: string): IdeaRow => {
+      const row = store.get<IdeaRow>('ideas', id, true);
+      if (!row || row.deleted_at === null)
+        throw new HttpError(404, 'Plus rien à restaurer pour cette idée');
+      store.restore('ideas', id);
       return get(id);
     };
 
@@ -253,10 +265,10 @@ export default defineBackendModule({
       const sort = options.sort ?? 'recent';
       return rows.sort((a, b) =>
         sort === 'old'
-          ? a.created_at.localeCompare(b.created_at) || a.id - b.id
+          ? a.created_at.localeCompare(b.created_at) || sameTime(a, b)
           : sort === 'modified'
-            ? b.updated_at.localeCompare(a.updated_at) || b.id - a.id
-            : b.created_at.localeCompare(a.created_at) || b.id - a.id,
+            ? editedAt(b).localeCompare(editedAt(a)) || sameTime(b, a)
+            : b.created_at.localeCompare(a.created_at) || sameTime(b, a),
       );
     };
     const listQuery = (query: unknown) => {
@@ -306,14 +318,14 @@ export default defineBackendModule({
       );
     });
     ctx.routes.patch('/ideas/:id', (request) =>
-      dto(update(idParam(request.params), requestBody(request))),
+      dto(update(uuidParam(request.params), requestBody(request))),
     );
     // The page asks for a confirmation first, then offers « Annuler ».
     ctx.routes.delete('/ideas/:id', (request) => {
-      remove(idParam(request.params));
+      remove(uuidParam(request.params));
       return { ok: true };
     });
-    ctx.routes.post('/ideas/:id/restore', (request) => dto(restore(idParam(request.params))));
+    ctx.routes.post('/ideas/:id/restore', (request) => dto(restore(uuidParam(request.params))));
 
     ctx.routes.get('/random', (request) => {
       const row = random(listQuery(request.query).tags);
@@ -322,16 +334,14 @@ export default defineBackendModule({
 
     /** « Transformer en tâche » (a click): a task of the To-do; the idea stays, marked. */
     ctx.routes.post('/ideas/:id/to-task', (request) => {
-      const row = get(idParam(request.params));
+      const row = get(uuidParam(request.params));
       const service = todo();
       if (!service) throw new HttpError(409, 'La To-do n’est pas disponible.');
       if (row.task_id !== null && service.getTask(row.task_id))
         throw new HttpError(409, 'Cette idée est déjà devenue une tâche.');
       const track = trackOf(row);
       const task = service.createTask({ title: row.title, tags: tagsOf(row), trackId: track?.id });
-      ctx.db
-        .prepare(`UPDATE ${ideas} SET task_id = ?, task_title = ? WHERE id = ?`)
-        .run(task.id, task.title, row.id);
+      store.update('ideas', row.id, { task_id: task.id, task_title: task.title });
       ctx.logger.info(`Idée « ${row.title} » transformée en tâche ${task.id}`);
       return { idea: dto(get(row.id)), task };
     });
@@ -354,17 +364,17 @@ export default defineBackendModule({
             const tags = tagsOf(row);
             if (!tags.includes(from)) continue;
             const next = cleanTags(tags.map((t) => (t === from ? name : t)));
-            ctx.db
-              .prepare(`UPDATE ${ideas} SET tags = ? WHERE id = ?`)
-              .run(JSON.stringify(next), row.id);
+            // Not a change of the idea's text: « modifiée » keeps its date (as before).
+            store.update('ideas', row.id, { tags: JSON.stringify(next) });
           }
           // The colour goes with the name, unless merged into a tag that has one.
-          const old = colors().get(from) ?? 0;
-          ctx.db.prepare(`DELETE FROM ${tagTable} WHERE name = ?`).run(from);
-          if (!merged || !(colors().get(name) ?? 0))
-            ctx.db
-              .prepare(`INSERT OR REPLACE INTO ${tagTable} (name, color) VALUES (?, ?)`)
-              .run(name, old);
+          const old = tagRow(from);
+          const target = tagRow(name);
+          if (!merged && old) store.update('tags', old.id, { name });
+          else {
+            if (old) store.remove('tags', old.id);
+            if (!(target?.color ?? 0)) setColor(name, old?.color ?? 0);
+          }
         });
         ctx.logger.info(`Tag « ${from} » ${merged ? 'fusionné dans' : 'renommé en'} « ${name} »`);
       }
@@ -372,9 +382,7 @@ export default defineBackendModule({
         const color = Number(body.color);
         if (!Number.isInteger(color) || color < 0 || color > 8)
           throw new HttpError(400, 'Couleur invalide');
-        ctx.db
-          .prepare(`INSERT OR REPLACE INTO ${tagTable} (name, color) VALUES (?, ?)`)
-          .run(name, color);
+        setColor(name, color);
       }
       return { tags: tagList() };
     });
@@ -413,7 +421,7 @@ export default defineBackendModule({
         get: (trackId) => {
           const rows = ctx.db
             .prepare(
-              `SELECT * FROM ${ideas} WHERE subject = ? AND archived_at IS NULL ORDER BY id DESC`,
+              `SELECT * FROM ${ideas} WHERE subject = ? AND archived_at IS NULL AND deleted_at IS NULL ORDER BY created_at DESC, legacy_id DESC`,
             )
             .all(TRACK_SUBJECT(trackId)) as IdeaRow[];
           if (!rows.length) return null;
@@ -451,9 +459,7 @@ export default defineBackendModule({
         return {
           message: `Idée notée : « ${row.title} »${tags.length ? ` (${tags.map((t) => `#${t}`).join(' ')})` : ''}.`,
           data: { idea: { id: row.id, title: row.title, tags } },
-          undo: () => {
-            ctx.db.prepare(`DELETE FROM ${ideas} WHERE id = ?`).run(row.id);
-          },
+          undo: () => store.remove('ideas', row.id),
         };
       },
     });
@@ -526,4 +532,107 @@ export function markdownOf(list: IdeaDto[]): string {
     if (idea.body) lines.push(idea.body, '');
   }
   return `${lines.join('\n').trimEnd()}\n`;
+}
+
+/**
+ * Migration 2 (v0.25): ideas and tag colours get a UUID, a tombstone and a
+ * journal (« Prêt pour la synchro », MODULES.md §6 bis). The old tables stay
+ * as `ideas_v1` and `tags_v1`, untouched. Each idea is copied with the same
+ * values and dates (`edited_at` = its old « modifiée le »), its new id is
+ * `legacyId('ideas:idea', n)`; the task it became is `legacyId('todo:task',
+ * n)`, the UUID the To-do gives its task n. Old → new pairs in `legacy_ids`.
+ */
+export function migrateToSync(db: MigrationDatabase): void {
+  const ideas = db.table('ideas');
+  const tags = db.table('tags');
+  const legacy = db.table('legacy_ids');
+  const journal = db.table('changes');
+  db.exec(`
+    ALTER TABLE ${ideas} RENAME TO ${ideas}_v1;
+    ALTER TABLE ${tags} RENAME TO ${tags}_v1;
+    DROP INDEX IF EXISTS ${ideas}_subject;
+    CREATE INDEX ${ideas}_v1_subject ON ${ideas}_v1 (subject);
+    CREATE TABLE ${ideas} (
+      ${SYNC_COLUMNS},
+      title TEXT NOT NULL,
+      body TEXT NOT NULL DEFAULT '',
+      tags TEXT NOT NULL DEFAULT '[]',
+      subject TEXT,
+      archived_at TEXT,
+      task_id TEXT,
+      task_title TEXT,
+      edited_at TEXT,
+      legacy_id INTEGER
+    );
+    CREATE INDEX ${ideas}_subject ON ${ideas} (subject);
+    CREATE TABLE ${tags} (
+      ${SYNC_COLUMNS},
+      name TEXT NOT NULL,
+      color INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE UNIQUE INDEX ${tags}_name ON ${tags} (name) WHERE deleted_at IS NULL;
+    ${changesTableSql(journal)}
+    CREATE TABLE ${legacy} (
+      entity TEXT NOT NULL,
+      old_id INTEGER NOT NULL,
+      new_id TEXT NOT NULL,
+      PRIMARY KEY (entity, old_id)
+    );
+  `);
+  const pair = db.prepare(`INSERT INTO ${legacy} (entity, old_id, new_id) VALUES (?, ?, ?)`);
+  const log = db.prepare(
+    `INSERT INTO ${journal} (id, at, entity, entity_id, op, data) VALUES (?, ?, ?, ?, 'create', ?)`,
+  );
+  const insertIdea = db.prepare(
+    `INSERT INTO ${ideas} (id, created_at, updated_at, deleted_at, title, body, tags, subject, archived_at, task_id, task_title, edited_at, legacy_id) VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  );
+  type OldIdea = Omit<IdeaRow, 'id' | 'task_id' | 'deleted_at' | 'edited_at' | 'legacy_id'> & {
+    id: number;
+    task_id: number | null;
+  };
+  for (const r of db.prepare(`SELECT * FROM ${ideas}_v1 ORDER BY id`).all() as OldIdea[]) {
+    const id = db.legacyId('ideas:idea', r.id);
+    const fields = {
+      title: r.title,
+      body: r.body,
+      tags: r.tags,
+      subject: r.subject,
+      archived_at: r.archived_at,
+      task_id: r.task_id === null ? null : db.legacyId('todo:task', r.task_id),
+      task_title: r.task_title,
+      edited_at: r.updated_at,
+    };
+    insertIdea.run(id, r.created_at, r.updated_at, ...Object.values(fields), r.id);
+    pair.run('ideas', r.id, id);
+    log.run(
+      db.legacyId('ideas:journal:idea', r.id),
+      r.updated_at,
+      'ideas',
+      id,
+      JSON.stringify(fields),
+    );
+  }
+  // Tag colours had their name as key: numbered by their row, in order.
+  const now = new Date().toISOString();
+  const insertTag = db.prepare(
+    `INSERT INTO ${tags} (id, created_at, updated_at, deleted_at, name, color) VALUES (?, ?, ?, NULL, ?, ?)`,
+  );
+  for (const r of db
+    .prepare(`SELECT rowid AS n, name, color FROM ${tags}_v1 ORDER BY rowid`)
+    .all() as {
+    n: number;
+    name: string;
+    color: number;
+  }[]) {
+    const id = db.legacyId('ideas:tag', r.n);
+    insertTag.run(id, now, now, r.name, r.color);
+    pair.run('tags', r.n, id);
+    log.run(
+      db.legacyId('ideas:journal:tag', r.n),
+      now,
+      'tags',
+      id,
+      JSON.stringify({ name: r.name, color: r.color }),
+    );
+  }
 }

@@ -2,7 +2,8 @@
 // allowed between modules, docs/MODULES.md §5.8).
 
 export interface TodoTask {
-  id: number;
+  /** A UUID since v0.25 (« Prêt pour la synchro »; a task numbered n before is `legacyId('todo:task', n)`). */
+  id: string;
   title: string;
   tags: string[];
   /** "YYYY-MM-DD" or null. */
@@ -14,17 +15,17 @@ export interface TodoService {
   /** Tasks still to do, in the order of the page (by due date). */
   listOpenTasks(): TodoTask[];
   /** One task, done or not; null when it does not exist (any more). */
-  getTask(id: number): TodoTask | null;
+  getTask(id: string): TodoTask | null;
   /**
    * Ticks a task (« Fait »). Only on an explicit click of the user in the
    * calling module (e.g. « Tâche terminée ? » → « Oui » of the Timer).
    */
-  completeTask(id: number): TodoTask;
+  completeTask(id: string): TodoTask;
   /**
    * Unticks a task (back to « à faire »). Only to undo a tick the calling
    * module made itself, on an explicit click (« Annuler » of the Timer).
    */
-  uncompleteTask(id: number): TodoTask;
+  uncompleteTask(id: string): TodoTask;
   /**
    * Adds a task (tags cleaned, due date « YYYY-MM-DD » or natural French).
    * Only on an explicit click of the user in the calling module (e.g.

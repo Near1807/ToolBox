@@ -28,12 +28,14 @@ Voix et barre écrite (même chemin). Une idée dite longue garde le texte entie
 
 ## Données
 
-| Table          | Contenu                                                                                                        |
-| -------------- | -------------------------------------------------------------------------------------------------------------- |
-| `ideas__ideas` | titre, texte, tags (JSON), `subject` (`music-library:track:<id>`), archivée le, tâche créée (id, titre), dates |
-| `ideas__tags`  | couleur d'un tag (0 = aucune, 1–8)                                                                             |
+| Table                                 | Contenu                                                                                                                                                                                                                 |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ideas__ideas`                        | id UUID, titre, texte, tags (JSON), `subject` (`music-library:track:<id>`), archivée le, tâche créée (UUID, titre), dates, `edited_at` (« modifiée le » : changement de l'idée elle-même, pas l'archivage), `legacy_id` |
+| `ideas__tags`                         | id UUID, nom, couleur d'un tag (0 = aucune, 1–8)                                                                                                                                                                        |
+| `ideas__changes`, `ideas__legacy_ids` | journal, paires ancien → nouvel id                                                                                                                                                                                      |
+| `ideas__ideas_v1`, `ideas__tags_v1`   | tables d'avant v0.25, intactes                                                                                                                                                                                          |
 
-Dans `hub.db`, donc dans les sauvegardes. Migration 1 (création des tables). Aucun fichier généré.
+Dans `hub.db`, donc dans les sauvegardes. Aucun fichier généré. **Prêt pour la synchro** (MODULES.md §6 bis) depuis v0.25 : UUID, `created_at` / `updated_at`, suppression logique (`deleted_at`), journal `ideas__changes` (`SyncStore`). Migration 2 : l'ancienne table numérotée est gardée telle quelle en `ideas__ideas_v1`, chaque ligne copiée avec les mêmes valeurs et dates ; nouvel id = `legacyId('ideas:idea', ancien numéro)`, ancien numéro dans `legacy_id`, paires dans `ideas__legacy_ids`. La tâche d'une idée devient `legacyId('todo:task', n)`, le même UUID que la To-do donne à sa tâche n. Une idée supprimée reste en base (suppression logique), « Annuler » la rétablit.
 
 ## Dépendances
 

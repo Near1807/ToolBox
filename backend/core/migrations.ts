@@ -1,4 +1,6 @@
 import type { Migration, MigrationDatabase } from '../../packages/sdk/backend';
+import { randomUUID } from 'node:crypto';
+import { legacyUuid } from '../../packages/sdk/sync';
 import type { SqliteDatabase } from './database';
 
 const MIGRATIONS_TABLE = 'core__migrations';
@@ -101,11 +103,27 @@ export function findForeignSchemaChanges(
     .filter((name) => !name.startsWith(prefix));
 }
 
+/**
+ * The installation's id (`core__meta`), created the first time a migration
+ * needs it, in the same transaction (rolled back with it on failure).
+ */
+function installationSeed(db: SqliteDatabase): string {
+  const row = db.prepare("SELECT value FROM core__meta WHERE key = 'installation'").get() as
+    | { value: string }
+    | undefined;
+  if (row) return row.value;
+  const value = randomUUID();
+  db.prepare("INSERT INTO core__meta (key, value) VALUES ('installation', ?)").run(value);
+  return value;
+}
+
 function migrationDatabase(db: SqliteDatabase, scope: string): MigrationDatabase {
+  let seed: string | null = null;
   return {
     exec: (sql) => void db.exec(sql),
     prepare: (sql) => db.prepare(sql),
     table: (name) => prefixedTable(scope, name),
+    legacyId: (kind, oldId) => legacyUuid((seed ??= installationSeed(db)), kind, oldId),
   };
 }
 

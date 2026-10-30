@@ -5,17 +5,21 @@
 // was closed. The To-do is optional (task linked, « Tâche terminée ? »).
 import {
   type AssistantParams,
+  changesTableSql,
   defineBackendModule,
   type EventStream,
   HttpError,
-  idParam,
   listPhrase,
   matchByName,
   type ModuleContext,
   NotFoundError,
   openEventStream,
+  type MigrationDatabase,
   requestBody,
   type SettingValue,
+  SYNC_COLUMNS,
+  SyncStore,
+  uuidParam,
 } from '@hub/sdk/backend';
 import type { TodoService } from '../../todo/contract';
 import type { TimerService } from '../contract';
@@ -60,12 +64,13 @@ import {
 } from './commands';
 
 interface SessionRow {
-  id: number;
+  id: string;
   mode: PlanConfig['mode'];
   name: string;
   config: string;
   phases: string;
-  task_id: number | null;
+  /** A task of the To-do (its UUID), or null. */
+  task_id: string | null;
   task_title: string | null;
   /** running · paused · ended (waiting for the answer) · done · stopped */
   status: SessionStatus | 'done' | 'stopped';
@@ -80,6 +85,20 @@ interface SessionRow {
   work_sec: number | null;
   answer: 'yes' | 'no' | null;
   created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+  /** Its number before v0.25 (migration 2), null for a session started since. */
+  legacy_id: number | null;
+}
+
+interface PresetRow {
+  id: string;
+  name: string;
+  config: string;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+  legacy_id: number | null;
 }
 
 const ACTIVE = "('running', 'paused', 'ended')";
@@ -153,11 +172,17 @@ export default defineBackendModule({
         ).join('\n')}
       `,
     },
+    {
+      version: 2,
+      description: 'ready for sync: UUIDs, dates, tombstones, journal (old tables kept)',
+      up: (db) => migrateToSync(db),
+    },
   ],
 
   register(ctx: ModuleContext) {
     const sessions = ctx.db.table('sessions');
     const presets = ctx.db.table('presets');
+    const store = new SyncStore(ctx.db);
     // Optional both ways with the To-do: asked at the time of use (MODULES.md §5.8).
     const todo = () => ctx.services.optional<TodoService>('todo');
     const streams = new Set<EventStream>();
@@ -169,7 +194,7 @@ export default defineBackendModule({
      */
     let followUp: SessionDto | null = null;
     /** The last « Oui, la cocher » (for « Annuler »). */
-    let lastTick: { sessionId: number; taskId: number; wasDone: boolean } | null = null;
+    let lastTick: { sessionId: string; taskId: string; wasDone: boolean } | null = null;
     /** A phase change shown briefly in the floating window, until this time. */
     let toastUntil = 0;
     let toastTimer: ReturnType<typeof setTimeout> | null = null;
@@ -183,9 +208,11 @@ export default defineBackendModule({
 
     const active = (): SessionRow | null =>
       (ctx.db
-        .prepare(`SELECT * FROM ${sessions} WHERE status IN ${ACTIVE} ORDER BY id DESC LIMIT 1`)
+        .prepare(
+          `SELECT * FROM ${sessions} WHERE status IN ${ACTIVE} AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 1`,
+        )
         .get() as SessionRow | undefined) ?? null;
-    const byId = (id: number) =>
+    const byId = (id: string) =>
       ctx.db.prepare(`SELECT * FROM ${sessions} WHERE id = ?`).get(id) as SessionRow | undefined;
     const phasesOf = (row: SessionRow) => JSON.parse(row.phases) as Phase[];
     const elapsedOf = (row: SessionRow, now = Date.now()) =>
@@ -193,11 +220,9 @@ export default defineBackendModule({
       (row.status === 'running' && row.resumed_at
         ? Math.max(0, (now - Date.parse(row.resumed_at)) / 1000)
         : 0);
-    const set = (id: number, fields: Partial<SessionRow>) => {
-      const keys = Object.keys(fields);
-      ctx.db
-        .prepare(`UPDATE ${sessions} SET ${keys.map((k) => `${k} = ?`).join(', ')} WHERE id = ?`)
-        .run(...keys.map((k) => (fields as Record<string, unknown>)[k]), id);
+    /** Writes (and journals) these fields of a session. */
+    const set = (id: string, fields: Partial<SessionRow>) => {
+      store.update('sessions', id, fields as Record<string, string | number | null>);
     };
 
     const sessionDto = (row: SessionRow): SessionDto => ({
@@ -230,19 +255,19 @@ export default defineBackendModule({
 
     const presetList = (): PresetDto[] =>
       (
-        ctx.db.prepare(`SELECT * FROM ${presets} ORDER BY id`).all() as {
-          id: number;
-          name: string;
-          config: string;
-        }[]
+        ctx.db
+          .prepare(
+            `SELECT * FROM ${presets} WHERE deleted_at IS NULL ORDER BY created_at, legacy_id, id`,
+          )
+          .all() as PresetRow[]
       ).map((p) => ({ id: p.id, name: p.name, config: JSON.parse(p.config) as PlanConfig }));
 
-    const timeByTask = (): Record<number, number> => {
+    const timeByTask = (): Record<string, number> => {
       const rows = ctx.db
         .prepare(
-          `SELECT task_id, SUM(work_sec) AS seconds FROM ${sessions} WHERE task_id IS NOT NULL AND work_sec IS NOT NULL GROUP BY task_id`,
+          `SELECT task_id, SUM(work_sec) AS seconds FROM ${sessions} WHERE task_id IS NOT NULL AND work_sec IS NOT NULL AND deleted_at IS NULL GROUP BY task_id`,
         )
-        .all() as { task_id: number; seconds: number }[];
+        .all() as { task_id: string; seconds: number }[];
       return Object.fromEntries(rows.map((r) => [r.task_id, r.seconds]));
     };
 
@@ -377,11 +402,11 @@ export default defineBackendModule({
       if (row?.status === 'ended') set(row.id, { status: 'done' });
     };
 
-    const taskFrom = (value: unknown): { id: number; title: string } | null => {
+    const taskFrom = (value: unknown): { id: string; title: string } | null => {
       if (value === null || value === undefined || value === '') return null;
       const service = todo();
       if (!service) throw new HttpError(409, 'La To-do n’est pas disponible : pas de tâche liée.');
-      const task = service.getTask(Number(value));
+      const task = service.getTask(String(value));
       if (!task) throw new HttpError(404, 'Tâche introuvable');
       return { id: task.id, title: task.title };
     };
@@ -389,7 +414,7 @@ export default defineBackendModule({
     const start = (
       config: PlanConfig,
       name: string | null,
-      task: { id: number; title: string } | null,
+      task: { id: string; title: string } | null,
     ): SessionRow => {
       const running = active();
       if (running && running.status !== 'ended')
@@ -414,23 +439,21 @@ export default defineBackendModule({
           : normal.mode === 'pomodoro'
             ? `Pomodoro ${normal.workMin}/${normal.breakMin}`
             : `Pomodoro incrémental ${normal.startMin} → ${normal.maxMin} min`);
-      const result = ctx.db
-        .prepare(
-          `INSERT INTO ${sessions} (mode, name, config, phases, task_id, task_title, status, started_at, resumed_at, elapsed_before, last_index, created_at) VALUES (?, ?, ?, ?, ?, ?, 'running', ?, ?, 0, 0, ?)`,
-        )
-        .run(
-          normal.mode,
-          label,
-          JSON.stringify(normal),
-          JSON.stringify(phases),
-          task?.id ?? null,
-          task?.title ?? null,
-          now,
-          now,
-          now,
-        );
+      const row = store.create<SessionRow>('sessions', {
+        mode: normal.mode,
+        name: label,
+        config: JSON.stringify(normal),
+        phases: JSON.stringify(phases),
+        task_id: task?.id ?? null,
+        task_title: task?.title ?? null,
+        status: 'running',
+        started_at: now,
+        resumed_at: now,
+        elapsed_before: 0,
+        last_index: 0,
+        legacy_id: null,
+      });
       ctx.logger.info(`Timer lancé : ${label}${task ? ` (tâche « ${task.title} »)` : ''}`);
-      const row = byId(Number(result.lastInsertRowid))!;
       tick();
       publish();
       return row;
@@ -505,14 +528,14 @@ export default defineBackendModule({
       const service = todo();
       const rows = ctx.db
         .prepare(
-          `SELECT * FROM ${sessions} WHERE status IN ('done', 'stopped') ORDER BY id DESC LIMIT ?`,
+          `SELECT * FROM ${sessions} WHERE status IN ('done', 'stopped') AND deleted_at IS NULL ORDER BY created_at DESC, legacy_id DESC LIMIT ?`,
         )
         .all(MAX_HISTORY) as SessionRow[];
       const totals = ctx.db
         .prepare(
-          `SELECT task_id, MAX(task_title) AS title, SUM(work_sec) AS seconds FROM ${sessions} WHERE task_id IS NOT NULL AND work_sec IS NOT NULL GROUP BY task_id ORDER BY seconds DESC`,
+          `SELECT task_id, MAX(task_title) AS title, SUM(work_sec) AS seconds FROM ${sessions} WHERE task_id IS NOT NULL AND work_sec IS NOT NULL AND deleted_at IS NULL GROUP BY task_id ORDER BY seconds DESC`,
         )
-        .all() as { task_id: number; title: string; seconds: number }[];
+        .all() as { task_id: string; title: string; seconds: number }[];
       return {
         ...liveDto(),
         presets: presetList(),
@@ -612,14 +635,17 @@ export default defineBackendModule({
       } catch (error) {
         throw new HttpError(400, (error as Error).message);
       }
-      const result = ctx.db
-        .prepare(`INSERT INTO ${presets} (name, config, created_at) VALUES (?, ?, ?)`)
-        .run(name, JSON.stringify(config), new Date().toISOString());
-      return { id: Number(result.lastInsertRowid) };
+      const row = store.create<PresetRow>('presets', {
+        name,
+        config: JSON.stringify(config),
+        legacy_id: null,
+      });
+      return { id: row.id };
     });
-    // Deleted only from the page, after the user's confirmation.
+    // Deleted only from the page, after the user's confirmation (a tombstone).
     ctx.routes.delete('/presets/:id', (request) => {
-      ctx.db.prepare(`DELETE FROM ${presets} WHERE id = ?`).run(idParam(request.params));
+      const id = uuidParam(request.params);
+      if (store.get('presets', id)) store.remove('presets', id);
       return { ok: true };
     });
 
@@ -670,8 +696,9 @@ export default defineBackendModule({
       return { id: match.item.id, title: match.item.title };
     };
 
-    const removeSession = (id: number) => {
-      ctx.db.prepare(`DELETE FROM ${sessions} WHERE id = ?`).run(id);
+    /** « Annuler » of a start by the assistant: the session goes (a tombstone). */
+    const removeSession = (id: string) => {
+      store.remove('sessions', id);
       tick();
       publish();
     };
@@ -813,8 +840,11 @@ export default defineBackendModule({
           message: `Timer arrêté : ${duration(byId(before.id)?.work_sec ?? 0)} de travail enregistrées.`,
           // « Annuler » brings the session back exactly as it was.
           undo: () => {
-            const { id, ...fields } = before;
-            set(id, fields);
+            const sync = ['id', 'created_at', 'updated_at', 'deleted_at', 'legacy_id'];
+            set(
+              before.id,
+              Object.fromEntries(Object.entries(before).filter(([key]) => !sync.includes(key))),
+            );
             tick();
             publish();
           },
@@ -837,3 +867,123 @@ export default defineBackendModule({
     });
   },
 });
+
+/**
+ * Migration 2 (v0.25): sessions and presets get a UUID, a tombstone and a
+ * journal (« Prêt pour la synchro », MODULES.md §6 bis). The old tables stay
+ * as `sessions_v1` and `presets_v1`, untouched. Each row is copied with the
+ * same values; its new id is `legacyId('timer:session' | 'timer:preset', n)`,
+ * and the task it worked on becomes `legacyId('todo:task', n)`: the To-do
+ * gives that same UUID to its task n (todo/backend, migration 2), so the
+ * time per task and « Tâche terminée ? » stay on the right task. Old → new
+ * pairs in `legacy_ids`.
+ */
+export function migrateToSync(db: MigrationDatabase): void {
+  const sessions = db.table('sessions');
+  const presets = db.table('presets');
+  const legacy = db.table('legacy_ids');
+  const journal = db.table('changes');
+  db.exec(`
+    ALTER TABLE ${sessions} RENAME TO ${sessions}_v1;
+    ALTER TABLE ${presets} RENAME TO ${presets}_v1;
+    DROP INDEX IF EXISTS ${sessions}_task;
+    CREATE INDEX ${sessions}_v1_task ON ${sessions}_v1 (task_id);
+    CREATE TABLE ${sessions} (
+      ${SYNC_COLUMNS},
+      mode TEXT NOT NULL,
+      name TEXT NOT NULL,
+      config TEXT NOT NULL,
+      phases TEXT NOT NULL,
+      task_id TEXT,
+      task_title TEXT,
+      status TEXT NOT NULL,
+      started_at TEXT NOT NULL,
+      resumed_at TEXT,
+      elapsed_before REAL NOT NULL DEFAULT 0,
+      last_index INTEGER NOT NULL DEFAULT 0,
+      ended_at TEXT,
+      work_sec REAL,
+      answer TEXT,
+      legacy_id INTEGER
+    );
+    CREATE INDEX ${sessions}_task ON ${sessions} (task_id);
+    CREATE INDEX ${sessions}_status ON ${sessions} (status);
+    CREATE TABLE ${presets} (
+      ${SYNC_COLUMNS},
+      name TEXT NOT NULL,
+      config TEXT NOT NULL,
+      legacy_id INTEGER
+    );
+    ${changesTableSql(journal)}
+    CREATE TABLE ${legacy} (
+      entity TEXT NOT NULL,
+      old_id INTEGER NOT NULL,
+      new_id TEXT NOT NULL,
+      PRIMARY KEY (entity, old_id)
+    );
+  `);
+  const pair = db.prepare(`INSERT INTO ${legacy} (entity, old_id, new_id) VALUES (?, ?, ?)`);
+  const log = db.prepare(
+    `INSERT INTO ${journal} (id, at, entity, entity_id, op, data) VALUES (?, ?, ?, ?, 'create', ?)`,
+  );
+  type OldSession = Omit<
+    SessionRow,
+    'id' | 'task_id' | 'updated_at' | 'deleted_at' | 'legacy_id'
+  > & {
+    id: number;
+    task_id: number | null;
+  };
+  const insertSession = db.prepare(
+    `INSERT INTO ${sessions} (id, created_at, updated_at, deleted_at, mode, name, config, phases, task_id, task_title, status, started_at, resumed_at, elapsed_before, last_index, ended_at, work_sec, answer, legacy_id) VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  );
+  for (const r of db.prepare(`SELECT * FROM ${sessions}_v1 ORDER BY id`).all() as OldSession[]) {
+    const id = db.legacyId('timer:session', r.id);
+    const taskId = r.task_id === null ? null : db.legacyId('todo:task', r.task_id);
+    const updated = r.ended_at ?? r.resumed_at ?? r.created_at;
+    const fields = {
+      mode: r.mode,
+      name: r.name,
+      config: r.config,
+      phases: r.phases,
+      task_id: taskId,
+      task_title: r.task_title,
+      status: r.status,
+      started_at: r.started_at,
+      resumed_at: r.resumed_at,
+      elapsed_before: r.elapsed_before,
+      last_index: r.last_index,
+      ended_at: r.ended_at,
+      work_sec: r.work_sec,
+      answer: r.answer,
+    };
+    insertSession.run(id, r.created_at, updated, ...Object.values(fields), r.id);
+    pair.run('sessions', r.id, id);
+    log.run(
+      db.legacyId('timer:journal:session', r.id),
+      updated,
+      'sessions',
+      id,
+      JSON.stringify(fields),
+    );
+  }
+  const insertPreset = db.prepare(
+    `INSERT INTO ${presets} (id, created_at, updated_at, deleted_at, name, config, legacy_id) VALUES (?, ?, ?, NULL, ?, ?, ?)`,
+  );
+  for (const r of db.prepare(`SELECT * FROM ${presets}_v1 ORDER BY id`).all() as {
+    id: number;
+    name: string;
+    config: string;
+    created_at: string;
+  }[]) {
+    const id = db.legacyId('timer:preset', r.id);
+    insertPreset.run(id, r.created_at, r.created_at, r.name, r.config, r.id);
+    pair.run('presets', r.id, id);
+    log.run(
+      db.legacyId('timer:journal:preset', r.id),
+      r.created_at,
+      'presets',
+      id,
+      JSON.stringify({ name: r.name, config: r.config }),
+    );
+  }
+}

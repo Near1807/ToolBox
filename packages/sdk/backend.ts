@@ -16,6 +16,7 @@ export {
 export { ELEMENT_STATES, listPhrase } from './assistant-texts';
 export {
   changesTableSql,
+  legacyUuid,
   newId,
   SYNC_COLUMNS,
   SyncStore,
@@ -66,6 +67,12 @@ export interface MigrationDatabase {
   prepare(sql: string): Statement;
   /** Full table name for this module, e.g. table('tracks') → "music_library__tracks". */
   table(name: string): string;
+  /**
+   * The UUID of a row that had the number `oldId` (« Prêt pour la synchro »
+   * migration, §6 bis): the same in every module for the same `kind` and
+   * number on this installation, e.g. legacyId('todo:task', 12).
+   */
+  legacyId(kind: string, oldId: number): string;
 }
 
 // ---------------------------------------------------------------------------
@@ -337,6 +344,14 @@ export function idParam(params: unknown): number {
   const id = Number((params as { id?: string }).id);
   if (!Number.isInteger(id) || id <= 0) throw new HttpError(400, 'Identifiant invalide');
   return id;
+}
+
+/** The `:id` of a route when it is a UUID (« Prêt pour la synchro » modules). */
+export function uuidParam(params: unknown): string {
+  const id = String((params as { id?: string }).id ?? '');
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))
+    throw new HttpError(400, 'Identifiant invalide');
+  return id.toLowerCase();
 }
 
 /** The JSON body of a request, or {} when there is none (fields still to be checked). */

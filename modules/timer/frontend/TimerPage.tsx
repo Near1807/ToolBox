@@ -53,7 +53,7 @@ export function TimerPage() {
   const [last, setLast] = useState<{
     config: PlanConfig;
     name: string;
-    taskId: number | null;
+    taskId: string | null;
   } | null>(null);
   const s = data.data;
   const session = live.connected ? live.session : (s?.session ?? null);
@@ -70,13 +70,13 @@ export function TimerPage() {
       data.reload();
     }
   };
-  const start = (config: PlanConfig, name: string | null, taskId: number | null) =>
+  const start = (config: PlanConfig, name: string | null, taskId: string | null) =>
     run(async () => {
       await module.api.post('/start', { config, name, taskId });
       setLast({ config, name: name ?? '', taskId });
       if (params.get('task')) setParams({});
     });
-  const wantedTask = params.get('task') ? Number(params.get('task')) : null;
+  const wantedTask = params.get('task') || null;
 
   return (
     <Page
@@ -454,16 +454,16 @@ function formOf(config: PlanConfig): { mode: Mode; form: Form } {
 
 function Setup(props: {
   state: StateDto;
-  initialTask: number | null;
-  last: { config: PlanConfig; name: string; taskId: number | null } | null;
-  onStart: (config: PlanConfig, name: string | null, taskId: number | null) => void;
+  initialTask: string | null;
+  last: { config: PlanConfig; name: string; taskId: string | null } | null;
+  onStart: (config: PlanConfig, name: string | null, taskId: string | null) => void;
   run: (action: () => Promise<unknown>) => Promise<void>;
 }) {
   const module = useModule();
   const [mode, setMode] = useState<Mode>('simple');
   const [form, setForm] = useState<Form>(DEFAULT_FORM);
   const [name, setName] = useState<string | null>(null);
-  const [taskId, setTaskId] = useState<number | null>(props.initialTask);
+  const [taskId, setTaskId] = useState<string | null>(props.initialTask);
   const field = (key: keyof Form) => ({
     value: form[key] as string,
     onChange: (e: { target: { value: string } }) => {
@@ -504,7 +504,7 @@ function Setup(props: {
             <select
               className="input"
               value={taskId ?? ''}
-              onChange={(e) => setTaskId(e.target.value ? Number(e.target.value) : null)}
+              onChange={(e) => setTaskId(e.target.value || null)}
             >
               <option value="">— Aucune tâche —</option>
               {tasks.map((t) => (

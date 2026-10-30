@@ -115,7 +115,10 @@ describe('To-do', () => {
       error: expect.stringMatching(/pas comprise/),
     });
     expect((await add({ title: 'x', trackId: 99 })).status).toBe(400);
-    expect((await hub.request('PATCH', `${API}/tasks/999`, { done: true })).status).toBe(404);
+    // Ids are UUIDs (« Prêt pour la synchro »): a number is not one.
+    expect((await hub.request('PATCH', `${API}/tasks/999`, { done: true })).status).toBe(400);
+    const unknown = '0b0e8a3c-1d2f-4a5b-8c6d-7e8f9a0b1c2d';
+    expect((await hub.request('PATCH', `${API}/tasks/${unknown}`, { done: true })).status).toBe(404);
   });
 
   it('deletes and restores a task (« Annuler »)', async () => {

@@ -666,7 +666,7 @@ function HomeWidget() {
   const { data } = useApi<{
     show: boolean;
     count: number;
-    latest: { id: number; title: string }[];
+    latest: { id: string; title: string }[];
   }>(module.url('/home'));
   if (!data?.show) return null;
   if (data.count === 0) return <p className="small muted">Aucune idée notée.</p>;
