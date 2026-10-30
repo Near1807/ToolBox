@@ -71,6 +71,26 @@ Noms historiques, encore acceptés et redirigés par `styles.css` : `--bg-elevat
 
 Pour une teinte dérivée, mélanger des tokens plutôt qu'écrire une couleur : `color-mix(in srgb, var(--danger) 16%, transparent)`.
 
+## Lisibilité (obligatoire pour chaque thème)
+
+Vérifiée automatiquement sur les tokens par `tests/theme-contrast.test.ts` (outils : `tests/helpers/contrast.ts`), pour **chaque** fichier de thème :
+
+| Règle                                                                                                                                                     | Minimum                                |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| `--text` et `--text-2` sur `--bg`, `--surface`, `--surface-2`, `--surface-hover`, `--surface-solid`, `--field` (surfaces translucides posées sur le fond) | 4,5:1 (WCAG AA, texte normal et petit) |
+| `--text-3` (texte discret, désactivé, indications) sur les mêmes surfaces                                                                                 | 3:1                                    |
+| États et liens comme texte (`--success`, `--warning`, `--danger`, `--accent-2`, `--info`) sur `--surface` et `--surface-2`                                | 4,5:1                                  |
+| `--text-on-accent` sur `--accent` et sur **chaque** couleur du dégradé `--accent-grad`                                                                    | 4,5:1                                  |
+| `--accent` (onglet actif, bordure sélectionnée) sur `--surface`, focus sur `--bg` et `--surface`                                                          | 3:1                                    |
+| `--series-1` … `--series-8` sur `--surface`                                                                                                               | 3:1                                    |
+| Séries distinctes entre elles (distance OKLab) : les 4 premières ≥ 0,09, les 8 ≥ 0,055 ; les 4 premières aussi avec une deutéranopie simulée ≥ 0,05       | —                                      |
+| Bord des contrôles (`--control-border`, sinon `--border-strong`) sur `--surface`, pour qu'un champ ou un bouton se voie sans survol                       | 1,4:1                                  |
+
+Et à l'œil, captures à 1 280 px (accueil, To-do, Timer et fenêtre flottante, Stats YouTube, Analyse du master, Courses, Sport, Réglages) :
+
+- un élément cliquable se repère **sans survol** (fond, bord ou relief) ; l'élément sélectionné et le focus clavier se voient nettement — piège du neumorphisme : tout se fond dans le fond, d'où, dans Argile, un bord léger, l'onglet actif enfoncé, l'anneau de focus de 3 px ;
+- les graphes ont une légende ou des étiquettes, et les séries proches se distinguent aussi par la forme (trait plein / pointillé) : la couleur seule ne porte jamais l'information.
+
 ## Ajouter un thème
 
 1. Copier un thème existant dans `frontend/src/themes/<id>.css` (le plus proche de l'idée : `clair.css` pour un thème clair).
@@ -80,7 +100,7 @@ Pour une teinte dérivée, mélanger des tokens plutôt qu'écrire une couleur :
    :root[data-theme='<id>'] { … }
    ```
 3. Donner une valeur à **tous** les tokens (le test `tests/themes.test.ts` échoue sinon).
-4. Vérifier la lisibilité : texte secondaire sur `--surface`, badges, forme d'onde (les quatre `--series`), page Réglages, calendrier du Planning de sortie.
+4. Lancer `npx vitest run tests/theme-contrast.test.ts` : chaque échec dit la paire et son contraste. Puis regarder les pages listées ci-dessus (lisibilité à l'œil).
 
 Un aperçu dans la galerie reprend le thème : chaque `:root[data-theme='<id>']` est aussi appliqué à `[data-theme-preview='<id>']` à l'injection (`withPreview`, `frontend/src/themes/index.ts`), et les valeurs par défaut des tokens facultatifs sont recalculées sur l'aperçu. Rien à faire de plus dans le fichier du thème.
 
