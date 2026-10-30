@@ -95,7 +95,8 @@ export const coreMigrations: Migration[] = [
   },
   {
     version: 5,
-    description: 'installation id (seed of the UUIDs given to old numbered rows, MODULES.md §6 bis)',
+    description:
+      'installation id (seed of the UUIDs given to old numbered rows, MODULES.md §6 bis)',
     up: `
       CREATE TABLE core__meta (
         key TEXT PRIMARY KEY,

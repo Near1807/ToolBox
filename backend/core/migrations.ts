@@ -109,8 +109,7 @@ export function findForeignSchemaChanges(
  */
 function installationSeed(db: SqliteDatabase): string {
   const row = db.prepare("SELECT value FROM core__meta WHERE key = 'installation'").get() as
-    | { value: string }
-    | undefined;
+    { value: string } | undefined;
   if (row) return row.value;
   const value = randomUUID();
   db.prepare("INSERT INTO core__meta (key, value) VALUES ('installation', ?)").run(value);
