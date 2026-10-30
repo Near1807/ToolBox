@@ -1,0 +1,66 @@
+/* @theme id=supervision; label=Supervision; scheme=dark; swatch=#1c2230,#f5a623,#e8573f */
+/* Control room: very dark slate blue, fine lines, big technical figures, amber and coral accents, lavender-slate and sea-green series. See docs/THEMES.md. */
+:root[data-theme='supervision'] {
+  color-scheme: dark;
+  --bg: #1c2230;
+  --bg-glow-1: rgb(139 143 199 / 6%);
+  --bg-glow-2: rgb(245 166 35 / 4%);
+  --surface: #232a3a;
+  --surface-2: #2a3245;
+  --surface-hover: #323b52;
+  --surface-solid: #20273a;
+  --field: #181e2b;
+  --border: rgb(139 143 199 / 15%);
+  --border-strong: rgb(139 143 199 / 30%);
+  --text: #e6e9f2;
+  --text-2: #aab1c7;
+  --text-3: #828aa3;
+  --text-on-accent: #1c2230;
+  --accent: #f5a623;
+  --accent-2: #f07a62;
+  --accent-soft: rgb(245 166 35 / 15%);
+  --accent-grad: linear-gradient(135deg, #f5a623 0%, #f39033 100%);
+  --success: #45cda9;
+  --warning: #f5a623;
+  --danger: #f07a62;
+  --info: #9da1d6;
+  --series-1: #f5a623;
+  --series-2: #9da1d6;
+  --series-3: #f07a62;
+  --series-4: #45cda9;
+  --series-5: #5aa9e6;
+  --series-6: #d2a8ff;
+  --series-7: #d6d36a;
+  --series-8: #ff9bb3;
+  --brand-youtube: #ff4e45;
+  --brand-instagram: #e1306c;
+  --overlay: rgb(13 17 26 / 75%);
+  --on-overlay: #ffffff;
+  --media-bg: #000000;
+  --shadow: 0 8px 24px rgb(6 9 16 / 50%);
+  --glow: 0 0 16px rgb(245 166 35 / 28%);
+  --glow-2: 0 0 16px rgb(232 87 63 / 26%);
+  --radius-lg: 10px;
+  --radius: 8px;
+  --radius-sm: 5px;
+  --blur: 0px;
+  --font-sans: 'Inter Variable', system-ui, 'Segoe UI', sans-serif;
+  --font-display: 'Chakra Petch', 'Inter Variable', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, 'Cascadia Code', monospace;
+  /* Optional tokens (relief, controls, charts…). */
+  --elev-raised: 0 0 transparent;
+  --elev-flat: 0 0 transparent;
+  --elev-hover: 0 0 0 1px rgb(245 166 35 / 45%);
+  --elev-modal: 0 16px 40px rgb(6 9 16 / 65%);
+  --elev-popover: 0 10px 28px rgb(6 9 16 / 60%);
+  --button-shadow: 0 0 transparent;
+  --controls: drawn;
+  --tab-active-bg: rgb(245 166 35 / 8%);
+  --glow-active: 0 0 12px rgb(245 166 35 / 35%);
+  --focus-color: #f5a623;
+  --focus-width: 2px;
+  --chart-area-top: 0.22;
+  --chart-area-bottom: 0;
+  --chart-grid: rgb(139 143 199 / 12%);
+  --title-spacing: 0.02em;
+}

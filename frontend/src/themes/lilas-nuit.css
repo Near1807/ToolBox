@@ -1,0 +1,68 @@
+/* @theme id=lilas-nuit; label=Lilas de nuit; scheme=dark; swatch=#1b1830,#e5408a,#9b82ff */
+/* Dark twin of Lilas: violet night blue, same magenta and violet accents, light text. See docs/THEMES.md. */
+:root[data-theme='lilas-nuit'] {
+  color-scheme: dark;
+  --bg: #1b1830;
+  --bg-glow-1: rgb(229 64 138 / 12%);
+  --bg-glow-2: rgb(124 92 224 / 14%);
+  --surface: #24203d;
+  --surface-2: #2c2749;
+  --surface-hover: #363057;
+  --surface-solid: #211d38;
+  --field: #18152b;
+  --border: rgb(237 234 247 / 9%);
+  --border-strong: rgb(237 234 247 / 20%);
+  --text: #edeaf7;
+  --text-2: #b8b2d4;
+  --text-3: #8f89ae;
+  --text-on-accent: #ffffff;
+  --accent: #d6337e;
+  --accent-2: #a58cff;
+  --accent-soft: rgb(229 64 138 / 18%);
+  --accent-grad: linear-gradient(135deg, #d6337e 0%, #6a4bd6 100%);
+  --success: #3fd492;
+  --warning: #ffc456;
+  --danger: #ff7896;
+  --info: #a58cff;
+  --series-1: #a58cff;
+  --series-2: #ff5ea0;
+  --series-3: #4cc3ff;
+  --series-4: #ffb347;
+  --series-5: #3fd6aa;
+  --series-6: #e37fe3;
+  --series-7: #8aa2ff;
+  --series-8: #e6d36a;
+  --brand-youtube: #ff4e45;
+  --brand-instagram: #e1306c;
+  --overlay: rgb(12 10 24 / 72%);
+  --on-overlay: #ffffff;
+  --media-bg: #000000;
+  --shadow: 0 14px 40px rgb(5 3 15 / 55%);
+  --glow: 0 0 22px rgb(229 64 138 / 32%);
+  --glow-2: 0 0 22px rgb(124 92 224 / 30%);
+  --radius-lg: 18px;
+  --radius: 14px;
+  --radius-sm: 10px;
+  --blur: 0px;
+  --font-sans: 'Plus Jakarta Sans Variable', 'Inter Variable', system-ui, sans-serif;
+  --font-display: 'Plus Jakarta Sans Variable', 'Inter Variable', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, 'Cascadia Code', monospace;
+  /* Optional tokens (relief, controls, charts…). */
+  --elev-flat: 0 2px 6px rgb(5 3 15 / 35%);
+  --elev-hover: 0 10px 28px rgb(5 3 15 / 55%), 0 0 0 1px rgb(165 140 255 / 30%);
+  --elev-raised: inset 0 1px 0 rgb(237 234 247 / 5%), 0 12px 32px rgb(5 3 15 / 45%);
+  --elev-modal: 0 24px 60px rgb(5 3 15 / 70%);
+  --elev-popover: 0 14px 36px rgb(5 3 15 / 60%);
+  --inset: inset 0 1px 3px rgb(5 3 15 / 55%);
+  --pressed: inset 0 2px 6px rgb(5 3 15 / 65%);
+  --button-shadow: 0 0 20px rgb(229 64 138 / 30%);
+  --control-shadow: 0 1px 2px rgb(5 3 15 / 40%);
+  --controls: drawn;
+  --tab-active-bg: rgb(165 140 255 / 12%);
+  --glow-active: 0 0 14px rgb(229 64 138 / 38%);
+  --focus-color: #ff8fbf;
+  --focus-width: 3px;
+  --chart-area-top: 0.4;
+  --chart-area-bottom: 0;
+  --chart-bar-bottom: 0.45;
+}

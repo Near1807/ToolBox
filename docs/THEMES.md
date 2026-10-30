@@ -10,13 +10,18 @@
 
 ## Thèmes fournis
 
-| Fichier       | Nom                        | Mode   | Esprit                                                                                              |
-| ------------- | -------------------------- | ------ | --------------------------------------------------------------------------------------------------- |
-| `nebula.css`  | Nebula (GameLife) — défaut | sombre | Repris de GameLife : quasi-noir, halos violet/cyan, panneaux en verre dépoli, dégradé violet → cyan |
-| `console.css` | Console                    | sombre | Tableau de bord technique : vert et ambre, angles plus nets, sans flou, titres en monospace         |
-| `studio.css`  | Studio                     | sombre | Sombre chaud : orange et or                                                                         |
-| `minuit.css`  | Minuit                     | sombre | Bleu nuit, bleu électrique et aqua                                                                  |
-| `clair.css`   | Clair                      | clair  | Fond gris très clair, cartes blanches, violet et bleu canard                                        |
+| Fichier           | Nom                        | Mode   | Esprit                                                                                                                                                           |
+| ----------------- | -------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `nebula.css`      | Nebula (GameLife) — défaut | sombre | Repris de GameLife : quasi-noir, halos violet/cyan, panneaux en verre dépoli, dégradé violet → cyan                                                              |
+| `console.css`     | Console                    | sombre | Tableau de bord technique : vert et ambre, angles plus nets, sans flou, titres en monospace                                                                      |
+| `studio.css`      | Studio                     | sombre | Sombre chaud : orange et or                                                                                                                                      |
+| `minuit.css`      | Minuit                     | sombre | Bleu nuit, bleu électrique et aqua                                                                                                                               |
+| `clair.css`       | Clair                      | clair  | Fond gris très clair, cartes blanches, violet et bleu canard                                                                                                     |
+| `argile.css`      | Argile                     | clair  | Neumorphisme : crème, éléments de la même matière en relief ou enfoncés (ombres doubles claire / foncée), bleu canard profond pour les actions, police Nunito    |
+| `lilas.css`       | Lilas                      | clair  | Blanc lavande, cartes blanches aérées, magenta et violet, graphes en dégradé, police Plus Jakarta Sans                                                           |
+| `lilas-nuit.css`  | Lilas de nuit              | sombre | Jumeau sombre de Lilas : bleu nuit violacé, mêmes accents                                                                                                        |
+| `supervision.css` | Supervision                | sombre | Salle de contrôle : ardoise très sombre, lignes fines, ambre et corail, séries lavande et vert d'eau, titres en Chakra Petch, chiffres à chasse fixe             |
+| `cuivre.css`      | Cuivre                     | sombre | Néo-skeuomorphisme, esprit console audio : anthracite à grain léger, cuivre, boutons en relief, état pressé enfoncé, lueur cuivrée sur l'actif, titres en Oswald |
 
 Polices embarquées (aucun accès réseau, toutes sous licence libre OFL) : Inter (texte), Space Grotesk (titres), JetBrains Mono (chiffres, durées, code), et pour certains thèmes Nunito, Plus Jakarta Sans, Oswald, Chakra Petch, via `@fontsource-variable/*` et `@fontsource/*` (importées dans `frontend/src/main.tsx` ; un fichier de police n'est lu que si un thème l'utilise). Icônes du shell : `lucide-react`.
 
