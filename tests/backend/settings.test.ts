@@ -93,7 +93,16 @@ describe('settings', () => {
   });
 
   it('keeps interface preferences (theme, sidebar) apart from the Settings page', async () => {
-    expect((await hub.request('GET', '/api/core/ui')).body).toEqual({ theme: '', navigation: '' });
+    // Defaults: no theme chosen yet, « Thème du soir » off, no shortcut.
+    expect((await hub.request('GET', '/api/core/ui')).body).toEqual({
+      theme: '',
+      themeEvening: false,
+      themeNight: '',
+      themeEveningFrom: '20:00',
+      themeEveningTo: '07:00',
+      themeShortcut: '',
+      navigation: '',
+    });
     expect((await hub.request('PUT', '/api/core/ui', { theme: 'clair' })).status).toBe(200);
     expect((await hub.request('GET', '/api/core/ui')).body).toMatchObject({ theme: 'clair' });
     const { body } = await hub.request<SettingsSection[]>('GET', '/api/core/settings');
