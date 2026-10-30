@@ -6,8 +6,21 @@ const dir = path.resolve(__dirname, '../frontend/src/themes');
 const themes = readdirSync(dir).filter((f) => f.endsWith('.css'));
 const tokens = (css: string) =>
   new Set([...css.matchAll(/^\s*(--[a-z0-9-]+)\s*:/gm)].map((m) => m[1]));
+/** Optional tokens: defaults in styles.css (docs/THEMES.md), a theme may set them. */
+const styles = readFileSync(path.resolve(__dirname, '../frontend/src/styles.css'), 'utf8');
+const optionalBlock = styles.slice(
+  styles.indexOf('Optional theme tokens'),
+  styles.indexOf('}', styles.indexOf('Optional theme tokens')),
+);
+const optional = tokens(optionalBlock);
 
 describe('interface themes', () => {
+  it('optional tokens have defaults (a theme may leave them out)', () => {
+    expect(optional.size).toBeGreaterThanOrEqual(20);
+    expect(optional.has('--elev-raised')).toBe(true);
+    expect([...optional].filter((t) => reference.has(t))).toEqual([]);
+  });
+
   const reference = tokens(readFileSync(path.join(dir, 'nebula.css'), 'utf8'));
 
   it('ships several themes, one of them light', () => {
@@ -23,6 +36,7 @@ describe('interface themes', () => {
     expect(css).toContain(`:root[data-theme='${id}']`);
     const own = tokens(css);
     expect([...reference].filter((t) => !own.has(t))).toEqual([]);
-    expect([...own].filter((t) => !reference.has(t))).toEqual([]);
+    // Nothing else than the required tokens and the optional ones (no typo).
+    expect([...own].filter((t) => !reference.has(t) && !optional.has(t))).toEqual([]);
   });
 });

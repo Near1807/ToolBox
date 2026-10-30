@@ -3,6 +3,7 @@
 // (crosshair on lines, per-mark tooltip on bars, cells and dots), legends for
 // two series, the long video always dashed (identity never colour alone).
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useChartGradient } from '@hub/sdk/frontend';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -180,6 +181,23 @@ export function LineChart(props: {
     });
     return d;
   };
+  /** The area under a series (one shape per run of values), for the theme's gradient. */
+  const area = (values: (number | null)[]) => {
+    let d = '';
+    let run: number[] = [];
+    const close = () => {
+      if (run.length > 1)
+        d += `M${xAt(run[0]!).toFixed(1)},${(pad.top + h).toFixed(1)}${run
+          .map((i) => `L${xAt(i).toFixed(1)},${yAt(values[i]!).toFixed(1)}`)
+          .join('')}L${xAt(run.at(-1)!).toFixed(1)},${(pad.top + h).toFixed(1)}Z`;
+      run = [];
+    };
+    values.forEach((v, i) => (v === null ? close() : run.push(i)));
+    close();
+    return d;
+  };
+  const main = props.series.find((s) => !s.dashed);
+  const gradient = useChartGradient(main?.color ?? 'var(--series-1)', 'area');
   const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => f * max);
   const xTicks = n > 1 ? [0, Math.floor((n - 1) / 3), Math.floor((2 * (n - 1)) / 3), n - 1] : [0];
   const onMove = (event: React.PointerEvent<SVGRectElement>) => {
@@ -249,6 +267,8 @@ export function LineChart(props: {
             </text>
           </g>
         )}
+        {gradient.defs}
+        {main && <path d={area(main.values)} fill={gradient.fill} stroke="none" />}
         {props.series.map((s) => (
           <path
             key={s.key}
@@ -417,9 +437,13 @@ export function Columns(props: {
   const scale = hasNegative ? h / 2 / maxAbs : h / maxAbs;
   const slot = (width - pad.left - pad.right) / props.values.length;
   const barWidth = Math.min(24, slot - 6);
+  const bar = useChartGradient('var(--series-1)', 'bar');
+  const barHighlight = useChartGradient('var(--accent)', 'bar');
   return (
     <div className="ys-chart" ref={ref}>
       <svg width={width} height={height} role="img" aria-label={props.ariaLabel}>
+        {bar.defs}
+        {barHighlight.defs}
         <line className="ys-grid" x1={pad.left} x2={width - pad.right} y1={zero} y2={zero} />
         {props.values.map((v, i) => {
           const x = pad.left + i * slot + (slot - barWidth) / 2;
@@ -440,7 +464,7 @@ export function Columns(props: {
                 width={barWidth}
                 height={barHeight}
                 rx={3}
-                fill={i === props.highlight ? 'var(--accent)' : 'var(--series-1)'}
+                fill={i === props.highlight ? barHighlight.fill : bar.fill}
                 opacity={hover === null || hover === i ? 1 : 0.6}
               />
               <text className="ys-axis" x={x + barWidth / 2} y={height - 6} textAnchor="middle">

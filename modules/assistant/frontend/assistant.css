@@ -361,7 +361,7 @@
   border-radius: 999px;
   background: var(--surface-solid);
   border: 1px solid var(--border-strong);
-  box-shadow: var(--shadow);
+  box-shadow: var(--elev-modal);
   color: var(--text);
   font-family: var(--font-sans);
 }
@@ -452,7 +452,7 @@
   border-radius: var(--radius-lg);
   background: var(--surface-solid);
   border: 1px solid var(--border-strong);
-  box-shadow: var(--shadow);
+  box-shadow: var(--elev-modal);
   color: var(--text);
   font-family: var(--font-sans);
 }

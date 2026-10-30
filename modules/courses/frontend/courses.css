@@ -297,14 +297,20 @@
   height: 100%;
 }
 .cs-bars__bar {
+  --bar: var(--accent);
   width: 60%;
   max-width: 28px;
   min-height: 0;
   border-radius: 4px 4px 0 0;
-  background: var(--accent);
+  /* Solid unless the theme fades its bars (--chart-bar-bottom). */
+  background: linear-gradient(
+    to top,
+    color-mix(in srgb, var(--bar) calc(var(--chart-bar-bottom) * 100%), transparent),
+    var(--bar)
+  );
 }
 .cs-bars__bar--over {
-  background: var(--success);
+  --bar: var(--success);
 }
 .cs-bars__value {
   margin-bottom: 2px;
@@ -318,7 +324,7 @@
   position: absolute;
   left: 0;
   right: 0;
-  border-top: 2px dashed var(--text-3);
+  border-top: 2px dashed var(--text-2);
   pointer-events: none;
 }
 .cs-vs {

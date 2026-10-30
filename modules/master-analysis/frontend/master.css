@@ -209,7 +209,7 @@
   background: var(--surface-solid);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
-  box-shadow: var(--shadow);
+  box-shadow: var(--elev-popover);
   pointer-events: none;
   z-index: 2;
   min-width: 220px;

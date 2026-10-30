@@ -515,7 +515,7 @@
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
   background: var(--surface-solid);
-  box-shadow: var(--shadow);
+  box-shadow: var(--elev-popover);
   pointer-events: none;
   font-size: 0.8rem;
 }

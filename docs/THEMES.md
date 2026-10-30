@@ -18,7 +18,7 @@
 | `minuit.css`  | Minuit                     | sombre | Bleu nuit, bleu électrique et aqua                                                                  |
 | `clair.css`   | Clair                      | clair  | Fond gris très clair, cartes blanches, violet et bleu canard                                        |
 
-Polices embarquées (aucun accès réseau) : Inter (texte), Space Grotesk (titres), JetBrains Mono (chiffres, durées, code), via `@fontsource-variable/*`. Icônes du shell : `lucide-react`.
+Polices embarquées (aucun accès réseau, toutes sous licence libre OFL) : Inter (texte), Space Grotesk (titres), JetBrains Mono (chiffres, durées, code), et pour certains thèmes Nunito, Plus Jakarta Sans, Oswald, Chakra Petch, via `@fontsource-variable/*` et `@fontsource/*` (importées dans `frontend/src/main.tsx` ; un fichier de police n'est lu que si un thème l'utilise). Icônes du shell : `lucide-react`.
 
 ## Les tokens
 
@@ -36,6 +36,29 @@ Polices embarquées (aucun accès réseau) : Inter (texte), Space Grotesk (titre
 | Effets   | `--shadow`, `--glow`, `--glow-2`, `--blur`                                  | ombre des cartes, halos, flou du verre (0 = pas de flou)                       |
 | Formes   | `--radius-lg`, `--radius`, `--radius-sm`                                    | grands panneaux, cartes, boutons et champs                                     |
 | Polices  | `--font-sans`, `--font-display`, `--font-mono`                              | texte, titres, données                                                         |
+
+### Tokens facultatifs (relief, texture, lueur, graphes, focus)
+
+Valeurs par défaut dans `frontend/src/styles.css` (bloc « Optional theme tokens ») : un thème qui ne les donne pas garde **exactement** l'aspect d'avant (vérifié par captures avant / après sur les 5 premiers thèmes). Un thème peut en redéfinir une partie ; le test refuse un token inconnu (faute de frappe).
+
+| Groupe    | Tokens (défaut)                                                                                                                                 | Usage                                                                                                                                                    |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Relief    | `--elev-flat` (rien), `--elev-hover` (`--glow`), `--elev-raised` (ombre des cartes), `--elev-modal` (`--shadow`), `--elev-popover` (`--shadow`) | niveaux d'élévation : posé (tuiles, cartes d'accueil), survol, surélevé (cartes `.card`), modal (toasts, fenêtre flottante), popover (menus, infobulles) |
+| Relief    | `--inset` (rien), `--pressed` (rien), `--press-scale` (0.97)                                                                                    | surface enfoncée (champs, pistes, barre de progression) ; état pressé d'un bouton ou d'une carte cliquable                                               |
+| Contrôles | `--button-shadow` (`--glow`), `--control-shadow` (rien), `--control-border` (`--border-strong`)                                                 | ombre du bouton principal, des boutons secondaires (relief au repos), bordure des champs et boutons                                                      |
+| Contrôles | `--controls` (`native`)                                                                                                                         | `drawn` : cases à cocher, boutons radio, curseurs et onglets dessinés avec les tokens (relief, lueur) ; `native` : contrôles du système                  |
+| Onglets   | `--tab-active-bg` (transparent), `--tab-active-shadow` (rien)                                                                                   | onglet sélectionné (avec `--controls: drawn`) : enfoncé en neumorphisme, en relief et lumineux en skeuomorphisme                                         |
+| Texture   | `--texture` (`none`)                                                                                                                            | calque d'image sous le fond et les cartes (grain en SVG `data:` généré, ou petite image locale ; **jamais d'adresse réseau**)                            |
+| Lueur     | `--glow-active` (rien)                                                                                                                          | élément actif : page en cours, case cochée, curseur                                                                                                      |
+| Focus     | `--focus-color` (`--accent-2`), `--focus-width` (2px)                                                                                           | anneau de focus au clavier, toujours visible                                                                                                             |
+| Graphes   | `--chart-area-top`, `--chart-area-bottom` (0 : pas d'aire), `--chart-bar-bottom` (1 : barre pleine), `--chart-grid` (`--border`)                | dégradé de l'aire sous la série principale (opacités en haut / en bas), dégradé des barres (opacité en bas), lignes de grille                            |
+| Titres    | `--title-transform` (`none`), `--title-spacing` (-0.015em)                                                                                      | casse et espacement des titres de section (h2, h3)                                                                                                       |
+
+Règles :
+
+- « Pas d'ombre » s'écrit `0 0 transparent`, **jamais `none`** : ces ombres sont combinées dans des listes, où `none` annulerait toute la déclaration (le focus des champs disparaissait).
+- Les graphes SVG prennent leurs dégradés avec `useChartGradient(couleur, 'area' | 'bar')` du SDK ; les canevas (Analyse du master) lisent les tokens par `getComputedStyle`.
+- Les séries des graphes (`--series-1` … `--series-8`) sont propres à chaque thème : Stats YouTube, Analyse du master, Courses, Planning de sortie les utilisent.
 
 Noms historiques, encore acceptés et redirigés par `styles.css` : `--bg-elevated` (= `--surface-solid`), `--bg-hover` (= `--surface-hover`), `--text-muted` (= `--text-2`), `--accent-strong` (= `--accent-2`), `--font` (= `--font-sans`). Dans du nouveau code, utiliser les noms ci-dessus.
 
