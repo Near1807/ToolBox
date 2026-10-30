@@ -3,11 +3,13 @@ import { Outlet, useNavigate } from 'react-router';
 import { ModuleBackgrounds } from '../modules/ModuleExtras';
 import { NavigationProvider } from './NavigationContext';
 import { Sidebar } from './Sidebar';
+import { useThemeAutomation } from './theme-automation';
 import { useFullscreen, WindowButtons } from './WindowControls';
 
 export function Layout() {
   const fullscreen = useFullscreen();
   const navigate = useNavigate();
+  useThemeAutomation();
   // A desktop notification was clicked: open the page it points to.
   useEffect(() => window.toolbox?.onNavigate?.((target) => void navigate(target)), [navigate]);
 

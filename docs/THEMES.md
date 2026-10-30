@@ -6,7 +6,9 @@
 
 - Toute couleur, tout arrondi, toute ombre et toute police de l'interface est une **variable CSS** (« token »). Un thème est un fichier qui donne une valeur à chacun de ces tokens, rien d'autre.
 - Le shell (`frontend/src/styles.css`), les composants partagés du SDK et les modules n'utilisent **que** ces variables : aucune couleur écrite en dur (`#hex`, `rgb()`, `hsl()`). `npm run lint` le vérifie (`scripts/check-ui-colors.mjs`) ; un test vérifie que chaque thème définit tous les tokens.
-- Le choix se fait dans **Réglages › Apparence**. Il s'applique tout de suite, il est retenu par le socle (réglage caché `ui.theme`, routes `GET/PUT /api/core/ui`) et recopié dans le navigateur pour s'afficher dès le démarrage, sans clignotement. La barre de titre Windows suit le mode clair ou sombre du thème.
+- Le choix se fait dans **Réglages › Apparence** : une **galerie de miniatures**, chacune dessinée avec les vrais tokens de son thème (`data-theme-preview`, voir plus bas) ; un clic applique le thème tout de suite. Il est retenu par le socle (réglage caché `ui.theme`, routes `GET/PUT /api/core/ui`) et recopié dans le navigateur pour s'afficher dès le démarrage, sans clignotement ; la fenêtre flottante suit le changement (événement `storage`). La barre de titre Windows suit le mode clair ou sombre du thème affiché.
+- **Thème du soir** (désactivé par défaut) : un thème le jour, un autre de l'heure choisie jusqu'au matin (réglages cachés `ui.themeEvening`, `ui.themeNight`, `ui.themeEveningFrom`, `ui.themeEveningTo`, vérifié toutes les 30 s ; pendant le soir, un clic dans la galerie change le thème du soir).
+- **Raccourci « thème suivant »** (aucun par défaut, `ui.themeShortcut`) : une lettre ou un chiffre avec Ctrl ou Alt, ou une touche F1–F12 sauf F11 ; actif quand la fenêtre de ToolBox a le focus. Logique pure : `frontend/src/themes/automation.ts`.
 
 ## Thèmes fournis
 
@@ -79,6 +81,8 @@ Pour une teinte dérivée, mélanger des tokens plutôt qu'écrire une couleur :
    ```
 3. Donner une valeur à **tous** les tokens (le test `tests/themes.test.ts` échoue sinon).
 4. Vérifier la lisibilité : texte secondaire sur `--surface`, badges, forme d'onde (les quatre `--series`), page Réglages, calendrier du Planning de sortie.
+
+Un aperçu dans la galerie reprend le thème : chaque `:root[data-theme='<id>']` est aussi appliqué à `[data-theme-preview='<id>']` à l'injection (`withPreview`, `frontend/src/themes/index.ts`), et les valeurs par défaut des tokens facultatifs sont recalculées sur l'aperçu. Rien à faire de plus dans le fichier du thème.
 
 C'est tout : le fichier est découvert au build (`import.meta.glob`), il apparaît dans Réglages › Apparence. Aucun autre fichier à toucher.
 

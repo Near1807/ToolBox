@@ -4,8 +4,13 @@
  * in the modules (checked by `npm run lint`). Modules reuse these classes and tokens.
  */
 
-/* Compatibility names (kept for modules written before the themes). */
-:root {
+/*
+ * Compatibility names (kept for modules written before the themes) and the
+ * defaults of the optional tokens; also on a theme preview (gallery), so
+ * that its tokens are computed from the previewed theme.
+ */
+:root,
+[data-theme-preview] {
   --bg-elevated: var(--surface-solid);
   --bg-hover: var(--surface-hover);
   --text-muted: var(--text-2);
@@ -1508,8 +1513,8 @@ input[type='range'] {
 /* Theme picker (Réglages › Apparence) */
 .theme-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 12px;
 }
 
 .theme-option {
@@ -1533,20 +1538,163 @@ input[type='range'] {
   box-shadow: var(--glow);
 }
 
-.theme-option__swatch {
+.theme-option__name {
   display: flex;
-  height: 34px;
-  border-radius: 8px;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+
+/* Miniature of a theme (data-theme-preview: the theme's own tokens). */
+.theme-preview {
+  display: flex;
+  gap: 6px;
+  height: 104px;
+  padding: 6px;
   overflow: hidden;
+  border-radius: 10px;
   border: 1px solid var(--border);
+  background-color: var(--bg);
+  background-image: var(--texture);
+  color: var(--text);
+  font-family: var(--font-display);
+  pointer-events: none;
 }
 
-.theme-option__swatch span {
+.theme-preview__side {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 26%;
+  padding: 5px;
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--elev-flat);
+}
+
+.theme-preview__brand {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  background: var(--accent-grad);
+}
+
+.theme-preview__nav {
+  height: 7px;
+  border-radius: 4px;
+  background: var(--surface-2);
+}
+
+.theme-preview__nav--on {
+  background: color-mix(in srgb, var(--accent) 45%, var(--surface-2));
+  box-shadow: var(--glow-active);
+}
+
+.theme-preview__main {
+  display: flex;
   flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
 }
 
-.theme-option__swatch span:first-child {
-  flex: 2;
+.theme-preview__title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.theme-preview__card {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 5px;
+  padding: 6px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background-color: var(--surface);
+  background-image: var(--texture);
+  box-shadow: var(--elev-raised);
+}
+
+.theme-preview__tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.theme-preview__tab {
+  width: 22px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--surface-2);
+}
+
+.theme-preview__tab--on {
+  background: var(--accent);
+  box-shadow: var(--tab-active-shadow);
+}
+
+.theme-preview__bars {
+  display: flex;
+  flex: 1;
+  align-items: flex-end;
+  gap: 4px;
+  border-bottom: 1px solid var(--chart-grid);
+}
+
+.theme-preview__bar {
+  width: 10px;
+  border-radius: 3px 3px 0 0;
+}
+
+.theme-preview__row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.theme-preview__button {
+  width: 30px;
+  height: 10px;
+  border-radius: 4px;
+  background: var(--accent-grad);
+  box-shadow: var(--button-shadow);
+}
+
+.theme-preview__button--secondary {
+  background: var(--surface-2);
+  border: 1px solid var(--control-border);
+  box-shadow: var(--control-shadow);
+}
+
+.theme-preview__check {
+  width: 10px;
+  height: 10px;
+  margin-left: auto;
+  border-radius: 3px;
+  background: var(--accent);
+}
+
+.appearance-options {
+  display: grid;
+  gap: 8px;
+}
+
+.appearance-options__line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.appearance-options__line .input {
+  flex: 0 0 auto;
+  width: auto;
+  max-width: 220px;
+}
+
+.appearance-options__record {
+  min-width: 260px;
 }
 
 /* ------------------------------------------------------------------ sidebar categories */

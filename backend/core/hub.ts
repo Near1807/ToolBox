@@ -96,6 +96,17 @@ export const ASSISTANT_RIGHTS_SCOPE = 'assistant-rights';
 export const UI_SCOPE = 'ui';
 export const UI_SETTINGS: SettingField[] = [
   { key: 'theme', type: 'string', label: 'Thème', default: '' },
+  // « Thème du soir » (off by default) and the shortcut to the next theme (none by default).
+  { key: 'themeEvening', type: 'boolean', label: 'Thème du soir', default: false },
+  { key: 'themeNight', type: 'string', label: 'Thème du soir : thème', default: '' },
+  {
+    key: 'themeEveningFrom',
+    type: 'string',
+    label: 'Thème du soir : à partir de',
+    default: '20:00',
+  },
+  { key: 'themeEveningTo', type: 'string', label: 'Thème du soir : jusqu’à', default: '07:00' },
+  { key: 'themeShortcut', type: 'string', label: 'Raccourci : thème suivant', default: '' },
   // JSON of the sidebar layout (categories, placement and order of the tools).
   { key: 'navigation', type: 'text', label: 'Barre latérale', default: '' },
 ];

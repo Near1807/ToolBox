@@ -1,10 +1,19 @@
 import { api } from '@hub/sdk/frontend';
 import { applyTheme, cachedTheme } from '../themes';
+import { activeSlot, DEFAULT_PREFS, effectiveTheme, type ThemePrefs } from '../themes/automation';
 
 /** Interface preferences stored by the core (GET/PUT /api/core/ui). */
-export interface UiPrefs {
-  theme: string;
+export interface UiPrefs extends ThemePrefs {
   navigation: string;
+}
+
+/** The theme preferences of the core, with their defaults. */
+export function themePrefs(prefs: Partial<UiPrefs>): ThemePrefs {
+  return {
+    ...DEFAULT_PREFS,
+    ...Object.fromEntries(Object.entries(prefs).filter(([, v]) => v !== null && v !== undefined)),
+    theme: prefs.theme || cachedTheme(),
+  } as ThemePrefs;
 }
 
 export function loadUiPrefs(): Promise<UiPrefs> {
@@ -18,15 +27,20 @@ export function saveUiPrefs(change: Partial<UiPrefs>): Promise<unknown> {
 /** At start: the theme saved by the core wins over the copy cached by the browser. */
 export async function syncThemeFromCore(): Promise<void> {
   try {
-    const prefs = await loadUiPrefs();
-    if (prefs.theme && prefs.theme !== cachedTheme()) applyTheme(prefs.theme);
+    const prefs = themePrefs(await loadUiPrefs());
+    const now = effectiveTheme(prefs, new Date());
+    if (now !== cachedTheme()) applyTheme(now);
   } catch {
     // Backend not ready: the cached theme stays.
   }
 }
 
-/** Switches the theme instantly and remembers it. */
-export async function chooseTheme(id: string): Promise<void> {
+/**
+ * Switches the theme instantly and remembers it: the gallery's theme, or
+ * the evening theme while « Thème du soir » is showing it.
+ */
+export async function chooseTheme(id: string, prefs?: ThemePrefs): Promise<void> {
   applyTheme(id);
-  await saveUiPrefs({ theme: id });
+  const slot = prefs ? activeSlot(prefs, new Date()) : 'theme';
+  await saveUiPrefs({ [slot]: id });
 }

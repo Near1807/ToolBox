@@ -13,10 +13,11 @@ import '@fontsource/chakra-petch/500.css';
 import '@fontsource/chakra-petch/600.css';
 import './styles.css';
 import { syncThemeFromCore } from './shell/ui-prefs';
-import { applyTheme, cachedTheme, installThemes } from './themes';
+import { applyTheme, cachedTheme, followThemeOfOtherWindows, installThemes } from './themes';
 
 installThemes();
 applyTheme(cachedTheme());
+followThemeOfOtherWindows();
 void syncThemeFromCore();
 
 const root = document.getElementById('root');

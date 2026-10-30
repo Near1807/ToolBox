@@ -42,12 +42,23 @@ export const THEMES: ThemeInfo[] = Object.values(files)
     a.id === DEFAULT_THEME ? -1 : b.id === DEFAULT_THEME ? 1 : a.label.localeCompare(b.label),
   );
 
+/**
+ * A theme's CSS, also applied to a preview inside the page (the gallery of
+ * Réglages › Apparence): `[data-theme-preview='<id>']` gets the same tokens.
+ */
+export function withPreview(css: string): string {
+  return css.replace(
+    /:root\[data-theme='([a-z0-9-]+)'\]/g,
+    ":root[data-theme='$1'], [data-theme-preview='$1'][data-theme-preview]",
+  );
+}
+
 /** Injects every theme once (each one is scoped by :root[data-theme=…]). */
 export function installThemes(): void {
   if (document.getElementById('toolbox-themes')) return;
   const style = document.createElement('style');
   style.id = 'toolbox-themes';
-  style.textContent = Object.values(files).join('\n');
+  style.textContent = Object.values(files).map(withPreview).join('\n');
   document.head.prepend(style);
 }
 
@@ -64,6 +75,18 @@ export function applyTheme(id: string): void {
     // Storage unavailable: the theme still applies, the core setting remembers it.
   }
   window.toolbox?.window?.setColorScheme?.(theme.scheme);
+}
+
+/** Another window (the floating one) changed the theme: this one follows. */
+export function followThemeOfOtherWindows(): void {
+  window.addEventListener('storage', (event) => {
+    if (
+      event.key === STORAGE_KEY &&
+      event.newValue &&
+      event.newValue !== document.documentElement.dataset.theme
+    )
+      applyTheme(event.newValue);
+  });
 }
 
 /** Last theme used on this PC, applied before the first render (no flash). */
