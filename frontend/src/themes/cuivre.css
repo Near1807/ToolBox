@@ -1,4 +1,4 @@
-/* @theme id=cuivre; label=Cuivre; scheme=dark; swatch=#262626,#c4602f,#e8e2da */
+/* @theme id=cuivre; label=Cuivre; scheme=dark; swatch=#262626,#c4602f,#e8e2da; experimental=yes */
 /* Neo-skeuomorphism, audio gear spirit (console, rack): lightly grained anthracite, copper accents, raised buttons and switches, pressed state hollowed, copper glow on the active element, cream text. See docs/THEMES.md. */
 :root[data-theme='cuivre'] {
   color-scheme: dark;

@@ -96,9 +96,10 @@ Et à l'œil, captures à 1 280 px (accueil, To-do, Timer et fenêtre flottante,
 1. Copier un thème existant dans `frontend/src/themes/<id>.css` (le plus proche de l'idée : `clair.css` pour un thème clair).
 2. Adapter l'en-tête, lu par l'app pour le sélecteur :
    ```css
-   /* @theme id=<id>; label=<Nom affiché>; scheme=dark|light; swatch=<fond>,<accent>,<accent 2> */
+   /* @theme id=<id>; label=<Nom affiché>; scheme=dark|light; swatch=<fond>,<accent>,<accent 2>; experimental=yes */
    :root[data-theme='<id>'] { … }
    ```
+   affiche « Expérimental » dans la galerie tant que le thème n'est pas validé à l'usage (à retirer ensuite).
 3. Donner une valeur à **tous** les tokens (le test `tests/themes.test.ts` échoue sinon).
 4. Lancer `npx vitest run tests/theme-contrast.test.ts` : chaque échec dit la paire et son contraste. Puis regarder les pages listées ci-dessus (lisibilité à l'œil).
 

@@ -1,4 +1,4 @@
-/* @theme id=lilas; label=Lilas; scheme=light; swatch=#f6f4fb,#d6337e,#7c5ce0 */
+/* @theme id=lilas; label=Lilas; scheme=light; swatch=#f6f4fb,#d6337e,#7c5ce0; experimental=yes */
 /* Light and airy: lavender white, white cards, magenta and violet accents, pink-to-violet chart gradients, ink text. See docs/THEMES.md. */
 :root[data-theme='lilas'] {
   color-scheme: light;

@@ -1,4 +1,4 @@
-/* @theme id=supervision; label=Supervision; scheme=dark; swatch=#1c2230,#f5a623,#e8573f */
+/* @theme id=supervision; label=Supervision; scheme=dark; swatch=#1c2230,#f5a623,#e8573f; experimental=yes */
 /* Control room: very dark slate blue, fine lines, big technical figures, amber and coral accents, lavender-slate and sea-green series. See docs/THEMES.md. */
 :root[data-theme='supervision'] {
   color-scheme: dark;

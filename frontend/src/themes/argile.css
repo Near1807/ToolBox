@@ -1,4 +1,4 @@
-/* @theme id=argile; label=Argile; scheme=light; swatch=#ece6dc,#0f4f55,#b5532c */
+/* @theme id=argile; label=Argile; scheme=light; swatch=#ece6dc,#0f4f55,#b5532c; experimental=yes */
 /* Light neumorphism: cream clay, elements of the same matter raised or hollowed by soft double shadows, deep teal for actions. See docs/THEMES.md. */
 :root[data-theme='argile'] {
   color-scheme: light;

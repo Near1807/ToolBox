@@ -12,6 +12,8 @@ export interface ThemeInfo {
   scheme: 'dark' | 'light';
   /** Colours shown in the theme picker: background, accent, second accent. */
   swatch: string[];
+  /** Not validated yet by Thomas: « Expérimental » in the gallery (header ). */
+  experimental: boolean;
 }
 
 export const DEFAULT_THEME = 'nebula';
@@ -32,6 +34,7 @@ function parseHeader(css: string): ThemeInfo | null {
     label: fields.label,
     scheme: fields.scheme === 'light' ? 'light' : 'dark',
     swatch: (fields.swatch ?? '').split(',').filter(Boolean),
+    experimental: fields.experimental === 'yes',
   };
 }
 

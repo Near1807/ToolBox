@@ -1,4 +1,4 @@
-/* @theme id=lilas-nuit; label=Lilas de nuit; scheme=dark; swatch=#1b1830,#e5408a,#9b82ff */
+/* @theme id=lilas-nuit; label=Lilas de nuit; scheme=dark; swatch=#1b1830,#e5408a,#9b82ff; experimental=yes */
 /* Dark twin of Lilas: violet night blue, same magenta and violet accents, light text. See docs/THEMES.md. */
 :root[data-theme='lilas-nuit'] {
   color-scheme: dark;
