@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type DragEvent, type MouseEvent } from 'react';
+import { Icon } from '@hub/sdk/frontend';
 import { NavLink } from 'react-router';
 import {
   Activity,
@@ -327,7 +328,9 @@ export function Sidebar(props: { fullscreen: boolean }) {
                     onDragOver={(e) => overItem(e, category.id, tool.id)}
                     onContextMenu={(e) => toolMenu(e, tool, category)}
                   >
-                    <span className="nav-link__icon">{tool.module.manifest.icon}</span>
+                    <span className="nav-link__icon">
+                      <Icon name={tool.module.manifest.icon} />
+                    </span>
                     <span className="nav-link__label">{tool.name}</span>
                     {tool.module.manifest.experimental && (
                       <span className="nav-link__tag" title="Expérimental">

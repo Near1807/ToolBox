@@ -1,5 +1,12 @@
 import { Link } from 'react-router';
-import { EmptyState, ErrorBoundary, ErrorMessage, ModuleProvider, Page } from '@hub/sdk/frontend';
+import {
+  EmptyState,
+  ErrorBoundary,
+  ErrorMessage,
+  Icon,
+  ModuleProvider,
+  Page,
+} from '@hub/sdk/frontend';
 import { hasMainPage, useModules, type ShellModule } from '../modules/ModulesContext';
 import { useNavigation } from './NavigationContext';
 
@@ -14,7 +21,9 @@ function ModuleCard({ module }: { module: ShellModule }) {
   const body = (
     <>
       <div className="module-card__header">
-        <span className="module-card__icon">{module.manifest.icon}</span>
+        <span className="module-card__icon">
+          <Icon name={module.manifest.icon} />
+        </span>
         <span className="module-card__name">{module.manifest.name}</span>
         {module.manifest.experimental && <span className="badge badge--warning">Expérimental</span>}
         {module.status !== 'loaded' && (

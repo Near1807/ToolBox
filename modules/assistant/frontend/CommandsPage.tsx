@@ -13,6 +13,7 @@ import {
   StateBadge,
   useApi,
   useModule,
+  Icon,
 } from '@hub/sdk/frontend';
 import type {
   CommandDto,
@@ -97,7 +98,7 @@ function NicknamesCard() {
                       call(() => module.api.delete<VocabularyDto>(`/vocabulary/nicknames/${n.id}`))
                     }
                   >
-                    ×
+                    <Icon name="close" />
                   </button>
                 </li>
               ))}
@@ -535,7 +536,7 @@ export function CommandsPage() {
       subtitle="Ce que l’assistant comprend sans IA. Seules les phrases se modifient : jamais l’action, ses paramètres ni son niveau de risque."
       actions={
         <Link to={`/m/${module.id}`} className="small">
-          ← Assistant vocal
+          <Icon name="arrow-left" /> Assistant vocal
         </Link>
       }
     >

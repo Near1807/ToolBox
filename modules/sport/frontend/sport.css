@@ -156,7 +156,13 @@
   cursor: pointer;
   opacity: 0.6;
 }
+.sp-mood {
+  display: inline-grid;
+  place-items: center;
+  color: var(--text-2);
+}
 .sp-mood--on {
+  color: var(--accent);
   border-color: var(--accent);
   background: var(--accent-soft);
   opacity: 1;

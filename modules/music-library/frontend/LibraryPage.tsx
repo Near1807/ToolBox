@@ -11,6 +11,7 @@ import {
   pickFiles,
   useApi,
   useModule,
+  Icon,
 } from '@hub/sdk/frontend';
 import type { TrackDto } from '../contract';
 import { AUDIO_EXTENSIONS, IMAGE_EXTENSIONS, pairDroppedFiles, type TrackImport } from './pairing';
@@ -168,7 +169,7 @@ export function LibraryPage() {
                     setPlaying(playing?.id === track.id ? null : track);
                   }}
                 >
-                  {playing?.id === track.id ? '■' : '▶'}
+                  <Icon name={playing?.id === track.id ? 'stop' : 'play'} />
                 </button>
               </div>
               <div className="ml-card__title" title={track.title}>

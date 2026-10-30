@@ -8,6 +8,8 @@ type Uiohook = typeof import('uiohook-napi');
 
 let library: Uiohook | null = null;
 let listener: ((event: HostKeyEvent) => void) | null = null;
+/** Our own simulated Alt (floating window focus): never seen as a key of the user. */
+let synthetic = false;
 
 const LABELS: Record<string, string> = {
   F23: 'Touche Copilot (Win+Maj+F23)',
@@ -43,8 +45,8 @@ export function createGlobalKeys(): NonNullable<HostAdapter['globalKeys']> {
     start(next) {
       const { uIOhook } = load();
       if (!listener) {
-        uIOhook.on('keydown', (e) => listener?.({ type: 'down', code: e.keycode }));
-        uIOhook.on('keyup', (e) => listener?.({ type: 'up', code: e.keycode }));
+        uIOhook.on('keydown', (e) => synthetic || listener?.({ type: 'down', code: e.keycode }));
+        uIOhook.on('keyup', (e) => synthetic || listener?.({ type: 'up', code: e.keycode }));
       }
       listener = next;
       uIOhook.start();
@@ -62,4 +64,28 @@ export function createGlobalKeys(): NonNullable<HostAdapter['globalKeys']> {
       return LABELS[name] ?? (name.length === 1 ? name.toUpperCase() : name);
     },
   };
+}
+
+/**
+ * Presses Alt, runs `between`, releases Alt (Windows only, once the hook is
+ * loaded): lets the floating window take the keyboard from the application
+ * in front (electron/overlay-focus.ts). The hook ignores these two events.
+ */
+export function canTapAlt(): boolean {
+  return process.platform === 'win32' && library !== null;
+}
+export function tapAlt(between: () => void): void {
+  if (!canTapAlt()) return between();
+  const { uIOhook, UiohookKey } = library!;
+  synthetic = true;
+  try {
+    uIOhook.keyToggle(UiohookKey.Alt, 'down');
+    between();
+  } finally {
+    uIOhook.keyToggle(UiohookKey.Alt, 'up');
+    // The hook sees the events a moment later, on its own thread.
+    setTimeout(() => {
+      synthetic = false;
+    }, 100);
+  }
 }

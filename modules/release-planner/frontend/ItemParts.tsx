@@ -1,7 +1,7 @@
 // Small shared pieces: platform icons, the chip of an element in the
 // calendar, the status badge, the preview to drag out of the app.
 import { useState, type DragEvent } from 'react';
-import { Button, copyText, startFileDrag } from '@hub/sdk/frontend';
+import { Button, copyText, startFileDrag, Icon } from '@hub/sdk/frontend';
 import { STATUS_LABELS, TRACK_COLORS, type ItemKind, type PlannerItem } from './types';
 
 const ICON_TITLES: Record<ItemKind, string> = {
@@ -147,7 +147,13 @@ export function CopyCaption(props: { text: string; label?: string }) {
         setTimeout(() => setCopied(false), 1500);
       }}
     >
-      {copied ? 'Copié ✓' : (props.label ?? 'Copier la légende')}
+      {copied ? (
+        <>
+          Copié <Icon name="check" />
+        </>
+      ) : (
+        (props.label ?? 'Copier la légende')
+      )}
     </Button>
   );
 }
@@ -186,7 +192,9 @@ export function DragPreview(props: { item: PlannerItem; size?: 'small' | 'large'
       ) : (
         <video src={url} muted preload="metadata" draggable={false} />
       )}
-      <span className="rp-preview__hint">⇱ glisser</span>
+      <span className="rp-preview__hint">
+        <Icon name="move" /> glisser
+      </span>
     </div>
   );
 }

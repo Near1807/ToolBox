@@ -30,6 +30,12 @@ contextBridge.exposeInMainWorld('toolbox', {
   overlay: {
     layout: (layout: unknown): void => ipcRenderer.send('toolbox:overlay-layout', layout),
     hover: (over: boolean): void => ipcRenderer.send('toolbox:overlay-hover', over),
+    /** Whether the window got the keyboard after asking for it (false: a click is needed). */
+    onKeyboard: (listener: (has: boolean) => void): (() => void) => {
+      const handler = (_event: unknown, has: unknown) => listener(has === true);
+      ipcRenderer.on('toolbox:overlay-keyboard', handler);
+      return () => ipcRenderer.removeListener('toolbox:overlay-keyboard', handler);
+    },
     onPrefs: (listener: (prefs: { locked: boolean }) => void): (() => void) => {
       const handler = (_event: unknown, prefs: unknown) => listener(prefs as { locked: boolean });
       ipcRenderer.on('toolbox:overlay-prefs', handler);

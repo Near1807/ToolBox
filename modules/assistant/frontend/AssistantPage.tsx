@@ -14,6 +14,7 @@ import {
   StateBadge,
   useApi,
   useModule,
+  Icon,
 } from '@hub/sdk/frontend';
 import type { CommandsDto, PromptDto, StatusDto, TurnActionDto, TurnDto } from '../shared';
 import { RightsCard, savePhrase } from './CommandsPage';
@@ -260,11 +261,12 @@ function TurnView(props: { turn: TurnDto; latest: boolean; onChange: () => void 
     <li className="as-turn">
       <div className="as-turn__you">
         <span className="small muted">
+          <Icon name={turn.source === 'voice' ? 'mic' : 'keyboard'} />{' '}
           {turn.source === 'voice'
-            ? '🎙️ Tu as dit'
+            ? 'Tu as dit'
             : turn.source === 'bar'
-              ? '⌨️ Écrit dans la barre'
-              : '⌨️ Tu as écrit'}
+              ? 'Écrit dans la barre'
+              : 'Tu as écrit'}
         </span>
         <p className="as-heard">{turn.heard}</p>
         {turn.rawHeard && (
@@ -474,7 +476,7 @@ function Conversation(props: { status: StatusDto | null; onStatusChange: () => v
           aria-label={listening ? 'Terminer' : 'Parler'}
           onClick={() => void module.api.post(listening ? '/listen/stop' : '/listen/start')}
         >
-          🎙️
+          <Icon name="mic" size={20} />
         </button>
         <input
           className="input as-composer__input"
@@ -687,7 +689,12 @@ function Setup(props: { status: StatusDto; reload: () => void }) {
                   return (
                     <option key={tag} value={tag}>
                       {info ? `${info.label} — ${info.sizeGb} Go, ${info.note}` : tag}
-                      {installed ? ' ✓' : ''}
+                      {installed && (
+                        <>
+                          {' '}
+                          <Icon name="check" label="installé" />
+                        </>
+                      )}
                       {tag === status.recommendation?.model ? ' (recommandé)' : ''}
                     </option>
                   );

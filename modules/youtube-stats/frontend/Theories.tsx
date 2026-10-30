@@ -1,16 +1,16 @@
 // Théories: hypotheses in plain words with the data behind them, the sample
 // size and the confidence tier; the journal that follows them over time; small
 // experiments to settle them.
-import { Card, ErrorMessage, useApi, useModule } from '@hub/sdk/frontend';
+import { Card, ErrorMessage, useApi, useModule, Icon } from '@hub/sdk/frontend';
 import { TIER_HELP, TIER_LABELS, type Tier } from '../shared';
 import { fmtDay } from './charts';
 import { TierBadge } from './common';
 import type { TheoriesData } from './types';
 
 const STATUS: Record<string, { label: string; className: string; icon: string }> = {
-  confirmed: { label: 'Confirmée', className: 'badge badge--success', icon: '✓' },
-  refuted: { label: 'Infirmée', className: 'badge badge--danger', icon: '✗' },
-  pending: { label: 'En attente', className: 'badge', icon: '…' },
+  confirmed: { label: 'Confirmée', className: 'badge badge--success', icon: 'circle-check' },
+  refuted: { label: 'Infirmée', className: 'badge badge--danger', icon: 'circle-x' },
+  pending: { label: 'En attente', className: 'badge', icon: 'ellipsis' },
 };
 
 const TIER_DOT: Record<Tier, string> = {
@@ -57,7 +57,7 @@ export function Theories() {
           <section key={tier} className="ys-lab">
             <h2>
               {TIER_LABELS[tier]}
-              {tier === 'intuition' ? ' — pour le fun 🎲' : ''}{' '}
+              {tier === 'intuition' ? ' — pour le fun' : ''}{' '}
               <span className="muted small">({list.length})</span>
             </h2>
             <div className="ys-theories">
@@ -76,7 +76,11 @@ export function Theories() {
                   <p className="small muted">
                     {t.confidence.reason} Échantillon : {t.confidence.n.join(' vs ')}.
                   </p>
-                  {t.caveat && <p className="small ys-caveat">⚠ {t.caveat}</p>}
+                  {t.caveat && (
+                    <p className="small ys-caveat">
+                      <Icon name="warning" /> {t.caveat}
+                    </p>
+                  )}
                   {t.experiment && (
                     <p className="small ys-experiment">
                       <strong>Expérience :</strong> {t.experiment}
@@ -116,7 +120,7 @@ export function Theories() {
                   </td>
                   <td>
                     <span className={status.className}>
-                      {status.icon} {status.label}
+                      <Icon name={status.icon} /> {status.label}
                     </span>
                   </td>
                   <td>

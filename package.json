@@ -15,14 +15,15 @@
     "build:main": "node scripts/build-main.mjs",
     "start": "electron .",
     "dist:win": "npm run build && electron-builder --win --x64 --publish never",
-    "lint": "eslint . && prettier --check . && npm run check:ui-colors",
+    "lint": "eslint . && prettier --check . && npm run check:ui-colors && npm run check:ui-emoji",
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:full": "vitest run --mode full",
     "test:watch": "vitest",
     "check:native": "node scripts/check-native.mjs",
-    "check:ui-colors": "node scripts/check-ui-colors.mjs"
+    "check:ui-colors": "node scripts/check-ui-colors.mjs",
+    "check:ui-emoji": "node scripts/check-ui-emoji.mjs"
   },
   "engines": {
     "node": ">=22"

@@ -4,7 +4,7 @@
   "description": "Ton calendrier de sport : une semaine type appliquée aux semaines à venir, chaque séance validée avec une humeur et un commentaire, déplacée dans sa semaine, et un bilan simple.",
   "version": "0.2.0",
   "section": "Vie perso",
-  "icon": "🏋️",
+  "icon": "dumbbell",
   "order": 10,
   "experimental": true,
   "settings": []

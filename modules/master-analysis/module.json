@@ -4,7 +4,7 @@
   "description": "Mesure un master pendant sa production, sans jamais le modifier : sonie, crêtes, bandes, stéréo et mono, sections, versions comparées, références, normalisation des plateformes.",
   "version": "1.3.0",
   "section": "Musique",
-  "icon": "🎚️",
+  "icon": "waveform",
   "order": 15,
   "dependsOn": {
     "modules": [],

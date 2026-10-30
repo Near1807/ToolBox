@@ -1,7 +1,7 @@
 // Level 4 — Labo: cross-analyses of the statistics with what ToolBox knows.
 // Each block says what it measures, how, and how sure it is (tier badge).
 import { useState } from 'react';
-import { Card, ErrorMessage, useApi, useModule } from '@hub/sdk/frontend';
+import { Card, ErrorMessage, useApi, useModule, Icon } from '@hub/sdk/frontend';
 import { WEEKDAYS } from '../shared';
 import {
   BarList,
@@ -441,7 +441,9 @@ export function Lab(props: { openVideo: (id: string) => void; openTrack: (id: nu
                     <td className="num">{v.halfLife === null ? '—' : `${v.halfLife} j`}</td>
                     <td>
                       {v.evergreen ? (
-                        <span className="badge badge--success">🌲 Evergreen</span>
+                        <span className="badge badge--success">
+                          <Icon name="tree" /> Evergreen
+                        </span>
                       ) : v.evergreenRatio !== null ? (
                         <span className="small muted">
                           {fmtNum(v.evergreenRatio * 100, 0)} % de son début

@@ -20,7 +20,7 @@ L'id (`mon-outil`) est en kebab-case, unique, et **identique au nom du dossier**
 ## 2. Remplir `module.json`
 
 - `id` → `mon-outil` ; `name`, `description` en français ; `version` → `1.0.0`.
-- `section` → la section de l'accueil (ex. `Musique`) ; `icon` → un emoji ; `order` → position dans la section.
+- `section` → la section de l'accueil (ex. `Musique`) ; `icon` → le nom d'une icône du jeu du SDK (`packages/sdk/icons.tsx`, ex. `music`, `timer` ; jamais un emoji : pas d'emoji dans l'interface) ; `order` → position dans la section.
 - `dependsOn` / `provides` → les modules et services nécessaires / fournis (sinon, supprimer les listes vides). **N'exiger que ce sans quoi le module n'a aucun sens** ; ce qui n'est qu'utile va dans `dependsOn.optionalServices` et se lit avec `ctx.services.optional()` (MODULES.md §5.8).
 - `settings` → les réglages à afficher dans la page Réglages (ou `[]`).
 

@@ -4,6 +4,7 @@
 // Presentation only: every number shown comes from the measures as they are.
 import { useState, type ReactNode } from 'react';
 import { Help } from './guide/Help';
+import { Icon } from '@hub/sdk/frontend';
 
 export interface Figure {
   label: string;
@@ -72,7 +73,7 @@ export function Details(props: { label?: string; children: ReactNode }) {
         aria-expanded={open}
         onClick={() => setOpen(!open)}
       >
-        <span aria-hidden>{open ? '▾' : '▸'}</span> {open ? 'Masquer' : 'Voir'} {label}
+        <Icon name={open ? 'chevron-down' : 'chevron-right'} /> {open ? 'Masquer' : 'Voir'} {label}
       </button>
       {open && <div className="ma-details__body">{props.children}</div>}
     </div>

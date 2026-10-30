@@ -292,7 +292,7 @@ function PlanSlot(props: {
             aria-label={`Retirer ${names.get(p.mealId)}`}
             onClick={() => void props.run(() => module.api.delete(`/plan/${p.id}`))}
           >
-            ×
+            <Icon name="close" />
           </button>
         </span>
       ))}
@@ -467,7 +467,11 @@ function PastLists(props: { run: Run; list: ListDto }) {
                 {l.groups.flatMap((g) =>
                   g.items.map((i) => (
                     <li key={i.key} className={i.checked ? 'cs-list__done' : undefined}>
-                      {i.checked ? '☑' : '☐'} {i.name}
+                      <Icon
+                        name={i.checked ? 'square-check' : 'square'}
+                        label={i.checked ? 'pris' : 'pas pris'}
+                      />{' '}
+                      {i.name}
                       {i.amount && <span className="muted"> — {i.amount}</span>}
                       <span className="muted"> · {g.aisle}</span>
                     </li>
@@ -689,7 +693,7 @@ function ShoppingList(props: { list: ListDto; run: Run }) {
                         void props.run(() => module.api.delete(`/list/extras/${i.id}`))
                       }
                     >
-                      ×
+                      <Icon name="close" />
                     </button>
                   )}
                 </li>
@@ -945,7 +949,7 @@ function MealEditor(props: {
               aria-label="Retirer la ligne"
               onClick={() => setLines(lines.filter((_, j) => j !== i))}
             >
-              ×
+              <Icon name="close" />
             </button>
           </div>
         ))}
@@ -1228,7 +1232,9 @@ function IngredientFacts(props: { ingredient: IngredientDto; run: Run; onDone: (
           />{' '}
           g
         </label>
-        <span className="small muted">pour convertir pièces ↔ poids (liste, nutrition, prix)</span>
+        <span className="small muted">
+          pour convertir entre pièces et poids (liste, nutrition, prix)
+        </span>
       </div>
       <fieldset className="cs-nutrition">
         <legend className="small">
@@ -1583,7 +1589,7 @@ function MomentsAndExtras(props: { state: StateDto; run: Run }) {
               aria-label={`Retirer ${m.name}`}
               onClick={() => setMoments(moments.filter((_, j) => j !== i))}
             >
-              ×
+              <Icon name="close" />
             </button>
           </div>
         ))}
@@ -1672,7 +1678,7 @@ function MomentsAndExtras(props: { state: StateDto; run: Run }) {
                 aria-label={`Retirer ${e.name}`}
                 onClick={() => void props.run(() => module.api.delete(`/extras/${e.id}`))}
               >
-                ×
+                <Icon name="close" />
               </button>
             </span>
           ))}

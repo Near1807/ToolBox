@@ -11,6 +11,7 @@ import {
   TextFields,
   useModule,
   type JobInfo,
+  Icon,
 } from '@hub/sdk/frontend';
 import { longDate } from './dates';
 import { DragPreview, PlatformIcon, StatusBadge, trackColor } from './ItemParts';
@@ -120,7 +121,7 @@ export function ItemPanel(props: {
           aria-label="Fermer"
           onClick={props.onClose}
         >
-          ×
+          <Icon name="close" />
         </button>
       </header>
 
@@ -261,7 +262,7 @@ export function ItemPanel(props: {
                     target="_blank"
                     rel="noreferrer"
                   >
-                    Voir sur YouTube ↗
+                    Voir sur YouTube <Icon name="external-link" size="0.95em" />
                   </a>
                   <a
                     className="button button--secondary button--small"
@@ -269,7 +270,7 @@ export function ItemPanel(props: {
                     target="_blank"
                     rel="noreferrer"
                   >
-                    Ouvrir dans YouTube Studio ↗
+                    Ouvrir dans YouTube Studio <Icon name="external-link" size="0.95em" />
                   </a>
                 </div>
               )}

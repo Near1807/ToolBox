@@ -4,7 +4,7 @@
   "description": "Transforme un morceau en vidéo 16:9 pour YouTube, avec sa description prête à copier.",
   "version": "1.4.0",
   "section": "Musique",
-  "icon": "📺",
+  "icon": "youtube",
   "order": 20,
   "dependsOn": {
     "modules": ["music-library", "video-engine"],

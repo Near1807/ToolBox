@@ -4,7 +4,7 @@
   "description": "Ta liste de courses faite à partir des repas : ingrédients (nutrition et prix facultatifs) et recettes importables en JSON, le planning des repas d'une période, la liste générée (quantités additionnées, par rayon), les extras et le résumé de la semaine.",
   "version": "0.2.0",
   "section": "Vie perso",
-  "icon": "🛒",
+  "icon": "shopping-cart",
   "order": 20,
   "experimental": true,
   "settings": [

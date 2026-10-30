@@ -13,6 +13,7 @@ import {
   StateBadge,
   useApi,
   useModule,
+  Icon,
 } from '@hub/sdk/frontend';
 import type { VocabularyDto } from '../shared';
 
@@ -215,7 +216,7 @@ export function WordsPage() {
       actions={
         <div className="as-row">
           <Link to={module.path()} className="small">
-            ← Assistant vocal
+            <Icon name="arrow-left" /> Assistant vocal
           </Link>
           <Link to={module.path('commands')} className="small">
             Commandes et surnoms des outils
@@ -334,7 +335,7 @@ export function WordsPage() {
                       call(() => module.api.delete<VocabularyDto>(`/vocabulary/words/${w.id}`))
                     }
                   >
-                    ×
+                    <Icon name="close" />
                   </button>
                 </li>
               ))}

@@ -28,13 +28,13 @@ import {
   monthWeeks,
   mondayOf,
   moveCheck,
+  MOOD_LABELS,
   planWeek,
   reapplyTemplate,
   summary,
   validTime,
   weekDays,
   WEEKDAYS,
-  MOODS,
   type Session,
   type SessionStatus,
   type TemplateItem,
@@ -63,6 +63,9 @@ import {
   SUMMARY_EXAMPLES,
   TODAY_EXAMPLES,
 } from './commands';
+
+/** The moods in the Markdown export (a file for Thomas, as before; never shown in the interface). */
+const MOOD_EMOJI = ['😫', '🙁', '😐', '🙂', '😄'];
 
 interface TemplateRow {
   id: string;
@@ -776,7 +779,7 @@ export default defineBackendModule({
             .join('\n')}\n`
         : `# Sport — du ${from} au ${to}\n\n${list
             .map((s) => {
-              const head = `- ${s.date} ${s.start} · **${s.name}** (${s.durationMin} min) — ${STATUS_FR[s.status]}${s.mood ? ` ${MOODS[s.mood - 1]}` : ''}`;
+              const head = `- ${s.date} ${s.start} · **${s.name}** (${s.durationMin} min) — ${STATUS_FR[s.status]}${s.mood ? ` ${MOOD_EMOJI[s.mood - 1]}` : ''}`;
               const comment = s.comment
                 ? `\n  - Commentaire : ${s.comment.replace(/\r?\n/g, '\n    ')}`
                 : '';
@@ -935,7 +938,7 @@ export default defineBackendModule({
         const s = todaySession();
         patchSession(s.id, { mood: Number(params.mood) });
         return {
-          message: `Humeur ${MOODS[Number(params.mood) - 1]} pour ${s.name}.`,
+          message: `Humeur « ${MOOD_LABELS[Number(params.mood) - 1]!.toLowerCase()} » pour ${s.name}.`,
           data: { id: s.id },
           undo: undoTo(s),
         };

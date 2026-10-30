@@ -6,6 +6,8 @@ Le dossier commence par `_` : c'est un **module d'exemple**, ignoré par défaut
 
 ## Ce qu'il fait
 
+Icône : `puzzle` (un nom du jeu d'icônes du SDK, `packages/sdk/icons.tsx` ; pas d'emoji dans l'interface, `docs/MODULES.md` §7.1).
+
 Une liste de notes, l'export d'une note en fichier .txt (enregistré dans `ctx.outputs` : listé, supprimable, signalé s'il disparaît du disque), un message d'accueil réglable, une tâche longue de démonstration avec progression et annulation, et une tâche planifiée quotidienne.
 
 ## Données

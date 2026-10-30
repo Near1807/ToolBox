@@ -566,7 +566,7 @@ export class Hub {
           description: '',
           version: '0.0.0',
           section: 'Autres',
-          icon: '⚠️',
+          icon: 'warning',
         } as ModuleManifest),
       status: r.status,
       error: r.error,

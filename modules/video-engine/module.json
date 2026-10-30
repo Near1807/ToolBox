@@ -4,7 +4,7 @@
   "description": "Moteur de rendu partagé par les générateurs de vidéos (FFmpeg, canvas pour les Reels).",
   "version": "4.1.0",
   "section": "Musique",
-  "icon": "🎞️",
+  "icon": "film",
   "order": 90,
   "provides": { "services": ["videoEngine"] }
 }

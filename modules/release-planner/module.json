@@ -4,7 +4,7 @@
   "description": "Calendrier de sortie de chaque morceau : vidéo YouTube et Shorts envoyés et programmés sur YouTube, rappels pour le post et les Reels Instagram.",
   "version": "1.6.0",
   "section": "Musique",
-  "icon": "🗓️",
+  "icon": "calendar-clock",
   "order": 40,
   "dependsOn": {
     "modules": ["music-library"],

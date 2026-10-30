@@ -469,6 +469,17 @@
   margin: 0;
   font-size: 0.9rem;
 }
+.as-bar--no-keys {
+  border-color: var(--warning);
+}
+.as-bar--no-keys .as-bar__input {
+  outline: 2px solid var(--warning);
+  outline-offset: 1px;
+}
+.as-bar__hint {
+  color: var(--warning);
+  font-weight: 600;
+}
 .as-bar__actions {
   display: flex;
   flex-wrap: wrap;
