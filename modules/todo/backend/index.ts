@@ -275,6 +275,28 @@ export default defineBackendModule({
       };
     });
 
+    // --- « Prêt pour le calendrier » (MODULES.md §5.17) --------------------------
+    // Each task with a due date, on that day (all day). Read only.
+    ctx.calendar.provide({
+      events: (from, to) => {
+        const today = localToday();
+        return (
+          ctx.db
+            .prepare(
+              `SELECT * FROM ${tasks} WHERE deleted_at IS NULL AND due_date IS NOT NULL AND due_date >= ? AND due_date <= ? ORDER BY due_date, created_at`,
+            )
+            .all(from, to) as TaskRow[]
+        ).map((row) => ({
+          id: row.id,
+          title: row.title,
+          start: row.due_date!,
+          durationMin: 0,
+          open: '/m/todo',
+          status: row.done_at !== null ? 'fait' : row.due_date! < today ? 'en retard' : 'à faire',
+        }));
+      },
+    });
+
     // --- Service for the other modules (the Timer) ------------------------------
 
     const summary = (row: TaskRow): TodoTask => ({

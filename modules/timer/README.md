@@ -53,6 +53,10 @@ Un timer pour se mettre au travail : **timer simple**, **sessions avec pauses** 
 | Service    | `timer` (`contract.ts`) : `timeByTask()`, `current()` — utilisé par la To-do                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | Facultatif | `todo` (lier une tâche, « Oui » qui coche) : sans la To-do, tout marche sauf le lien                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 
+## Calendrier (« Prêt pour le calendrier », MODULES.md §5.17)
+
+`ctx.calendar` : chaque session = un événement à son heure locale de début (nom, tâche liée), durée jusqu'à sa fin (ou, en cours, jusqu'à sa fin prévue), état (« en cours », « en pause », « terminée », « arrêtée »). Lecture seule : interroger le calendrier n'écrit rien.
+
 ## API
 
 | Méthode       | Route                                                | Rôle                                                               |

@@ -179,6 +179,10 @@ Les modèles **ne font que pré-remplir** : dans le panneau d'un élément, titr
 
 Sans un module facultatif, le Planning se charge quand même : ses éléments ne sont jamais proposés (le plan le dit), et `GET /summary` renvoie `features` (`youtubeVideo`, `instagramPack`, `customReels`) pour que l'interface cache ce qui en dépend. Sans `videoEngine`, la vidéo longue part avec la miniature automatique de YouTube.
 
+## Calendrier général (« Prêt pour le calendrier », MODULES.md §5.17)
+
+`ctx.calendar` : chaque élément planifié (vidéo, Shorts, post et Reels Instagram) = un événement à sa date et heure locales (« Drop — Short 2 »), avec son état (planifié, programmé sur YouTube, à publier à la main, publié…) et le lien qui l'ouvre dans le Planning. Lecture seule.
+
 ## API
 
 | Méthode | Route                                         | Rôle                                                                                                         |

@@ -660,6 +660,56 @@ export default defineBackendModule({
       { streamTicket: true },
     );
 
+    // --- « Prêt pour le calendrier » (MODULES.md §5.17) --------------------------
+    // Past sessions (from their start to their end) and the one in progress
+    // (to its planned end), at local time. Read only.
+    const localStamp = (iso: string) => {
+      const d = new Date(iso);
+      const two = (n: number) => String(n).padStart(2, '0');
+      return {
+        date: `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`,
+        time: `${two(d.getHours())}:${two(d.getMinutes())}`,
+      };
+    };
+    const CALENDAR_STATUS: Record<string, string> = {
+      running: 'en cours',
+      paused: 'en pause',
+      ended: 'terminée, réponse attendue',
+      done: 'terminée',
+      stopped: 'arrêtée',
+    };
+    ctx.calendar.provide({
+      events: (from, to) => {
+        // A day of margin each side (time zones), then the local date decides.
+        const after = new Date(Date.parse(`${from}T00:00:00Z`) - 86_400_000).toISOString();
+        const before = new Date(Date.parse(`${to}T23:59:59Z`) + 86_400_000).toISOString();
+        const rows = ctx.db
+          .prepare(
+            `SELECT * FROM ${sessions} WHERE deleted_at IS NULL AND started_at >= ? AND started_at <= ? ORDER BY started_at`,
+          )
+          .all(after, before) as SessionRow[];
+        return rows.flatMap((row) => {
+          const start = localStamp(row.started_at);
+          if (start.date < from || start.date > to) return [];
+          const phases = phasesOf(row);
+          const end = row.ended_at
+            ? Date.parse(row.ended_at)
+            : // In progress: what is left of the program, from now.
+              Date.now() + stateAt(phases, elapsedOf(row)).remainingTotal * 1000;
+          return [
+            {
+              id: row.id,
+              title: row.task_title ? `${row.name} · ${row.task_title}` : row.name,
+              start: `${start.date}T${start.time}`,
+              durationMin: Math.max(0, Math.round((end - Date.parse(row.started_at)) / 60_000)),
+              open: '/m/timer',
+              status: CALENDAR_STATUS[row.status] ?? row.status,
+            },
+          ];
+        });
+      },
+    });
+
     // --- Service for the To-do --------------------------------------------------
 
     ctx.services.provide<TimerService>('timer', {

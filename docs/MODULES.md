@@ -399,7 +399,7 @@ Tout module qui a des **éléments datés** déclare une source pour le futur ca
 | `open`        | route qui ouvre l'élément (« /m/sport?week=2026-10-26 »)                         |
 | `status`      | facultatif : détail court (« fait », « 2 portions »)                             |
 
-Le socle ajoute `moduleId` et réunit toutes les sources : `GET /api/core/calendar?from=&to=` (lecture seule ; une source en erreur est journalisée, les autres répondent). Une source ne modifie **jamais** rien quand on l'interroge. Appliqué à : Sport, Courses. À brancher plus tard : Planning, To-do, Timer.
+Le socle ajoute `moduleId` et réunit toutes les sources : `GET /api/core/calendar?from=&to=` (lecture seule ; une source en erreur est journalisée, les autres répondent). Une source ne modifie **jamais** rien quand on l'interroge. Appliqué à : Sport (séances), Courses (repas planifiés), Planning de sortie (publications YouTube, Shorts et Instagram à leur date et heure locales, avec leur état), To-do (tâches à échéance, sur la journée : à faire, en retard, fait) et Timer (sessions passées de leur début à leur fin, celle en cours jusqu'à sa fin prévue).
 
 ## 6. Migrations et sécurité des données
 

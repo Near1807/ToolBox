@@ -51,6 +51,10 @@ Tes tâches, simples : titre, tags, échéance facultative en langage naturel, c
 
 Aucune obligatoire. Facultatives : `musicLibrary` (rattacher un morceau) et `timer` (temps passé, bouton « Lancer un timer » ; les deux modules s'utilisent l'un l'autre en facultatif, le service est donc demandé au moment de l'utiliser). Sans elles, tout marche sauf ces liens.
 
+## Calendrier (« Prêt pour le calendrier », MODULES.md §5.17)
+
+`ctx.calendar` : chaque tâche avec une échéance = un événement sur la journée (titre, état « à faire », « en retard » ou « fait », lien `/m/todo`). Lecture seule.
+
 ## API
 
 | Méthode | Route                                    | Rôle                                                                                                                        |
