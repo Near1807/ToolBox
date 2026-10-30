@@ -163,6 +163,12 @@ export interface ModuleFiles {
     filters?: { name: string; extensions: string[] }[];
     data: string | Uint8Array;
   }): Promise<string | null>;
+  /**
+   * Sends a file of the module's data folder (dataDir) to the Recycle Bin,
+   * after a deletion the user asked for (e.g. a recipe image replaced or
+   * removed). Refuses any path outside dataDir; a missing file is no error.
+   */
+  trash(path: string): Promise<void>;
   /** Read-only files shipped with the module: modules/<id>/assets/ (fonts, images…). */
   readonly assetsDir: string;
   /** Path inside assetsDir; throws if it escapes the folder. */

@@ -5,7 +5,7 @@
 // the ingredients (unit, aisle, merge, piece weight, nutrition, price), the
 // week's summary (facts only), the lists of earlier periods, import / export
 // in JSON (preview first). Home card: today's meals.
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import {
   Button,
@@ -16,6 +16,8 @@ import {
   EmptyState,
   ErrorMessage,
   errorMessage,
+  getFilePath,
+  Icon,
   Page,
   StateBadge,
   UndoToast,
@@ -148,7 +150,91 @@ function PeriodPicker(props: { list: ListDto; run: Run }) {
   );
 }
 
-function PlanSlot(props: { date: string; moment: MomentDto; state: StateDto; run: Run }) {
+/** Sends a picture for a recipe: the file of the PC (its path), or its content when there is no path. */
+async function uploadImage(
+  api: ReturnType<typeof useModule>['api'],
+  mealId: string,
+  file: File,
+): Promise<unknown> {
+  const path = getFilePath(file);
+  if (path) return api.put(`/meals/${mealId}/image`, { path });
+  const data = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error('Fichier illisible'));
+    reader.readAsDataURL(file);
+  });
+  return api.put(`/meals/${mealId}/image`, { data });
+}
+
+/** The picture of a recipe, or a neutral placeholder. */
+function MealThumb(props: { meal: MealDto; size?: 'small' | 'large' }) {
+  return (
+    <span className={`cs-thumb cs-thumb--${props.size ?? 'small'}`} aria-hidden>
+      {props.meal.image ? (
+        <img src={props.meal.image.url} alt="" loading="lazy" />
+      ) : (
+        <Icon name="utensils" />
+      )}
+    </span>
+  );
+}
+
+/** A planned meal opened from the planning: picture, portions, ingredients, per portion. */
+function MealPreview(props: { meal: MealDto; state: StateDto; onClose: () => void }) {
+  const names = new Map(props.state.ingredients.map((i) => [i.id, i.name]));
+  const m = props.meal;
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    // Recent Chromium returns a promise here: never hand it to React as a cleanup.
+    void ref.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [m.id]);
+  return (
+    <div ref={ref}>
+      <Card
+        title={m.name}
+        actions={
+          <Button small variant="secondary" onClick={props.onClose}>
+            Fermer
+          </Button>
+        }
+      >
+        <div className="cs-preview-meal">
+          {m.image && <img className="cs-preview-meal__image" src={m.image.url} alt={m.name} />}
+          <div>
+            <p className="small muted">
+              Pour {m.servings} portion{m.servings > 1 ? 's' : ''}
+              {m.tags.length ? ` · ${m.tags.map((t) => `#${t}`).join(' ')}` : ''}
+            </p>
+            <p className="small cs-facts">
+              Par portion : <CostText cost={m.perServing.cost} /> ·{' '}
+              <FactsText facts={m.perServing.nutrition} />
+            </p>
+            <ul className="cs-items small">
+              {m.items.map((i) => (
+                <li key={i.id}>
+                  {names.get(i.ingredientId) ?? '?'} —{' '}
+                  <span className="num">
+                    {String(i.qty).replace('.', ',')} {i.unit}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {m.note && <p className="small muted">{m.note}</p>}
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function PlanSlot(props: {
+  date: string;
+  moment: MomentDto;
+  state: StateDto;
+  run: Run;
+  onPreview: (mealId: string) => void;
+}) {
   const module = useModule();
   const [meal, setMeal] = useState('');
   const [servings, setServings] = useState('1');
@@ -156,6 +242,7 @@ function PlanSlot(props: { date: string; moment: MomentDto; state: StateDto; run
     (p) => p.date === props.date && p.momentId === props.moment.id,
   );
   const names = new Map(props.state.meals.map((m) => [m.id, m.name]));
+  const byId = new Map(props.state.meals.map((m) => [m.id, m]));
   const add = () => {
     const found = props.state.meals.find((m) => fold(m.name) === fold(meal));
     if (!found) return;
@@ -174,7 +261,15 @@ function PlanSlot(props: { date: string; moment: MomentDto; state: StateDto; run
     <td className="cs-slot">
       {entries.map((p) => (
         <span key={p.id} className="cs-entry">
-          <span className="cs-entry__name">{names.get(p.mealId) ?? '?'}</span>
+          {byId.get(p.mealId) && <MealThumb meal={byId.get(p.mealId)!} />}
+          <button
+            type="button"
+            className="cs-entry__name cs-link"
+            title="Voir le repas"
+            onClick={() => props.onPreview(p.mealId)}
+          >
+            {names.get(p.mealId) ?? '?'}
+          </button>
           <input
             className="cs-entry__servings num"
             type="number"
@@ -237,6 +332,7 @@ function PlanSlot(props: { date: string; moment: MomentDto; state: StateDto; run
 }
 
 function Planning(props: { state: StateDto; summary: SummaryDto | null; run: Run }) {
+  const [preview, setPreview] = useState<string | null>(null);
   const { state, summary } = props;
   const dayFacts = new Map((summary?.days ?? []).map((d) => [d.date, d]));
   const days = daysBetween(state.list.from, state.list.to);
@@ -271,7 +367,14 @@ function Planning(props: { state: StateDto; summary: SummaryDto | null; run: Run
               <tr key={d} className={d === state.today ? 'cs-plan__today' : undefined}>
                 <th scope="row">{dayLabel(d)}</th>
                 {state.moments.map((m) => (
-                  <PlanSlot key={m.id} date={d} moment={m} state={state} run={props.run} />
+                  <PlanSlot
+                    key={m.id}
+                    date={d}
+                    moment={m}
+                    state={state}
+                    run={props.run}
+                    onPreview={setPreview}
+                  />
                 ))}
                 <td className="cs-plan__facts small">
                   {dayFacts.get(d)?.meals ? (
@@ -289,6 +392,13 @@ function Planning(props: { state: StateDto; summary: SummaryDto | null; run: Run
           </tbody>
         </table>
       </div>
+      {preview && state.meals.find((m) => m.id === preview) && (
+        <MealPreview
+          meal={state.meals.find((m) => m.id === preview)!}
+          state={state}
+          onClose={() => setPreview(null)}
+        />
+      )}
       <p className="small muted">
         Les portions de chaque repas planifié ajustent les quantités de la liste (la recette est
         écrite pour son propre nombre de portions).
@@ -378,15 +488,37 @@ function ShoppingList(props: { list: ListDto; run: Run }) {
   const [name, setName] = useState('');
   const [qty, setQty] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
-  const check = (key: string, checked: boolean) =>
-    void props.run(() => module.api.post('/list/check', { key, checked }));
+  // Ticks shown at once (optimistic): a click wins until the list from the
+  // server changes for that article (its answer); undone on error.
+  const [ticks, setTicks] = useState<Record<string, { checked: boolean; server: boolean }>>({});
+  const isChecked = (key: string, server: boolean) => {
+    const t = ticks[key];
+    return t && t.server === server ? t.checked : server;
+  };
+  const check = (key: string, server: boolean, checked: boolean) => {
+    setTicks((t) => ({ ...t, [key]: { checked, server } }));
+    void props
+      .run(() => module.api.post('/list/check', { key, checked }))
+      .then((ok) => {
+        if (!ok)
+          setTicks((t) => {
+            const next = { ...t };
+            delete next[key];
+            return next;
+          });
+      });
+  };
+  const [price, setPrice] = useState('');
   const inList = new Set(
     list.groups.flatMap((g) =>
       g.items.filter((i) => i.source === 'extra').map((i) => fold(i.name)),
     ),
   );
   const count = list.groups.reduce((n, g) => n + g.items.length, 0);
-  const left = list.groups.reduce((n, g) => n + g.items.filter((i) => !i.checked).length, 0);
+  const left = list.groups.reduce(
+    (n, g) => n + g.items.filter((i) => !isChecked(i.key, i.checked)).length,
+    0,
+  );
   return (
     <>
       <div className="cs-row">
@@ -428,11 +560,13 @@ function ShoppingList(props: { list: ListDto; run: Run }) {
         </Button>
         {notice && <span className="small muted">{notice}</span>}
       </div>
-      {list.mealsPlanned > 0 && (
+      {count > 0 && (
         <p className="small">
-          Coût estimé des repas : <CostText cost={list.cost} />{' '}
+          Coût estimé : <CostText cost={list.cost} />{' '}
           <span className="muted">
-            — sur les quantités utilisées, pas sur les paquets achetés ; extras non comptés.
+            (repas {formatEuros(list.mealsCost.euros)}, extras {formatEuros(list.extrasCost.euros)})
+            — sur les quantités utilisées, pas sur les paquets achetés ; un extra sans prix n’est
+            pas compté.
           </span>
         </p>
       )}
@@ -451,8 +585,9 @@ function ShoppingList(props: { list: ListDto; run: Run }) {
                 )
               }
             >
-              {inList.has(fold(e.name)) ? '✓ ' : '+ '}
+              <Icon name={inList.has(fold(e.name)) ? 'check' : 'plus'} size={14} />
               {e.name}
+              {e.price !== null && <span className="small muted"> · {formatEuros(e.price)}</span>}
             </button>
           ))}
         </div>
@@ -463,11 +598,12 @@ function ShoppingList(props: { list: ListDto; run: Run }) {
           e.preventDefault();
           if (!name.trim()) return;
           void props
-            .run(() => module.api.post('/list/extras', { name, qty }))
+            .run(() => module.api.post('/list/extras', { name, qty, price }))
             .then((ok) => {
               if (ok) {
                 setName('');
                 setQty('');
+                setPrice('');
               }
             });
         }}
@@ -486,6 +622,13 @@ function ShoppingList(props: { list: ListDto; run: Run }) {
           aria-label="Quantité"
           onChange={(e) => setQty(e.target.value)}
         />
+        <input
+          className="input num cs-price-field"
+          value={price}
+          placeholder="prix €"
+          aria-label="Prix estimé en euros (facultatif)"
+          onChange={(e) => setPrice(e.target.value)}
+        />
         <Button small type="submit" disabled={!name.trim()}>
           Ajouter
         </Button>
@@ -499,17 +642,44 @@ function ShoppingList(props: { list: ListDto; run: Run }) {
           <Card key={g.aisle} title={g.aisle}>
             <ul className="cs-list">
               {g.items.map((i) => (
-                <li key={i.key} className={i.checked ? 'cs-list__done' : undefined}>
+                <li
+                  key={i.key}
+                  className={isChecked(i.key, i.checked) ? 'cs-list__done' : undefined}
+                >
                   <label>
                     <input
                       type="checkbox"
-                      checked={i.checked}
-                      onChange={(e) => check(i.key, e.target.checked)}
+                      checked={isChecked(i.key, i.checked)}
+                      onChange={(e) => check(i.key, i.checked, e.target.checked)}
                     />{' '}
                     <span className="cs-list__name">{i.name}</span>
                     {i.amount && <span className="cs-list__qty num">{i.amount}</span>}
                     {i.source === 'extra' && <span className="small muted">extra</span>}
                   </label>
+                  {i.id && (
+                    <input
+                      className="input num cs-price"
+                      defaultValue={
+                        i.price === null || i.price === undefined
+                          ? ''
+                          : String(i.price).replace('.', ',')
+                      }
+                      placeholder="€"
+                      aria-label={`Prix de ${i.name} (€)`}
+                      title="Prix estimé (facultatif)"
+                      onBlur={(e) => {
+                        const value = e.target.value.trim();
+                        const before =
+                          i.price === null || i.price === undefined
+                            ? ''
+                            : String(i.price).replace('.', ',');
+                        if (value !== before)
+                          void props.run(() =>
+                            module.api.patch(`/list/extras/${i.id}`, { price: value }),
+                          );
+                      }}
+                    />
+                  )}
                   {i.id && (
                     <button
                       type="button"
@@ -540,6 +710,98 @@ interface Line {
   unit: string;
 }
 
+/**
+ * Picture of a recipe in its editor: drop a file or choose one; replaced
+ * or removed at once for a saved recipe (removal confirmed: the file goes
+ * to the Recycle Bin), kept until the first save for a new one.
+ */
+function MealImageField(props: {
+  meal: MealDto | null;
+  pending: File | null;
+  onPending: (file: File | null) => void;
+  run: Run;
+}) {
+  const module = useModule();
+  const input = useRef<HTMLInputElement>(null);
+  const [over, setOver] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const pendingUrl = useMemo(
+    () => (props.pending ? URL.createObjectURL(props.pending) : null),
+    [props.pending],
+  );
+  useEffect(() => () => void (pendingUrl && URL.revokeObjectURL(pendingUrl)), [pendingUrl]);
+  const take = (file: File | undefined) => {
+    if (!file) return;
+    if (!props.meal) return props.onPending(file);
+    setBusy(true);
+    void props
+      .run(() => uploadImage(module.api, props.meal!.id, file))
+      .finally(() => setBusy(false));
+  };
+  const shown = pendingUrl ?? props.meal?.image?.url ?? null;
+  return (
+    <div
+      className={`cs-image-field${over ? ' cs-image-field--over' : ''}`}
+      onDragOver={(e) => {
+        e.preventDefault();
+        setOver(true);
+      }}
+      onDragLeave={() => setOver(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setOver(false);
+        take(e.dataTransfer.files[0]);
+      }}
+    >
+      <span className="cs-image-field__preview">
+        {shown ? <img src={shown} alt="" /> : <Icon name="image-plus" size={28} />}
+      </span>
+      <span className="cs-image-field__actions">
+        <span className="small muted">
+          {busy ? 'Image en cours…' : 'Glisse une image ici (JPEG, PNG, WebP), ou :'}
+        </span>
+        <span className="ui-actions">
+          <Button small variant="secondary" disabled={busy} onClick={() => input.current?.click()}>
+            {shown ? 'Remplacer l’image…' : 'Choisir une image…'}
+          </Button>
+          {props.pending && (
+            <Button small variant="secondary" onClick={() => props.onPending(null)}>
+              Retirer
+            </Button>
+          )}
+          {!props.pending && props.meal?.image && (
+            <Button
+              small
+              variant="danger"
+              disabled={busy}
+              onClick={() =>
+                window.confirm(
+                  `Retirer l’image de « ${props.meal!.name} » ?\n\nLe fichier part dans la Corbeille.`,
+                ) && void props.run(() => module.api.delete(`/meals/${props.meal!.id}/image`))
+              }
+            >
+              Retirer l’image
+            </Button>
+          )}
+        </span>
+        <span className="small muted">
+          Copiée dans ToolBox et réduite (1 200 px, JPEG) : le fichier d’origine ne bouge pas.
+        </span>
+      </span>
+      <input
+        ref={input}
+        type="file"
+        accept="image/*"
+        className="cs-file"
+        onChange={(e) => {
+          take(e.target.files?.[0]);
+          e.target.value = '';
+        }}
+      />
+    </div>
+  );
+}
+
 function MealEditor(props: {
   meal: MealDto | null;
   state: StateDto;
@@ -552,6 +814,10 @@ function MealEditor(props: {
   const [servings, setServings] = useState(String(props.meal?.servings ?? 2));
   const [tags, setTags] = useState((props.meal?.tags ?? []).join(', '));
   const [note, setNote] = useState(props.meal?.note ?? '');
+  const [pendingImage, setPendingImage] = useState<File | null>(null);
+  const current = props.meal
+    ? (props.state.meals.find((m) => m.id === props.meal!.id) ?? props.meal)
+    : null;
   const [lines, setLines] = useState<Line[]>(
     props.meal?.items.map((i) => ({
       ingredientId: i.ingredientId,
@@ -591,9 +857,10 @@ function MealEditor(props: {
               unit: l.unit || 'g',
             })),
         };
-        return props.meal
-          ? module.api.put(`/meals/${props.meal.id}`, body)
-          : module.api.post('/meals', body);
+        if (props.meal) return module.api.put(`/meals/${props.meal.id}`, body);
+        return module.api
+          .post<{ id: string }>('/meals', body)
+          .then((r) => (pendingImage ? uploadImage(module.api, r.id, pendingImage) : r));
       })
       .then((ok) => ok && props.onDone());
   return (
@@ -604,6 +871,12 @@ function MealEditor(props: {
         ))}
       </datalist>
       <div className="cs-form">
+        <MealImageField
+          meal={current}
+          pending={pendingImage}
+          onPending={setPendingImage}
+          run={props.run}
+        />
         <div className="cs-row">
           <input
             className="input cs-grow"
@@ -716,6 +989,21 @@ function Meals(props: { state: StateDto; run: Run; onDeleted: (m: MealDto) => vo
   const [tag, setTag] = useState<string | null>(null);
   const [editing, setEditing] = useState<MealDto | 'new' | null>(null);
   const [sort, setSort] = useState<'name' | 'cost' | 'protein'>('name');
+  const [view, setView] = useState<'grid' | 'list'>(() => {
+    try {
+      return localStorage.getItem('toolbox.courses.mealsView') === 'list' ? 'list' : 'grid';
+    } catch {
+      return 'grid';
+    }
+  });
+  const chooseView = (v: 'grid' | 'list') => {
+    setView(v);
+    try {
+      localStorage.setItem('toolbox.courses.mealsView', v);
+    } catch {
+      // Not remembered: the choice still applies now.
+    }
+  };
   const [maxCost, setMaxCost] = useState('');
   const names = new Map(props.state.ingredients.map((i) => [i.id, i.name]));
   const tags = [...new Set(props.state.meals.flatMap((m) => m.tags))].sort();
@@ -777,6 +1065,26 @@ function Meals(props: { state: StateDto; run: Run; onDeleted: (m: MealDto) => vo
           />{' '}
           € / portion
         </label>
+        <span className="cs-view" role="group" aria-label="Affichage">
+          <button
+            type="button"
+            className="icon-button"
+            aria-pressed={view === 'grid'}
+            title="Grille (avec les images)"
+            onClick={() => chooseView('grid')}
+          >
+            <Icon name="grid" label="Grille" />
+          </button>
+          <button
+            type="button"
+            className="icon-button"
+            aria-pressed={view === 'list'}
+            title="Liste"
+            onClick={() => chooseView('list')}
+          >
+            <Icon name="list" label="Liste" />
+          </button>
+        </span>
         <Button onClick={() => setEditing('new')}>Nouveau repas</Button>
       </div>
       {tags.length > 0 && (
@@ -801,52 +1109,78 @@ function Meals(props: { state: StateDto; run: Run; onDeleted: (m: MealDto) => vo
           }
         />
       ) : (
-        <div className="cs-meals">
-          {shown.map((m) => (
-            <Card
-              key={m.id}
-              title={m.name}
-              actions={
-                <span className="ui-actions">
-                  <Button variant="secondary" small onClick={() => setEditing(m)}>
-                    Modifier
-                  </Button>
-                  <Button
-                    variant="danger"
-                    small
-                    onClick={() =>
-                      confirmDelete(`le repas « ${m.name} »`) &&
-                      void props
-                        .run(() => module.api.delete(`/meals/${m.id}`))
-                        .then((ok) => ok && props.onDeleted(m))
-                    }
-                  >
-                    Supprimer
-                  </Button>
-                </span>
-              }
-            >
-              <p className="small muted">
-                Pour {m.servings} portion{m.servings > 1 ? 's' : ''}
-                {m.tags.length ? ` · ${m.tags.map((t) => `#${t}`).join(' ')}` : ''}
-              </p>
-              <p className="small cs-facts">
-                Par portion : <CostText cost={m.perServing.cost} /> ·{' '}
-                <FactsText facts={m.perServing.nutrition} />
-              </p>
-              <ul className="cs-items small">
-                {m.items.map((i) => (
-                  <li key={i.id}>
-                    {names.get(i.ingredientId) ?? '?'} —{' '}
-                    <span className="num">
-                      {String(i.qty).replace('.', ',')} {i.unit}
+        <div className={view === 'grid' ? 'cs-meals cs-meals--grid' : 'cs-meals-list'}>
+          {shown.map((m) => {
+            const actions = (
+              <span className="ui-actions">
+                <Button variant="secondary" small onClick={() => setEditing(m)}>
+                  Modifier
+                </Button>
+                <Button
+                  variant="danger"
+                  small
+                  onClick={() =>
+                    confirmDelete(`le repas « ${m.name} »`) &&
+                    void props
+                      .run(() => module.api.delete(`/meals/${m.id}`))
+                      .then((ok) => ok && props.onDeleted(m))
+                  }
+                >
+                  Supprimer
+                </Button>
+              </span>
+            );
+            if (view === 'list')
+              return (
+                <div key={m.id} className="cs-meal-row">
+                  <MealThumb meal={m} />
+                  <span className="cs-meal-row__text">
+                    <strong>{m.name}</strong>
+                    <span className="small muted">
+                      {' '}
+                      · {m.servings} portion{m.servings > 1 ? 's' : ''}
+                      {m.tags.length ? ` · ${m.tags.map((t) => `#${t}`).join(' ')}` : ''}
                     </span>
-                  </li>
-                ))}
-              </ul>
-              {m.note && <p className="small muted">{m.note}</p>}
-            </Card>
-          ))}
+                    <br />
+                    <span className="small">
+                      Par portion : <CostText cost={m.perServing.cost} /> ·{' '}
+                      <FactsText facts={m.perServing.nutrition} />
+                    </span>
+                  </span>
+                  {actions}
+                </div>
+              );
+            return (
+              <div key={m.id} className="card cs-meal-card">
+                <MealThumb meal={m} size="large" />
+                <div className="cs-meal-card__body">
+                  <div className="cs-meal-card__head">
+                    <h2>{m.name}</h2>
+                    {actions}
+                  </div>
+                  <p className="small muted">
+                    Pour {m.servings} portion{m.servings > 1 ? 's' : ''}
+                    {m.tags.length ? ` · ${m.tags.map((t) => `#${t}`).join(' ')}` : ''}
+                  </p>
+                  <p className="small cs-facts">
+                    Par portion : <CostText cost={m.perServing.cost} /> ·{' '}
+                    <FactsText facts={m.perServing.nutrition} />
+                  </p>
+                  <ul className="cs-items small">
+                    {m.items.map((i) => (
+                      <li key={i.id}>
+                        {names.get(i.ingredientId) ?? '?'} —{' '}
+                        <span className="num">
+                          {String(i.qty).replace('.', ',')} {i.unit}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  {m.note && <p className="small muted">{m.note}</p>}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </>
@@ -1201,6 +1535,7 @@ function MomentsAndExtras(props: { state: StateDto; run: Run }) {
   const [moments, setMoments] = useState(props.state.moments);
   const [extra, setExtra] = useState('');
   const [aisle, setAisle] = useState('');
+  const [extraPrice, setExtraPrice] = useState('');
   return (
     <>
       <Card title="Moments des repas">
@@ -1280,8 +1615,13 @@ function MomentsAndExtras(props: { state: StateDto; run: Run }) {
           onSubmit={(e) => {
             e.preventDefault();
             void props
-              .run(() => module.api.post('/extras', { name: extra, aisle }))
-              .then((ok) => ok && setExtra(''));
+              .run(() => module.api.post('/extras', { name: extra, aisle, price: extraPrice }))
+              .then((ok) => {
+                if (ok) {
+                  setExtra('');
+                  setExtraPrice('');
+                }
+              });
           }}
         >
           <input
@@ -1298,6 +1638,13 @@ function MomentsAndExtras(props: { state: StateDto; run: Run }) {
             aria-label="Rayon"
             onChange={(e) => setAisle(e.target.value)}
           />
+          <input
+            className="input input--tiny num"
+            value={extraPrice}
+            placeholder="prix €"
+            aria-label="Prix estimé en euros (facultatif)"
+            onChange={(e) => setExtraPrice(e.target.value)}
+          />
           <Button small type="submit" disabled={!extra.trim()}>
             Ajouter
           </Button>
@@ -1307,6 +1654,18 @@ function MomentsAndExtras(props: { state: StateDto; run: Run }) {
             <span key={e.id} className="cs-chip">
               {e.name}
               {e.aisle && <span className="small muted"> · {e.aisle}</span>}
+              <input
+                className="input num cs-price"
+                defaultValue={e.price === null ? '' : String(e.price).replace('.', ',')}
+                placeholder="€"
+                aria-label={`Prix de ${e.name} (€)`}
+                title="Prix estimé (facultatif), repris quand l’extra va dans la liste"
+                onBlur={(ev) => {
+                  const value = ev.target.value.trim();
+                  if (value !== (e.price === null ? '' : String(e.price).replace('.', ',')))
+                    void props.run(() => module.api.patch(`/extras/${e.id}`, { price: value }));
+                }}
+              />
               <button
                 type="button"
                 className="cs-x"
@@ -1718,6 +2077,16 @@ function Exchange(props: { run: Run }) {
                 ))}
               </ul>
             )}
+            {preview.warnings.length > 0 && (
+              <ul className="cs-warnings small">
+                {preview.warnings.map((e, k) => (
+                  <li key={k}>
+                    {e.line !== null ? `Ligne ${e.line} — ` : ''}
+                    {e.where} : {e.message}
+                  </li>
+                ))}
+              </ul>
+            )}
             {count('differs') > 0 && (
               <fieldset className="cs-choices">
                 <legend className="small">
@@ -1804,6 +2173,8 @@ function Exchange(props: { run: Run }) {
                       recipesReplaced: number;
                       recipesSkipped: string[];
                       backup: string;
+                      imagesAdded: number;
+                      imageWarnings: string[];
                     }>('/import/apply', {
                       text,
                       overwrite: [...overwrite],
@@ -1812,7 +2183,7 @@ function Exchange(props: { run: Run }) {
                     });
                     setPreview(null);
                     setNotice(
-                      `Importé : ${r.ingredientsAdded + r.ingredientsCreated} ingrédient(s) ajouté(s), ${r.ingredientsUpdated} remplacé(s), ${r.recipesAdded} recette(s) ajoutée(s), ${r.recipesReplaced} remplacée(s)${r.recipesSkipped.length ? `, non importées : ${r.recipesSkipped.join(', ')}` : ''}. Sauvegarde avant import : ${r.backup}.`,
+                      `Importé : ${r.ingredientsAdded + r.ingredientsCreated} ingrédient(s) ajouté(s), ${r.ingredientsUpdated} remplacé(s), ${r.recipesAdded} recette(s) ajoutée(s), ${r.recipesReplaced} remplacée(s)${r.recipesSkipped.length ? `, non importées : ${r.recipesSkipped.join(', ')}` : ''}. ${r.imagesAdded ? ` ${r.imagesAdded} image(s).` : ''}${r.imageWarnings.length ? ` Images ignorées : ${r.imageWarnings.join(' ; ')}.` : ''} Sauvegarde avant import : ${r.backup}.`,
                     );
                   });
                 }}
@@ -1862,7 +2233,9 @@ function Exchange(props: { run: Run }) {
               <strong>Recette</strong> : <code>name</code>, <code>servings</code> (portions, entier
               de 1 à 50), <code>tags</code> (liste), <code>note</code>, <code>ingredients</code> :
               liste de <code>{'{ "name", "qty", "unit" }'}</code> (par nom ; un nom inconnu est
-              proposé à la création).
+              proposé à la création), <code>image</code> (facultatif :{' '}
+              <code>data:image/jpeg;base64,…</code>, aussi PNG ou WebP ; l’export complet y met
+              l’image de chaque recette ; une image illisible est ignorée, la recette importée).
             </p>
             {example.data != null && (
               <pre className="cs-code">{JSON.stringify(example.data, null, 2)}</pre>

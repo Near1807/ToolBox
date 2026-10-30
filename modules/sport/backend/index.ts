@@ -15,6 +15,8 @@ import {
   type ModuleContext,
   requestBody,
   SYNC_COLUMNS,
+  newId,
+  syncStamp,
   SyncStore,
 } from '@hub/sdk/backend';
 import {
@@ -126,6 +128,61 @@ export default defineBackendModule({
         ALTER TABLE sport__sessions ADD COLUMN exercises TEXT NOT NULL DEFAULT '[]';
       `,
     },
+    {
+      version: 3,
+      description:
+        'exercise lines: one row per line (merged line by line by a future synchronisation)',
+      up: (db) => {
+        const lineColumns = `exercise_id TEXT NOT NULL, position INTEGER NOT NULL, sets INTEGER,
+          reps TEXT NOT NULL DEFAULT '', load TEXT NOT NULL DEFAULT '', rest_sec INTEGER,
+          note TEXT NOT NULL DEFAULT ''`;
+        db.exec(`
+          CREATE TABLE sport__template_exercises (${SYNC_COLUMNS}, template_id TEXT NOT NULL, ${lineColumns});
+          CREATE INDEX sport__template_exercises_owner ON sport__template_exercises (template_id);
+          CREATE TABLE sport__session_exercises (${SYNC_COLUMNS}, session_id TEXT NOT NULL, ${lineColumns});
+          CREATE INDEX sport__session_exercises_owner ON sport__session_exercises (session_id);
+        `);
+        // The JSON lists become rows (the old column stays, no longer read nor written).
+        const journal = db.prepare(
+          'INSERT INTO sport__changes (id, at, entity, entity_id, op, data) VALUES (?, ?, ?, ?, ?, ?)',
+        );
+        for (const [owners, table, key] of [
+          ['sport__templates', 'template_exercises', 'template_id'],
+          ['sport__sessions', 'session_exercises', 'session_id'],
+        ] as const) {
+          const insert = db.prepare(
+            `INSERT INTO sport__${table} (id, created_at, updated_at, deleted_at, ${key}, exercise_id, position, sets, reps, load, rest_sec, note) VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          );
+          const rows = db.prepare(`SELECT id, updated_at, exercises FROM ${owners}`).all() as {
+            id: string;
+            updated_at: string;
+            exercises: string;
+          }[];
+          for (const r of rows)
+            parseLines(r.exercises).forEach((l, position) => {
+              const id = newId();
+              const fields = [
+                l.exerciseId,
+                position,
+                l.sets ?? null,
+                l.reps ?? '',
+                l.load ?? '',
+                l.restSec ?? null,
+                l.note ?? '',
+              ];
+              insert.run(id, r.updated_at, r.updated_at, r.id, ...fields);
+              journal.run(
+                newId(),
+                syncStamp(),
+                table,
+                id,
+                'create',
+                JSON.stringify({ [key]: r.id, exercise_id: l.exerciseId, position }),
+              );
+            });
+        }
+      },
+    },
   ],
 
   register(ctx: ModuleContext) {
@@ -145,21 +202,93 @@ export default defineBackendModule({
       ctx.db
         .prepare(`SELECT id, deleted_at, name, note FROM ${t.exercises} ORDER BY name`)
         .all() as ExerciseRow[];
-    const named = (lines: ExerciseLine[]): ExerciseLineDto[] => {
+    /** Lines of templates or sessions, by owner (live lines only, in their order). */
+    type Owner = 'template' | 'session';
+    const LINES = { template: 'template_exercises', session: 'session_exercises' } as const;
+    const OWNER_KEY = { template: 'template_id', session: 'session_id' } as const;
+    interface LineRow {
+      id: string;
+      exercise_id: string;
+      position: number;
+      sets: number | null;
+      reps: string;
+      load: string;
+      rest_sec: number | null;
+      note: string;
+      owner: string;
+    }
+    const linesOf = (owner: Owner, ids: string[]): Map<string, ExerciseLineDto[]> => {
+      const out = new Map<string, ExerciseLineDto[]>(ids.map((id) => [id, []]));
+      if (!ids.length) return out;
       const names = new Map(exerciseRows().map((e) => [e.id, e.name]));
-      return lines.map((l) => ({ ...l, name: names.get(l.exerciseId) ?? 'Exercice supprimé' }));
+      const rows = ctx.db
+        .prepare(
+          `SELECT *, ${OWNER_KEY[owner]} AS owner FROM ${ctx.db.table(LINES[owner])} WHERE deleted_at IS NULL AND ${OWNER_KEY[owner]} IN (${ids.map(() => '?').join(',')}) ORDER BY position`,
+        )
+        .all(...ids) as LineRow[];
+      for (const r of rows)
+        out.get(r.owner)?.push({
+          id: r.id,
+          exerciseId: r.exercise_id,
+          name: names.get(r.exercise_id) ?? 'Exercice supprimé',
+          sets: r.sets,
+          reps: r.reps,
+          load: r.load,
+          restSec: r.rest_sec,
+          note: r.note,
+        });
+      return out;
     };
-    const stored = (lines: ExerciseLine[]) =>
-      JSON.stringify(
-        lines.map(({ exerciseId, sets, reps, load, restSec, note }) => ({
-          exerciseId,
-          sets,
-          reps,
-          load,
-          restSec,
-          note,
-        })),
+    /**
+     * The lines of one template session or session, saved line by line: a
+     * known line is updated only where it changed, a new one created, a
+     * missing one tombstoned (so that two devices editing different lines merge).
+     */
+    const saveLines = (owner: Owner, ownerId: string, lines: ExerciseLine[]) => {
+      const before = new Map((linesOf(owner, [ownerId]).get(ownerId) ?? []).map((l) => [l.id!, l]));
+      const kept = new Set<string>();
+      lines.forEach((l, position) => {
+        const fields = {
+          exercise_id: l.exerciseId,
+          position,
+          sets: l.sets,
+          reps: l.reps,
+          load: l.load,
+          rest_sec: l.restSec,
+          note: l.note,
+        };
+        const old = l.id ? before.get(l.id) : undefined;
+        if (!old) {
+          store.create(LINES[owner], { [OWNER_KEY[owner]]: ownerId, ...fields });
+          return;
+        }
+        kept.add(old.id!);
+        const was = {
+          exercise_id: old.exerciseId,
+          position: before.size ? [...before.keys()].indexOf(old.id!) : 0,
+          sets: old.sets,
+          reps: old.reps,
+          load: old.load,
+          rest_sec: old.restSec,
+          note: old.note,
+        };
+        const changed = Object.fromEntries(
+          Object.entries(fields).filter(([k, v]) => was[k as keyof typeof was] !== v),
+        );
+        if (Object.keys(changed).length) store.update(LINES[owner], old.id!, changed);
+      });
+      for (const id of before.keys()) if (!kept.has(id)) store.remove(LINES[owner], id);
+    };
+    /** The same lines as new rows of another owner (a session planned from the template). */
+    const copyLines = (owner: Owner, ownerId: string, lines: ExerciseLine[]) =>
+      saveLines(
+        owner,
+        ownerId,
+        lines.map(({ id: _id, ...l }) => l),
       );
+    const lineKey = (lines: ExerciseLine[]) =>
+      JSON.stringify(lines.map((l) => [l.exerciseId, l.sets, l.reps, l.load, l.restSec, l.note]));
+    const sameLines = (a: ExerciseLine[], b: ExerciseLine[]) => lineKey(a) === lineKey(b);
     /** The exercise of that name (accents and case ignored), created if new. */
     const exerciseNamed = (name: string): string => {
       const found = exerciseRows().find((e) => !e.deleted_at && fold(e.name) === fold(name));
@@ -179,15 +308,15 @@ export default defineBackendModule({
     };
     const exerciseList = (): Exercise[] => {
       const uses = new Map<string, number>();
-      const count = (json: string) => {
-        for (const l of parseLines(json)) uses.set(l.exerciseId, (uses.get(l.exerciseId) ?? 0) + 1);
-      };
-      for (const r of ctx.db
-        .prepare(
-          `SELECT exercises FROM ${t.templates} WHERE deleted_at IS NULL UNION ALL SELECT exercises FROM ${t.sessions} WHERE deleted_at IS NULL`,
-        )
-        .all() as { exercises: string }[])
-        count(r.exercises);
+      for (const owner of ['template', 'session'] as const) {
+        const owners = owner === 'template' ? t.templates : t.sessions;
+        for (const r of ctx.db
+          .prepare(
+            `SELECT l.exercise_id AS id, COUNT(*) AS n FROM ${ctx.db.table(LINES[owner])} l JOIN ${owners} o ON o.id = l.${OWNER_KEY[owner]} WHERE l.deleted_at IS NULL AND o.deleted_at IS NULL GROUP BY l.exercise_id`,
+          )
+          .all() as { id: string; n: number }[])
+          uses.set(r.id, (uses.get(r.id) ?? 0) + r.n);
+      }
       return exerciseRows()
         .filter((e) => !e.deleted_at)
         .map((e) => ({ id: e.id, name: e.name, note: e.note, uses: uses.get(e.id) ?? 0 }));
@@ -209,18 +338,13 @@ export default defineBackendModule({
       if (from === into || !live.some((e) => e.id === from) || !live.some((e) => e.id === into))
         throw new HttpError(400, 'Deux exercices différents de la bibliothèque');
       ctx.db.transaction(() => {
-        for (const table of ['templates', 'sessions'] as const) {
+        for (const owner of ['template', 'session'] as const) {
           const rows = ctx.db
             .prepare(
-              `SELECT id, exercises FROM ${t[table]} WHERE deleted_at IS NULL AND exercises LIKE ?`,
+              `SELECT id FROM ${ctx.db.table(LINES[owner])} WHERE deleted_at IS NULL AND exercise_id = ?`,
             )
-            .all(`%${from}%`) as { id: string; exercises: string }[];
-          for (const r of rows) {
-            const lines = parseLines(r.exercises).map((l) =>
-              l.exerciseId === from ? { ...l, exerciseId: into } : l,
-            );
-            store.update(table, r.id, { exercises: stored(lines) });
-          }
+            .all(from) as { id: string }[];
+          for (const r of rows) store.update(LINES[owner], r.id, { exercise_id: into });
         }
         store.remove('exercises', from);
       });
@@ -232,7 +356,7 @@ export default defineBackendModule({
       name: r.name,
       start: r.start_time,
       durationMin: r.duration_min,
-      exercises: named(parseLines(r.exercises)),
+      exercises: [],
     });
     const toSession = (r: SessionRow): Session => ({
       id: r.id,
@@ -245,24 +369,38 @@ export default defineBackendModule({
       comment: r.comment,
       templateId: r.template_id,
       custom: r.custom === 1,
-      exercises: named(parseLines(r.exercises)),
+      exercises: [],
     });
+    /** Rows → items with their exercise lines (one query for all of them). */
+    const withLines = <T extends { id: string; exercises: ExerciseLineDto[] }>(
+      owner: Owner,
+      items: T[],
+    ): T[] => {
+      const lines = linesOf(
+        owner,
+        items.map((i) => i.id),
+      );
+      return items.map((i) => ({ ...i, exercises: lines.get(i.id) ?? [] }));
+    };
     const template = (): TemplateItem[] =>
-      (
-        ctx.db
-          .prepare(
-            `SELECT * FROM ${t.templates} WHERE deleted_at IS NULL ORDER BY weekday, start_time`,
-          )
-          .all() as TemplateRow[]
-      ).map(toTemplate);
+      withLines(
+        'template',
+        (
+          ctx.db
+            .prepare(
+              `SELECT * FROM ${t.templates} WHERE deleted_at IS NULL ORDER BY weekday, start_time`,
+            )
+            .all() as TemplateRow[]
+        ).map(toTemplate),
+      );
     const isMaterialized = (monday: string) =>
       Boolean(
         ctx.db
           .prepare(`SELECT 1 FROM ${t.weeks} WHERE week = ? AND deleted_at IS NULL`)
           .get(monday),
       );
-    const insertPlanned = (p: ReturnType<typeof planWeek>[number]) =>
-      store.create('sessions', {
+    const insertPlanned = (p: ReturnType<typeof planWeek>[number]) => {
+      const row = store.create('sessions', {
         date: p.date,
         week: mondayOf(p.date),
         name: p.name,
@@ -273,8 +411,12 @@ export default defineBackendModule({
         comment: '',
         template_id: p.templateId,
         custom: 0,
-        exercises: stored(p.exercises),
       });
+      copyLines('session', row.id, p.exercises);
+      return row;
+    };
+    const sessionById = (id: string): Session =>
+      withLines('session', [toSession(getSession(id))])[0]!;
     /**
      * The weeks from the current one on get their sessions from the template
      * the first time they are shown; past weeks never do (nothing is invented
@@ -291,21 +433,27 @@ export default defineBackendModule({
       });
     };
     const sessionsOf = (monday: string): Session[] =>
-      (
-        ctx.db
-          .prepare(
-            `SELECT * FROM ${t.sessions} WHERE week = ? AND deleted_at IS NULL ORDER BY date, start_time`,
-          )
-          .all(monday) as SessionRow[]
-      ).map(toSession);
+      withLines(
+        'session',
+        (
+          ctx.db
+            .prepare(
+              `SELECT * FROM ${t.sessions} WHERE week = ? AND deleted_at IS NULL ORDER BY date, start_time`,
+            )
+            .all(monday) as SessionRow[]
+        ).map(toSession),
+      );
     const sessionsBetween = (from: string, to: string): Session[] =>
-      (
-        ctx.db
-          .prepare(
-            `SELECT * FROM ${t.sessions} WHERE date BETWEEN ? AND ? AND deleted_at IS NULL ORDER BY date, start_time`,
-          )
-          .all(from, to) as SessionRow[]
-      ).map(toSession);
+      withLines(
+        'session',
+        (
+          ctx.db
+            .prepare(
+              `SELECT * FROM ${t.sessions} WHERE date BETWEEN ? AND ? AND deleted_at IS NULL ORDER BY date, start_time`,
+            )
+            .all(from, to) as SessionRow[]
+        ).map(toSession),
+      );
     const getSession = (id: string): SessionRow => {
       const row = store.get<SessionRow>('sessions', id);
       if (!row) throw new HttpError(404, 'Séance introuvable');
@@ -386,12 +534,14 @@ export default defineBackendModule({
         fields.date = String(body.date);
         custom = true;
       }
-      if ('exercises' in body) {
-        fields.exercises = stored(linesFrom(body.exercises));
-        custom = true;
-      }
+      const lines = 'exercises' in body ? linesFrom(body.exercises) : null;
+      if (lines) custom = true;
       if (custom) fields.custom = 1;
-      return toSession(store.update<SessionRow>('sessions', id, fields));
+      ctx.db.transaction(() => {
+        if (Object.keys(fields).length) store.update<SessionRow>('sessions', id, fields);
+        if (lines) saveLines('session', id, lines);
+      });
+      return sessionById(id);
     };
 
     const addSession = (body: Record<string, unknown>): Session => {
@@ -407,8 +557,9 @@ export default defineBackendModule({
       if (!(Number.isInteger(duration) && duration >= 5 && duration <= 600))
         throw new HttpError(400, 'Durée de 5 à 600 min');
       ensureWeek(mondayOf(date));
-      return toSession(
-        store.create<SessionRow>('sessions', {
+      const lines = linesFrom(body.exercises);
+      const row = ctx.db.transaction(() => {
+        const created = store.create<SessionRow>('sessions', {
           date,
           week: mondayOf(date),
           name,
@@ -419,9 +570,11 @@ export default defineBackendModule({
           comment: '',
           template_id: null,
           custom: 1,
-          exercises: stored(linesFrom(body.exercises)),
-        }),
-      );
+        });
+        saveLines('session', created.id, lines);
+        return created;
+      });
+      return sessionById(row.id);
     };
 
     /** Only a session added by hand is deleted (logically, it can come back). */
@@ -469,8 +622,8 @@ export default defineBackendModule({
             name: c.name,
             start_time: c.start,
             duration_min: c.durationMin,
-            exercises: stored(linesFrom(c.exercises)),
           };
+          const lines = linesFrom(c.exercises);
           if (c.id && before.has(c.id)) {
             keep.add(c.id);
             const b = before.get(c.id)!;
@@ -478,11 +631,15 @@ export default defineBackendModule({
               b.weekday !== c.weekday ||
               b.name !== c.name ||
               b.start !== c.start ||
-              b.durationMin !== c.durationMin ||
-              stored(b.exercises) !== fields.exercises
+              b.durationMin !== c.durationMin
             )
               store.update('templates', c.id, fields);
-          } else keep.add(store.create('templates', fields).id);
+            if (!sameLines(b.exercises, lines)) saveLines('template', c.id, lines);
+          } else {
+            const created = store.create('templates', fields);
+            keep.add(created.id);
+            saveLines('template', created.id, lines);
+          }
         }
         for (const id of before.keys()) if (!keep.has(id)) store.remove('templates', id);
         const next = template();
@@ -528,7 +685,7 @@ export default defineBackendModule({
     ctx.routes.post('/sessions/:id/restore', (request) => {
       const id = (request.params as { id: string }).id;
       store.restore('sessions', id);
-      return toSession(getSession(id));
+      return sessionById(id);
     });
     ctx.routes.get('/exercises', () => ({ exercises: exerciseList() }));
     ctx.routes.post('/exercises', (request) => {

@@ -25,6 +25,8 @@ export interface MealDto {
   items: { id: string; ingredientId: string; qty: number; unit: string }[];
   /** For one portion. */
   perServing: { nutrition: Facts; cost: Cost };
+  /** Optional picture of the recipe (signed URL for this session). */
+  image: { url: string; width: number; height: number } | null;
 }
 export interface MomentDto {
   id: string;
@@ -49,17 +51,22 @@ export interface ListItemDto {
   aisle: string;
   checked: boolean;
   source: 'meals' | 'extra';
+  /** Extras only: estimated price of the article (€), or null when unknown. */
+  price?: number | null;
 }
 export interface ListDto {
   id: string;
   from: string;
   to: string;
   mealsPlanned: number;
-  /** Estimated cost of the meals' ingredients (quantities used, not packets; extras not counted). */
+  /** Estimated cost of the list: the meals' ingredients (quantities used, not packets) plus the extras with a price. */
   cost: Cost;
+  /** The two parts of `cost`. */
+  mealsCost: Cost;
+  extrasCost: Cost;
   groups: { aisle: string; items: ListItemDto[] }[];
   /** Usual extras, ticked quickly into the list. */
-  habitual: { id: string; name: string; aisle: string }[];
+  habitual: { id: string; name: string; aisle: string; price: number | null }[];
 }
 export interface StateDto {
   today: string;

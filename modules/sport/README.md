@@ -34,15 +34,17 @@ Les actions qui modifient sont derrière **« L'assistant peut valider et modifi
 
 ## Données (« Prêt pour la synchro », MODULES.md §6 bis)
 
-| Table              | Contenu                                                                                                                                                                                                      |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `sport__templates` | semaine type : jour (1 = lundi), nom, début, durée, exercices (JSON)                                                                                                                                         |
-| `sport__exercises` | bibliothèque d'exercices : nom, note                                                                                                                                                                         |
-| `sport__sessions`  | séances : jour, semaine (lundi), nom, début, durée, état (`planned` / `done` / `missed` / `cancelled`), humeur, commentaire, ligne de la semaine type, changée à la main, exercices (JSON : sa propre copie) |
-| `sport__weeks`     | semaines déjà remplies depuis la semaine type                                                                                                                                                                |
-| `sport__changes`   | journal des modifications                                                                                                                                                                                    |
+| Table                       | Contenu                                                                                                                                                                  |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `sport__templates`          | semaine type : jour (1 = lundi), nom, début, durée                                                                                                                       |
+| `sport__template_exercises` | une ligne par exercice d'une séance de la semaine type : exercice, position, séries, répétitions, charge, repos, note                                                    |
+| `sport__exercises`          | bibliothèque d'exercices : nom, note                                                                                                                                     |
+| `sport__sessions`           | séances : jour, semaine (lundi), nom, début, durée, état (`planned` / `done` / `missed` / `cancelled`), humeur, commentaire, ligne de la semaine type, changée à la main |
+| `sport__session_exercises`  | une ligne par exercice d'une séance (sa propre copie), mêmes colonnes                                                                                                    |
+| `sport__weeks`              | semaines déjà remplies depuis la semaine type                                                                                                                            |
+| `sport__changes`            | journal des modifications                                                                                                                                                |
 
-UUID, `created_at` / `updated_at`, suppression logique (`deleted_at`) partout, via `SyncStore`. Migrations 1 et 2 (v0.23 : bibliothèque, colonne `exercises` sur la semaine type et les séances). Les listes d'exercices sont une colonne JSON de la ligne (`[{ exerciseId, sets, reps, load, restSec, note }]`) : elles se synchronisent avec leur séance.
+UUID, `created_at` / `updated_at`, suppression logique (`deleted_at`) partout, via `SyncStore`. Migrations 1 et 2 (v0.23 : bibliothèque, colonne `exercises` JSON). **Migration 3 (v0.25)** : chaque ligne d'exercice devient une ligne de `sport__template_exercises` / `sport__session_exercises` (copie sans perte, journalisée ; testé dans `tests/migration.test.ts`). L'ancienne colonne `exercises` reste en base mais n'est plus lue ni écrite (aucune colonne supprimée). Une ligne modifiée garde son id et seuls ses champs changés vont au journal : deux appareils qui changent deux exercices différents d'une même séance ne s'écrasent pas.
 
 ## Calendrier (« Prêt pour le calendrier », MODULES.md §5.17)
 
@@ -62,10 +64,9 @@ UUID, `created_at` / `updated_at`, suppression logique (`deleted_at`) partout, v
 
 ## Tests
 
-`tests/plan.test.ts` (dates, semaine type appliquée et modifiée, déplacement dans la semaine, bilan, série), `tests/commands.test.ts`, `tests/module.test.ts` (exercices copiés, liste propre à une séance, doublons, fusion, suppression d'une séance ajoutée et rétablissement, export avec commentaire et exercices, socle réel : remplissage, jamais le passé, validation, déplacement, ajout, changement de semaine type après aujourd'hui, source du calendrier sans écriture, droit de l'assistant).
+`tests/plan.test.ts` (dates, semaine type appliquée et modifiée, déplacement dans la semaine, bilan, série), `tests/commands.test.ts`, `tests/migration.test.ts` (migration 3 sans perte), `tests/solid.test.ts` (granularité du journal, ordre / ajout / retrait, compteurs d'usage, annuler et rétablir, refus de supprimer une séance de la semaine type, actions de l'assistant et leur droit), `tests/module.test.ts` (exercices copiés, liste propre à une séance, doublons, fusion, suppression d'une séance ajoutée et rétablissement, export avec commentaire et exercices, socle réel : remplissage, jamais le passé, validation, déplacement, ajout, changement de semaine type après aujourd'hui, source du calendrier sans écriture, droit de l'assistant).
 
-## À solidifier (prototype)
+## Limites connues
 
 - Pas de tags.
-- Une séance de la semaine type annulée reste visible barrée (pas de suppression).
-- Les listes d'exercices sont en JSON dans la ligne de séance : une modification simultanée sur deux appareils garde la dernière liste entière (synchro future).
+- Une séance de la semaine type annulée reste visible barrée (pas de suppression) : c'est voulu, la semaine type la recréerait sinon.

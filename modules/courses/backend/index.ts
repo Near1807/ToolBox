@@ -19,7 +19,9 @@ import {
   matchByName,
   type ModuleContext,
   requestBody,
+  newId,
   SYNC_COLUMNS,
+  syncStamp,
   SyncStore,
 } from '@hub/sdk/backend';
 import { addDays, localToday, mondayOf, weekdayOf } from '../shared/dates';
@@ -52,6 +54,14 @@ import {
   type ExchangeIngredient,
   type ExchangeRecipe,
 } from '../shared/exchange';
+import { mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
+import {
+  fromDataUrl,
+  MAX_INPUT_BYTES,
+  normaliseImage,
+  toDataUrl,
+  type StoredImage,
+} from './images';
 import type {
   DayFacts,
   Goals,
@@ -65,9 +75,13 @@ import type {
   SummaryDto,
 } from '../shared/types';
 import {
+  COST_EXAMPLES,
   extractAddExtra,
+  extractCost,
+  extractNutrition,
   extractPlanMeal,
   extractWhatToEat,
+  NUTRITION_EXAMPLES,
   EXTRA_EXAMPLES,
   LIST_EXAMPLES,
   PLAN_EXAMPLES,
@@ -96,6 +110,14 @@ interface MealRow extends Base {
   tags: string;
   note: string;
 }
+interface ImageRow extends Base {
+  meal_id: string;
+  file: string;
+  width: number;
+  height: number;
+  bytes: number;
+  sha256: string;
+}
 interface ItemRow extends Base {
   meal_id: string;
   ingredient_id: string;
@@ -117,6 +139,7 @@ interface PlanRow extends Base {
 interface ExtraRow extends Base {
   name: string;
   aisle: string;
+  price: number | null;
 }
 interface ListRow extends Base {
   date_from: string;
@@ -130,6 +153,7 @@ interface ListExtraRow extends Base {
   qty: string;
   aisle: string;
   checked: number;
+  price: number | null;
 }
 interface CheckRow extends Base {
   list_id: string;
@@ -181,6 +205,75 @@ export default defineBackendModule({
         ALTER TABLE courses__lists ADD COLUMN snapshot TEXT;
       `,
     },
+    {
+      version: 3,
+      description:
+        'nutrition and price of an ingredient row by row; prices of the extras; recipe images',
+      up: (db) => {
+        db.exec(`
+          CREATE TABLE courses__ingredient_nutrients (${SYNC_COLUMNS}, ingredient_id TEXT NOT NULL, nutrient TEXT NOT NULL, value REAL NOT NULL);
+          CREATE INDEX courses__ingredient_nutrients_owner ON courses__ingredient_nutrients (ingredient_id);
+          CREATE TABLE courses__ingredient_prices (${SYNC_COLUMNS}, ingredient_id TEXT NOT NULL, amount REAL NOT NULL, per TEXT NOT NULL);
+          CREATE INDEX courses__ingredient_prices_owner ON courses__ingredient_prices (ingredient_id);
+          ALTER TABLE courses__extras ADD COLUMN price REAL;
+          ALTER TABLE courses__list_extras ADD COLUMN price REAL;
+          CREATE TABLE courses__meal_images (${SYNC_COLUMNS}, meal_id TEXT NOT NULL, file TEXT NOT NULL, width INTEGER NOT NULL, height INTEGER NOT NULL, bytes INTEGER NOT NULL, sha256 TEXT NOT NULL);
+          CREATE INDEX courses__meal_images_owner ON courses__meal_images (meal_id);
+        `);
+        // The JSON values and the price columns become rows (the old columns stay, no longer read).
+        const journal = db.prepare(
+          'INSERT INTO courses__changes (id, at, entity, entity_id, op, data) VALUES (?, ?, ?, ?, ?, ?)',
+        );
+        const nutrient = db.prepare(
+          'INSERT INTO courses__ingredient_nutrients (id, created_at, updated_at, deleted_at, ingredient_id, nutrient, value) VALUES (?, ?, ?, NULL, ?, ?, ?)',
+        );
+        const price = db.prepare(
+          'INSERT INTO courses__ingredient_prices (id, created_at, updated_at, deleted_at, ingredient_id, amount, per) VALUES (?, ?, ?, NULL, ?, ?, ?)',
+        );
+        const rows = db
+          .prepare('SELECT id, updated_at, nutrition, price, price_per FROM courses__ingredients')
+          .all() as {
+          id: string;
+          updated_at: string;
+          nutrition: string;
+          price: number | null;
+          price_per: string;
+        }[];
+        for (const r of rows) {
+          let values: Record<string, unknown> = {};
+          try {
+            values = JSON.parse(r.nutrition) as Record<string, unknown>;
+          } catch {
+            // Damaged: no values (nothing is invented).
+          }
+          for (const k of NUTRIENT_KEYS)
+            if (typeof values[k] === 'number') {
+              const id = newId();
+              nutrient.run(id, r.updated_at, r.updated_at, r.id, k, values[k]);
+              journal.run(
+                newId(),
+                syncStamp(),
+                'ingredient_nutrients',
+                id,
+                'create',
+                JSON.stringify({ ingredient_id: r.id, nutrient: k, value: values[k] }),
+              );
+            }
+          if (r.price !== null && PRICE_PER.includes(r.price_per as PricePer)) {
+            const id = newId();
+            price.run(id, r.updated_at, r.updated_at, r.id, r.price, r.price_per);
+            journal.run(
+              newId(),
+              syncStamp(),
+              'ingredient_prices',
+              id,
+              'create',
+              JSON.stringify({ ingredient_id: r.id, amount: r.price, per: r.price_per }),
+            );
+          }
+        }
+      },
+    },
   ],
 
   register(ctx: ModuleContext) {
@@ -200,42 +293,106 @@ export default defineBackendModule({
 
     // --- Reading -------------------------------------------------------------------
 
-    const parseNutrition = (json: string): Nutrition => {
-      try {
-        const v = JSON.parse(json) as Record<string, unknown>;
-        const out: Nutrition = {};
-        for (const k of NUTRIENT_KEYS) if (typeof v[k] === 'number') out[k] = v[k];
-        return out;
-      } catch {
-        return {};
+    interface NutrientRow extends Base {
+      ingredient_id: string;
+      nutrient: string;
+      value: number;
+    }
+    interface PriceRow extends Base {
+      ingredient_id: string;
+      amount: number;
+      per: string;
+    }
+    /** Nutrition and price of every ingredient, from their own rows (one per value, one per price). */
+    const factRows = () => {
+      const nutrition = new Map<string, Map<string, NutrientRow>>();
+      for (const r of live<NutrientRow>('ingredient_nutrients')) {
+        const m = nutrition.get(r.ingredient_id) ?? new Map<string, NutrientRow>();
+        m.set(r.nutrient, r);
+        nutrition.set(r.ingredient_id, m);
       }
+      const prices = new Map(live<PriceRow>('ingredient_prices').map((p) => [p.ingredient_id, p]));
+      return { nutrition, prices };
     };
-    const toIngredient = (r: IngredientRow): IngredientDto => ({
-      id: r.id,
-      name: r.name,
-      unit: r.unit,
-      aisle: r.aisle,
-      pieceG: r.piece_g,
-      nutrition: parseNutrition(r.nutrition),
-      nutritionPer:
-        r.nutrition_per === '100ml' || r.nutrition_per === '100g'
-          ? r.nutrition_per
-          : defaultNutritionPer(r.unit),
-      price: r.price,
-      pricePer: PRICE_PER.includes(r.price_per as PricePer) ? (r.price_per as PricePer) : null,
-    });
-    const ingredients = (): IngredientDto[] =>
-      live<IngredientRow>('ingredients')
-        .map(toIngredient)
+    const toIngredient = (r: IngredientRow, rows = factRows()): IngredientDto => {
+      const nutrition: Nutrition = {};
+      for (const [k, v] of rows.nutrition.get(r.id) ?? [])
+        if (NUTRIENT_KEYS.includes(k as (typeof NUTRIENT_KEYS)[number]))
+          nutrition[k as (typeof NUTRIENT_KEYS)[number]] = v.value;
+      const price = rows.prices.get(r.id);
+      return {
+        id: r.id,
+        name: r.name,
+        unit: r.unit,
+        aisle: r.aisle,
+        pieceG: r.piece_g,
+        nutrition,
+        nutritionPer:
+          r.nutrition_per === '100ml' || r.nutrition_per === '100g'
+            ? r.nutrition_per
+            : defaultNutritionPer(r.unit),
+        price: price ? price.amount : null,
+        pricePer:
+          price && PRICE_PER.includes(price.per as PricePer) ? (price.per as PricePer) : null,
+      };
+    };
+    const ingredients = (): IngredientDto[] => {
+      const rows = factRows();
+      return live<IngredientRow>('ingredients')
+        .map((r) => toIngredient(r, rows))
         .sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+    };
     /** Facts of every ingredient (deleted ones included: an old line still counts). */
-    const allFacts = (): Map<string, IngredientFacts> =>
-      new Map(
+    const allFacts = (): Map<string, IngredientFacts> => {
+      const rows = factRows();
+      return new Map(
         (ctx.db.prepare(`SELECT * FROM ${T('ingredients')}`).all() as IngredientRow[]).map((r) => [
           r.id,
-          toIngredient(r),
+          toIngredient(r, rows),
         ]),
       );
+    };
+    /**
+     * Writes the nutrition and the price of an ingredient value by value:
+     * only what changed is touched (a synchronisation can then merge two
+     * devices that changed different values).
+     */
+    const writeFacts = (
+      ingredientId: string,
+      change: { nutrition?: Nutrition; price?: { amount: number; per: PricePer } | null },
+    ) => {
+      const rows = factRows();
+      if (change.nutrition) {
+        const before = rows.nutrition.get(ingredientId) ?? new Map<string, NutrientRow>();
+        for (const k of NUTRIENT_KEYS) {
+          const value = change.nutrition[k];
+          const old = before.get(k);
+          if (value === undefined) {
+            if (old) store.remove('ingredient_nutrients', old.id);
+          } else if (!old)
+            store.create('ingredient_nutrients', {
+              ingredient_id: ingredientId,
+              nutrient: k,
+              value,
+            });
+          else if (old.value !== value) store.update('ingredient_nutrients', old.id, { value });
+        }
+      }
+      if (change.price !== undefined) {
+        const old = rows.prices.get(ingredientId);
+        const next = change.price;
+        if (!next) {
+          if (old) store.remove('ingredient_prices', old.id);
+        } else if (!old)
+          store.create('ingredient_prices', {
+            ingredient_id: ingredientId,
+            amount: next.amount,
+            per: next.per,
+          });
+        else if (old.amount !== next.amount || old.per !== next.per)
+          store.update('ingredient_prices', old.id, { amount: next.amount, per: next.per });
+      }
+    };
     const pieceWeights = (facts: Map<string, IngredientFacts>): PieceWeights =>
       new Map([...facts].map(([id, f]) => [id, { unit: f.unit, pieceG: f.pieceG }]));
     const moments = (): MomentDto[] =>
@@ -247,8 +404,49 @@ export default defineBackendModule({
           time: r.default_time,
           durationMin: r.duration_min,
         }));
+    // --- Recipe images (module data folder, one live image per meal) -----------------
+
+    const imageRows = () => new Map(live<ImageRow>('meal_images').map((r) => [r.meal_id, r]));
+    const imagePath = (file: string) => ctx.files.dataPath('images', file);
+    const imageDto = (row: ImageRow | undefined): MealDto['image'] => {
+      if (!row) return null;
+      const url = ctx.files.mediaUrlIfExists(imagePath(row.file));
+      return url ? { url, width: row.width, height: row.height } : null;
+    };
+    /** A new image for a meal: the file first, then its row; the old one goes to the Recycle Bin. */
+    const setImage = async (mealId: string, image: StoredImage) => {
+      mkdirSync(ctx.files.dataPath('images'), { recursive: true });
+      const file = `${newId()}.jpg`;
+      writeFileSync(imagePath(file), image.data);
+      const old = imageRows().get(mealId);
+      try {
+        ctx.db.transaction(() => {
+          if (old) store.remove('meal_images', old.id);
+          store.create('meal_images', {
+            meal_id: mealId,
+            file,
+            width: image.width,
+            height: image.height,
+            bytes: image.data.length,
+            sha256: image.sha256,
+          });
+        });
+      } catch (err) {
+        unlinkSync(imagePath(file));
+        throw err;
+      }
+      if (old) await ctx.files.trash(imagePath(old.file));
+    };
+    const removeImage = async (mealId: string) => {
+      const old = imageRows().get(mealId);
+      if (!old) return;
+      store.remove('meal_images', old.id);
+      await ctx.files.trash(imagePath(old.file));
+    };
+
     const meals = (facts = allFacts()): MealDto[] => {
       const items = live<ItemRow>('meal_items');
+      const images = imageRows();
       return live<MealRow>('meals')
         .map((r) => {
           const lines = items
@@ -263,6 +461,7 @@ export default defineBackendModule({
             note: r.note,
             items: lines,
             perServing: { nutrition: nutritionOf(one, facts), cost: costOf(one, facts) },
+            image: imageDto(images.get(r.id)),
           };
         })
         .sort((a, b) => a.name.localeCompare(b.name, 'fr'));
@@ -326,8 +525,14 @@ export default defineBackendModule({
         aisle: e.aisle || NO_AISLE,
         checked: e.checked === 1,
         source: 'extra' as const,
+        price: e.price,
       }));
       const all = [...generated, ...extras];
+      const mealsCost = costOf(lines, facts);
+      const extrasCost = {
+        euros: Math.round(extras.reduce((n, e) => n + (e.price ?? 0), 0) * 100) / 100,
+        missing: extras.filter((e) => e.price === null).map((e) => e.name),
+      };
       const aisles = [...new Set(all.map((x) => x.aisle))].sort((a, b) =>
         a === NO_AISLE ? 1 : b === NO_AISLE ? -1 : a.localeCompare(b, 'fr'),
       );
@@ -336,10 +541,15 @@ export default defineBackendModule({
         from: list.date_from,
         to: list.date_to,
         mealsPlanned: plan.length,
-        cost: costOf(lines, facts),
+        cost: {
+          euros: Math.round((mealsCost.euros + extrasCost.euros) * 100) / 100,
+          missing: [...mealsCost.missing, ...extrasCost.missing],
+        },
+        mealsCost,
+        extrasCost,
         groups: aisles.map((aisle) => ({ aisle, items: all.filter((x) => x.aisle === aisle) })),
         habitual: live<ExtraRow>('extras')
-          .map((e) => ({ id: e.id, name: e.name, aisle: e.aisle }))
+          .map((e) => ({ id: e.id, name: e.name, aisle: e.aisle, price: e.price }))
           .sort((a, b) => a.name.localeCompare(b.name, 'fr')),
       };
     };
@@ -488,8 +698,12 @@ export default defineBackendModule({
       if (!v) throw new HttpError(400, `${label} vide`);
       return v;
     };
-    /** Piece weight, nutrition and price sent by the page (each optional; empty = unknown). */
-    const factFields = (body: Record<string, unknown>) => {
+    /**
+     * Piece weight, nutrition and price sent by the page (each optional;
+     * empty = unknown): the ingredient's own columns, and its values to write
+     * with `writeFacts`. `current`: the ingredient before (for a partial price).
+     */
+    const factFields = (body: Record<string, unknown>, current?: IngredientDto) => {
       const fields: Record<string, string | number | null> = {};
       const optional = (v: unknown, label: string, max: number) => {
         if (v === null || v === undefined || v === '') return null;
@@ -502,24 +716,31 @@ export default defineBackendModule({
         const w = optional(body.pieceG, 'Poids d’une pièce', 100_000);
         fields.piece_g = w === 0 ? null : w;
       }
+      let nutrition: Nutrition | undefined;
       if ('nutrition' in body) {
         const raw = (body.nutrition ?? {}) as Record<string, unknown>;
-        const n: Nutrition = {};
+        nutrition = {};
         for (const k of NUTRIENT_KEYS) {
           const v = optional(raw[k], 'Valeur nutritionnelle', 10_000);
-          if (v !== null) n[k] = v;
+          if (v !== null) nutrition[k] = v;
         }
-        fields.nutrition = JSON.stringify(n);
       }
       if ('nutritionPer' in body)
         fields.nutrition_per =
           body.nutritionPer === '100ml' ? '100ml' : body.nutritionPer === '100g' ? '100g' : '';
-      if ('price' in body) fields.price = optional(body.price, 'Prix', 100_000);
-      if ('pricePer' in body)
-        fields.price_per = PRICE_PER.includes(body.pricePer as PricePer)
-          ? String(body.pricePer)
-          : '';
-      return fields;
+      let price: { amount: number; per: PricePer } | null | undefined;
+      if ('price' in body || 'pricePer' in body) {
+        const amount =
+          'price' in body ? optional(body.price, 'Prix', 100_000) : (current?.price ?? null);
+        const per =
+          'pricePer' in body
+            ? PRICE_PER.includes(body.pricePer as PricePer)
+              ? (body.pricePer as PricePer)
+              : null
+            : (current?.pricePer ?? null);
+        price = amount === null || !per ? null : { amount, per };
+      }
+      return { fields, nutrition, price };
     };
     const ingredientByName = (name: string) =>
       live<IngredientRow>('ingredients').find((i) => fold(i.name) === fold(name));
@@ -580,14 +801,26 @@ export default defineBackendModule({
         servings,
       });
     };
-    const addListExtra = (name: string, qty = '', aisle = '') =>
-      store.create<ListExtraRow>('list_extras', {
+    /** A price typed by the user (€, optional: empty = unknown). */
+    const priceFrom = (value: unknown): number | null => {
+      if (value === null || value === undefined || value === '') return null;
+      const n = Number(String(value).replace(',', '.'));
+      if (!(Number.isFinite(n) && n >= 0 && n <= 100_000))
+        throw new HttpError(400, 'Prix invalide');
+      return Math.round(n * 100) / 100;
+    };
+    /** An article added by hand; a usual extra of the same name gives its aisle and price when not given. */
+    const addListExtra = (name: string, qty = '', aisle = '', price: number | null = null) => {
+      const habitual = live<ExtraRow>('extras').find((e) => fold(e.name) === fold(name));
+      return store.create<ListExtraRow>('list_extras', {
         list_id: currentList().id,
         name,
         qty,
-        aisle,
+        aisle: aisle || habitual?.aisle || '',
         checked: 0,
+        price: price ?? habitual?.price ?? null,
       });
+    };
 
     // --- Routes ----------------------------------------------------------------------
 
@@ -599,18 +832,20 @@ export default defineBackendModule({
       const existing = ingredientByName(name);
       if (existing) throw new HttpError(409, `« ${existing.name} » existe déjà`);
       const unit = text(body.unit ?? 'g', 'Unité', 20);
-      return store.create('ingredients', {
-        name,
-        unit,
-        aisle: String(body.aisle ?? '')
-          .trim()
-          .slice(0, 40),
-        piece_g: null,
-        nutrition: '{}',
-        nutrition_per: '',
-        price: null,
-        price_per: '',
-        ...factFields(body),
+      const facts = factFields(body);
+      return ctx.db.transaction(() => {
+        const row = store.create<IngredientRow>('ingredients', {
+          name,
+          unit,
+          aisle: String(body.aisle ?? '')
+            .trim()
+            .slice(0, 40),
+          piece_g: null,
+          nutrition_per: '',
+          ...facts.fields,
+        });
+        writeFacts(row.id, { nutrition: facts.nutrition, price: facts.price });
+        return toIngredient(row);
       });
     });
     ctx.routes.patch('/ingredients/:id', (request) => {
@@ -630,7 +865,16 @@ export default defineBackendModule({
         fields.aisle = String(body.aisle ?? '')
           .trim()
           .slice(0, 40);
-      return store.update('ingredients', id, { ...fields, ...factFields(body) });
+      const current = ingredients().find((x) => x.id === id);
+      const facts = factFields(body, current);
+      return ctx.db.transaction(() => {
+        const all = { ...fields, ...facts.fields };
+        const row = Object.keys(all).length
+          ? store.update<IngredientRow>('ingredients', id, all)
+          : store.get<IngredientRow>('ingredients', id)!;
+        writeFacts(id, { nutrition: facts.nutrition, price: facts.price });
+        return toIngredient(row);
+      });
     });
     /** Two ingredients that are the same: the lines of `from` go to `into`, `from` is removed (tombstone). */
     ctx.routes.post('/ingredients/merge', (request) => {
@@ -668,6 +912,46 @@ export default defineBackendModule({
       const id = (request.params as { id: string }).id;
       mealOf(id);
       store.remove('meals', id);
+      return { ok: true };
+    });
+    /**
+     * A picture for a recipe: a file of the PC (drag and drop or « Choisir »)
+     * or a `data:` URL; decoded and re-encoded (JPEG, 1200 px at most).
+     */
+    ctx.routes.put(
+      '/meals/:id/image',
+      async (request) => {
+        const id = (request.params as { id: string }).id;
+        mealOf(id);
+        const body = requestBody(request);
+        let input: Buffer | null = null;
+        if (typeof body.path === 'string' && body.path) {
+          let size: number;
+          try {
+            size = statSync(body.path).size;
+          } catch {
+            throw new HttpError(400, 'Fichier introuvable');
+          }
+          if (size > MAX_INPUT_BYTES) throw new HttpError(400, 'Image trop lourde (20 Mo au plus)');
+          input = readFileSync(body.path);
+        } else if (typeof body.data === 'string') input = fromDataUrl(body.data);
+        if (!input) throw new HttpError(400, 'Aucune image');
+        let image: StoredImage;
+        try {
+          image = await normaliseImage(input);
+        } catch (err) {
+          throw new HttpError(400, (err as Error).message);
+        }
+        await setImage(id, image);
+        return { meal: meals().find((m) => m.id === id) };
+      },
+      { bodyLimit: 30 * 1024 * 1024 },
+    );
+    // Confirmed on the page: the file goes to the Recycle Bin.
+    ctx.routes.delete('/meals/:id/image', async (request) => {
+      const id = (request.params as { id: string }).id;
+      mealOf(id);
+      await removeImage(id);
       return { ok: true };
     });
     ctx.routes.post('/meals/:id/restore', (request) => {
@@ -770,7 +1054,19 @@ export default defineBackendModule({
         text(b.name, 'Article'),
         String(b.qty ?? '').slice(0, 30),
         String(b.aisle ?? '').slice(0, 40),
+        priceFrom(b.price),
       );
+      return listDto();
+    });
+    /** An article of the list: its quantity or its price. */
+    ctx.routes.patch('/list/extras/:id', (request) => {
+      const id = (request.params as { id: string }).id;
+      if (!store.get('list_extras', id)) throw new HttpError(404, 'Article introuvable');
+      const b = requestBody(request);
+      const fields: Record<string, string | number | null> = {};
+      if ('qty' in b) fields.qty = String(b.qty ?? '').slice(0, 30);
+      if ('price' in b) fields.price = priceFrom(b.price);
+      if (Object.keys(fields).length) store.update('list_extras', id, fields);
       return listDto();
     });
     ctx.routes.delete('/list/extras/:id', (request) => {
@@ -782,7 +1078,22 @@ export default defineBackendModule({
       const name = text(b.name, 'Extra');
       if (live<ExtraRow>('extras').some((e) => fold(e.name) === fold(name)))
         throw new HttpError(409, `« ${name} » est déjà dans tes extras habituels`);
-      store.create('extras', { name, aisle: String(b.aisle ?? '').slice(0, 40) });
+      store.create('extras', {
+        name,
+        aisle: String(b.aisle ?? '').slice(0, 40),
+        price: priceFrom(b.price),
+      });
+      return listDto();
+    });
+    /** A usual extra: its aisle or its price (the lists already made keep theirs). */
+    ctx.routes.patch('/extras/:id', (request) => {
+      const id = (request.params as { id: string }).id;
+      if (!store.get('extras', id)) throw new HttpError(404, 'Extra introuvable');
+      const b = requestBody(request);
+      const fields: Record<string, string | number | null> = {};
+      if ('aisle' in b) fields.aisle = String(b.aisle ?? '').slice(0, 40);
+      if ('price' in b) fields.price = priceFrom(b.price);
+      if (Object.keys(fields).length) store.update('extras', id, fields);
       return listDto();
     });
     ctx.routes.delete('/extras/:id', (request) => {
@@ -815,7 +1126,12 @@ export default defineBackendModule({
           for (const item of g.items) {
             if (there.has(fold(item.name))) continue;
             there.add(fold(item.name));
-            addListExtra(item.name, item.amount.slice(0, 30), g.aisle === NO_AISLE ? '' : g.aisle);
+            addListExtra(
+              item.name,
+              item.amount.slice(0, 30),
+              g.aisle === NO_AISLE ? '' : g.aisle,
+              item.price ?? null,
+            );
             added++;
           }
       });
@@ -851,7 +1167,17 @@ export default defineBackendModule({
       nutrition: i.nutrition,
       price: i.price !== null && i.pricePer ? { amount: i.price, per: i.pricePer } : null,
     });
-    const exchangeData = (): ExchangeFile => {
+    const exchangeData = (withImages = false): ExchangeFile => {
+      const images = withImages ? imageRows() : new Map<string, ImageRow>();
+      const imageOf = (mealId: string): string | null => {
+        const row = images.get(mealId);
+        if (!row) return null;
+        try {
+          return toDataUrl(readFileSync(imagePath(row.file)));
+        } catch {
+          return null; // File gone: exported without its image.
+        }
+      };
       const ing = ingredients();
       const names = new Map(ing.map((i) => [i.id, i.name]));
       return {
@@ -868,6 +1194,7 @@ export default defineBackendModule({
             qty: it.qty,
             unit: it.unit,
           })),
+          ...(withImages ? { image: imageOf(m.id) } : {}),
         })),
       };
     };
@@ -875,7 +1202,8 @@ export default defineBackendModule({
       const data = exchangeData();
       return { ingredients: data.ingredients, recipes: data.recipes };
     };
-    const MAX_IMPORT = 5 * 1024 * 1024;
+    // Room for embedded images (base64) in a complete export.
+    const MAX_IMPORT = 200 * 1024 * 1024;
     const importText = (body: Record<string, unknown>) => {
       const textValue = typeof body.text === 'string' ? body.text : '';
       if (!textValue.trim()) throw new HttpError(400, 'Fichier vide');
@@ -894,9 +1222,21 @@ export default defineBackendModule({
      */
     ctx.routes.post(
       '/import/apply',
-      (request) => {
+      async (request) => {
         const body = requestBody(request);
         const parsed = parseExchange(importText(body));
+        // Images first (decoded and re-encoded outside the transaction); a bad one is left out.
+        const images = new Map<string, StoredImage>();
+        const imageWarnings: string[] = [];
+        for (const r of parsed.recipes) {
+          if (!r.image) continue;
+          try {
+            images.set(fold(r.name), await normaliseImage(fromDataUrl(r.image) ?? Buffer.alloc(0)));
+          } catch (err) {
+            imageWarnings.push(`${r.name} : ${(err as Error).message}`);
+          }
+        }
+        const imported = new Map<string, string>();
         const preview = previewImport(parsed, existing());
         const names = (v: unknown) =>
           new Set(Array.isArray(v) ? v.map((x) => fold(String(x))) : []);
@@ -917,19 +1257,18 @@ export default defineBackendModule({
           unit: i.unit,
           aisle: i.aisle,
           piece_g: i.pieceWeightG,
-          nutrition: JSON.stringify(i.nutrition),
           nutrition_per: i.nutritionPer,
-          price: i.price?.amount ?? null,
-          price_per: i.price?.per ?? '',
         });
         ctx.db.transaction(() => {
           for (const i of parsed.ingredients) {
             const before = ingredientByName(i.name);
             if (!before) {
-              store.create('ingredients', { name: i.name, ...facts(i) });
+              const row = store.create('ingredients', { name: i.name, ...facts(i) });
+              writeFacts(row.id, { nutrition: i.nutrition, price: i.price });
               done.ingredientsAdded++;
             } else if (overwrite.has(fold(i.name))) {
               store.update('ingredients', before.id, facts(i));
+              writeFacts(before.id, { nutrition: i.nutrition, price: i.price });
               done.ingredientsUpdated++;
             }
           }
@@ -940,10 +1279,7 @@ export default defineBackendModule({
                 unit: c.unit,
                 aisle: '',
                 piece_g: null,
-                nutrition: '{}',
                 nutrition_per: '',
-                price: null,
-                price_per: '',
               });
               done.ingredientsCreated++;
             }
@@ -969,14 +1305,24 @@ export default defineBackendModule({
             if (before) {
               store.update('meals', before.id, fields);
               saveItems(before.id, items);
+              imported.set(fold(r.name), before.id);
               done.recipesReplaced++;
             } else {
               const meal = store.create<MealRow>('meals', fields);
               saveItems(meal.id, items);
+              imported.set(fold(r.name), meal.id);
               done.recipesAdded++;
             }
           }
         });
+        let imagesAdded = 0;
+        for (const [name, mealId] of imported) {
+          const image = images.get(name);
+          if (!image) continue;
+          await setImage(mealId, image);
+          imagesAdded++;
+        }
+        Object.assign(done, { imagesAdded, imageWarnings });
         ctx.logger.info(`Import Courses : ${JSON.stringify(done)}`);
         return done;
       },
@@ -992,7 +1338,7 @@ export default defineBackendModule({
       return saved ? { path: saved } : { cancelled: true };
     };
     ctx.routes.post('/export-json', () =>
-      saveJson('Exporter ingrédients et recettes', `Courses ${today()}.json`, exchangeData()),
+      saveJson('Exporter ingrédients et recettes', `Courses ${today()}.json`, exchangeData(true)),
     );
     ctx.routes.post('/example-json', () =>
       saveJson('Enregistrer le fichier d’exemple', 'Courses exemple.json', EXAMPLE),
@@ -1102,6 +1448,103 @@ export default defineBackendModule({
             ? `${left.length} article${left.length > 1 ? 's' : ''} à acheter : ${listPhrase(left.slice(0, 8).map((i) => i.name))}${left.length > 8 ? ', etc.' : ''}.`
             : 'La liste de courses est vide (ou tout est coché).',
           data: { groups: dto.groups },
+          open: '/m/courses?tab=list',
+        };
+      },
+    });
+    const NUTRIENT_SAY: Record<string, [string, string]> = {
+      kcal: ['calories', 'kcal'],
+      protein: ['protéines', 'g'],
+      carbs: ['glucides', 'g'],
+      sugars: ['sucres', 'g'],
+      fat: ['lipides', 'g'],
+      fiber: ['fibres', 'g'],
+      salt: ['sel', 'g'],
+    };
+    const fr = (n: number) => String(Math.round(n * 10) / 10).replace('.', ',');
+    const euros = (n: number) => `${n.toFixed(2).replace('.', ',')} €`;
+    ctx.assistant.define({
+      name: 'nutrition',
+      examples: NUTRITION_EXAMPLES,
+      extract: extractNutrition,
+      description:
+        'Dit les apports des repas planifiés (calories, protéines…) pour un jour ou la période de la liste. Des chiffres, sans conseil.',
+      parameters: {
+        nutrient: {
+          type: 'string',
+          description:
+            'kcal, protein, carbs, sugars, fat, fiber ou salt ; absent : calories et protéines',
+        },
+        day: {
+          type: 'string',
+          description: '« week » (période de la liste), « today », « tomorrow » ou 1 (lundi) … 7',
+        },
+      },
+      risk: 'read',
+      run: (params) => {
+        const sum = summaryDto();
+        const keys =
+          params.nutrient && NUTRIENT_SAY[String(params.nutrient)]
+            ? [String(params.nutrient)]
+            : ['kcal', 'protein'];
+        const say = (values: Record<string, number>) =>
+          keys
+            .map((k) => `${fr(values[k] ?? 0)} ${NUTRIENT_SAY[k]![1]} de ${NUTRIENT_SAY[k]![0]}`)
+            .join(' et ');
+        if ((params.day ?? 'week') === 'week') {
+          const total = sum.total.nutrition;
+          const incomplete = total.missing.length
+            ? ' (incomplet : des ingrédients n’ont pas de valeurs)'
+            : '';
+          return {
+            message: sum.average.days
+              ? `Du ${sum.from} au ${sum.to} : ${say(total.values)} au total, soit ${say(sum.average.nutrition)} par jour en moyenne${incomplete}.`
+              : 'Aucun repas planifié sur la période.',
+            data: { total: total.values, average: sum.average.nutrition, missing: total.missing },
+            open: '/m/courses?tab=summary',
+          };
+        }
+        const date = dayFrom(params.day);
+        const day = sum.days.find((d) => d.date === date);
+        if (!day || !day.meals)
+          return {
+            message: `Aucun repas planifié le ${date} (ou hors de la période de la liste).`,
+            data: { date },
+          };
+        const incomplete = day.nutrition.missing.length ? ' (incomplet)' : '';
+        return {
+          message: `Le ${date} : ${say(day.nutrition.values)}${incomplete}.`,
+          data: { date, values: day.nutrition.values },
+        };
+      },
+    });
+    ctx.assistant.define({
+      name: 'cost',
+      examples: COST_EXAMPLES,
+      extract: extractCost,
+      description:
+        'Dit le coût estimé de la liste de courses en cours ou des repas de la période (quantités utilisées, pas les paquets).',
+      parameters: {
+        what: {
+          type: 'string',
+          description: '« list » (liste en cours) ou « week » (repas de la période)',
+        },
+      },
+      risk: 'read',
+      run: (params) => {
+        if (params.what === 'week') {
+          const sum = summaryDto();
+          const c = sum.total.cost;
+          return {
+            message: `Repas du ${sum.from} au ${sum.to} : ${euros(c.euros)} estimés${c.missing.length ? ` (incomplet : ${c.missing.length} ingrédient${c.missing.length > 1 ? 's' : ''} sans prix)` : ''}.`,
+            data: { cost: c },
+            open: '/m/courses?tab=summary',
+          };
+        }
+        const dto = listDto();
+        return {
+          message: `Liste de courses : ${euros(dto.cost.euros)} estimés${dto.cost.missing.length ? ` (incomplet : ${dto.cost.missing.length} article${dto.cost.missing.length > 1 ? 's' : ''} sans prix)` : ''}, sur les quantités utilisées, pas les paquets.`,
+          data: { cost: dto.cost },
           open: '/m/courses?tab=list',
         };
       },

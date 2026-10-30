@@ -12,6 +12,8 @@ import {
 } from './nutrition';
 
 export const FORMAT = 'toolbox-courses';
+/** A base64 image of 20 MB at most (4 characters for 3 bytes). */
+export const MAX_IMAGE_CHARS = Math.ceil((20 * 1024 * 1024 * 4) / 3) + 64;
 export const FORMAT_VERSION = 1;
 
 export interface ExchangeIngredient {
@@ -29,6 +31,8 @@ export interface ExchangeRecipe {
   tags: string[];
   note: string;
   ingredients: { name: string; qty: number; unit: string }[];
+  /** Optional picture: `data:image/jpeg;base64,…` (also PNG, WebP). */
+  image?: string | null;
 }
 export interface ExchangeFile {
   format: typeof FORMAT;
@@ -47,6 +51,8 @@ export interface Parsed {
   ingredients: (ExchangeIngredient & { line: number | null })[];
   recipes: (ExchangeRecipe & { line: number | null })[];
   errors: ParseError[];
+  /** Imported anyway, with something left out (e.g. an unreadable image). */
+  warnings: ParseError[];
 }
 
 export const EXAMPLE: ExchangeFile = {
@@ -151,7 +157,7 @@ const str = (v: unknown, max: number) =>
 
 /** Reads a file (text): its ingredients and recipes, checked, and an error per bad element. */
 export function parseExchange(text: string): Parsed {
-  const result: Parsed = { ingredients: [], recipes: [], errors: [] };
+  const result: Parsed = { ingredients: [], recipes: [], errors: [], warnings: [] };
   let data: unknown;
   try {
     data = JSON.parse(text);
@@ -271,6 +277,22 @@ export function parseExchange(text: string): Parsed {
     const tags = Array.isArray(v.tags)
       ? [...new Set((v.tags as unknown[]).map((t) => str(t, 30).replace(/^#/, '')).filter(Boolean))]
       : [];
+    let image: string | null = null;
+    if (v.image !== undefined && v.image !== null && v.image !== '') {
+      if (
+        typeof v.image === 'string' &&
+        v.image.length <= MAX_IMAGE_CHARS &&
+        /^data:image\/(?:jpeg|jpg|png|webp|gif);base64,[A-Za-z0-9+/=\s]+$/.test(v.image)
+      )
+        image = v.image;
+      else
+        result.warnings.push({
+          line,
+          where,
+          message:
+            'image illisible ou trop lourde (data:image/…;base64, 20 Mo au plus) : recette importée sans image',
+        });
+    }
     seenRecipes.add(fold(name));
     result.recipes.push({
       name,
@@ -279,6 +301,7 @@ export function parseExchange(text: string): Parsed {
       note: str(v.note, 2000),
       ingredients: items,
       line,
+      image,
     });
   });
   if (!ingredients.length && !recipes.length && !result.errors.length)
@@ -304,6 +327,7 @@ export interface Preview {
   /** Ingredients named in recipes, unknown in ToolBox and in the file: offered for creation (with the unit first seen). */
   toCreate: { name: string; unit: string }[];
   errors: ParseError[];
+  warnings: ParseError[];
 }
 
 const sameNutrition = (a: Nutrition, b: Nutrition) =>
@@ -373,5 +397,6 @@ export function previewImport(parsed: Parsed, existing: Existing): Preview {
     }),
     toCreate: [...toCreate.values()],
     errors: parsed.errors,
+    warnings: parsed.warnings,
   };
 }

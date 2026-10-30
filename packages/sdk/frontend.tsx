@@ -863,4 +863,5 @@ export function OutputList(props: {
 }
 
 export * from './components';
+export * from './icons';
 export { fillTemplate, toTemplate, parseTags, formatTags } from './texts';

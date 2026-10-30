@@ -10,8 +10,13 @@ export interface Exercise {
   uses: number;
 }
 
-/** A line as stored (JSON in the template and session rows). */
+/**
+ * A line: one row of `sport__template_exercises` or `sport__session_exercises`
+ * (since migration 3, so that a synchronisation merges line by line).
+ */
 export interface ExerciseLine {
+  /** The line's own id (absent for a line not saved yet). */
+  id?: string;
   exerciseId: string;
   sets: number | null;
   /** « 8 », « 8-10 », « 30 s »… */
@@ -70,6 +75,7 @@ export function cleanLines(
       return x;
     };
     return {
+      ...(typeof v.id === 'string' && v.id ? { id: v.id } : {}),
       exerciseId,
       sets: int(v.sets, 1, 50, 'Séries'),
       reps: String(v.reps ?? '')
@@ -86,7 +92,7 @@ export function cleanLines(
   });
 }
 
-/** Stored JSON read back (a damaged value gives an empty list, never an error). */
+/** The JSON of the old `exercises` column (read by migration 3 only; a damaged value gives an empty list). */
 export function parseLines(json: string | null | undefined): ExerciseLine[] {
   if (!json) return [];
   try {

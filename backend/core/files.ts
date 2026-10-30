@@ -58,6 +58,13 @@ export function createModuleFiles(options: {
       writeFileSync(target, data);
       return target;
     },
+    trash: async (target) => {
+      // Only a file of this module's own data folder.
+      const inside = safeJoin(dataDir, path.relative(dataDir, path.resolve(target)));
+      if (inside === path.resolve(dataDir))
+        throw new Error('Refus : le dossier du module lui-même');
+      if (existsSync(inside)) await options.host.trashItem(inside);
+    },
     open: (target) => options.host.openPath(target),
     reveal: (target) => options.host.showItemInFolder(target),
   };
