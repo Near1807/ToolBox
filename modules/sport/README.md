@@ -1,4 +1,4 @@
-# Sport (`sport`) — Expérimental
+# Sport (`sport`)
 
 Catégorie **Vie perso**. Un calendrier de sport simple : une **semaine type**, des séances validées, un bilan.
 

@@ -345,7 +345,7 @@ function FloatingCard() {
       <p className="muted">
         Mini-timer, questions, barre écrite et indicateur du micro s’affichent dans une petite
         fenêtre toujours au premier plan. Fais-la glisser par sa poignée <Icon name="grip" />, ou
-        choisis sa place ici. <span className="badge badge--warning">Expérimental</span>
+        choisis sa place ici.
       </p>
       {!bridge ? (
         <p className="muted small">Disponible seulement dans l’app de bureau.</p>

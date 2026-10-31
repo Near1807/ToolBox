@@ -1,4 +1,4 @@
-# Courses (`courses`) — Expérimental
+# Courses (`courses`)
 
 Catégorie **Vie perso**. La liste de courses se fait en choisissant des **repas**, pas des produits.
 

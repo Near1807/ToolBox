@@ -6,7 +6,6 @@
   "section": "Vie perso",
   "icon": "shopping-cart",
   "order": 20,
-  "experimental": true,
   "settings": [
     {
       "key": "goalProteinPerDay",
