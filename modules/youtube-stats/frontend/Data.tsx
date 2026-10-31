@@ -10,6 +10,8 @@ import {
   pickFiles,
   useApi,
   useModule,
+  Icon,
+  type IconName,
 } from '@hub/sdk/frontend';
 import { fmtDay } from './charts';
 import type { DiagnosticCheck, ImportInfo, LinksData, StateData } from './types';
@@ -20,11 +22,11 @@ const STATUS_LABELS: Record<DiagnosticCheck['status'], string> = {
   warning: 'À savoir',
   info: 'Info',
 };
-const STATUS_ICONS: Record<DiagnosticCheck['status'], string> = {
-  ok: '✓',
-  problem: '✕',
-  warning: '!',
-  info: 'i',
+const STATUS_ICONS: Record<DiagnosticCheck['status'], IconName> = {
+  ok: 'circle-check',
+  problem: 'circle-x',
+  warning: 'circle-alert',
+  info: 'help',
 };
 
 const metricsLabel = (i: ImportInfo) =>
@@ -250,7 +252,7 @@ export function Data(props: { state: StateData | null; reload: () => void }) {
             {diagnostic.checks.map((c) => (
               <li key={c.id} className={`ys-check ys-check--${c.status}`}>
                 <span className="ys-check__badge" aria-label={STATUS_LABELS[c.status]}>
-                  {STATUS_ICONS[c.status]} {STATUS_LABELS[c.status]}
+                  <Icon name={STATUS_ICONS[c.status]} /> {STATUS_LABELS[c.status]}
                 </span>
                 <div>
                   <strong>{c.label}</strong> — {c.detail}

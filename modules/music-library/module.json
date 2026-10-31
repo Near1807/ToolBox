@@ -4,7 +4,7 @@
   "description": "Tes morceaux : son, cover et infos, prêts pour générer tes vidéos.",
   "version": "1.4.0",
   "section": "Musique",
-  "icon": "🎵",
+  "icon": "music",
   "order": 10,
   "dependsOn": {
     "modules": [],

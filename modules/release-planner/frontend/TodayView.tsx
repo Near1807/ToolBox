@@ -1,7 +1,7 @@
 // « Aujourd'hui »: what goes out today and what is late, ready to publish:
 // file to drag into Instagram, caption to copy, « Publié » to tick.
 import { useState } from 'react';
-import { ErrorMessage, errorMessage, useModule } from '@hub/sdk/frontend';
+import { ErrorMessage, errorMessage, useModule, Icon } from '@hub/sdk/frontend';
 import { longDate, shortDate } from './dates';
 import { CopyCaption, DragPreview, PlatformIcon, StatusBadge, trackColor } from './ItemParts';
 import type { PlannerItem } from './types';
@@ -58,7 +58,7 @@ export function TodayRow(props: {
             target="_blank"
             rel="noreferrer"
           >
-            Programmer dans Studio ↗
+            Programmer dans Studio <Icon name="external-link" size="0.95em" />
           </a>
         )}
         {props.onOpen && (

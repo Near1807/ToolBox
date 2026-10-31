@@ -4,7 +4,7 @@
   "description": "Exemple complet à copier pour créer un nouvel outil : notes, réglage, tâche longue.",
   "version": "1.2.0",
   "section": "Exemples",
-  "icon": "🧩",
+  "icon": "puzzle",
   "order": 100,
   "dependsOn": { "modules": [], "services": [] },
   "provides": { "services": [] },

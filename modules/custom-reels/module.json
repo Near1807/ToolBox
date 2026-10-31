@@ -4,7 +4,7 @@
   "description": "Des Reels 9:16 faits avec tes propres vidéos, sur un extrait du morceau, avec un effet au choix.",
   "version": "2.3.1",
   "section": "Musique",
-  "icon": "🎬",
+  "icon": "clapperboard",
   "order": 35,
   "dependsOn": {
     "modules": ["music-library", "video-engine"],

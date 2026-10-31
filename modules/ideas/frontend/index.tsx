@@ -17,6 +17,7 @@ import {
   UndoToast,
   useApi,
   useModule,
+  Icon,
 } from '@hub/sdk/frontend';
 import {
   cleanTags,
@@ -112,7 +113,7 @@ function TagInput(props: { value: string[]; onChange: (tags: string[]) => void; 
               aria-label={`Retirer le tag ${t}`}
               onClick={() => props.onChange(props.value.filter((x) => x !== t))}
             >
-              ×
+              <Icon name="close" />
             </button>
           </span>
         ))}
@@ -296,7 +297,11 @@ function IdeaCard(props: {
         ))}
         <span>créée le {dateFr(idea.createdAt)}</span>
         {idea.updatedAt !== idea.createdAt && <span>· modifiée le {dateFr(idea.updatedAt)}</span>}
-        {idea.track && <span>· 🎵 {idea.track.title}</span>}
+        {idea.track && (
+          <span>
+            · <Icon name="music" /> {idea.track.title}
+          </span>
+        )}
         {idea.task && (
           <span>
             · tâche « {idea.task.title} »{' '}
@@ -550,7 +555,13 @@ function IdeasPage() {
                 setRandom(null);
               }}
             >
-              {archived ? `← Idées (${data.counts.active})` : `Archives (${data.counts.archived})`}
+              {archived ? (
+                <>
+                  <Icon name="arrow-left" /> Idées ({data.counts.active})
+                </>
+              ) : (
+                `Archives (${data.counts.archived})`
+              )}
             </Button>
           </div>
           {data.tags.length > 0 && (
@@ -655,7 +666,7 @@ function HomeWidget() {
   const { data } = useApi<{
     show: boolean;
     count: number;
-    latest: { id: number; title: string }[];
+    latest: { id: string; title: string }[];
   }>(module.url('/home'));
   if (!data?.show) return null;
   if (data.count === 0) return <p className="small muted">Aucune idée notée.</p>;

@@ -125,9 +125,7 @@ export function AppearanceCard() {
         ))}
       </div>
 
-      <h3>
-        Thème du soir <span className="badge badge--warning">Expérimental</span>
-      </h3>
+      <h3>Thème du soir</h3>
       <div className="appearance-options">
         <label className="appearance-options__line">
           <input
@@ -190,9 +188,7 @@ export function AppearanceCard() {
         )}
       </div>
 
-      <h3>
-        Raccourci clavier <span className="badge badge--warning">Expérimental</span>
-      </h3>
+      <h3>Raccourci clavier</h3>
       <div className="appearance-options">
         <div className="appearance-options__line">
           <span className="small">Passer au thème suivant :</span>

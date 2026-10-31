@@ -6,9 +6,10 @@ import {
   Card,
   ErrorMessage,
   errorMessage,
+  Icon,
   Page,
-  useApi,
   type FloatingPosition,
+  useApi,
 } from '@hub/sdk/frontend';
 import type { SystemInfo } from '../../../../backend/routes/core';
 import { useModules } from '../../modules/ModulesContext';
@@ -57,7 +58,7 @@ function ModulesCard() {
           <li key={module.id} className="list__item list__item--top">
             <div>
               <div>
-                {module.manifest.icon} <strong>{module.manifest.name}</strong>{' '}
+                <Icon name={module.manifest.icon} /> <strong>{module.manifest.name}</strong>{' '}
                 <span className="muted">
                   v{module.manifest.version} · {module.manifest.section}
                 </span>{' '}
@@ -343,8 +344,8 @@ function FloatingCard() {
     <Card title="Fenêtre flottante">
       <p className="muted">
         Mini-timer, questions, barre écrite et indicateur du micro s’affichent dans une petite
-        fenêtre toujours au premier plan. Fais-la glisser par sa poignée ⠿, ou choisis sa place ici.{' '}
-        <span className="badge badge--warning">Expérimental</span>
+        fenêtre toujours au premier plan. Fais-la glisser par sa poignée <Icon name="grip" />, ou
+        choisis sa place ici.
       </p>
       {!bridge ? (
         <p className="muted small">Disponible seulement dans l’app de bureau.</p>
@@ -630,7 +631,7 @@ export function SettingsPage() {
                       aria-current={s.id === current.id ? 'page' : undefined}
                       onClick={() => open(s.id)}
                     >
-                      {s.icon && <span aria-hidden>{s.icon}</span>} {s.title}
+                      {s.icon && <Icon name={s.icon} />} {s.title}
                     </button>
                   ))}
               </div>
@@ -653,7 +654,13 @@ export function SettingsPage() {
           {current.id === 'backups' && <BackupsCard />}
           {current.id === 'about' && <AboutCard />}
           {current.group !== GENERAL_GROUP && (
-            <Card title={`${current.icon ?? ''} ${current.title}`}>
+            <Card
+              title={
+                <>
+                  {current.icon && <Icon name={current.icon} />} {current.title}
+                </>
+              }
+            >
               {scopeSection && scopeSection.fields.length > 0 ? (
                 <SettingsForm key={current.id} section={scopeSection} onSaved={settings.reload} />
               ) : (

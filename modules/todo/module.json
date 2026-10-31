@@ -4,7 +4,7 @@
   "description": "Tes tâches : tags, échéance en langage naturel (« vendredi »), case « Fait », rattachement facultatif à un morceau. Pilotable à la voix par l'assistant.",
   "version": "1.4.0",
   "section": "Outils",
-  "icon": "✅",
+  "icon": "list-todo",
   "order": 10,
   "dependsOn": {
     "optionalServices": ["musicLibrary", "timer"]

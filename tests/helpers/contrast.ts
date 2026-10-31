@@ -138,8 +138,9 @@ export function themeChecks(tokens: Record<string, string>): Check[] {
     add(`--text-2 sur ${where}`, c('--text-2'), bg, 4.5);
     add(`--text-3 sur ${where}`, c('--text-3'), bg, 3);
   }
+  // surface-solid: the panels of the floating window (written bar, questions).
   for (const state of ['--success', '--warning', '--danger', '--accent-2', '--info'])
-    for (const where of ['surface', 'surface-2'] as const)
+    for (const where of ['surface', 'surface-2', 'surface-solid'] as const)
       add(`${state} (texte) sur ${where}`, c(state), s[where], 4.5);
   // Text on the accent: the solid accent and every colour of the button gradient.
   for (const [i, color] of [

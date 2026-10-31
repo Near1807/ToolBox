@@ -3,7 +3,7 @@
 
 export interface TimerService {
   /** Seconds of work done per To-do task (all recorded sessions, finished or stopped). */
-  timeByTask(): Record<number, number>;
+  timeByTask(): Record<string, number>;
   /** The session in progress, if any (task id when it is linked to one). */
-  current(): { taskId: number | null; phase: 'work' | 'break' | 'long-break' | null } | null;
+  current(): { taskId: string | null; phase: 'work' | 'break' | 'long-break' | null } | null;
 }

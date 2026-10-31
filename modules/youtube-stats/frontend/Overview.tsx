@@ -2,7 +2,7 @@
 // moved since the last visit, the three highlights of the moment, top tracks,
 // personal records.
 import { useEffect, useRef } from 'react';
-import { Card, ErrorMessage, useApi, useModule } from '@hub/sdk/frontend';
+import { Card, ErrorMessage, useApi, useModule, Icon } from '@hub/sdk/frontend';
 import { fmtCompact, fmtDay, fmtInt, fmtNum, LineChart, SERIES } from './charts';
 import { filterQuery, Filters, Kpi, Metric, type FilterValues } from './common';
 import type { OverviewData } from './types';
@@ -197,7 +197,9 @@ export function Overview(props: {
                 ))}
                 {d.sinceVisit.newRecords.map((r) => (
                   <li key={r.key}>
-                    <span>🏆 Nouveau : {r.label}</span>
+                    <span>
+                      <Icon name="trophy" /> Nouveau : {r.label}
+                    </span>
                     <span>{r.value}</span>
                   </li>
                 ))}

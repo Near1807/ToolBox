@@ -4,7 +4,7 @@
   "description": "Tes idées, notées vite : titre, texte libre facultatif, tags, morceau lié. Recherche, une idée au hasard, archives ; « Transformer en tâche » si la To-do est là.",
   "version": "1.0.0",
   "section": "Outils",
-  "icon": "💡",
+  "icon": "lightbulb",
   "order": 15,
   "dependsOn": { "optionalServices": ["musicLibrary", "todo"] },
   "settings": [

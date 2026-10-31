@@ -66,6 +66,12 @@ export interface MigrationDatabase {
   prepare(sql: string): Statement;
   /** Full table name for this module, e.g. table('tracks') → "music_library__tracks". */
   table(name: string): string;
+  /**
+   * The UUID of a row that had the number `oldId` (« Prêt pour la synchro »
+   * migration, §6 bis): the same in every module for the same `kind` and
+   * number on this installation, e.g. legacyId('todo:task', 12).
+   */
+  legacyId(kind: string, oldId: number): string;
 }
 
 // ---------------------------------------------------------------------------
@@ -163,6 +169,12 @@ export interface ModuleFiles {
     filters?: { name: string; extensions: string[] }[];
     data: string | Uint8Array;
   }): Promise<string | null>;
+  /**
+   * Sends a file of the module's data folder (dataDir) to the Recycle Bin,
+   * after a deletion the user asked for (e.g. a recipe image replaced or
+   * removed). Refuses any path outside dataDir; a missing file is no error.
+   */
+  trash(path: string): Promise<void>;
   /** Read-only files shipped with the module: modules/<id>/assets/ (fonts, images…). */
   readonly assetsDir: string;
   /** Path inside assetsDir; throws if it escapes the folder. */
@@ -331,6 +343,14 @@ export function idParam(params: unknown): number {
   const id = Number((params as { id?: string }).id);
   if (!Number.isInteger(id) || id <= 0) throw new HttpError(400, 'Identifiant invalide');
   return id;
+}
+
+/** The `:id` of a route when it is a UUID (« Prêt pour la synchro » modules). */
+export function uuidParam(params: unknown): string {
+  const id = String((params as { id?: string }).id ?? '');
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))
+    throw new HttpError(400, 'Identifiant invalide');
+  return id.toLowerCase();
 }
 
 /** The JSON body of a request, or {} when there is none (fields still to be checked). */

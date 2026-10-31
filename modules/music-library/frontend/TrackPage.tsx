@@ -13,6 +13,7 @@ import {
   useApi,
   useModule,
   type OutputRecord,
+  Icon,
 } from '@hub/sdk/frontend';
 import type { MasterTrackStatus } from '../../master-analysis/contract';
 import type { TrackDto } from '../contract';
@@ -120,7 +121,11 @@ export function TrackPage() {
   return (
     <Page
       title={data.title}
-      subtitle={<Link to={module.path()}>← Bibliothèque</Link>}
+      subtitle={
+        <Link to={module.path()}>
+          <Icon name="arrow-left" /> Bibliothèque
+        </Link>
+      }
       actions={
         <Button variant="danger" onClick={() => setDeleting(true)}>
           Supprimer

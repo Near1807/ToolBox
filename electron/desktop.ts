@@ -9,6 +9,10 @@ import { app, dialog, Menu, Notification, nativeImage, Tray, type BrowserWindow 
 // Windows shows notifications only for an app with an identity (same as the installer's appId).
 if (process.platform === 'win32') app.setAppUserModelId('com.near1807.toolbox');
 
+// The interface is in French whatever the language of Windows: the date and
+// time fields (JJ/MM/AAAA, 24 h) and every formatting follow the French locale.
+app.commandLine.appendSwitch('lang', 'fr-FR');
+
 /** Started by Windows at login: no window until the user opens it from the tray. */
 export const startedHidden = process.argv.includes('--hidden');
 

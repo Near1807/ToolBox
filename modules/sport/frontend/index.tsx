@@ -16,6 +16,7 @@ import {
   UndoToast,
   useApi,
   useModule,
+  Icon,
 } from '@hub/sdk/frontend';
 import {
   formatLine,
@@ -28,7 +29,7 @@ import {
   addDays,
   endTime,
   mondayOf,
-  MOODS,
+  MOOD_LABELS,
   WEEKDAYS,
   type Session,
   type Summary,
@@ -170,7 +171,7 @@ function ExerciseLinesEditor(props: {
                 disabled={i === 0}
                 onClick={() => swap(i, i - 1)}
               >
-                ↑
+                <Icon name="arrow-up" />
               </button>
               <button
                 type="button"
@@ -179,7 +180,7 @@ function ExerciseLinesEditor(props: {
                 disabled={i === lines.length - 1}
                 onClick={() => swap(i, i + 1)}
               >
-                ↓
+                <Icon name="arrow-down" />
               </button>
               <button
                 type="button"
@@ -187,7 +188,7 @@ function ExerciseLinesEditor(props: {
                 aria-label="Retirer l’exercice"
                 onClick={() => props.onChange(lines.filter((_, j) => j !== i))}
               >
-                ×
+                <Icon name="close" />
               </button>
             </span>
             {l.name?.trim() && !known && (
@@ -232,9 +233,17 @@ function SummaryCard(props: { week: Summary; month: Summary; streak: number }) {
       </div>
       <div>
         <span className="sp-summary__value">
-          {props.week.mood !== null
-            ? `${MOODS[Math.round(props.week.mood) - 1]} ${String(props.week.mood).replace('.', ',')}`
-            : '—'}
+          {props.week.mood !== null ? (
+            <>
+              <Icon
+                name={`mood-${Math.round(props.week.mood)}`}
+                label={MOOD_LABELS[Math.round(props.week.mood) - 1]}
+              />{' '}
+              {String(props.week.mood).replace('.', ',')}
+            </>
+          ) : (
+            '—'
+          )}
         </span>
         <span className="small muted">humeur moyenne (semaine)</span>
       </div>
@@ -275,7 +284,7 @@ function SessionCard(props: {
         ) : (
           <StateBadge tone={STATUS[s.status].tone}>{STATUS[s.status].label}</StateBadge>
         )}
-        {s.mood && <span aria-label={`humeur ${s.mood}`}>{MOODS[s.mood - 1]}</span>}
+        {s.mood && <Icon name={`mood-${s.mood}`} label={`Humeur : ${MOOD_LABELS[s.mood - 1]}`} />}
       </span>
     </button>
   );
@@ -383,16 +392,17 @@ function SessionEditor(props: {
           )}
         </div>
         <div className="sp-moods" role="group" aria-label="Humeur">
-          {MOODS.map((m, i) => (
+          {MOOD_LABELS.map((label, i) => (
             <button
-              key={m}
+              key={label}
               type="button"
               className={`sp-mood${s.mood === i + 1 ? ' sp-mood--on' : ''}`}
               aria-pressed={s.mood === i + 1}
-              aria-label={`Humeur ${i + 1}`}
+              aria-label={`Humeur : ${label}`}
+              title={label}
               onClick={() => void patch({ mood: s.mood === i + 1 ? null : i + 1 })}
             >
-              {m}
+              <Icon name={`mood-${i + 1}`} size={22} />
             </button>
           ))}
         </div>

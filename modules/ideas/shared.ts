@@ -2,7 +2,7 @@
 // Boîte à idées: tags, search without accents, the simple formatting of the text.
 
 export interface IdeaDto {
-  id: number;
+  id: string;
   title: string;
   /** Free text, simple formatting (see `formatText`), may be empty. */
   body: string;
@@ -13,7 +13,7 @@ export interface IdeaDto {
   /** Track of the library (null when none, or the library is absent). */
   track: { id: number; title: string } | null;
   /** « Transformer en tâche » was done: the task made (its title at that time). */
-  task: { id: number; title: string } | null;
+  task: { id: string; title: string } | null;
 }
 
 export interface TagDto {

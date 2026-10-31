@@ -24,6 +24,18 @@ export const PLAN_EXAMPLES = [
   'ajoute le chili jeudi soir au planning',
 ];
 
+export const NUTRITION_EXAMPLES = [
+  'combien de protéines cette semaine',
+  'combien de calories aujourd’hui',
+  'combien de glucides demain',
+  'c’est quoi mes apports de la semaine',
+];
+export const COST_EXAMPLES = [
+  'combien coûte ma liste de courses',
+  'combien coûte la semaine',
+  'c’est quoi le budget des courses',
+];
+
 const DAYS: [RegExp, string][] = [
   [/\blundi\b/, '1'],
   [/\bmardi\b/, '2'],
@@ -99,4 +111,34 @@ export function extractPlanMeal(utterance: string): AssistantParams | null {
   const params: AssistantParams = { meal, day, moment };
   if (servings) params.servings = Number(servings[1]);
   return params;
+}
+
+const NUTRIENT_WORDS: [RegExp, string][] = [
+  [/\bproteine/, 'protein'],
+  [/\bcalorie|\bkcal\b/, 'kcal'],
+  [/\bglucide/, 'carbs'],
+  [/\bsucre/, 'sugars'],
+  [/\blipide|\bgras\b|\bmatiere grasse/, 'fat'],
+  [/\bfibre/, 'fiber'],
+  [/\bsel\b/, 'salt'],
+];
+
+/** « combien de protéines cette semaine » → protein, week; « … aujourd'hui » → today. */
+export function extractNutrition(utterance: string): AssistantParams | null {
+  const said = normaliseUtterance(utterance);
+  const nutrient = NUTRIENT_WORDS.find(([re]) => re.test(said))?.[1];
+  if (!nutrient && !/\bapports?\b|\bnutrition/.test(said)) return null;
+  if (/\bcoute|\bprix\b|\bbudget\b/.test(said)) return null;
+  const day = /\bsemaine\b/.test(said) ? 'week' : (dayOf(said) ?? 'week');
+  return { ...(nutrient ? { nutrient } : {}), day };
+}
+
+/** « combien coûte ma liste » → list; « combien coûte la semaine » → week. */
+export function extractCost(utterance: string): AssistantParams | null {
+  const said = normaliseUtterance(utterance);
+  if (!/\bcoute|\bcout\b|\bprix\b|\bbudget\b|\bdepense/.test(said)) return null;
+  if (!/\bcourses?\b|\bliste\b|\bsemaine\b|\brepas\b/.test(said)) return null;
+  return {
+    what: /\bliste\b|\bcourses?\b/.test(said) && !/\bsemaine\b/.test(said) ? 'list' : 'week',
+  };
 }

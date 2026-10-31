@@ -4,7 +4,7 @@
   "description": "Pour chaque morceau : 4 Reels verticaux, une image de post 4:5 et la légende, avec le suivi de publication.",
   "version": "4.4.1",
   "section": "Musique",
-  "icon": "📱",
+  "icon": "smartphone",
   "order": 30,
   "dependsOn": {
     "modules": ["music-library", "video-engine"],

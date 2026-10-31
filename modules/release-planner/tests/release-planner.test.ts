@@ -779,6 +779,27 @@ describe('release-planner (mock YouTube)', () => {
       `${API}/calendar?from=2030-01-01&to=2030-01-31`,
     );
     expect(calendar.body.items.length).toBeGreaterThan(10);
+    // « Prêt pour le calendrier »: the general calendar gets the publications, read only.
+    const before = await hub.request('GET', `${API}/calendar?from=2030-01-01&to=2030-01-31`);
+    const general = await hub.request<{ events: Record<string, unknown>[] }>(
+      'GET',
+      '/api/core/calendar?from=2030-01-14&to=2030-01-14',
+    );
+    const mine = general.body.events.filter((e) => e.moduleId === 'release-planner');
+    expect(mine.map((e) => [e.title, e.start, e.durationMin])).toEqual(
+      expect.arrayContaining([
+        ['Drop — Vidéo YouTube', '2030-01-14T18:00', 0],
+        ['Drop — Post Insta', '2030-01-14T18:00', 0],
+      ]),
+    );
+    expect(mine.every((e) => String(e.open).startsWith('/m/release-planner?item='))).toBe(true);
+    expect(mine.find((e) => e.title === 'Drop — Post Insta')!.status).toMatch(/publi/);
+    expect(
+      (await hub.request('GET', '/api/core/calendar?from=2031-01-01&to=2031-01-31')).body,
+    ).toMatchObject({ events: [] });
+    expect(
+      (await hub.request('GET', `${API}/calendar?from=2030-01-01&to=2030-01-31`)).body,
+    ).toEqual(before.body);
     const today = await hub.request<{ date: string; today: unknown[]; late: unknown[] }>(
       'GET',
       `${API}/today`,

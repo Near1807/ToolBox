@@ -226,6 +226,41 @@ export default defineBackendModule({
       unitsPerDay: ctx.settings.get<number>('unitsPerDay') ?? 10_000,
     });
     const local = (instant: string) => utcToZoned(instant, timeZone());
+
+    // « Prêt pour le calendrier » (MODULES.md §5.17): every planned publication
+    // (YouTube, Shorts, Instagram), at its local date and time. Read only.
+    const CALENDAR_STATES: Record<ItemRow['state'], string> = {
+      planned: 'planifié',
+      queued: 'en attente d’envoi',
+      uploading: 'envoi en cours',
+      scheduled: 'programmé sur YouTube',
+      'to-schedule': 'à programmer dans Studio',
+      published: 'publié',
+      failed: 'erreur',
+    };
+    ctx.calendar.provide({
+      events: (from, to) =>
+        store.allItems().flatMap((item) => {
+          const when = local(item.scheduled_at);
+          if (when.date < from || when.date > to) return [];
+          const release = store.release(item.release_id);
+          if (!release) return [];
+          const track = library.getTrack(release.track_id);
+          return [
+            {
+              id: `item:${item.id}`,
+              title: `${track?.title ?? '(morceau supprimé)'} — ${itemLabel(item.kind, item.position)}`,
+              start: `${when.date}T${when.time}`,
+              durationMin: 0,
+              open: `/m/release-planner?item=${item.id}`,
+              status:
+                item.kind.startsWith('insta') && item.state === 'planned'
+                  ? 'à publier à la main'
+                  : CALENDAR_STATES[item.state],
+            },
+          ];
+        }),
+    });
     const formatInstant = (instant: Date) => {
       const { date, time } = utcToZoned(instant, timeZone());
       return `${date.split('-').reverse().join('/')} à ${time}`;

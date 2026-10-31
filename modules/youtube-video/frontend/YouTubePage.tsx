@@ -24,6 +24,7 @@ import {
   useSelection,
   TrackList,
   usePrecheck,
+  Icon,
 } from '@hub/sdk/frontend';
 
 interface TrackSummary {
@@ -141,7 +142,9 @@ function TrackPanel(props: { trackId: number }) {
           {track.coverUrl ? (
             <img className="yv-track__cover" src={track.coverUrl} alt="" />
           ) : (
-            <div className="yv-track__cover yv-track__cover--empty">♪</div>
+            <div className="yv-track__cover yv-track__cover--empty">
+              <Icon name="music" />
+            </div>
           )}
           <div className="yv-track__body">
             <h2>{track.title}</h2>
@@ -287,7 +290,7 @@ function TrackPanel(props: { trackId: number }) {
                             rel="noreferrer"
                             title="Envoyée par le Planning de sortie"
                           >
-                            Sur YouTube ↗
+                            Sur YouTube <Icon name="external-link" size="0.95em" />
                           </a>
                         )}
                       </FileActions>

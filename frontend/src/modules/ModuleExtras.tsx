@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ErrorBoundary, FloatingProvider, ModuleProvider } from '@hub/sdk/frontend';
+import { ErrorBoundary, FloatingProvider, ModuleProvider, Icon } from '@hub/sdk/frontend';
 import { useModules } from './ModulesContext';
 
 /**
@@ -96,7 +96,7 @@ export function OverlayPage() {
               title="Glisser pour déplacer (Réglages > Fenêtre flottante pour verrouiller)"
               aria-label="Déplacer la fenêtre flottante"
             >
-              ⠿
+              <Icon name="grip" size={14} />
             </span>
           </div>
         )}

@@ -5,7 +5,8 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import type { BackendModule } from './backend';
+import type { BackendModule, MigrationDatabase } from './backend';
+import { legacyUuid } from './sync';
 import { createNullHost, type HostAdapter } from '../../backend/core/host';
 import type { OAuthProvider } from '../../backend/core/accounts';
 import type { DiscoveredModule, Hub } from '../../backend/core/hub';
@@ -23,6 +24,23 @@ import type { FastifyInstance } from 'fastify';
  * `npm test` (fast tests) is what a work session runs.
  */
 export const fullRenderTests = process.env.TOOLBOX_TEST_FULL === '1';
+
+/**
+ * The database a module's migration receives, on a bare better-sqlite3
+ * database (migration tests): prefixed tables, `legacyId` with a fixed seed.
+ */
+export function migrationDatabaseFor(
+  db: { exec(sql: string): unknown; prepare(sql: string): unknown },
+  moduleId: string,
+  seed = 'test-installation',
+): MigrationDatabase {
+  return {
+    exec: (sql) => void db.exec(sql),
+    prepare: (sql) => db.prepare(sql) as never,
+    table: (name) => `${moduleId.replace(/-/g, '_')}__${name}`,
+    legacyId: (kind, oldId) => legacyUuid(seed, kind, oldId),
+  };
+}
 
 const TEST_TOKEN = 'test-token';
 const TEST_PORT = 4321;

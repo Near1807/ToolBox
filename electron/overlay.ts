@@ -9,6 +9,8 @@ import {
   type OverlayLayout,
   type OverlayPosition,
 } from './overlay-layout';
+import { takeKeyboard, type FocusOutcome } from './overlay-focus';
+import { canTapAlt, tapAlt } from './global-keys';
 
 // The one floating window of the hub: transparent, always on top, visible
 // over the application in use even when ToolBox is minimised. It shows the
@@ -151,10 +153,17 @@ function apply(): void {
   if (layout.focus && !focused) {
     // A text field: the window takes the keyboard (the user typed the shortcut for it).
     focused = true;
-    overlay.setFocusable(true);
-    overlay.show();
-    overlay.focus();
-    overlay.webContents.focus();
+    const window = overlay;
+    void takeKeyboard(window, {
+      canTapAlt: canTapAlt(),
+      tapAlt,
+      wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    }).then((outcome: FocusOutcome) => {
+      if (window.isDestroyed()) return;
+      // The page shows « clique dans le champ » when the keyboard stayed elsewhere.
+      window.webContents.send('toolbox:overlay-keyboard', outcome !== 'not-focused');
+      if (outcome !== 'focused') console.info(`[overlay] keyboard: ${outcome}`);
+    });
   } else if (!layout.focus && focused) {
     release(overlay);
     overlay.showInactive();

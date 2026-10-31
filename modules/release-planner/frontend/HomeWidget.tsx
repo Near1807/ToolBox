@@ -1,5 +1,5 @@
 // Card of the home page: what to publish today (and what is late).
-import { useApi, useModule } from '@hub/sdk/frontend';
+import { useApi, useModule, Icon } from '@hub/sdk/frontend';
 import { CopyCaption, DragPreview, PlatformIcon } from './ItemParts';
 import type { PlannerItem, Summary } from './types';
 
@@ -16,13 +16,13 @@ export function HomeWidget() {
     <>
       {data.account.connected && data.account.needsReconnect && (
         <p className="small rp-text-danger">
-          ⚠ Compte Google à reconnecter : envois YouTube en attente.
+          <Icon name="warning" /> Compte Google à reconnecter : envois YouTube en attente.
         </p>
       )}
       {summary?.alerts.map((alert) => (
         <p key={alert.releaseId} className="small rp-text-danger">
-          ⚠ {alert.level} : {alert.count} vidéo(s) YouTube de « {alert.trackTitle} » pas encore
-          envoyée(s).
+          <Icon name="warning" /> {alert.level} : {alert.count} vidéo(s) YouTube de «{' '}
+          {alert.trackTitle} » pas encore envoyée(s).
         </p>
       ))}
     </>

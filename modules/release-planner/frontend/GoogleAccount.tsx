@@ -10,6 +10,7 @@ import {
   errorMessage,
   useApi,
   useModule,
+  Icon,
 } from '@hub/sdk/frontend';
 import type { AccountStatus } from './types';
 
@@ -31,7 +32,7 @@ const LINKS = {
 function A(props: { href: string; children: string }) {
   return (
     <a href={props.href} target="_blank" rel="noreferrer">
-      {props.children} ↗
+      {props.children} <Icon name="external-link" size="0.95em" />
     </a>
   );
 }

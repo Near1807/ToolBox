@@ -380,3 +380,159 @@
   background: var(--surface-2);
   font-size: 0.8rem;
 }
+
+/* v0.25: extras prices, recipe images, library views */
+.cs-price {
+  width: 64px;
+  margin-left: auto;
+  padding: 2px 6px;
+}
+.cs-list li {
+  gap: 8px;
+}
+.cs-thumb {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text-3);
+}
+.cs-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.cs-thumb--small {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+}
+.cs-thumb--large {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+.cs-thumb--large .ui-icon {
+  width: 36px;
+  height: 36px;
+}
+.cs-meals--grid {
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+}
+.cs-meal-card {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+  margin: 0;
+}
+.cs-meal-card__body {
+  padding: 12px 16px 14px;
+}
+.cs-meal-card__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.cs-meal-card__head h2 {
+  margin: 0;
+}
+.cs-meals-list {
+  display: grid;
+  gap: 6px;
+}
+.cs-meal-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.cs-meal-row .cs-thumb--small {
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius-sm);
+}
+.cs-meal-row__text {
+  flex: 1;
+  min-width: 0;
+}
+.cs-view {
+  display: inline-flex;
+  gap: 2px;
+}
+.cs-view [aria-pressed='true'] {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.cs-entry .cs-link {
+  min-width: 0;
+  text-align: left;
+  color: var(--text);
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: auto;
+}
+.input.cs-price,
+.input.cs-price-field {
+  flex: 0 0 auto;
+  width: 76px;
+}
+.input.cs-price-field {
+  width: 96px;
+}
+.cs-preview-meal {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.cs-preview-meal__image {
+  width: 220px;
+  max-width: 100%;
+  border-radius: var(--radius);
+  object-fit: cover;
+}
+.cs-image-field {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.cs-image-field--over {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.cs-image-field__preview {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 120px;
+  height: 90px;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-3);
+}
+.cs-image-field__preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.cs-image-field__actions {
+  display: grid;
+  gap: 6px;
+}
+.cs-warnings {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text-2);
+}

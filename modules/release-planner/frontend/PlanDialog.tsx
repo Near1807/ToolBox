@@ -2,7 +2,7 @@
 // proposes the plan of the template (moved where a day is full), each date can
 // be changed, then « Valider le plan ».
 import { useEffect, useState } from 'react';
-import { Button, ErrorMessage, errorMessage, useApi, useModule } from '@hub/sdk/frontend';
+import { Button, ErrorMessage, errorMessage, useApi, useModule, Icon } from '@hub/sdk/frontend';
 import { addDays, longDate } from './dates';
 import { PlatformIcon } from './ItemParts';
 import type { PlanProposal, Release, TrackChoice } from './types';
@@ -118,7 +118,7 @@ export function PlanDialog(props: {
             aria-label="Fermer"
             onClick={props.onClose}
           >
-            ×
+            <Icon name="close" />
           </button>
         </header>
         {tracks.data && available.length === 0 && (

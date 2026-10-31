@@ -19,12 +19,28 @@ export function CommandBar(props: { turn: TurnDto | null; onTurn: (turn: TurnDto
   const turn = props.turn;
   const close = () => void module.api.post('/bar/close').catch(() => {});
 
-  // The window gets the keyboard a moment after it shows: focus the field then.
+  // Whether the keys come here. The window gets the keyboard a moment after
+  // it shows (focus the field then); if the system kept it on the application
+  // in front, the bar says so and asks for a click (electron/overlay-focus.ts).
+  const [keys, setKeys] = useState<boolean | null>(null);
   useEffect(() => {
-    const focus = () => input.current?.focus();
-    focus();
+    const focus = () => {
+      setKeys(true);
+      input.current?.focus();
+    };
+    const blur = () => setKeys(false);
+    input.current?.focus();
     window.addEventListener('focus', focus);
-    return () => window.removeEventListener('focus', focus);
+    window.addEventListener('blur', blur);
+    const stop = window.toolbox?.overlay?.onKeyboard?.((has) => (has ? focus() : blur()));
+    // No answer from the window (browser, older shell): what the page sees.
+    const check = setTimeout(() => setKeys((k) => k ?? document.hasFocus()), 600);
+    return () => {
+      window.removeEventListener('focus', focus);
+      window.removeEventListener('blur', blur);
+      stop?.();
+      clearTimeout(check);
+    };
   }, []);
   // A finished answer (nothing to confirm): the bar closes by itself, unless typing again.
   const finished = Boolean(turn && !busy && !turn.pending && text === '');
@@ -70,7 +86,12 @@ export function CommandBar(props: { turn: TurnDto | null; onTurn: (turn: TurnDto
 
   return (
     <FloatingPanel label="Barre de commande de l’assistant" focus>
-      <div className="as-bar">
+      <div className={`as-bar${keys === false ? ' as-bar--no-keys' : ''}`}>
+        {keys === false && (
+          <p className="as-bar__line as-bar__hint" role="status">
+            Clique dans le champ pour écrire : le clavier est resté sur l’autre application.
+          </p>
+        )}
         <input
           ref={input}
           className="input as-bar__input"

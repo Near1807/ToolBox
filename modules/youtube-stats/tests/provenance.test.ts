@@ -15,6 +15,9 @@ function open() {
       exec: (sql) => sqlite.exec(sql),
       prepare: (sql) => sqlite.prepare(sql),
       table,
+      legacyId: () => {
+        throw new Error('not used');
+      },
     });
   const ctx = {
     db: {

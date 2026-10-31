@@ -14,6 +14,7 @@ import {
   type ReactNode,
 } from 'react';
 import type { JobInfo, OutputRecord } from './backend';
+import { Icon } from './icons';
 import type { ModuleManifest } from './manifest';
 
 export type * from './manifest';
@@ -83,6 +84,8 @@ declare global {
       overlay?: {
         layout: (layout: FloatingLayout) => void;
         hover: (over: boolean) => void;
+        /** Whether the window got the keyboard after asking for it (false: a click is needed). */
+        onKeyboard?: (listener: (has: boolean) => void) => () => void;
         onPrefs: (listener: (prefs: { locked: boolean }) => void) => () => void;
         position: (value?: FloatingPosition) => Promise<FloatingPosition>;
       };
@@ -531,7 +534,7 @@ export function Page(props: {
                 title={`Réglages de ${module.manifest.name}`}
                 aria-label={`Réglages de ${module.manifest.name}`}
               >
-                ⚙
+                <Icon name="settings" />
               </a>
             )}
           </div>
@@ -863,4 +866,5 @@ export function OutputList(props: {
 }
 
 export * from './components';
+export * from './icons';
 export { fillTemplate, toTemplate, parseTags, formatTags } from './texts';

@@ -1,7 +1,7 @@
 // Types shared by the backend and the page of the To-do module.
 
 export interface TaskDto {
-  id: number;
+  id: string;
   title: string;
   tags: string[];
   /** "YYYY-MM-DD" or null. */

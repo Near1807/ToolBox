@@ -93,4 +93,15 @@ export const coreMigrations: Migration[] = [
       ALTER TABLE core__outputs ADD COLUMN subject_manual INTEGER NOT NULL DEFAULT 0;
     `,
   },
+  {
+    version: 5,
+    description:
+      'installation id (seed of the UUIDs given to old numbered rows, MODULES.md §6 bis)',
+    up: `
+      CREATE TABLE core__meta (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
+    `,
+  },
 ];

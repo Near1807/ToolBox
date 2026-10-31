@@ -21,6 +21,7 @@ import {
   useSelection,
   TrackList,
   usePrecheck,
+  Icon,
 } from '@hub/sdk/frontend';
 import { ItemTile } from './ItemTile';
 import type { Pack, PackItem, TrackDetail, TrackSummary, WaveformData } from './types';
@@ -269,7 +270,9 @@ function TrackPanel(props: { trackId: number; onChange: () => void }) {
           {track.coverUrl ? (
             <img className="iv-track__cover" src={track.coverUrl} alt="" />
           ) : (
-            <div className="iv-track__cover iv-track__cover--empty">♪</div>
+            <div className="iv-track__cover iv-track__cover--empty">
+              <Icon name="music" />
+            </div>
           )}
           <div>
             <h2>{track.title}</h2>

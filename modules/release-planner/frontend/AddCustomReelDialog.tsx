@@ -2,7 +2,7 @@
 // the user's videos), Reel Instagram and/or Short YouTube, and the date, only
 // on an allowed day (Réglages › Jours de publication autorisés).
 import { useState } from 'react';
-import { Button, ErrorMessage, errorMessage, useApi, useModule } from '@hub/sdk/frontend';
+import { Button, ErrorMessage, errorMessage, useApi, useModule, Icon } from '@hub/sdk/frontend';
 import { longDate, weekdayIndex } from './dates';
 import { PlatformIcon } from './ItemParts';
 import type { CustomReelOptions, Release } from './types';
@@ -32,7 +32,7 @@ export function AddCustomReelDialog(props: {
             aria-label="Fermer"
             onClick={props.onClose}
           >
-            ×
+            <Icon name="close" />
           </button>
         </header>
         {loadError && <ErrorMessage>{loadError}</ErrorMessage>}

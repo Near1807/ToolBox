@@ -5,14 +5,14 @@ export type SessionStatus = 'running' | 'paused' | 'ended';
 
 /** The session in progress (running, paused, or ended and waiting for « Tâche terminée ? »). */
 export interface SessionDto {
-  id: number;
+  id: string;
   mode: Mode;
   /** Preset name, or « Timer 27 min ». */
   name: string;
   config: PlanConfig;
   phases: Phase[];
   status: SessionStatus;
-  taskId: number | null;
+  taskId: string | null;
   taskTitle: string | null;
   startedAt: string;
   /** Active seconds elapsed at `at` (pauses excluded); add the time since `at` while running. */
@@ -21,16 +21,16 @@ export interface SessionDto {
 }
 
 export interface PresetDto {
-  id: number;
+  id: string;
   name: string;
   config: PlanConfig;
 }
 
 export interface HistoryDto {
-  id: number;
+  id: string;
   name: string;
   mode: Mode;
-  taskId: number | null;
+  taskId: string | null;
   taskTitle: string | null;
   startedAt: string;
   endedAt: string | null;
@@ -47,10 +47,10 @@ export interface StateDto extends LiveDto {
   presets: PresetDto[];
   /** The To-do is there: tasks can be linked. */
   todo: boolean;
-  tasks: { id: number; title: string }[];
+  tasks: { id: string; title: string }[];
   history: HistoryDto[];
   /** Total work per task (recorded sessions), most worked on first. */
-  perTask: { taskId: number; title: string; seconds: number }[];
+  perTask: { taskId: string; title: string; seconds: number }[];
   settings: { sound: string; volume: number };
 }
 

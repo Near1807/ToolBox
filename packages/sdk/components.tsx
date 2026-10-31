@@ -12,6 +12,7 @@ import {
   type ReactNode,
 } from 'react';
 import { Button, copyText, MissingFile, ProgressBar, startFileDrag } from './frontend';
+import { Icon } from './icons';
 
 // ---------------------------------------------------------------------------
 // Badges
@@ -80,7 +81,11 @@ export function MediaThumb(props: {
       ) : (
         <span className="small">{props.placeholder}</span>
       )}
-      {draggable && <span className="ui-thumb__drag">⇱ glisser</span>}
+      {draggable && (
+        <span className="ui-thumb__drag">
+          <Icon name="move" /> glisser
+        </span>
+      )}
       {props.onSelect && (
         <input
           type="checkbox"
@@ -197,7 +202,13 @@ export function CopyButton(props: { text: string; label?: string; disabled?: boo
         })
       }
     >
-      {copied ? 'Copié ✓' : (props.label ?? 'Copier')}
+      {copied ? (
+        <>
+          Copié <Icon name="check" />
+        </>
+      ) : (
+        (props.label ?? 'Copier')
+      )}
     </Button>
   );
 }
@@ -742,7 +753,9 @@ export function TrackList<T extends TrackListEntry>(props: {
                 {track.coverUrl ? (
                   <img src={track.coverUrl} alt="" />
                 ) : (
-                  <span className="ui-tracks__placeholder">♪</span>
+                  <span className="ui-tracks__placeholder">
+                    <Icon name="music" />
+                  </span>
                 )}
                 <span>
                   <strong>{track.title}</strong>
@@ -792,7 +805,7 @@ export function UndoToast(props: {
         Annuler
       </Button>
       <button type="button" className="icon-button" aria-label="Fermer" onClick={onDismiss}>
-        ×
+        <Icon name="close" />
       </button>
     </div>
   );

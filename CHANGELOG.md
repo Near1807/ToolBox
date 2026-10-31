@@ -4,6 +4,35 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.25.0] — 2026-10-31
+
+Session « Solidification, finitions et audit » : plus rien d'expérimental, une base solide pour la version Android synchronisée et le calendrier général.
+
+### Ajouté
+
+- Courses : image facultative par recette (glisser-déposer ou choix, réduite à 1200 px, JPEG ; remplacée ou retirée vers la Corbeille), miniatures en grille / liste, dans le planning et l'aperçu d'un repas ; champ `image` du JSON (export complet, import avec avertissement si illisible). Prix facultatif des extras (habituels et ajoutés), compté dans le coût de la liste. Assistant, lecture seule : « combien de protéines cette semaine », « combien coûte ma liste ». Coches affichées tout de suite et annulées si l'enregistrement échoue.
+- Calendrier général (`ctx.calendar`, lecture seule) : Planning de sortie (publications), To-do (tâches à échéance), Timer (sessions passées et en cours).
+- SDK : jeu d'icônes unique (`<Icon />`, lucide-react) ; `ctx.files.trash` ; `uuidParam` ; `MigrationDatabase.legacyId` ; `migrationDatabaseFor` (tests).
+- Socle : table `core__meta` (identifiant de l'installation, graine des UUID des anciennes lignes numérotées).
+- `npm run lint` : vérification « pas d'emoji dans l'interface » et icônes de manifest connues (`check:ui-emoji`).
+
+### Modifié
+
+- Sport et Courses validés (plus « Expérimental ») ; granularité synchro : lignes d'exercices, valeurs nutritionnelles et prix stockés ligne par ligne (migration 3, sans perte).
+- To-do, Boîte à idées, Timer « Prêts pour la synchro » (migration 2) : UUID, dates, suppression logique, journal ; anciennes tables gardées en `_v1` ; liens tâche ↔ idée ↔ session conservés. « Annuler » une suppression marche aussi après un redémarrage.
+- Barre de commande écrite : prend le clavier même quand une autre application est au premier plan (étapes vérifiées, Alt simulé sous Windows si besoin, sinon message « Clique dans le champ ») — ADR 0039.
+- Fenêtre flottante entièrement transparente (plus d'ombre coupée en voile sombre autour des panneaux).
+- Plus d'emoji dans l'interface : icônes lucide partout (barre latérale, accueil, réglages, boutons, badges, humeurs du Sport…) ; les manifests nomment leur icône.
+- Cinq thèmes, Thème du soir et raccourci validés (plus « Expérimental »).
+- Dates et heures en français partout (Electron en `fr-FR`).
+- Dépendances (correctifs, mineures) : Electron 44.10, @fastify/static, react-router, eslint, typescript-eslint, lucide-react, electron-builder.
+
+### Corrigé
+
+- Aperçu d'un repas : fermer l'aperçu faisait planter la page Courses (promesse de `scrollIntoView` prise pour un nettoyage React).
+- Planning des repas : noms coupés en plein mot ; champs prix trop larges dans la liste.
+- Test de synchro audio instable (bruit aléatoire) : graine fixe.
+
 ## [0.24.0] — 2026-10-30
 
 Session « Thèmes » : purement visuel, aucune donnée ni aucun calcul ne change.

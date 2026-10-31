@@ -4,7 +4,7 @@
   "description": "Toutes les statistiques de ta chaîne au même endroit, croisées avec tes morceaux, Shorts, extraits et effets : vue d'ensemble, morceaux, vidéos, Labo et théories avec leur niveau de confiance.",
   "version": "1.3.1",
   "section": "Musique",
-  "icon": "📊",
+  "icon": "chart",
   "order": 50,
   "dependsOn": {
     "modules": [],

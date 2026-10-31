@@ -136,6 +136,13 @@ body {
   justify-content: center;
   max-width: 100%;
 }
+/* Nothing but the panels is drawn: the window is the size of the column, so a
+   panel's outer shadow (the themes' --elev-modal) would be cut at the window's
+   edge and show as a dark veil around it. The panels keep their border. */
+.overlay-window .floating-panel > *,
+.overlay-window .overlay__grip-handle {
+  box-shadow: none !important;
+}
 
 button,
 input,
@@ -351,6 +358,15 @@ kbd {
   color: var(--accent-2);
 }
 
+/* The one icon set (lucide, packages/sdk/icons.tsx): on the text line, colour of the text. */
+.ui-icon {
+  flex-shrink: 0;
+  vertical-align: -0.17em;
+}
+.nav-link.active .nav-link__icon,
+.module-card__icon {
+  color: var(--accent);
+}
 .nav-link__icon {
   width: 24px;
   height: 24px;

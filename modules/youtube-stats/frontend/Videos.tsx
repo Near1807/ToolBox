@@ -2,7 +2,7 @@
 // compared with the usual at the same age, day by day, retention over the
 // energy of the music, traffic sources, countries, devices, demographics.
 import { useMemo, useState } from 'react';
-import { Card, ErrorMessage, useApi, useModule } from '@hub/sdk/frontend';
+import { Card, ErrorMessage, useApi, useModule, Icon } from '@hub/sdk/frontend';
 import {
   AUDIO_MODE_LABELS,
   CONTENT_TYPE_LABELS,
@@ -229,7 +229,7 @@ function VideoSheet(props: { id: string; back: () => void }) {
   return (
     <>
       <button type="button" className="button button--secondary button--small" onClick={props.back}>
-        ← Toutes les vidéos
+        <Icon name="arrow-left" /> Toutes les vidéos
       </button>
       <Card title={v.title}>
         <p className="small muted">
@@ -248,7 +248,7 @@ function VideoSheet(props: { id: string; back: () => void }) {
                 target="_blank"
                 rel="noreferrer"
               >
-                Voir sur YouTube ↗
+                Voir sur YouTube <Icon name="external-link" size="0.95em" />
               </a>
             </>
           )}
@@ -402,7 +402,7 @@ function VideoSheet(props: { id: string; back: () => void }) {
             )}
             {d.music?.energyLink && (
               <p className="small muted">
-                Lien énergie ↔ perte d’audience sur cette vidéo : ρ ={' '}
+                Lien entre énergie et perte d’audience sur cette vidéo : ρ ={' '}
                 {fmtNum(d.music.energyLink.rho, 2)} (
                 {d.music.energyLink.rho > 0.2
                   ? 'on décroche moins quand la musique est énergique'

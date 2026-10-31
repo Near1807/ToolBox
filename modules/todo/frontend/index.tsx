@@ -14,6 +14,7 @@ import {
   UndoToast,
   useApi,
   useModule,
+  Icon,
 } from '@hub/sdk/frontend';
 import {
   daysBetween,
@@ -284,12 +285,12 @@ function TaskRow(props: {
           ))}
           {task.track && (
             <Link className="td-track" to={LIBRARY_TRACK(task.track.id)}>
-              ♪ {task.track.title}
+              <Icon name="music" /> {task.track.title}
             </Link>
           )}
           {task.timeSpent > 0 && (
             <span className="td-time" title="Temps de travail enregistré par le Timer">
-              ⏱ {spentText(task.timeSpent)}
+              <Icon name="timer" /> {spentText(task.timeSpent)}
             </span>
           )}
           <span className="faint">
@@ -371,7 +372,7 @@ function TaskRow(props: {
             aria-label="Lancer un timer"
             to={`/m/timer?task=${task.id}`}
           >
-            ⏱
+            <Icon name="timer" />
           </Link>
         )}
         <button
@@ -381,7 +382,7 @@ function TaskRow(props: {
           aria-label="Modifier"
           onClick={startDetails}
         >
-          ✎
+          <Icon name="pencil" />
         </button>
         <button
           type="button"
@@ -390,7 +391,7 @@ function TaskRow(props: {
           aria-label="Supprimer"
           onClick={props.onDelete}
         >
-          🗑
+          <Icon name="trash" />
         </button>
       </div>
     </li>

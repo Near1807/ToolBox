@@ -3,14 +3,18 @@
 // through the actions declared at the end (docs/MODULES.md §5.15).
 import {
   type AssistantParams,
+  changesTableSql,
   defineBackendModule,
   HttpError,
-  idParam,
   listPhrase,
   matchByName,
+  type MigrationDatabase,
   type ModuleContext,
   NotFoundError,
   requestBody,
+  SYNC_COLUMNS,
+  SyncStore,
+  uuidParam,
 } from '@hub/sdk/backend';
 import type { MusicLibraryService } from '../../music-library/contract';
 import type { TimerService } from '../../timer/contract';
@@ -29,14 +33,17 @@ import {
 } from './commands';
 
 interface TaskRow {
-  id: number;
+  id: string;
   title: string;
   tags: string;
   due_date: string | null;
   done_at: string | null;
   created_at: string;
   updated_at: string;
+  deleted_at: string | null;
   subject: string | null;
+  /** Its number before v0.25 (migration 2), null for a task created since. */
+  legacy_id: number | null;
 }
 
 const TRACK_SUBJECT = (id: number) => `music-library:track:${id}`;
@@ -68,16 +75,19 @@ export default defineBackendModule({
         CREATE INDEX todo__tasks_subject ON todo__tasks (subject);
       `,
     },
+    {
+      version: 2,
+      description: 'ready for sync: UUIDs, dates, tombstones, journal (old table kept)',
+      up: (db) => migrateToSync(db),
+    },
   ],
 
   register(ctx: ModuleContext) {
     const tasks = ctx.db.table('tasks');
+    const store = new SyncStore(ctx.db);
     const library = () => ctx.services.optional<MusicLibraryService>('musicLibrary');
     // Optional both ways with the Timer: asked at the time of use (MODULES.md §5.8).
     const timer = () => ctx.services.optional<TimerService>('timer');
-    /** Deleted rows kept a while for « Annuler » (in memory only). */
-    const deleted = new Map<number, { row: TaskRow; at: number }>();
-
     const trackOf = (row: TaskRow): TaskDto['track'] => {
       const service = library();
       if (!service || !row.subject) return null;
@@ -98,13 +108,16 @@ export default defineBackendModule({
       timeSpent: Math.round(times[row.id] ?? 0),
     });
 
-    const get = (id: number): TaskRow => {
-      const row = ctx.db.prepare(`SELECT * FROM ${tasks} WHERE id = ?`).get(id) as
-        TaskRow | undefined;
+    const find = (id: string): TaskRow | null => store.get<TaskRow>('tasks', id);
+    const get = (id: string): TaskRow => {
+      const row = find(id);
       if (!row) throw new HttpError(404, 'Tâche introuvable');
       return row;
     };
-    const all = () => ctx.db.prepare(`SELECT * FROM ${tasks} ORDER BY id`).all() as TaskRow[];
+    const all = () =>
+      ctx.db
+        .prepare(`SELECT * FROM ${tasks} WHERE deleted_at IS NULL ORDER BY created_at, id`)
+        .all() as TaskRow[];
 
     /** Open tasks first by due date (none last), then done ones, latest first. */
     const sorted = (rows: TaskRow[]) =>
@@ -116,7 +129,7 @@ export default defineBackendModule({
           if (!b.due_date) return -1;
           return a.due_date.localeCompare(b.due_date);
         }
-        return a.id - b.id;
+        return a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id);
       });
 
     const tagCounts = () => {
@@ -172,67 +185,44 @@ export default defineBackendModule({
       due: string | null;
       subject: string | null;
     }): TaskRow => {
-      const now = new Date().toISOString();
-      const result = ctx.db
-        .prepare(
-          `INSERT INTO ${tasks} (title, tags, due_date, created_at, updated_at, subject) VALUES (?, ?, ?, ?, ?, ?)`,
-        )
-        .run(fields.title, JSON.stringify(fields.tags), fields.due, now, now, fields.subject);
-      return get(Number(result.lastInsertRowid));
+      return store.create<TaskRow>('tasks', {
+        title: fields.title,
+        tags: JSON.stringify(fields.tags),
+        due_date: fields.due,
+        done_at: null,
+        subject: fields.subject,
+        legacy_id: null,
+      });
     };
 
-    const update = (id: number, patch: Record<string, unknown>): TaskRow => {
+    /** Only the fields that change are written (and journaled). */
+    const update = (id: string, patch: Record<string, unknown>): TaskRow => {
       const row = get(id);
-      const next = { ...row };
+      const next: Partial<Record<keyof TaskRow, string | null>> = {};
       if ('title' in patch) next.title = titleFrom(patch.title);
       if ('tags' in patch) next.tags = JSON.stringify(tagsFrom(patch.tags));
       if ('due' in patch) next.due_date = dueFrom(patch.due);
       if ('done' in patch)
         next.done_at = patch.done ? (row.done_at ?? new Date().toISOString()) : null;
       if ('trackId' in patch) next.subject = subjectFromTrackId(patch.trackId);
-      ctx.db
-        .prepare(
-          `UPDATE ${tasks} SET title = ?, tags = ?, due_date = ?, done_at = ?, subject = ?, updated_at = ? WHERE id = ?`,
-        )
-        .run(
-          next.title,
-          next.tags,
-          next.due_date,
-          next.done_at,
-          next.subject,
-          new Date().toISOString(),
-          id,
-        );
-      return get(id);
+      const changed = Object.fromEntries(
+        Object.entries(next).filter(([key, value]) => row[key as keyof TaskRow] !== value),
+      ) as Record<string, string | null>;
+      return Object.keys(changed).length ? store.update<TaskRow>('tasks', id, changed) : row;
     };
 
-    const remove = (id: number): TaskRow => {
+    /** A tombstone (« Annuler » brings it back; the future sync sees the deletion). */
+    const remove = (id: string): TaskRow => {
       const row = get(id);
-      ctx.db.prepare(`DELETE FROM ${tasks} WHERE id = ?`).run(id);
-      deleted.set(id, { row, at: Date.now() });
-      for (const [key, entry] of deleted) if (Date.now() - entry.at > 3600_000) deleted.delete(key);
+      store.remove('tasks', id);
       return row;
     };
 
-    const restore = (id: number): TaskRow => {
-      const entry = deleted.get(id);
-      if (!entry) throw new HttpError(404, 'Plus rien à restaurer pour cette tâche');
-      const r = entry.row;
-      ctx.db
-        .prepare(
-          `INSERT INTO ${tasks} (id, title, tags, due_date, done_at, created_at, updated_at, subject) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        )
-        .run(
-          r.id,
-          r.title,
-          r.tags,
-          r.due_date,
-          r.done_at,
-          r.created_at,
-          new Date().toISOString(),
-          r.subject,
-        );
-      deleted.delete(id);
+    const restore = (id: string): TaskRow => {
+      const row = store.get<TaskRow>('tasks', id, true);
+      if (!row || row.deleted_at === null)
+        throw new HttpError(404, 'Plus rien à restaurer pour cette tâche');
+      store.restore('tasks', id);
       return get(id);
     };
 
@@ -264,15 +254,15 @@ export default defineBackendModule({
     });
 
     ctx.routes.patch('/tasks/:id', (request) =>
-      dto(update(idParam(request.params), requestBody(request))),
+      dto(update(uuidParam(request.params), requestBody(request))),
     );
 
     ctx.routes.delete('/tasks/:id', (request) => {
-      remove(idParam(request.params));
+      remove(uuidParam(request.params));
       return { ok: true };
     });
 
-    ctx.routes.post('/tasks/:id/restore', (request) => dto(restore(idParam(request.params))));
+    ctx.routes.post('/tasks/:id/restore', (request) => dto(restore(uuidParam(request.params))));
 
     // Home widget: what is due today or late.
     ctx.routes.get('/today', () => {
@@ -283,6 +273,28 @@ export default defineBackendModule({
         open: open.length,
         due: open.filter((r) => r.due_date !== null && r.due_date <= today).map((r) => dto(r)),
       };
+    });
+
+    // --- « Prêt pour le calendrier » (MODULES.md §5.17) --------------------------
+    // Each task with a due date, on that day (all day). Read only.
+    ctx.calendar.provide({
+      events: (from, to) => {
+        const today = localToday();
+        return (
+          ctx.db
+            .prepare(
+              `SELECT * FROM ${tasks} WHERE deleted_at IS NULL AND due_date IS NOT NULL AND due_date >= ? AND due_date <= ? ORDER BY due_date, created_at`,
+            )
+            .all(from, to) as TaskRow[]
+        ).map((row) => ({
+          id: row.id,
+          title: row.title,
+          start: row.due_date!,
+          durationMin: 0,
+          open: '/m/todo',
+          status: row.done_at !== null ? 'fait' : row.due_date! < today ? 'en retard' : 'à faire',
+        }));
+      },
     });
 
     // --- Service for the other modules (the Timer) ------------------------------
@@ -300,8 +312,7 @@ export default defineBackendModule({
           .filter((r) => r.done_at === null)
           .map(summary),
       getTask: (id) => {
-        const row = ctx.db.prepare(`SELECT * FROM ${tasks} WHERE id = ?`).get(id) as
-          TaskRow | undefined;
+        const row = find(id);
         return row ? summary(row) : null;
       },
       completeTask: (id) => summary(update(id, { done: true })),
@@ -330,7 +341,9 @@ export default defineBackendModule({
         get: (trackId) => {
           const open = sorted(
             ctx.db
-              .prepare(`SELECT * FROM ${tasks} WHERE subject = ? AND done_at IS NULL`)
+              .prepare(
+                `SELECT * FROM ${tasks} WHERE subject = ? AND done_at IS NULL AND deleted_at IS NULL`,
+              )
               .all(TRACK_SUBJECT(trackId)) as TaskRow[],
           );
           if (open.length === 0) return null;
@@ -373,9 +386,15 @@ export default defineBackendModule({
       return match.item;
     };
 
-    /** A task from its number or its title (open tasks first). */
+    /** A task from its title (open tasks first), or its number from before v0.25. */
     const findTask = (wanted: string, scope: 'open' | 'done' | 'any' = 'open'): TaskRow => {
-      if (/^\d+$/.test(wanted.trim())) return get(Number(wanted));
+      if (/^\d+$/.test(wanted.trim())) {
+        const row = ctx.db
+          .prepare(`SELECT * FROM ${tasks} WHERE legacy_id = ? AND deleted_at IS NULL`)
+          .get(Number(wanted)) as TaskRow | undefined;
+        if (!row) throw new HttpError(404, 'Tâche introuvable');
+        return row;
+      }
       const rows = all().filter((r) =>
         scope === 'any' ? true : scope === 'open' ? r.done_at === null : r.done_at !== null,
       );
@@ -453,9 +472,7 @@ export default defineBackendModule({
         return {
           message: `J’ai ajouté « ${row.title} »${tagsPhrase(tags)}${due ? ` pour ${spokenDue(due, today)}` : ''}${track ? `, sur le morceau ${track.title}` : ''}.`,
           data: { task: describeTask(row, today), newTags },
-          undo: () => {
-            ctx.db.prepare(`DELETE FROM ${tasks} WHERE id = ?`).run(row.id);
-          },
+          undo: () => store.remove('tasks', row.id),
         };
       },
     });
@@ -592,3 +609,75 @@ export default defineBackendModule({
     });
   },
 });
+
+/**
+ * Migration 2 (v0.25): the tasks get a UUID, a tombstone and a journal (« Prêt
+ * pour la synchro », MODULES.md §6 bis). The old table stays as `tasks_v1`,
+ * untouched; each task is copied with the same values and dates, its new id
+ * is `legacyId('todo:task', old number)` (the Timer and the Boîte à idées
+ * compute the same one for the tasks they reference), and the old → new
+ * pairs are kept in `legacy_ids`.
+ */
+function migrateToSync(db: MigrationDatabase): void {
+  const tasks = db.table('tasks');
+  const old = db.table('tasks_v1');
+  const legacy = db.table('legacy_ids');
+  const journal = db.table('changes');
+  db.exec(`
+    ALTER TABLE ${tasks} RENAME TO ${old};
+    DROP INDEX IF EXISTS ${tasks}_subject;
+    CREATE TABLE ${tasks} (
+      ${SYNC_COLUMNS},
+      title TEXT NOT NULL,
+      tags TEXT NOT NULL DEFAULT '[]',
+      due_date TEXT,
+      done_at TEXT,
+      subject TEXT,
+      legacy_id INTEGER
+    );
+    CREATE INDEX ${tasks}_subject ON ${tasks} (subject);
+    CREATE INDEX ${tasks}_legacy ON ${tasks} (legacy_id);
+    CREATE INDEX ${old}_subject ON ${old} (subject);
+    ${changesTableSql(journal)}
+    CREATE TABLE ${legacy} (
+      entity TEXT NOT NULL,
+      old_id INTEGER NOT NULL,
+      new_id TEXT NOT NULL,
+      PRIMARY KEY (entity, old_id)
+    );
+  `);
+  const rows = db.prepare(`SELECT * FROM ${old} ORDER BY id`).all() as (Omit<
+    TaskRow,
+    'id' | 'deleted_at' | 'legacy_id'
+  > & { id: number })[];
+  const insert = db.prepare(
+    `INSERT INTO ${tasks} (id, created_at, updated_at, deleted_at, title, tags, due_date, done_at, subject, legacy_id) VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?)`,
+  );
+  const pair = db.prepare(`INSERT INTO ${legacy} (entity, old_id, new_id) VALUES ('tasks', ?, ?)`);
+  const log = db.prepare(
+    `INSERT INTO ${journal} (id, at, entity, entity_id, op, data) VALUES (?, ?, 'tasks', ?, 'create', ?)`,
+  );
+  for (const r of rows) {
+    const id = db.legacyId('todo:task', r.id);
+    insert.run(
+      id,
+      r.created_at,
+      r.updated_at,
+      r.title,
+      r.tags,
+      r.due_date,
+      r.done_at,
+      r.subject,
+      r.id,
+    );
+    pair.run(r.id, id);
+    const fields = {
+      title: r.title,
+      tags: r.tags,
+      due_date: r.due_date,
+      done_at: r.done_at,
+      subject: r.subject,
+    };
+    log.run(db.legacyId('todo:journal', r.id), r.updated_at, id, JSON.stringify(fields));
+  }
+}

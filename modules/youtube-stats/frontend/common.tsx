@@ -3,10 +3,15 @@
 import type { ReactNode } from 'react';
 import { METRICS, TIER_HELP, TIER_LABELS, type Confidence, type Tier } from '../shared';
 import { fmtNum } from './charts';
+import { Icon, type IconName } from '@hub/sdk/frontend';
 
 export type { Confidence };
 
-const TIER_ICONS: Record<Tier, string> = { intuition: '🎲', piste: '🔎', solide: '🧱' };
+const TIER_ICONS: Record<Tier, IconName> = {
+  intuition: 'dice',
+  piste: 'search',
+  solide: 'brick-wall',
+};
 const TIER_CLASSES: Record<Tier, string> = {
   intuition: 'badge',
   piste: 'badge badge--accent',
@@ -27,7 +32,7 @@ export function TierBadge(props: { confidence: Confidence }) {
     .join('\n');
   return (
     <span className={`${TIER_CLASSES[c.tier]} ys-tier`} title={details}>
-      <span aria-hidden="true">{TIER_ICONS[c.tier]}</span> {TIER_LABELS[c.tier]}
+      <Icon name={TIER_ICONS[c.tier]} /> {TIER_LABELS[c.tier]}
     </span>
   );
 }

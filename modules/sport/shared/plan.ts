@@ -8,7 +8,9 @@ export type Weekday = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 export type SessionStatus = 'planned' | 'done' | 'missed' | 'cancelled';
 
 export const WEEKDAYS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
-export const MOODS = ['😫', '🙁', '😐', '🙂', '😄'];
+/** The five moods (1 = very bad … 5 = very good): words for the interface (each
+ * has its icon, `mood-1` … `mood-5` of the SDK set). */
+export const MOOD_LABELS = ['Très mal', 'Pas bien', 'Moyen', 'Bien', 'Très bien'];
 
 export interface TemplateItem {
   id: string;
