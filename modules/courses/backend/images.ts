@@ -8,7 +8,7 @@ import { createCanvas, loadImage } from '@napi-rs/canvas';
 /** Largest file accepted (before re-encoding). */
 export const MAX_INPUT_BYTES = 20 * 1024 * 1024;
 /** Longest side of the stored image. */
-export const MAX_SIDE = 1200;
+const MAX_SIDE = 1200;
 /** Background under transparent pixels (a JPEG has none). */
 const BACKGROUND = '#ffffff';
 

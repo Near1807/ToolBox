@@ -928,7 +928,7 @@ export default defineBackendModule({
  * time per task and « Tâche terminée ? » stay on the right task. Old → new
  * pairs in `legacy_ids`.
  */
-export function migrateToSync(db: MigrationDatabase): void {
+function migrateToSync(db: MigrationDatabase): void {
   const sessions = db.table('sessions');
   const presets = db.table('presets');
   const legacy = db.table('legacy_ids');

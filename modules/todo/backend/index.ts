@@ -618,7 +618,7 @@ export default defineBackendModule({
  * compute the same one for the tasks they reference), and the old → new
  * pairs are kept in `legacy_ids`.
  */
-export function migrateToSync(db: MigrationDatabase): void {
+function migrateToSync(db: MigrationDatabase): void {
   const tasks = db.table('tasks');
   const old = db.table('tasks_v1');
   const legacy = db.table('legacy_ids');

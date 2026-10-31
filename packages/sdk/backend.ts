@@ -16,7 +16,6 @@ export {
 export { ELEMENT_STATES, listPhrase } from './assistant-texts';
 export {
   changesTableSql,
-  legacyUuid,
   newId,
   SYNC_COLUMNS,
   SyncStore,

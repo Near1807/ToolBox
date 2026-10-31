@@ -542,7 +542,7 @@ export function markdownOf(list: IdeaDto[]): string {
  * `legacyId('ideas:idea', n)`; the task it became is `legacyId('todo:task',
  * n)`, the UUID the To-do gives its task n. Old → new pairs in `legacy_ids`.
  */
-export function migrateToSync(db: MigrationDatabase): void {
+function migrateToSync(db: MigrationDatabase): void {
   const ideas = db.table('ideas');
   const tags = db.table('tags');
   const legacy = db.table('legacy_ids');

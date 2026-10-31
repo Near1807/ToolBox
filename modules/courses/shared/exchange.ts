@@ -13,7 +13,7 @@ import {
 
 export const FORMAT = 'toolbox-courses';
 /** A base64 image of 20 MB at most (4 characters for 3 bytes). */
-export const MAX_IMAGE_CHARS = Math.ceil((20 * 1024 * 1024 * 4) / 3) + 64;
+const MAX_IMAGE_CHARS = Math.ceil((20 * 1024 * 1024 * 4) / 3) + 64;
 export const FORMAT_VERSION = 1;
 
 export interface ExchangeIngredient {

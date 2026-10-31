@@ -30,7 +30,7 @@ export interface FocusMeans {
 }
 
 /** Time the system takes to give the keyboard, before checking. */
-export const FOCUS_CHECK_MS = 120;
+const FOCUS_CHECK_MS = 120;
 
 export type FocusOutcome = 'focused' | 'focused-with-alt' | 'not-focused';
 

@@ -42,18 +42,18 @@ Détail pour les modules : `docs/MODULES.md` §1 bis.
 
 ## Commandes
 
-| Commande                                   | Rôle                                                                                                                                          |
-| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `npm run dev`                              | Vite + backend + Electron avec rechargement. UI aussi ouvrable sur http://localhost:5173. **À relancer après l'ajout d'un dossier de module** |
-| `TOOLBOX_LOAD_EXAMPLES=1 npm run dev`      | Idem, en chargeant aussi les modules d'exemple (`modules/_*`)                                                                                 |
-| `npm run build` / `npm start`              | Build (`build/renderer`, `build/main`) / lance Electron sur le build                                                                          |
-| `npm test` / `npm run test:watch`          | Tests rapides Vitest (socle dans `tests/`, modules dans `modules/*/tests/`), sans les rendus complets (~25 s)                                 |
-| `npm run test:full`                        | Suite complète, dont les rendus complets (`fullRenderTests`) ; toujours lancée par la CI Windows                                              |
-| `npm run lint` / `npm run format`          | ESLint (dont la règle des frontières de modules) + Prettier + aucune couleur en dur dans l'interface (`check:ui-colors`)                      |
-| `npm run typecheck`                        | `tsc --noEmit`                                                                                                                                |
-| `npm run check:native`                     | Vérifie que better-sqlite3, @napi-rs/canvas et uiohook-napi se chargent dans le Node d'Electron (sous Linux : `xvfb-run -a`)                  |
-| `npm run dist:win`                         | Installateur NSIS + portable dans `dist/` (sous Windows, ou via la CI)                                                                        |
-| `node scripts/smoke-test.mjs <exe> [args]` | Auto-test d'un build (API, SQLite, FFmpeg, canvas, module modèle, UI)                                                                         |
+| Commande                                   | Rôle                                                                                                                                                 |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run dev`                              | Vite + backend + Electron avec rechargement. UI aussi ouvrable sur http://localhost:5173. **À relancer après l'ajout d'un dossier de module**        |
+| `TOOLBOX_LOAD_EXAMPLES=1 npm run dev`      | Idem, en chargeant aussi les modules d'exemple (`modules/_*`)                                                                                        |
+| `npm run build` / `npm start`              | Build (`build/renderer`, `build/main`) / lance Electron sur le build                                                                                 |
+| `npm test` / `npm run test:watch`          | Tests rapides Vitest (socle dans `tests/`, modules dans `modules/*/tests/`), sans les rendus complets (~25 s)                                        |
+| `npm run test:full`                        | Suite complète, dont les rendus complets (`fullRenderTests`) ; toujours lancée par la CI Windows                                                     |
+| `npm run lint` / `npm run format`          | ESLint (dont la règle des frontières de modules) + Prettier + aucune couleur en dur (`check:ui-colors`) ni emoji (`check:ui-emoji`) dans l'interface |
+| `npm run typecheck`                        | `tsc --noEmit`                                                                                                                                       |
+| `npm run check:native`                     | Vérifie que better-sqlite3, @napi-rs/canvas et uiohook-napi se chargent dans le Node d'Electron (sous Linux : `xvfb-run -a`)                         |
+| `npm run dist:win`                         | Installateur NSIS + portable dans `dist/` (sous Windows, ou via la CI)                                                                               |
+| `node scripts/smoke-test.mjs <exe> [args]` | Auto-test d'un build (API, SQLite, FFmpeg, canvas, module modèle, UI)                                                                                |
 
 Sous Linux en root (conteneur) : ajouter `--no-sandbox` à Electron, et `xvfb-run -a` pour un écran virtuel. Pour voir l’interface : Playwright (`_electron.launch`, s’il est installé dans l’environnement) permet de piloter l’app et de faire des captures.
 
