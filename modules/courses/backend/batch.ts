@@ -20,20 +20,22 @@ import {
   parseModel,
   projectModel,
 } from '../shared/batch-grid';
+import { fold, scale, type PieceWeights } from '../shared/quantities';
+import { prepPortions } from '../shared/recipe';
+import { coupleKey } from '../shared/batch-form';
 import {
-  addUp,
-  fold,
-  formatAmount,
-  plannedLines,
-  scale,
-  type Line,
-  type MealRecipe,
-  type PieceWeights,
-} from '../shared/quantities';
-import { expandRecipe, prepPortions } from '../shared/recipe';
+  cookIngredients,
+  suggest,
+  withAdditions,
+  type Candidate,
+  type IngredientFacts,
+} from '../shared/batch-suggest';
 import type {
+  BatchAdditionDto,
   BatchCookDto,
   BatchEntryDto,
+  BatchUseDto,
+  CookBasis,
   BatchPartDto,
   BatchPlanDto,
   BatchProposalDto,
@@ -110,6 +112,12 @@ interface CookKey {
   prepId: string | null;
   mealId: string | null;
 }
+
+const lineOf = (i: { ingredientId: string; qty: number; unit: string }) => ({
+  ingredientId: i.ingredientId,
+  qty: i.qty,
+  unit: i.unit,
+});
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -214,54 +222,67 @@ export function createBatch(d: BatchDeps) {
     live<PortionRow>('batch_portions', 'session_id = ?', sessionId);
   const order = (momentId: string) => d.moments().findIndex((m) => m.id === momentId);
   /** Planned meals already covered by a validated plan: entry → plan. */
-  const coveredEntries = () => {
+  /**
+   * Couples already covered by a validated plan: `entry|prep` → plan (v0.28:
+   * per preparation). A portion of a recipe cooked whole (prep_id empty, as
+   * every v0.26 plan) covers the whole meal: `entry|*`.
+   */
+  const coverage = () => {
     const covered = new Map<string, string>();
     for (const plan of live<PlanRow>('batch_plans'))
       for (const session of sessionsOf(plan.id))
-        for (const p of portionsOf(session.id)) covered.set(p.plan_entry_id, plan.id);
-    return covered;
+        for (const p of portionsOf(session.id))
+          covered.set(coupleKey(p.plan_entry_id, p.prep_id), plan.id);
+    return {
+      of: (entryId: string, prepId: string | null) =>
+        covered.get(coupleKey(entryId, null)) ?? covered.get(coupleKey(entryId, prepId)) ?? null,
+    };
   };
 
-  /**
-   * What to prepare, through the expansion of the recipes: a recipe scaled
-   * to its portions (the list's own calculation), or a preparation × its
-   * portions (expandRecipe of one line « preparation × portions »).
-   */
-  const ingredientsFor = (key: CookKey, portions: number) => {
-    const names = d.ingredientNames();
-    let lines: Line[];
+  /** What a cooking is made of (its quantities: shared/batch-suggest.ts, cookIngredients). */
+  const basisOf = (key: CookKey): CookBasis => {
     if (key.prepId) {
-      const preps = new Map(d.preps().map((p) => [p.id, p]));
-      lines = expandRecipe(
-        [{ kind: 'prep', id: 'cook', prepId: key.prepId, qty: portions }],
-        preps,
-      );
-    } else {
-      const recipes = new Map<string, MealRecipe>(d.meals().map((m) => [m.id, m]));
-      lines = plannedLines([{ mealId: key.mealId!, servings: portions }], recipes);
+      const prep = d.preps().find((p) => p.id === key.prepId);
+      return { kind: 'prep', items: (prep?.items ?? []).map(lineOf) };
     }
-    return addUp(lines, d.pieceWeights())
-      .map((t) => ({
-        name: names.get(t.ingredientId) ?? 'Ingrédient supprimé',
-        amount: t.amounts.map(formatAmount).join(' + '),
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+    const meal = d.meals().find((m) => m.id === key.mealId);
+    return { kind: 'meal', servings: meal?.servings ?? 1, items: (meal?.items ?? []).map(lineOf) };
   };
+  /** The facts of the ingredients of these cookings only. */
+  const factsFor = (bases: CookBasis[], all: IngredientFacts): IngredientFacts => {
+    const ids = new Set(bases.flatMap((b) => b.items.map((i) => i.ingredientId)));
+    const pick = <T>(r: Record<string, T>) =>
+      Object.fromEntries(Object.entries(r).filter(([id]) => ids.has(id)));
+    return { names: pick(all.names), pieces: pick(all.pieces) };
+  };
+  /** Names and piece weights of the ingredients (quantities computed the same on the page). */
+  const factsOf = (): IngredientFacts => ({
+    names: Object.fromEntries(d.ingredientNames()),
+    pieces: Object.fromEntries(d.pieceWeights()),
+  });
   /** Portions added up without the floating point dust (shown rounded anyway). */
   const total = (uses: readonly { servings: number }[]) =>
     Math.round(uses.reduce((n, u) => n + u.servings, 0) * 1e9) / 1e9;
   const cookDto = (
     key: CookKey,
-    fridge: BatchCookDto['fridge'],
-    frozen: BatchCookDto['frozen'],
+    fridgeUses: BatchCookDto['fridge'],
+    frozenUses: BatchCookDto['frozen'],
     entryMeals: ReadonlyMap<string, string>,
+    facts: IngredientFacts = factsOf(),
   ): BatchCookDto => {
-    const portions = total([...fridge, ...frozen]);
+    const portions = total([...fridgeUses, ...frozenUses]);
     const meals = d.meals();
     const name = key.prepId
       ? (d.preps().find((p) => p.id === key.prepId)?.name ?? 'Préparation supprimée')
       : (meals.find((m) => m.id === key.mealId)?.name ?? 'Repas supprimé');
     const mealName = new Map(meals.map((m) => [m.id, m.name]));
+    // « pour : mar. soir (Chili) »: the recipe of each meal.
+    const named = (u: BatchUseDto) => ({
+      ...u,
+      mealName: mealName.get(entryMeals.get(u.entryId) ?? '') ?? 'Repas supprimé',
+    });
+    const fridge = fridgeUses.map(named);
+    const frozen = frozenUses.map(named);
     return {
       mealId: key.mealId,
       mealName: name,
@@ -269,7 +290,7 @@ export function createBatch(d: BatchDeps) {
       portions,
       fridge,
       frozen,
-      ingredients: ingredientsFor(key, portions),
+      ingredients: cookIngredients(basisOf(key), portions, facts),
       usedIn: [
         ...new Set(
           [...fridge, ...frozen].map(
@@ -391,6 +412,32 @@ export function createBatch(d: BatchDeps) {
 
   // --- The calculation (read only) ----------------------------------------------------
 
+  /**
+   * The planned meals the form knows: the period, and the days before it
+   * (up to `before` days: sessions may be there, v0.28 their meals too).
+   */
+  const entriesBetween = (from: string, to: string, before: number) =>
+    d
+      .planBetween(addDaysTo(from, -before), to)
+      .sort((a, b) => a.date.localeCompare(b.date) || order(a.momentId) - order(b.momentId));
+
+  /** The couples (what is cooked, meal) of a planned meal, with their keeping. */
+  const couplesOf = (e: PlanDto, meal: MealDto | undefined) =>
+    partsOf(meal, e.servings).map((part) => ({
+      part,
+      couple: {
+        entryId: e.id,
+        date: e.date,
+        momentId: e.momentId,
+        recipeId: part.prepId ? `prep:${part.prepId}` : `meal:${part.mealId}`,
+        recipeName: part.name,
+        servings: part.portions,
+        fridgeDays: part.fridgeDays ?? 0,
+        freezable: part.freezable,
+        freezerDays: part.freezerDays,
+      } satisfies BatchMeal,
+    }));
+
   const compute = (body: Record<string, unknown>) => {
     const { from, to } = periodFrom(body);
     const daysBefore = daysBeforeFrom(body.daysBefore);
@@ -398,53 +445,66 @@ export function createBatch(d: BatchDeps) {
     const slots = slotsFrom(body.slots, dates);
     if (!slots.length) throw new HttpError(400, 'Coche les créneaux où tu peux cuisiner.');
     const freezer = body.freezer === true;
-    const wanted = new Set(Array.isArray(body.entryIds) ? body.entryIds.map(String) : []);
-    const entries = d.planBetween(from, to).filter((p) => wanted.has(p.id));
-    if (entries.length !== wanted.size)
+    // v0.28: couples (meal, preparation); `entryIds` alone = every part of these meals.
+    const wanted = new Set<string>();
+    const wholeMeals = new Set(Array.isArray(body.entryIds) ? body.entryIds.map(String) : []);
+    if (Array.isArray(body.couples))
+      for (const c of body.couples as { entryId?: unknown; prepId?: unknown }[])
+        wanted.add(coupleKey(String(c?.entryId ?? ''), c?.prepId ? String(c.prepId) : null));
+    const known = entriesBetween(from, to, daysBefore);
+    const askedEntries = new Set([...wholeMeals, ...[...wanted].map((k) => k.split('|')[0]!)]);
+    const entries = known.filter((p) => askedEntries.has(p.id));
+    if (entries.length !== askedEntries.size)
       throw new HttpError(400, 'Un repas coché n’est plus dans le planning de la période.');
-    const covered = coveredEntries();
-    if (entries.some((e) => covered.has(e.id)))
-      throw new HttpError(
-        409,
-        'Un repas coché est déjà couvert par un plan validé : annule d’abord ce plan.',
-      );
+    const isWanted = (entryId: string, prepId: string | null) =>
+      wholeMeals.has(entryId) || wanted.has(coupleKey(entryId, prepId));
+    const covered = coverage();
     const meals = new Map(d.meals().map((m) => [m.id, m]));
     const missing: BatchProposalDto['missing'] = [];
-    const entryMeals = new Map(entries.map((e) => [e.id, e.mealId]));
+    const entryMeals = new Map(known.map((e) => [e.id, e.mealId]));
     // The couples (what is cooked, meal): the preparations of a split recipe, else the recipe.
-    const batchMeals: BatchMeal[] = entries.flatMap((e) =>
-      partsOf(meals.get(e.mealId), e.servings).flatMap((part) => {
-        if (part.fridgeDays === null) {
+    const batchMeals: BatchMeal[] = [];
+    for (const e of entries)
+      for (const { part, couple } of couplesOf(e, meals.get(e.mealId))) {
+        if (!isWanted(e.id, part.prepId)) continue;
+        if (covered.of(e.id, part.prepId))
+          throw new HttpError(
+            409,
+            'Un repas coché est déjà couvert par un plan validé : annule d’abord ce plan.',
+          );
+        if (part.fridgeDays === null)
           missing.push({ entryId: e.id, prepId: part.prepId, name: part.name });
-          return [];
-        }
-        return [
-          {
-            entryId: e.id,
-            date: e.date,
-            momentId: e.momentId,
-            recipeId: part.prepId ? `prep:${part.prepId}` : `meal:${part.mealId}`,
-            recipeName: part.name,
-            servings: part.portions,
-            fridgeDays: part.fridgeDays,
-            freezable: part.freezable,
-            freezerDays: part.freezerDays,
-          },
-        ];
-      }),
+        else batchMeals.push(couple);
+      }
+    const momentOrder = d.moments().map((m) => m.id);
+    const result = planBatch({ meals: batchMeals, slots, momentOrder, freezer });
+    const facts = factsOf();
+    const cooks = result.sessions.flatMap((s) =>
+      s.cooks.map((c) => ({ date: s.date, momentId: s.momentId, key: c.recipeId })),
     );
-    const result = planBatch({
-      meals: batchMeals,
-      slots,
-      momentOrder: d.moments().map((m) => m.id),
-      freezer,
-    });
+    // « Pourrait aussi servir »: couples not ticked for that preparation, not covered, keeping known.
+    const candidates: Candidate[] = known.flatMap((e) =>
+      couplesOf(e, meals.get(e.mealId)).flatMap(({ part, couple }) =>
+        isWanted(e.id, part.prepId) || covered.of(e.id, part.prepId) || part.fridgeDays === null
+          ? []
+          : [{ ...couple, mealName: meals.get(e.mealId)?.name ?? 'Repas supprimé' }],
+      ),
+    );
+    const suggestions = suggest(cooks, candidates, momentOrder, freezer);
+    let k = 0;
     const proposal: BatchProposalDto = {
       sessions: result.sessions.map((s) => ({
         date: s.date,
         momentId: s.momentId,
         beforePeriod: s.date < from,
-        cooks: s.cooks.map((c) => cookDto(keyOf(c.recipeId), c.fridge, c.frozen, entryMeals)),
+        cooks: s.cooks.map((c) => {
+          const key = keyOf(c.recipeId);
+          return {
+            ...cookDto(key, c.fridge, c.frozen, entryMeals, facts),
+            basis: basisOf(key),
+            suggestions: suggestions[k++]!,
+          };
+        }),
         warnings: overlapWarnings(s, from, null),
       })),
       uncovered: result.uncovered.map((u) => ({
@@ -457,8 +517,13 @@ export function createBatch(d: BatchDeps) {
       covered: result.covered,
       total: result.total,
       tooComplex: result.tooComplex,
+      // Only the ingredients of these cookings (their quantities after « Ajouter »).
+      facts: factsFor(
+        cooks.map((c) => basisOf(keyOf(c.key))),
+        facts,
+      ),
     };
-    return { from, to, daysBefore, dates, slots, freezer, proposal, meals };
+    return { from, to, daysBefore, dates, slots, freezer, proposal, meals, known, momentOrder };
   };
 
   // --- Routes ---------------------------------------------------------------------------
@@ -468,7 +533,7 @@ export function createBatch(d: BatchDeps) {
     const daysBefore = settingDaysBefore();
     const moments = d.moments();
     const momentIds = moments.map((m) => m.id);
-    const covered = coveredEntries();
+    const covered = coverage();
     const meals = new Map(d.meals().map((m) => [m.id, m]));
     const saved = live<GridRow>('batch_grids', 'date_from = ? AND date_to = ?', from, to)[0];
     // Saved for this period: its dates as saved; dates shown now but not saved then: the model.
@@ -488,26 +553,30 @@ export function createBatch(d: BatchDeps) {
       moments,
       daysBefore,
       grid: { dates, slots, saved: Boolean(saved) },
-      entries: d
-        .planBetween(from, to)
-        .sort((a, b) => a.date.localeCompare(b.date) || order(a.momentId) - order(b.momentId))
-        .map((p) => {
-          const m = meals.get(p.mealId);
-          return {
-            entryId: p.id,
-            date: p.date,
-            momentId: p.momentId,
-            mealId: p.mealId,
-            mealName: m?.name ?? 'Repas supprimé',
-            servings: p.servings,
-            batchTag: Boolean(m?.tags.some(isBatchTag)),
-            fridgeDays: m?.fridgeDays ?? null,
-            freezable: m?.freezable ?? false,
-            freezerDays: m?.freezerDays ?? null,
-            parts: partsOf(m, p.servings),
-            coveredBy: covered.get(p.id) ?? null,
-          } satisfies BatchEntryDto;
-        }),
+      // v0.28: also the meals of the days before the period (the form shows them when N > 0).
+      entries: entriesBetween(from, to, MAX_DAYS_BEFORE).map((p) => {
+        const m = meals.get(p.mealId);
+        const parts = partsOf(m, p.servings).map((part) => ({
+          ...part,
+          coveredBy: covered.of(p.id, part.prepId),
+        }));
+        const whole = parts.length > 0 && parts.every((x) => x.coveredBy);
+        return {
+          entryId: p.id,
+          date: p.date,
+          momentId: p.momentId,
+          mealId: p.mealId,
+          mealName: m?.name ?? 'Repas supprimé',
+          servings: p.servings,
+          batchTag: Boolean(m?.tags.some(isBatchTag)),
+          fridgeDays: m?.fridgeDays ?? null,
+          freezable: m?.freezable ?? false,
+          freezerDays: m?.freezerDays ?? null,
+          parts,
+          coveredBy: whole ? parts[0]!.coveredBy! : null,
+          ...(p.date < from ? { beforePeriod: true } : {}),
+        } satisfies BatchEntryDto;
+      }),
       plans: plansTouching(from, to).map(planDto),
     };
   });
@@ -538,10 +607,25 @@ export function createBatch(d: BatchDeps) {
 
   /** « Valider ce plan »: the same calculation, then the plan is kept. */
   ctx.routes.post('/batch/plans', (request) => {
-    const c = compute(requestBody(request));
+    const body = requestBody(request);
+    const c = compute(body);
     if (c.proposal.tooComplex || !c.proposal.sessions.length)
       throw new HttpError(400, 'Rien à valider : aucune session proposée.');
-    const planned = new Map(d.planBetween(c.from, c.to).map((p) => [p.id, p]));
+    // v0.28: the proposal as shown, with the suggestions « Ajouter » took (each checked).
+    const additions = (Array.isArray(body.additions) ? body.additions : []).map(
+      (a: Record<string, unknown>): BatchAdditionDto => ({
+        date: String(a?.date ?? ''),
+        momentId: String(a?.momentId ?? ''),
+        cook: String(a?.cook ?? ''),
+        entryId: String(a?.entryId ?? ''),
+      }),
+    );
+    try {
+      c.proposal = withAdditions(c.proposal, additions, c.momentOrder);
+    } catch (err) {
+      throw new HttpError(409, (err as Error).message);
+    }
+    const planned = new Map(c.known.map((p) => [p.id, p]));
     const prepsNow = new Map(d.preps().map((p) => [p.id, p]));
     const plan = ctx.db.transaction(() => {
       const row = store.create<PlanRow>('batch_plans', {

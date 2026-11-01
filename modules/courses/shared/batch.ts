@@ -123,6 +123,33 @@ function minimumCovers(options: Option[][], budget: { left: number }): number[][
   return [];
 }
 
+/**
+ * Whether a cooking slot can cover a meal, and how: the same moment of the
+ * same day included, an earlier moment not; within the fridge days, or (the
+ * freezer on, the meal freezable with known freezer days) within the freezer
+ * days, frozen beyond the fridge days (so never eaten on the cooking day).
+ * The one rule of the calculation and of the suggestions.
+ */
+export function optionOf(
+  m: Pick<BatchMeal, 'date' | 'momentId' | 'fridgeDays' | 'freezable' | 'freezerDays'>,
+  s: BatchSlot,
+  momentOrder: readonly string[],
+  freezer: boolean,
+): { frozen: boolean; distance: number } | null {
+  const order = (id: string) => momentOrder.indexOf(id);
+  if (order(s.momentId) < 0 || order(m.momentId) < 0) return null;
+  const width = Math.max(1, momentOrder.length);
+  const days = dayNumber(m.date) - dayNumber(s.date);
+  if (days < 0 || (days === 0 && order(s.momentId) > order(m.momentId))) return null;
+  const freezerOn = freezer && m.freezable && m.freezerDays !== null;
+  const reach = Math.max(m.fridgeDays, freezerOn ? m.freezerDays! : 0);
+  if (days > reach) return null;
+  return {
+    frozen: days > m.fridgeDays,
+    distance: days * width + order(m.momentId) - order(s.momentId),
+  };
+}
+
 type Cost = [number, number, number];
 const less = (a: Cost, b: Cost) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
 
@@ -147,23 +174,12 @@ export function planBatch(input: BatchInput): BatchResult {
     );
 
   // Which slots can cover each meal (same moment of the same day included, an earlier one not).
-  const options: Option[][] = meals.map((m) => {
-    const freezerOn = input.freezer && m.freezable && m.freezerDays !== null;
-    const reach = Math.max(m.fridgeDays, freezerOn ? m.freezerDays! : 0);
-    return slots.flatMap((s, slot): Option[] => {
-      const days = dayNumber(m.date) - dayNumber(s.date);
-      if (days < 0 || (days === 0 && order.get(s.momentId)! > order.get(m.momentId)!)) return [];
-      if (days > reach) return [];
-      // Beyond the fridge days: frozen (so never eaten on the cooking day).
-      return [
-        {
-          slot,
-          frozen: days > m.fridgeDays,
-          distance: at(m.date, m.momentId) - at(s.date, s.momentId),
-        },
-      ];
-    });
-  });
+  const options: Option[][] = meals.map((m) =>
+    slots.flatMap((s, slot): Option[] => {
+      const o = optionOf(m, s, input.momentOrder, input.freezer);
+      return o ? [{ slot, ...o }] : [];
+    }),
+  );
 
   const uncovered = meals.flatMap((m, i) =>
     options[i]!.length ? [] : [{ meal: m, reason: whyNot(m, slots, order, input.freezer) }],
