@@ -103,6 +103,7 @@ site/            site public statique (accueil + confidentialité, exigés par G
 - **Expérimental** : toute nouveauté non encore validée par Thomas à l'usage est marquée « Expérimental » dans l'interface, jusqu'à sa validation.
 - **Dépendances** : un module n'exige (`dependsOn`) que ce sans quoi il n'a aucun sens ; le reste en `dependsOn.optionalServices` + `ctx.services.optional()`, et le module fonctionne sans. ADR 0024.
 - Toute modification du contrat de module ou de l'architecture met à jour la doc **dans le même commit**. Nouvelle décision structurante → nouvel ADR.
+- **Ne jamais commiter sans avoir vérifié que les tests sont verts** (lire le résultat de `npm test` avant chaque `git commit`).
 - **Tests** : pendant une session, lancer les tests rapides (`npm test`). La suite complète (`npm run test:full`) tourne en CI à chaque push ; en local, seulement si un rendu (moteur, effets, générateurs) a été modifié. Un nouveau test de rendu complet se marque `describe.runIf(fullRenderTests)` (`docs/MODULES.md` §8).
 - Fin de phase : mettre à jour `docs/ROADMAP.md` et `CHANGELOG.md`, versionnage sémantique (`package.json`).
 
