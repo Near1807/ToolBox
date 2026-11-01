@@ -346,10 +346,8 @@ function Planning(props: { state: StateDto; summary: SummaryDto | null; run: Run
                   {state.thaw
                     .filter((t) => t.date === d)
                     .map((t) => (
-                      <span key={`${t.forDate}${t.forMomentId}${t.mealName}`} className="cs-thaw">
-                        <Icon name="warning" /> Ce soir, sortir du congélateur : {t.mealName} (
-                        {dayLabel(t.forDate).toLowerCase()},{' '}
-                        {state.moments.find((m) => m.id === t.forMomentId)?.name.toLowerCase()})
+                      <span key={t.date} className="cs-thaw">
+                        <Icon name="warning" /> À décongeler : {t.names.join(', ').toLowerCase()}
                       </span>
                     ))}
                 </th>
@@ -2335,6 +2333,7 @@ function CoursesPage() {
               to={s.list.to}
               run={run}
               onEditMeal={(id) => setParams({ tab: 'meals', edit: id })}
+              onEditPrep={(id) => setParams({ tab: 'meals', view: 'preps', prep: id })}
             />
           )}
           {tab === 'meals' && (

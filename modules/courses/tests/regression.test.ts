@@ -185,6 +185,45 @@ function relative(value: unknown, monday: string): unknown {
   return JSON.parse(text);
 }
 
+type Snapshot = Record<string, unknown> & { thaw: unknown[] };
+/**
+ * The v0.27 answers in the v0.26 shape: only what v0.27 ADDED is left out
+ * (the parts of a planned meal, the preparation of a cooking, « Utilisée
+ * dans », what and which preparation for a meal to cook on the day or left
+ * out). Everything else must be strictly the same.
+ */
+function asV026(value: unknown): Snapshot {
+  const walk = (v: unknown, key = ''): unknown => {
+    if (Array.isArray(v)) {
+      if (key === 'missing')
+        return v.map((m) => (typeof m === 'object' && m ? (m as { entryId: string }).entryId : m));
+      return v.map((x) => walk(x, `${key}[]`));
+    }
+    if (!v || typeof v !== 'object') return v;
+    const out: Record<string, unknown> = {};
+    for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
+      if (k === 'parts' || k === 'prepId' || k === 'usedIn') continue;
+      if (key === 'uncovered[]' && k === 'name') continue;
+      out[k] = walk(x, k);
+    }
+    return out;
+  };
+  return walk(value) as Snapshot;
+}
+/**
+ * The thaw reminder changed format on purpose (v0.27: one line per day, what
+ * to take out, no detail per meal): the v0.26 reference grouped the same way.
+ */
+function withThawByDay(reference: Snapshot): Snapshot {
+  const days = new Map<string, Set<string>>();
+  for (const t of reference.thaw as { date: string; mealName: string }[])
+    days.set(t.date, (days.get(t.date) ?? new Set()).add(t.mealName));
+  return {
+    ...reference,
+    thaw: [...days].map(([date, names]) => ({ date, names: [...names].sort() })),
+  };
+}
+
 describe('non-regression of the readers of a recipe (reference: v0.26.0)', () => {
   let hub: TestHub;
   afterEach(async () => hub?.close());
@@ -282,7 +321,15 @@ describe('non-regression of the readers of a recipe (reference: v0.26.0)', () =>
     };
     const snapshot = relative(
       {
-        meals: state.meals.map((m) => ({ ...m, lines: undefined, split: undefined })),
+        // Fields added by v0.27 (nothing else may differ): the raw lines, the split flag, the
+        // keeping as the batch sees it, the origin of an expanded line.
+        meals: state.meals.map((m) => ({
+          ...m,
+          lines: undefined,
+          split: undefined,
+          keeping: undefined,
+          items: m.items.map((i) => ({ ...i, fromLine: undefined })),
+        })),
         list: state.list,
         plan: state.plan,
         thaw: state.thaw,
@@ -299,6 +346,8 @@ describe('non-regression of the readers of a recipe (reference: v0.26.0)', () =>
     );
     if (process.env.TOOLBOX_WRITE_REFERENCE === '1')
       writeFileSync(REFERENCE, `${JSON.stringify(snapshot, null, 2)}\n`);
-    expect(snapshot).toEqual(JSON.parse(readFileSync(REFERENCE, 'utf8')));
+    expect(asV026(snapshot)).toEqual(
+      withThawByDay(JSON.parse(readFileSync(REFERENCE, 'utf8')) as Snapshot),
+    );
   });
 });

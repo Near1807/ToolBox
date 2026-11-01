@@ -10,14 +10,22 @@
 //   5. then cookings as close as possible to the meals.
 // Deterministic: the inputs are sorted first, ties go to the earliest slots.
 // The app never invents a keeping time: those are Thomas's (fridgeDays…).
+//
+// v0.27: the unit is the couple (what is cooked, planned meal). What is
+// cooked is a PREPARATION of the recipe (a bolognaise: its sauce; its pasta,
+// a direct line, is cooked at meal time and never reaches this file), or the
+// whole recipe when it has no preparation (the v0.26 block, unchanged). A
+// cooking is (session, preparation): the rice of two recipes cooked once.
 
 export interface BatchMeal {
-  /** Planned meal (courses__plan id). */
+  /** Planned meal (courses__plan id). Two couples of one meal share it. */
   entryId: string;
   date: string;
   momentId: string;
+  /** What is cooked: a preparation id, or the recipe id (a recipe without preparation). */
   recipeId: string;
   recipeName: string;
+  /** Portions of what is cooked for this meal (decimal for a preparation). */
   servings: number;
   /** Days in the fridge once cooked (known: meals without it are left out before). */
   fridgeDays: number;
@@ -56,7 +64,7 @@ export interface BatchSession extends BatchSlot {
 }
 export interface BatchResult {
   sessions: BatchSession[];
-  /** Chosen meals no slot can cover: to cook on the day, with the reason. */
+  /** Chosen couples no slot can cover: to cook on the day, with the reason. */
   uncovered: { meal: BatchMeal; reason: string }[];
   covered: number;
   total: number;
@@ -133,7 +141,9 @@ export function planBatch(input: BatchInput): BatchResult {
     .filter((m) => order.has(m.momentId))
     .sort(
       (a, b) =>
-        at(a.date, a.momentId) - at(b.date, b.momentId) || a.entryId.localeCompare(b.entryId),
+        at(a.date, a.momentId) - at(b.date, b.momentId) ||
+        a.entryId.localeCompare(b.entryId) ||
+        a.recipeId.localeCompare(b.recipeId),
     );
 
   // Which slots can cover each meal (same moment of the same day included, an earlier one not).

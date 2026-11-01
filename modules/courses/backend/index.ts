@@ -30,6 +30,7 @@ import {
   fold,
   formatAmount,
   plannedLines,
+  type Line,
   type MealRecipe,
   type PieceWeights,
 } from '../shared/quantities';
@@ -51,7 +52,9 @@ import {
   parseExchange,
   previewImport,
   type ExchangeFile,
+  isPrepLine,
   type ExchangeIngredient,
+  type ExchangePrep,
   type ExchangeRecipe,
 } from '../shared/exchange';
 import { mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
@@ -63,6 +66,18 @@ import {
   type StoredImage,
 } from './images';
 import { createBatch } from './batch';
+import {
+  expandRecipe,
+  extract,
+  inlinePrep,
+  isSplit,
+  matchingPortions,
+  prepPortions,
+  type IngredientLine,
+  type PrepItem,
+  type PrepLine,
+  type RecipeLine,
+} from '../shared/recipe';
 import type {
   DayFacts,
   Goals,
@@ -71,6 +86,7 @@ import type {
   MealDto,
   MomentDto,
   PastListDto,
+  PrepDto,
   PlanDto,
   StateDto,
   SummaryDto,
@@ -128,6 +144,30 @@ interface ItemRow extends Base {
   ingredient_id: string;
   qty: number;
   unit: string;
+  /** Order among all the lines of the recipe (null: before v0.27, order of creation). */
+  position: number | null;
+}
+interface MealPrepRow extends Base {
+  meal_id: string;
+  prep_id: string;
+  /** Portions of the preparation for the whole recipe. */
+  qty: number;
+  position: number | null;
+}
+interface PrepRow extends Base {
+  name: string;
+  note: string;
+  fridge_days: number | null;
+  freezable: number;
+  freezer_days: number | null;
+}
+interface PrepItemRow extends Base {
+  prep_id: string;
+  ingredient_id: string;
+  /** For one portion. */
+  qty: number;
+  unit: string;
+  position: number | null;
 }
 interface MomentRow extends Base {
   name: string;
@@ -296,6 +336,22 @@ export default defineBackendModule({
         CREATE TABLE courses__batch_portions (${SYNC_COLUMNS}, session_id TEXT NOT NULL, plan_entry_id TEXT NOT NULL, meal_id TEXT NOT NULL, date TEXT NOT NULL, moment_id TEXT NOT NULL, servings REAL NOT NULL, frozen INTEGER NOT NULL);
         CREATE INDEX courses__batch_portions_session ON courses__batch_portions (session_id);
         CREATE INDEX courses__batch_portions_entry ON courses__batch_portions (plan_entry_id);
+      `,
+    },
+    {
+      version: 5,
+      description:
+        'preparations (technical sheets): composition for one portion, keeping; recipe lines « preparation × portions »; batch by preparation',
+      // Tables and columns added only: no existing row changes (position, prep_id and basis empty).
+      up: `
+        CREATE TABLE courses__preps (${SYNC_COLUMNS}, name TEXT NOT NULL, note TEXT NOT NULL DEFAULT '', fridge_days INTEGER, freezable INTEGER NOT NULL DEFAULT 0, freezer_days INTEGER);
+        CREATE TABLE courses__prep_items (${SYNC_COLUMNS}, prep_id TEXT NOT NULL, ingredient_id TEXT NOT NULL, qty REAL NOT NULL, unit TEXT NOT NULL, position INTEGER);
+        CREATE INDEX courses__prep_items_prep ON courses__prep_items (prep_id);
+        CREATE TABLE courses__meal_preps (${SYNC_COLUMNS}, meal_id TEXT NOT NULL, prep_id TEXT NOT NULL, qty REAL NOT NULL, position INTEGER);
+        CREATE INDEX courses__meal_preps_meal ON courses__meal_preps (meal_id);
+        ALTER TABLE courses__meal_items ADD COLUMN position INTEGER;
+        ALTER TABLE courses__batch_portions ADD COLUMN prep_id TEXT;
+        ALTER TABLE courses__batch_portions ADD COLUMN basis TEXT;
       `,
     },
   ],
@@ -468,16 +524,88 @@ export default defineBackendModule({
       await ctx.files.trash(imagePath(old.file));
     };
 
+    /** The lines of each recipe as written (ingredients and preparations), in their order. */
+    const recipeLines = (): Map<string, RecipeLine[]> => {
+      const out = new Map<string, { at: number; line: RecipeLine }[]>();
+      const add = (mealId: string, at: number | null, line: RecipeLine) => {
+        const list = out.get(mealId) ?? [];
+        // Before v0.27 no position: the order of creation (rows come in it).
+        list.push({ at: at ?? -1, line });
+        out.set(mealId, list);
+      };
+      for (const i of live<ItemRow>('meal_items'))
+        add(i.meal_id, i.position, {
+          kind: 'ingredient',
+          id: i.id,
+          ingredientId: i.ingredient_id,
+          qty: i.qty,
+          unit: i.unit,
+        });
+      for (const p of live<MealPrepRow>('meal_preps'))
+        add(p.meal_id, p.position, { kind: 'prep', id: p.id, prepId: p.prep_id, qty: p.qty });
+      return new Map(
+        [...out].map(([id, list]) => [
+          id,
+          list
+            .map((x, index) => ({ ...x, index }))
+            .sort((a, b) => a.at - b.at || a.index - b.index)
+            .map((x) => x.line),
+        ]),
+      );
+    };
+    /** Every preparation with its composition (deleted ones too: an old line still expands). */
+    const prepRows = () => {
+      const items = new Map<string, PrepItem[]>();
+      for (const i of live<PrepItemRow>('prep_items')
+        .map((row, index) => ({ row, index }))
+        .sort((a, b) => (a.row.position ?? -1) - (b.row.position ?? -1) || a.index - b.index)
+        .map((x) => x.row))
+        items.set(i.prep_id, [
+          ...(items.get(i.prep_id) ?? []),
+          { id: i.id, ingredientId: i.ingredient_id, qty: i.qty, unit: i.unit },
+        ]);
+      const rows = ctx.db.prepare(`SELECT * FROM ${T('preps')}`).all() as PrepRow[];
+      return new Map(rows.map((r) => [r.id, { row: r, id: r.id, items: items.get(r.id) ?? [] }]));
+    };
+    const keepingOf = (r: {
+      fridge_days: number | null;
+      freezable: number;
+      freezer_days: number | null;
+    }) => ({
+      fridgeDays: r.fridge_days,
+      freezable: r.freezable === 1,
+      freezerDays: r.freezable === 1 ? r.freezer_days : null,
+    });
+
     const meals = (facts = allFacts()): MealDto[] => {
-      const items = live<ItemRow>('meal_items');
+      const allLines = recipeLines();
+      const preps = prepRows();
       const images = imageRows();
       return live<MealRow>('meals')
         .map((r) => {
-          const lines = items
-            .filter((i) => i.meal_id === r.id)
-            .map((i) => ({ id: i.id, ingredientId: i.ingredient_id, qty: i.qty, unit: i.unit }));
+          const recipe = allLines.get(r.id) ?? [];
+          // THE expansion: every reader of the ingredients of a recipe goes through it.
+          const lines = expandRecipe(recipe, preps);
           const one = lines.map((l) => ({ ...l, qty: l.qty / r.servings }));
+          const split = isSplit(recipe);
+          const used = [...prepPortions(recipe).keys()].flatMap((id) => {
+            const p = preps.get(id);
+            return p ? [p.row] : [];
+          });
+          const keeping = split
+            ? {
+                known: used.every((p) => p.fridge_days !== null),
+                freezable: used.every((p) => p.freezable === 1),
+                preps: {
+                  known: used.filter((p) => p.fridge_days !== null).length,
+                  total: used.length,
+                },
+              }
+            : { known: r.fridge_days !== null, freezable: r.freezable === 1, preps: null };
           return {
+            lines: recipe,
+            split,
+            keeping,
             id: r.id,
             name: r.name,
             servings: r.servings,
@@ -489,6 +617,33 @@ export default defineBackendModule({
             items: lines,
             perServing: { nutrition: nutritionOf(one, facts), cost: costOf(one, facts) },
             image: imageDto(images.get(r.id)),
+          };
+        })
+        .sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+    };
+    /** The live preparations, by name, with the recipes that use them. */
+    const preps = (facts = allFacts()): PrepDto[] => {
+      const rows = prepRows();
+      const lines = recipeLines();
+      const mealNames = new Map(live<MealRow>('meals').map((m) => [m.id, m.name]));
+      return live<PrepRow>('preps')
+        .map((r): PrepDto => {
+          const items = rows.get(r.id)?.items ?? [];
+          const usedBy = [...lines]
+            .filter(
+              ([mealId, l]) =>
+                mealNames.has(mealId) && l.some((x) => x.kind === 'prep' && x.prepId === r.id),
+            )
+            .map(([id]) => ({ id, name: mealNames.get(id)! }))
+            .sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+          return {
+            id: r.id,
+            name: r.name,
+            note: r.note,
+            items,
+            ...keepingOf(r),
+            usedBy,
+            perPortion: { nutrition: nutritionOf(items, facts), cost: costOf(items, facts) },
           };
         })
         .sort((a, b) => a.name.localeCompare(b.name, 'fr'));
@@ -707,6 +862,7 @@ export default defineBackendModule({
       store,
       live,
       meals: () => meals(),
+      preps: () => preps(),
       moments,
       planBetween,
       ingredientNames: () => new Map(ingredients().map((i) => [i.id, i.name])),
@@ -725,6 +881,7 @@ export default defineBackendModule({
         today: today(),
         ingredients: ingredients(),
         meals: meals(facts),
+        preps: preps(facts),
         moments: moments(),
         plan: planBetween(list.date_from, list.date_to),
         list: listDto(),
@@ -798,7 +955,39 @@ export default defineBackendModule({
       if (!Array.isArray(raw)) throw new HttpError(400, 'Ingrédients invalides');
       for (const old of live<ItemRow>('meal_items', 'meal_id = ?', mealId))
         store.remove('meal_items', old.id);
-      for (const r of raw as Record<string, unknown>[]) {
+      for (const old of live<MealPrepRow>('meal_preps', 'meal_id = ?', mealId))
+        store.remove('meal_preps', old.id);
+      for (const [position, r] of (raw as Record<string, unknown>[]).entries()) {
+        const qty = Number(r.qty);
+        if (!(qty > 0)) throw new HttpError(400, 'Quantité invalide');
+        if (r.kind === 'prep') {
+          const prepId = String(r.prepId ?? '');
+          if (!store.get('preps', prepId)) throw new HttpError(400, 'Préparation introuvable');
+          store.create('meal_preps', { meal_id: mealId, prep_id: prepId, qty, position });
+          continue;
+        }
+        const unit = text(r.unit, 'Unité', 20);
+        let ingredientId = typeof r.ingredientId === 'string' ? r.ingredientId : '';
+        if (!ingredientId || !store.get('ingredients', ingredientId)) {
+          const name = text(r.name, 'Ingrédient');
+          ingredientId =
+            ingredientByName(name)?.id ?? store.create('ingredients', { name, unit, aisle: '' }).id;
+        }
+        store.create('meal_items', {
+          meal_id: mealId,
+          ingredient_id: ingredientId,
+          qty,
+          unit,
+          position,
+        });
+      }
+    };
+    /** The composition of a preparation (for one portion); unknown names are created, like a recipe's. */
+    const savePrepItems = (prepId: string, raw: unknown) => {
+      if (!Array.isArray(raw)) throw new HttpError(400, 'Ingrédients invalides');
+      for (const old of live<PrepItemRow>('prep_items', 'prep_id = ?', prepId))
+        store.remove('prep_items', old.id);
+      for (const [position, r] of (raw as Record<string, unknown>[]).entries()) {
         const qty = Number(r.qty);
         if (!(qty > 0)) throw new HttpError(400, 'Quantité invalide');
         const unit = text(r.unit, 'Unité', 20);
@@ -808,8 +997,29 @@ export default defineBackendModule({
           ingredientId =
             ingredientByName(name)?.id ?? store.create('ingredients', { name, unit, aisle: '' }).id;
         }
-        store.create('meal_items', { meal_id: mealId, ingredient_id: ingredientId, qty, unit });
+        store.create('prep_items', {
+          prep_id: prepId,
+          ingredient_id: ingredientId,
+          qty,
+          unit,
+          position,
+        });
       }
+    };
+    const prepByName = (name: string) =>
+      live<PrepRow>('preps').find((p) => fold(p.name) === fold(name));
+    const prepFields = (body: Record<string, unknown>, current?: PrepRow) => {
+      const name = text(body.name ?? current?.name, 'Nom de la préparation');
+      const other = prepByName(name);
+      if (other && other.id !== current?.id)
+        throw new HttpError(409, `La préparation « ${other.name} » existe déjà`);
+      return {
+        name,
+        note: String(body.note ?? current?.note ?? '')
+          .trim()
+          .slice(0, 2000),
+        ...keepFields(body, current),
+      };
     };
     /** Days of keeping (optional): empty = unknown, else a whole number of days. */
     const daysFrom = (value: unknown, what: string): number | null => {
@@ -820,7 +1030,10 @@ export default defineBackendModule({
       return n;
     };
     /** Keeping of a recipe; fields not sent keep their value (or stay empty for a new one). */
-    const keepFields = (body: Record<string, unknown>, current?: MealRow) => {
+    const keepFields = (
+      body: Record<string, unknown>,
+      current?: { fridge_days: number | null; freezable: number; freezer_days: number | null },
+    ) => {
       const freezable =
         'freezable' in body ? body.freezable === true : (current?.freezable ?? 0) === 1;
       return {
@@ -955,6 +1168,8 @@ export default defineBackendModule({
       ctx.db.transaction(() => {
         for (const item of live<ItemRow>('meal_items', 'ingredient_id = ?', from))
           store.update('meal_items', item.id, { ingredient_id: into });
+        for (const item of live<PrepItemRow>('prep_items', 'ingredient_id = ?', from))
+          store.update('prep_items', item.id, { ingredient_id: into });
         store.remove('ingredients', from);
       });
       return { ok: true };
@@ -977,6 +1192,194 @@ export default defineBackendModule({
       return { id };
     });
     // Confirmed on the page; « Annuler » restores it (tombstone).
+    // --- Preparations (technical sheets) -------------------------------------------
+
+    const prepOf = (id: string) => {
+      const p = store.get<PrepRow>('preps', id);
+      if (!p) throw new HttpError(404, 'Préparation introuvable');
+      return p;
+    };
+    /** Same ingredients, quantities and units, whatever the order (the facts add lines up). */
+    const sameExpansion = (a: readonly Line[], b: readonly Line[]) => {
+      const k = (l: readonly Line[]) =>
+        l
+          .map((x) => `${x.ingredientId}|${x.unit}|${x.qty}`)
+          .sort()
+          .join('\n');
+      return k(a) === k(b);
+    };
+    const usedByOf = (prepId: string) => preps().find((p) => p.id === prepId)?.usedBy ?? [];
+    const compositionKey = (items: { ingredientId: string; qty: number; unit: string }[]) =>
+      JSON.stringify(items.map((i) => [i.ingredientId, i.qty, i.unit]));
+
+    ctx.routes.post('/preps', (request) => {
+      const body = requestBody(request);
+      return ctx.db.transaction(() => {
+        const row = store.create<PrepRow>('preps', prepFields(body));
+        savePrepItems(row.id, body.items ?? []);
+        return { id: row.id };
+      });
+    });
+    /**
+     * A preparation edited. Its composition changing while recipes use it:
+     * refused (409, with the recipes) until the page confirmed (`confirmed`).
+     */
+    ctx.routes.put('/preps/:id', (request) => {
+      const id = (request.params as { id: string }).id;
+      const current = prepOf(id);
+      const body = requestBody(request);
+      const usedBy = usedByOf(id);
+      return ctx.db.transaction(() => {
+        const before = compositionKey(prepRows().get(id)?.items ?? []);
+        store.update('preps', id, prepFields(body, current));
+        if (body.items !== undefined) savePrepItems(id, body.items);
+        const changed = compositionKey(prepRows().get(id)?.items ?? []) !== before;
+        if (changed && usedBy.length && body.confirmed !== true)
+          // Thrown inside the transaction: nothing written.
+          throw new HttpError(
+            409,
+            `Utilisée par ${usedBy.length} recette${usedBy.length > 1 ? 's' : ''} : leurs apports et listes de courses vont changer (${usedBy.map((u) => u.name).join(', ')}).`,
+          );
+        return { id, changed, usedBy };
+      });
+    });
+    // Refused while a recipe uses it (« Remplacer par ses ingrédients » first); confirmed on the page.
+    ctx.routes.delete('/preps/:id', (request) => {
+      const id = (request.params as { id: string }).id;
+      const prep = prepOf(id);
+      const usedBy = usedByOf(id);
+      if (usedBy.length)
+        throw new HttpError(
+          409,
+          `« ${prep.name} » est utilisée par ${usedBy.map((u) => u.name).join(', ')} : remplace-la d’abord par ses ingrédients dans ${usedBy.length > 1 ? 'ces recettes' : 'cette recette'}.`,
+        );
+      store.remove('preps', id);
+      return { ok: true };
+    });
+    ctx.routes.post('/preps/:id/restore', (request) => {
+      const id = (request.params as { id: string }).id;
+      const row = ctx.db.prepare(`SELECT * FROM ${T('preps')} WHERE id = ?`).get(id) as
+        PrepRow | undefined;
+      if (!row) throw new HttpError(404, 'Préparation introuvable');
+      if (prepByName(row.name)) throw new HttpError(409, `« ${row.name} » existe déjà`);
+      store.restore('preps', id);
+      return { ok: true };
+    });
+
+    /**
+     * « Extraire en préparation »: lines of a recipe become a preparation (new,
+     * composition for one portion; or an existing one with the same
+     * proportions) and one line « préparation × portions ». The recipe expands
+     * exactly as before (checked, else refused). `apply` false: preview only.
+     */
+    ctx.routes.post('/meals/:id/extract', (request) => {
+      const id = (request.params as { id: string }).id;
+      const meal = mealOf(id);
+      const body = requestBody(request);
+      const lines = recipeLines().get(id) ?? [];
+      const wanted = new Set(Array.isArray(body.lineIds) ? body.lineIds.map(String) : []);
+      const taken = lines.filter(
+        (l): l is IngredientLine => l.kind === 'ingredient' && wanted.has(l.id),
+      );
+      if (taken.length !== wanted.size || !taken.length)
+        throw new HttpError(400, 'Choisis des lignes d’ingrédient de cette recette.');
+      const all = prepRows();
+      let prepId = typeof body.prepId === 'string' && body.prepId ? body.prepId : null;
+      let portions: number;
+      let items: { ingredientId: string; qty: number; unit: string }[];
+      let name: string;
+      if (prepId) {
+        const prep = all.get(prepId);
+        if (!prep || prep.row.deleted_at) throw new HttpError(404, 'Préparation introuvable');
+        const match = matchingPortions(taken, prep);
+        if (match === null)
+          throw new HttpError(
+            409,
+            `« ${prep.row.name} » n’a pas la même composition (mêmes ingrédients, mêmes proportions).`,
+          );
+        portions = match;
+        items = prep.items;
+        name = prep.row.name;
+      } else {
+        name = text(body.name, 'Nom de la préparation');
+        if (prepByName(name))
+          throw new HttpError(
+            409,
+            `La préparation « ${name} » existe déjà : choisis-la dans la liste.`,
+          );
+        const wantedPortions = body.portions === undefined ? meal.servings : Number(body.portions);
+        const result = extract(taken, wantedPortions);
+        if ('error' in result) throw new HttpError(400, result.error);
+        portions = result.portions;
+        items = result.items;
+      }
+      const firstAt = lines.findIndex((l) => wanted.has(l.id));
+      const marker: PrepLine = { kind: 'prep', id: 'new', prepId: prepId ?? 'new', qty: portions };
+      const next = lines.flatMap((l, i): RecipeLine[] =>
+        i === firstAt ? [marker] : wanted.has(l.id) ? [] : [l],
+      );
+      const withNew = new Map(all);
+      if (!prepId)
+        withNew.set('new', {
+          id: 'new',
+          row: {} as PrepRow,
+          items: items.map((it, i) => ({ ...it, id: String(i) })),
+        });
+      if (!sameExpansion(expandRecipe(lines, all), expandRecipe(next, withNew)))
+        throw new HttpError(409, 'L’extraction changerait la recette : rien n’est fait.');
+      const preview = { name, portions, items, existing: Boolean(prepId) };
+      if (body.apply !== true) return { preview };
+      ctx.db.transaction(() => {
+        if (!prepId) {
+          const row = store.create<PrepRow>('preps', {
+            name,
+            note: '',
+            fridge_days: null,
+            freezable: 0,
+            freezer_days: null,
+          });
+          prepId = row.id;
+          savePrepItems(row.id, items);
+        }
+        saveItems(
+          id,
+          next.map((l) =>
+            l === marker
+              ? { kind: 'prep', prepId, qty: portions }
+              : l.kind === 'prep'
+                ? { kind: 'prep', prepId: l.prepId, qty: l.qty }
+                : { ingredientId: l.ingredientId, qty: l.qty, unit: l.unit },
+          ),
+        );
+      });
+      return { preview, prepId };
+    });
+    /** « Remplacer par ses ingrédients »: a preparation line becomes its ingredients (same expansion). */
+    ctx.routes.post('/meals/:id/inline', (request) => {
+      const id = (request.params as { id: string }).id;
+      mealOf(id);
+      const body = requestBody(request);
+      const lines = recipeLines().get(id) ?? [];
+      const all = prepRows();
+      const target = lines.find(
+        (l): l is PrepLine => l.kind === 'prep' && l.id === String(body.lineId ?? ''),
+      );
+      if (!target) throw new HttpError(400, 'Ligne de préparation introuvable');
+      const prep = all.get(target.prepId);
+      if (!prep) throw new HttpError(404, 'Préparation introuvable');
+      const next = lines.flatMap((l) =>
+        l === target
+          ? inlinePrep(target, prep)
+          : [
+              l.kind === 'prep'
+                ? { kind: 'prep' as const, prepId: l.prepId, qty: l.qty }
+                : { ingredientId: l.ingredientId, qty: l.qty, unit: l.unit },
+            ],
+      );
+      saveItems(id, next);
+      return { ok: true };
+    });
+
     ctx.routes.delete('/meals/:id', (request) => {
       const id = (request.params as { id: string }).id;
       mealOf(id);
@@ -1249,10 +1652,30 @@ export default defineBackendModule({
       };
       const ing = ingredients();
       const names = new Map(ing.map((i) => [i.id, i.name]));
+      const allPreps = preps();
+      const prepNames = new Map<string, string>([...prepRows()].map(([id, p]) => [id, p.row.name]));
+      const toLine = (i: { ingredientId: string; qty: number; unit: string }) => ({
+        name: names.get(i.ingredientId) ?? 'Ingrédient supprimé',
+        qty: i.qty,
+        unit: i.unit,
+      });
       return {
         format: FORMAT,
         version: FORMAT_VERSION,
         ingredients: ing.map(toExchangeIngredient),
+        // Only when there are some: a file without preparations is the format of before.
+        ...(allPreps.length
+          ? {
+              preparations: allPreps.map((p): ExchangePrep => ({
+                name: p.name,
+                ingredients: p.items.map(toLine),
+                fridgeDays: p.fridgeDays,
+                freezable: p.freezable,
+                freezerDays: p.freezerDays,
+                note: p.note,
+              })),
+            }
+          : {}),
         recipes: meals().map((m): ExchangeRecipe => ({
           name: m.name,
           servings: m.servings,
@@ -1261,18 +1684,23 @@ export default defineBackendModule({
           fridgeDays: m.fridgeDays,
           freezable: m.freezable,
           freezerDays: m.freezerDays,
-          ingredients: m.items.map((it) => ({
-            name: names.get(it.ingredientId) ?? 'Ingrédient supprimé',
-            qty: it.qty,
-            unit: it.unit,
-          })),
+          // The lines as written (the structure), not the expansion.
+          ingredients: m.lines.map((l) =>
+            l.kind === 'prep'
+              ? { prep: prepNames.get(l.prepId) ?? 'Préparation supprimée', qty: l.qty }
+              : toLine(l),
+          ),
           ...(withImages ? { image: imageOf(m.id) } : {}),
         })),
       };
     };
     const existing = () => {
       const data = exchangeData();
-      return { ingredients: data.ingredients, recipes: data.recipes };
+      return {
+        ingredients: data.ingredients,
+        preparations: data.preparations ?? [],
+        recipes: data.recipes,
+      };
     };
     // Room for embedded images (base64) in a complete export.
     const MAX_IMPORT = 200 * 1024 * 1024;
@@ -1313,6 +1741,7 @@ export default defineBackendModule({
         const names = (v: unknown) =>
           new Set(Array.isArray(v) ? v.map((x) => fold(String(x))) : []);
         const overwrite = names(body.overwrite);
+        const overwritePreps = names(body.overwritePreps);
         const replace = names(body.replaceRecipes);
         const create = names(body.create);
         const backup = ctx.db.backup('avant import Courses');
@@ -1323,6 +1752,9 @@ export default defineBackendModule({
           recipesAdded: 0,
           recipesReplaced: 0,
           recipesSkipped: [] as string[],
+          prepsAdded: 0,
+          prepsReplaced: 0,
+          prepsSkipped: [] as string[],
           backup,
         };
         const facts = (i: ExchangeIngredient) => ({
@@ -1355,19 +1787,58 @@ export default defineBackendModule({
               });
               done.ingredientsCreated++;
             }
-          for (const r of parsed.recipes) {
-            const p = preview.recipes.find((x) => fold(x.name) === fold(r.name))!;
+          // Preparations: new ones added, an existing one only if ticked (and confirmed).
+          for (const pr of parsed.preparations) {
+            const p = preview.preparations.find((x) => fold(x.name) === fold(pr.name))!;
             if (p.unknown.some((u) => !create.has(fold(u)))) {
+              done.prepsSkipped.push(pr.name);
+              continue;
+            }
+            const before = prepByName(pr.name);
+            if (before && !overwritePreps.has(fold(pr.name))) continue;
+            const keep: Record<string, unknown> = {};
+            if (pr.fridgeDays !== undefined) keep.fridgeDays = pr.fridgeDays;
+            if (pr.freezable !== undefined) keep.freezable = pr.freezable;
+            if (pr.freezerDays !== undefined) keep.freezerDays = pr.freezerDays;
+            const fields = {
+              name: before?.name ?? pr.name,
+              note: pr.note ?? before?.note ?? '',
+              ...keepFields(keep, before),
+            };
+            const items = pr.ingredients.map((it) => ({
+              ingredientId: ingredientByName(it.name)!.id,
+              qty: it.qty,
+              unit: it.unit,
+            }));
+            if (before) {
+              store.update('preps', before.id, fields);
+              savePrepItems(before.id, items);
+              done.prepsReplaced++;
+            } else {
+              const row = store.create<PrepRow>('preps', fields);
+              savePrepItems(row.id, items);
+              done.prepsAdded++;
+            }
+          }
+          for (const r of parsed.recipes) {
+            const p = preview.recipes.find((x) => fold(x.name) === fold(r.name));
+            // Not in the preview: an error (preparation unknown); its ingredients unknown and not created.
+            if (!p || p.unknown.some((u) => !create.has(fold(u)))) {
+              done.recipesSkipped.push(r.name);
+              continue;
+            }
+            // A preparation of the file not imported and not in ToolBox: the recipe waits.
+            if (r.ingredients.some((l) => isPrepLine(l) && !prepByName(l.prep))) {
               done.recipesSkipped.push(r.name);
               continue;
             }
             const before = live<MealRow>('meals').find((m) => fold(m.name) === fold(r.name));
             if (before && !replace.has(fold(r.name))) continue;
-            const items = r.ingredients.map((it) => ({
-              ingredientId: ingredientByName(it.name)!.id,
-              qty: it.qty,
-              unit: it.unit,
-            }));
+            const items = r.ingredients.map((it) =>
+              isPrepLine(it)
+                ? { kind: 'prep', prepId: prepByName(it.prep)!.id, qty: it.qty }
+                : { ingredientId: ingredientByName(it.name)!.id, qty: it.qty, unit: it.unit },
+            );
             // Keeping: only what the file gives (an older file leaves it as it is).
             const keep: Record<string, unknown> = {};
             if (r.fridgeDays !== undefined) keep.fridgeDays = r.fridgeDays;

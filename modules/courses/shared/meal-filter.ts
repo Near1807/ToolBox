@@ -26,7 +26,12 @@ export interface FilterableMeal {
   perServing: { cost: { euros: number }; nutrition: { values: { protein: number } } };
   fridgeDays?: number | null;
   freezable?: boolean;
+  /** Keeping as the batch sees it (a split recipe: its preparations'); else the two fields above. */
+  keeping?: { known: boolean; freezable: boolean };
 }
+
+const keepingOf = (m: FilterableMeal) =>
+  m.keeping ?? { known: (m.fridgeDays ?? null) !== null, freezable: Boolean(m.freezable) };
 
 /** The recipes shown for these choices, in the order chosen (name order kept for ties). */
 export function filterMeals<M extends FilterableMeal>(
@@ -42,9 +47,9 @@ export function filterMeals<M extends FilterableMeal>(
         (!filter.tag || m.tags.includes(filter.tag)) &&
         (!filter.maxCost.trim() || !(limit >= 0) || m.perServing.cost.euros <= limit) &&
         (filter.keep === 'all' ||
-          (filter.keep === 'known' && (m.fridgeDays ?? null) !== null) ||
-          (filter.keep === 'missing' && (m.fridgeDays ?? null) === null) ||
-          (filter.keep === 'freezable' && m.freezable)) &&
+          (filter.keep === 'known' && keepingOf(m).known) ||
+          (filter.keep === 'missing' && !keepingOf(m).known) ||
+          (filter.keep === 'freezable' && keepingOf(m).freezable)) &&
         fold(
           `${m.name} ${m.tags.join(' ')} ${m.items.map((i) => ingredientNames.get(i.ingredientId)).join(' ')}`,
         ).includes(q),

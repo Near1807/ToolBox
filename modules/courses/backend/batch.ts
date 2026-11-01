@@ -25,12 +25,16 @@ import {
   fold,
   formatAmount,
   plannedLines,
+  scale,
+  type Line,
   type MealRecipe,
   type PieceWeights,
 } from '../shared/quantities';
+import { expandRecipe, prepPortions } from '../shared/recipe';
 import type {
   BatchCookDto,
   BatchEntryDto,
+  BatchPartDto,
   BatchPlanDto,
   BatchProposalDto,
   BatchSessionDto,
@@ -39,6 +43,7 @@ import type {
   MealDto,
   MomentDto,
   PlanDto,
+  PrepDto,
   ThawDto,
 } from '../shared/types';
 
@@ -71,6 +76,19 @@ interface PortionRow extends SyncRow {
   moment_id: string;
   servings: number;
   frozen: number;
+  /** v0.27: the preparation cooked (null: the whole recipe, as in v0.26). */
+  prep_id: string | null;
+  /** v0.27, JSON Basis: what the plan was computed on (null: a v0.26 plan). */
+  basis: string | null;
+}
+/** What a validated portion was computed on, to say when the recipes changed since. */
+interface Basis {
+  /** Portions cooked for this meal (of the preparation, or of the recipe). */
+  portions: number;
+  /** Preparation only: its line in the recipe, the recipe's servings, its composition. */
+  lineQty?: number;
+  recipeServings?: number;
+  composition?: string;
 }
 
 export interface BatchDeps {
@@ -78,12 +96,19 @@ export interface BatchDeps {
   store: SyncStore;
   live: <R>(table: string, where?: string, ...args: unknown[]) => R[];
   meals: () => MealDto[];
+  preps: () => PrepDto[];
   moments: () => MomentDto[];
   planBetween: (from: string, to: string) => PlanDto[];
   ingredientNames: () => Map<string, string>;
   pieceWeights: () => PieceWeights;
   /** The period of the list in use (default of the tab). */
   period: () => { from: string; to: string };
+}
+
+/** What a cooking is about: a preparation, or a whole recipe (no preparation). */
+interface CookKey {
+  prepId: string | null;
+  mealId: string | null;
 }
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
@@ -129,6 +154,52 @@ export function createBatch(d: BatchDeps) {
     });
   };
 
+  // --- What is cooked -----------------------------------------------------------------
+
+  /**
+   * The parts of a planned meal the batch can cook: each preparation of a
+   * split recipe (portions = its line × portions planned / servings of the
+   * recipe; the direct lines are cooked at meal time), else the whole recipe
+   * (the v0.26 block, its own keeping).
+   */
+  const partsOf = (m: MealDto | undefined, servings: number): BatchPartDto[] => {
+    if (!m) return [];
+    if (!m.split)
+      return [
+        {
+          prepId: null,
+          mealId: m.id,
+          name: m.name,
+          portions: servings,
+          fridgeDays: m.fridgeDays,
+          freezable: m.freezable,
+          freezerDays: m.freezerDays,
+        },
+      ];
+    const preps = new Map(d.preps().map((p) => [p.id, p]));
+    return [...prepPortions(m.lines)].flatMap(([prepId, qty]) => {
+      const p = preps.get(prepId);
+      if (!p) return [];
+      return [
+        {
+          prepId,
+          mealId: m.id,
+          name: p.name,
+          portions: Math.round(scale(qty, m.servings, servings) * 1e9) / 1e9,
+          fridgeDays: p.fridgeDays,
+          freezable: p.freezable,
+          freezerDays: p.freezerDays,
+        },
+      ];
+    });
+  };
+  const keyOf = (id: string): CookKey =>
+    id.startsWith('prep:')
+      ? { prepId: id.slice(5), mealId: null }
+      : { prepId: null, mealId: id.slice(5) };
+  const compositionOf = (p: PrepDto) =>
+    JSON.stringify(p.items.map((i) => [i.ingredientId, i.qty, i.unit]));
+
   // --- Plans --------------------------------------------------------------------------
 
   const plansTouching = (from: string, to: string) =>
@@ -151,30 +222,61 @@ export function createBatch(d: BatchDeps) {
     return covered;
   };
 
-  /** What to prepare: each recipe scaled to its portions (the list's own calculation). */
-  const ingredientsFor = (mealId: string, portions: number) => {
-    const recipes = new Map<string, MealRecipe>(d.meals().map((m) => [m.id, m]));
+  /**
+   * What to prepare, through the expansion of the recipes: a recipe scaled
+   * to its portions (the list's own calculation), or a preparation × its
+   * portions (expandRecipe of one line « preparation × portions »).
+   */
+  const ingredientsFor = (key: CookKey, portions: number) => {
     const names = d.ingredientNames();
-    return addUp(plannedLines([{ mealId, servings: portions }], recipes), d.pieceWeights())
+    let lines: Line[];
+    if (key.prepId) {
+      const preps = new Map(d.preps().map((p) => [p.id, p]));
+      lines = expandRecipe(
+        [{ kind: 'prep', id: 'cook', prepId: key.prepId, qty: portions }],
+        preps,
+      );
+    } else {
+      const recipes = new Map<string, MealRecipe>(d.meals().map((m) => [m.id, m]));
+      lines = plannedLines([{ mealId: key.mealId!, servings: portions }], recipes);
+    }
+    return addUp(lines, d.pieceWeights())
       .map((t) => ({
         name: names.get(t.ingredientId) ?? 'Ingrédient supprimé',
         amount: t.amounts.map(formatAmount).join(' + '),
       }))
       .sort((a, b) => a.name.localeCompare(b.name, 'fr'));
   };
+  /** Portions added up without the floating point dust (shown rounded anyway). */
+  const total = (uses: readonly { servings: number }[]) =>
+    Math.round(uses.reduce((n, u) => n + u.servings, 0) * 1e9) / 1e9;
   const cookDto = (
-    mealId: string,
+    key: CookKey,
     fridge: BatchCookDto['fridge'],
     frozen: BatchCookDto['frozen'],
+    entryMeals: ReadonlyMap<string, string>,
   ): BatchCookDto => {
-    const portions = [...fridge, ...frozen].reduce((n, u) => n + u.servings, 0);
+    const portions = total([...fridge, ...frozen]);
+    const meals = d.meals();
+    const name = key.prepId
+      ? (d.preps().find((p) => p.id === key.prepId)?.name ?? 'Préparation supprimée')
+      : (meals.find((m) => m.id === key.mealId)?.name ?? 'Repas supprimé');
+    const mealName = new Map(meals.map((m) => [m.id, m.name]));
     return {
-      mealId,
-      mealName: d.meals().find((m) => m.id === mealId)?.name ?? 'Repas supprimé',
+      mealId: key.mealId,
+      mealName: name,
+      prepId: key.prepId,
       portions,
       fridge,
       frozen,
-      ingredients: ingredientsFor(mealId, portions),
+      ingredients: ingredientsFor(key, portions),
+      usedIn: [
+        ...new Set(
+          [...fridge, ...frozen].map(
+            (u) => mealName.get(entryMeals.get(u.entryId) ?? '') ?? 'Repas supprimé',
+          ),
+        ),
+      ].sort((a, b) => a.localeCompare(b, 'fr')),
     };
   };
   /** A session before the period already planned by another validated plan: said, never merged. */
@@ -205,23 +307,45 @@ export function createBatch(d: BatchDeps) {
         'plan',
       ).map((p) => [p.id, p]),
     );
+    const meals = new Map(d.meals().map((m) => [m.id, m]));
+    const preps = new Map(d.preps().map((p) => [p.id, p]));
     const changes = new Set<string>();
+    const entryMeals = new Map<string, string>();
     const sessions = sessionsOf(plan.id).map((s): BatchSessionDto => {
-      const byMeal = new Map<string, PortionRow[]>();
+      const byCook = new Map<string, PortionRow[]>();
       for (const p of portionsOf(s.id)) {
-        byMeal.set(p.meal_id, [...(byMeal.get(p.meal_id) ?? []), p]);
+        entryMeals.set(p.plan_entry_id, p.meal_id);
+        const k = p.prep_id ? `prep:${p.prep_id}` : `meal:${p.meal_id}`;
+        byCook.set(k, [...(byCook.get(k) ?? []), p]);
         const now = current.get(p.plan_entry_id);
         if (!now) changes.add('un repas couvert a été retiré du planning');
         else if (now.date !== p.date || now.moment_id !== p.moment_id)
           changes.add('un repas couvert a été déplacé');
         else if (now.servings !== p.servings) changes.add('des portions ont changé');
         else if (now.meal_id !== p.meal_id) changes.add('un repas couvert a été remplacé');
+        // v0.27: the recipes and preparations it was computed on.
+        const recipe = meals.get(p.meal_id);
+        if (!recipe) continue;
+        const basis = p.basis ? (JSON.parse(p.basis) as Basis) : null;
+        if (!p.prep_id) {
+          if (recipe.split) changes.add('une recette couverte a été découpée en préparations');
+          continue;
+        }
+        const lineQty = prepPortions(recipe.lines).get(p.prep_id);
+        if (lineQty === undefined)
+          changes.add('une préparation a été retirée d’une recette couverte');
+        else if (basis && (basis.lineQty !== lineQty || basis.recipeServings !== recipe.servings))
+          changes.add('la part d’une préparation dans une recette couverte a changé');
+        const prep = preps.get(p.prep_id);
+        if (basis && prep && compositionOf(prep) !== basis.composition)
+          changes.add('la composition d’une préparation utilisée a changé');
       }
       const use = (p: PortionRow) => ({
         entryId: p.plan_entry_id,
         date: p.date,
         momentId: p.moment_id,
-        servings: p.servings,
+        // The portions of what is cooked (a v0.26 plan: the planned portions, the same thing).
+        servings: p.basis ? (JSON.parse(p.basis) as Basis).portions : p.servings,
       });
       const byTime = (a: PortionRow, b: PortionRow) =>
         a.date.localeCompare(b.date) || order(a.moment_id) - order(b.moment_id);
@@ -232,10 +356,12 @@ export function createBatch(d: BatchDeps) {
         beforePeriod: s.date < plan.date_from,
         startTime: s.start_time,
         durationMin: s.duration_min,
-        cooks: [...byMeal]
-          .map(([mealId, list]) =>
+        cooks: [...byCook]
+          .map(([, list]) =>
             cookDto(
-              mealId,
+              list[0]!.prep_id
+                ? { prepId: list[0]!.prep_id, mealId: null }
+                : { prepId: null, mealId: list[0]!.meal_id },
               list
                 .filter((p) => !p.frozen)
                 .sort(byTime)
@@ -244,6 +370,7 @@ export function createBatch(d: BatchDeps) {
                 .filter((p) => p.frozen)
                 .sort(byTime)
                 .map(use),
+              entryMeals,
             ),
           )
           .sort((a, b) => a.mealName.localeCompare(b.mealName, 'fr')),
@@ -282,27 +409,30 @@ export function createBatch(d: BatchDeps) {
         'Un repas coché est déjà couvert par un plan validé : annule d’abord ce plan.',
       );
     const meals = new Map(d.meals().map((m) => [m.id, m]));
-    const missing: string[] = [];
-    const batchMeals: BatchMeal[] = entries.flatMap((e) => {
-      const m = meals.get(e.mealId);
-      if (!m || m.fridgeDays === null) {
-        missing.push(e.id);
-        return [];
-      }
-      return [
-        {
-          entryId: e.id,
-          date: e.date,
-          momentId: e.momentId,
-          recipeId: m.id,
-          recipeName: m.name,
-          servings: e.servings,
-          fridgeDays: m.fridgeDays,
-          freezable: m.freezable,
-          freezerDays: m.freezerDays,
-        },
-      ];
-    });
+    const missing: BatchProposalDto['missing'] = [];
+    const entryMeals = new Map(entries.map((e) => [e.id, e.mealId]));
+    // The couples (what is cooked, meal): the preparations of a split recipe, else the recipe.
+    const batchMeals: BatchMeal[] = entries.flatMap((e) =>
+      partsOf(meals.get(e.mealId), e.servings).flatMap((part) => {
+        if (part.fridgeDays === null) {
+          missing.push({ entryId: e.id, prepId: part.prepId, name: part.name });
+          return [];
+        }
+        return [
+          {
+            entryId: e.id,
+            date: e.date,
+            momentId: e.momentId,
+            recipeId: part.prepId ? `prep:${part.prepId}` : `meal:${part.mealId}`,
+            recipeName: part.name,
+            servings: part.portions,
+            fridgeDays: part.fridgeDays,
+            freezable: part.freezable,
+            freezerDays: part.freezerDays,
+          },
+        ];
+      }),
+    );
     const result = planBatch({
       meals: batchMeals,
       slots,
@@ -314,16 +444,21 @@ export function createBatch(d: BatchDeps) {
         date: s.date,
         momentId: s.momentId,
         beforePeriod: s.date < from,
-        cooks: s.cooks.map((c) => cookDto(c.recipeId, c.fridge, c.frozen)),
+        cooks: s.cooks.map((c) => cookDto(keyOf(c.recipeId), c.fridge, c.frozen, entryMeals)),
         warnings: overlapWarnings(s, from, null),
       })),
-      uncovered: result.uncovered.map((u) => ({ entryId: u.meal.entryId, reason: u.reason })),
+      uncovered: result.uncovered.map((u) => ({
+        entryId: u.meal.entryId,
+        prepId: keyOf(u.meal.recipeId).prepId,
+        name: u.meal.recipeName,
+        reason: u.reason,
+      })),
       missing,
       covered: result.covered,
       total: result.total,
       tooComplex: result.tooComplex,
     };
-    return { from, to, daysBefore, dates, slots, freezer, proposal };
+    return { from, to, daysBefore, dates, slots, freezer, proposal, meals };
   };
 
   // --- Routes ---------------------------------------------------------------------------
@@ -369,6 +504,7 @@ export function createBatch(d: BatchDeps) {
             fridgeDays: m?.fridgeDays ?? null,
             freezable: m?.freezable ?? false,
             freezerDays: m?.freezerDays ?? null,
+            parts: partsOf(m, p.servings),
             coveredBy: covered.get(p.id) ?? null,
           } satisfies BatchEntryDto;
         }),
@@ -405,6 +541,8 @@ export function createBatch(d: BatchDeps) {
     const c = compute(requestBody(request));
     if (c.proposal.tooComplex || !c.proposal.sessions.length)
       throw new HttpError(400, 'Rien à valider : aucune session proposée.');
+    const planned = new Map(d.planBetween(c.from, c.to).map((p) => [p.id, p]));
+    const prepsNow = new Map(d.preps().map((p) => [p.id, p]));
     const plan = ctx.db.transaction(() => {
       const row = store.create<PlanRow>('batch_plans', {
         date_from: c.from,
@@ -426,16 +564,31 @@ export function createBatch(d: BatchDeps) {
             [cook.fridge, 0],
             [cook.frozen, 1],
           ] as const)
-            for (const u of uses)
+            for (const u of uses) {
+              const entry = planned.get(u.entryId)!;
+              const recipe = c.meals.get(entry.mealId);
+              const prep = cook.prepId ? prepsNow.get(cook.prepId) : undefined;
+              const basis: Basis = prep
+                ? {
+                    portions: u.servings,
+                    lineQty: prepPortions(recipe?.lines ?? []).get(prep.id),
+                    recipeServings: recipe?.servings,
+                    composition: compositionOf(prep),
+                  }
+                : { portions: u.servings };
               store.create('batch_portions', {
                 session_id: session.id,
                 plan_entry_id: u.entryId,
-                meal_id: cook.mealId,
+                meal_id: entry.mealId,
                 date: u.date,
                 moment_id: u.momentId,
-                servings: u.servings,
+                // The portions planned (as in v0.26: the banner compares them); the cooked ones in basis.
+                servings: entry.servings,
                 frozen,
+                prep_id: cook.prepId,
+                basis: JSON.stringify(basis),
               });
+            }
       }
       return row;
     });
@@ -485,33 +638,46 @@ export function createBatch(d: BatchDeps) {
     /** « Sortir du congélateur » the evening before each frozen portion, days from..to. */
     thaw(from: string, to: string): ThawDto[] {
       const names = new Map(d.meals().map((m) => [m.id, m.name]));
-      return live<PortionRow>(
+      const prepNames = new Map(d.preps().map((p) => [p.id, p.name]));
+      const byDay = new Map<string, Set<string>>();
+      for (const p of live<PortionRow>(
         'batch_portions',
         // The reminder is the evening before: portions eaten from..to + 1 day.
         'frozen = 1 AND date >= ? AND date <= ?',
         addDaysTo(from, 1),
         addDaysTo(to, 1),
-      )
-        .filter((p) => {
-          const session = store.get<SessionRow>('batch_sessions', p.session_id);
-          return session !== null && store.get('batch_plans', session.plan_id) !== null;
-        })
-        .map((p) => ({
-          date: addDaysTo(p.date, -1),
-          mealName: names.get(p.meal_id) ?? 'Repas',
-          forDate: p.date,
-          forMomentId: p.moment_id,
+      ).filter((p) => {
+        const session = store.get<SessionRow>('batch_sessions', p.session_id);
+        return session !== null && store.get('batch_plans', session.plan_id) !== null;
+      })) {
+        const day = addDaysTo(p.date, -1);
+        const name = p.prep_id
+          ? (prepNames.get(p.prep_id) ?? 'Préparation')
+          : (names.get(p.meal_id) ?? 'Repas');
+        byDay.set(day, (byDay.get(day) ?? new Set()).add(name));
+      }
+      // One line per day, what to take out (never the detail per meal).
+      return [...byDay]
+        .map(([date, set]) => ({
+          date,
+          names: [...set].sort((a, b) => a.localeCompare(b, 'fr')),
         }))
-        .sort((a, b) => a.date.localeCompare(b.date) || a.forDate.localeCompare(b.forDate));
+        .sort((a, b) => a.date.localeCompare(b.date));
     },
     /** The sessions of the validated plans, for the general calendar. */
     calendarEvents(from: string, to: string): CalendarEvent[] {
       return live<SessionRow>('batch_sessions', 'date >= ? AND date <= ?', from, to)
         .filter((s) => store.get('batch_plans', s.plan_id) !== null)
         .map((s) => {
+          const meals = d.meals();
+          const preps = d.preps();
           const names = [
             ...new Set(
-              portionsOf(s.id).map((p) => d.meals().find((m) => m.id === p.meal_id)?.name),
+              portionsOf(s.id).map((p) =>
+                p.prep_id
+                  ? preps.find((x) => x.id === p.prep_id)?.name
+                  : meals.find((m) => m.id === p.meal_id)?.name,
+              ),
             ),
           ].filter(Boolean);
           return {

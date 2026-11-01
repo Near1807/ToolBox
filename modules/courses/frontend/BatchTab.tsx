@@ -41,6 +41,20 @@ const shortDate = (date: string) =>
   }).format(new Date(`${date}T00:00:00Z`));
 const portionsText = (n: number) =>
   `${String(Math.round(n * 100) / 100).replace('.', ',')} portion${n > 1 ? 's' : ''}`;
+/** Couples to cook on the day, grouped by what (a preparation, or a recipe) and reason. */
+function uncoveredGroups(list: BatchProposalDto['uncovered']) {
+  const groups = new Map<
+    string,
+    { name: string; prepId: string | null; reason: string; entryIds: string[] }
+  >();
+  for (const u of list) {
+    const key = `${u.prepId ?? ''}|${u.name}|${u.reason}`;
+    const g = groups.get(key) ?? { name: u.name, prepId: u.prepId, reason: u.reason, entryIds: [] };
+    g.entryIds.push(u.entryId);
+    groups.set(key, g);
+  }
+  return [...groups.values()];
+}
 const capitalised = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 const slotKey = (s: BatchSlotDto) => `${s.date}|${s.momentId}`;
 
@@ -115,38 +129,36 @@ function Guide() {
   );
 }
 
-function CookLines(props: { cook: BatchCookDto; moments: Map<string, MomentDto> }) {
+/**
+ * One cooking of a session: what (a preparation, or a recipe cooked whole),
+ * how many portions, what it is in ingredients, where it goes. No assembly,
+ * no times, no reminder per meal.
+ */
+function CookLines(props: { cook: BatchCookDto }) {
   const { cook } = props;
-  const when = (u: { date: string; momentId: string }) =>
-    `${weekday(u.date)} ${(props.moments.get(u.momentId)?.name ?? '').toLowerCase()}`.trim();
-  const sum = (list: { servings: number }[]) => list.reduce((n, u) => n + u.servings, 0);
+  const sum = (list: { servings: number }[]) =>
+    Math.round(list.reduce((n, u) => n + u.servings, 0) * 100) / 100;
+  const frozen = sum(cook.frozen);
+  const where =
+    cook.fridge.length && cook.frozen.length
+      ? `frigo, dont ${String(frozen).replace('.', ',')} au congélateur`
+      : cook.frozen.length
+        ? 'congélateur'
+        : 'frigo';
   return (
     <li className="cs-batch-cook">
-      <strong>{cook.mealName}</strong>, {portionsText(cook.portions)}
-      <ul className="small">
-        {cook.fridge.length > 0 && (
-          <li>
-            {String(sum(cook.fridge)).replace('.', ',')} au frigo →{' '}
-            {cook.fridge.map(when).join(', ')}
-          </li>
-        )}
-        {cook.frozen.length > 0 && (
-          <li>
-            {String(sum(cook.frozen)).replace('.', ',')} au congélateur →{' '}
-            {cook.frozen.map(when).join(', ')} (sortir la veille)
-          </li>
-        )}
-      </ul>
+      <strong>{cook.mealName}</strong> — {portionsText(cook.portions)}
       {cook.ingredients.length > 0 && (
+        <span className="small">
+          {' '}
+          ({cook.ingredients.map((i) => `${i.name} ${i.amount}`).join(' · ')})
+        </span>
+      )}{' '}
+      → {where}
+      {cook.usedIn.length > 0 && (
         <details className="small">
-          <summary>Quantités à préparer</summary>
-          <ul>
-            {cook.ingredients.map((i) => (
-              <li key={i.name}>
-                {i.name} — <span className="num">{i.amount}</span>
-              </li>
-            ))}
-          </ul>
+          <summary>Utilisée dans</summary>
+          {cook.usedIn.join(', ')}
         </details>
       )}
     </li>
@@ -215,7 +227,7 @@ function SessionCard(props: {
       )}
       <ul className="cs-batch-cooks">
         {s.cooks.map((c) => (
-          <CookLines key={c.mealId} cook={c} moments={props.moments} />
+          <CookLines key={c.prepId ?? c.mealId} cook={c} />
         ))}
       </ul>
     </div>
@@ -228,6 +240,8 @@ export function BatchTab(props: {
   run: Run;
   /** Opens the recipe's sheet (keeping to fill in). */
   onEditMeal: (mealId: string) => void;
+  /** Opens a preparation's sheet (keeping to fill in). */
+  onEditPrep: (prepId: string) => void;
 }) {
   const module = useModule();
   const url = module.url(`/batch?from=${props.from}&to=${props.to}`);
@@ -242,6 +256,7 @@ export function BatchTab(props: {
       run={props.run}
       reload={reload}
       onEditMeal={props.onEditMeal}
+      onEditPrep={props.onEditPrep}
     />
   );
 }
@@ -251,6 +266,7 @@ function BatchForm(props: {
   run: Run;
   reload: () => void;
   onEditMeal: (mealId: string) => void;
+  onEditPrep: (prepId: string) => void;
 }) {
   const module = useModule();
   const s = props.state;
@@ -274,6 +290,9 @@ function BatchForm(props: {
     })
     .filter((x) => dates.includes(x.date) && moments.has(x.momentId));
   const { entryIds, missing } = forCalculation(s.entries, selection);
+  const byPrep = s.entries.some(
+    (e) => entryIds.includes(e.entryId) && e.parts.some((p) => p.prepId),
+  );
   const entryById = new Map(s.entries.map((e) => [e.entryId, e]));
   const periodDates = gridDates(s.from, s.to, 0);
   const changed = () => {
@@ -433,17 +452,29 @@ function BatchForm(props: {
                           <span className="muted">
                             déjà couvert (annule le plan pour le changer)
                           </span>
-                        ) : e.fridgeDays === null && ticked ? (
-                          <span className="cs-batch-warning">
-                            <Icon name="warning" /> durée de conservation manquante —{' '}
-                            <button
-                              type="button"
-                              className="cs-link"
-                              onClick={() => props.onEditMeal(e.mealId)}
-                            >
-                              compléter la fiche
-                            </button>
-                          </span>
+                        ) : ticked ? (
+                          e.parts
+                            .filter((p) => p.fridgeDays === null)
+                            .map((p) => (
+                              <span key={p.prepId ?? p.mealId} className="cs-batch-warning">
+                                <Icon name="warning" />{' '}
+                                {p.prepId
+                                  ? `${p.name} : durée de conservation manquante`
+                                  : 'durée de conservation manquante'}{' '}
+                                —{' '}
+                                <button
+                                  type="button"
+                                  className="cs-link"
+                                  onClick={() =>
+                                    p.prepId
+                                      ? props.onEditPrep(p.prepId)
+                                      : props.onEditMeal(e.mealId)
+                                  }
+                                >
+                                  compléter la fiche
+                                </button>
+                              </span>
+                            ))
                         ) : null}
                       </td>
                     </tr>
@@ -453,9 +484,9 @@ function BatchForm(props: {
             </table>
             {missing.length > 0 && (
               <p className="small cs-batch-warning">
-                {missing.length} repas coché{missing.length > 1 ? 's' : ''} sans durée de
-                conservation : exclu{missing.length > 1 ? 's' : ''} du calcul tant que la fiche
-                n’est pas complétée.
+                {missing.length} {missing.some((m) => m.part.prepId) ? 'élément' : 'repas'} coché
+                {missing.length > 1 ? 's' : ''} sans durée de conservation : exclu
+                {missing.length > 1 ? 's' : ''} du calcul tant que la fiche n’est pas complétée.
               </p>
             )}
           </>
@@ -596,8 +627,8 @@ function BatchForm(props: {
               <p>
                 <strong>
                   {proposal.sessions.length} session{proposal.sessions.length > 1 ? 's' : ''} couvre
-                  {proposal.sessions.length > 1 ? 'nt' : ''} {proposal.covered} repas sur{' '}
-                  {proposal.total}
+                  {proposal.sessions.length > 1 ? 'nt' : ''} {proposal.covered}{' '}
+                  {byPrep ? 'préparations de repas' : 'repas'} sur {proposal.total}
                 </strong>
                 {proposal.total - proposal.covered > 0 &&
                   ` ; ${proposal.total - proposal.covered} à cuisiner le jour même`}
@@ -612,14 +643,22 @@ function BatchForm(props: {
                 <>
                   <h4>À cuisiner le jour même</h4>
                   <ul className="small">
-                    {proposal.uncovered.map((u) => {
-                      const e = entryById.get(u.entryId);
-                      return (
-                        <li key={u.entryId}>
-                          {e ? `${entryLabel(e)} — ${e.mealName}` : u.entryId} : {u.reason}
-                        </li>
-                      );
-                    })}
+                    {uncoveredGroups(proposal.uncovered).map((g) => (
+                      <li key={`${g.name}|${g.reason}`}>
+                        <strong>{g.name}</strong> (
+                        {g.entryIds
+                          .map((id) => {
+                            const e = entryById.get(id);
+                            return e
+                              ? g.prepId
+                                ? `${entryLabel(e)}, ${e.mealName}`
+                                : entryLabel(e)
+                              : id;
+                          })
+                          .join(' ; ')}
+                        ) : {g.reason}
+                      </li>
+                    ))}
                   </ul>
                 </>
               )}
