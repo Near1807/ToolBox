@@ -22,6 +22,11 @@ export interface MealDto {
   servings: number;
   tags: string[];
   note: string;
+  /** Keeping once cooked (batch cooking): empty (null) = unknown. Never filled in by the app. */
+  fridgeDays: number | null;
+  freezable: boolean;
+  /** Only for a freezable recipe. */
+  freezerDays: number | null;
   items: { id: string; ingredientId: string; qty: number; unit: string }[];
   /** For one portion. */
   perServing: { nutrition: Facts; cost: Cost };

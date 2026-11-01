@@ -172,6 +172,20 @@ async function uploadImage(
 }
 
 /** The picture of a recipe, or a neutral placeholder. */
+/** « Frigo 3 j · congelable 60 j », or that it is missing (filled in by Thomas only). */
+function KeepText(props: { meal: MealDto }) {
+  const m = props.meal;
+  if (m.fridgeDays === null && !m.freezable) return <span>conservation non renseignée</span>;
+  return (
+    <span>
+      Frigo {m.fridgeDays === null ? '?' : `${m.fridgeDays} j`}
+      {m.freezable
+        ? ` · congelable ${m.freezerDays === null ? '(durée ?)' : `${m.freezerDays} j`}`
+        : ' · non congelable'}
+    </span>
+  );
+}
+
 function MealThumb(props: { meal: MealDto; size?: 'small' | 'large' }) {
   return (
     <span className={`cs-thumb cs-thumb--${props.size ?? 'small'}`} aria-hidden>
@@ -797,6 +811,18 @@ function MealEditor(props: {
   const [servings, setServings] = useState(String(props.meal?.servings ?? 2));
   const [tags, setTags] = useState((props.meal?.tags ?? []).join(', '));
   const [note, setNote] = useState(props.meal?.note ?? '');
+  // Keeping (batch cooking): empty by default, never suggested.
+  const [fridgeDays, setFridgeDays] = useState(
+    props.meal?.fridgeDays === null || props.meal?.fridgeDays === undefined
+      ? ''
+      : String(props.meal.fridgeDays),
+  );
+  const [freezable, setFreezable] = useState(props.meal?.freezable ?? false);
+  const [freezerDays, setFreezerDays] = useState(
+    props.meal?.freezerDays === null || props.meal?.freezerDays === undefined
+      ? ''
+      : String(props.meal.freezerDays),
+  );
   const [pendingImage, setPendingImage] = useState<File | null>(null);
   const current = props.meal
     ? (props.state.meals.find((m) => m.id === props.meal!.id) ?? props.meal)
@@ -831,6 +857,9 @@ function MealEditor(props: {
             .map((t) => t.trim())
             .filter(Boolean),
           note,
+          fridgeDays: fridgeDays.trim() === '' ? null : Number(fridgeDays),
+          freezable,
+          freezerDays: !freezable || freezerDays.trim() === '' ? null : Number(freezerDays),
           items: lines
             .filter((l) => l.name.trim())
             .map((l) => ({
@@ -884,6 +913,52 @@ function MealEditor(props: {
           aria-label="Tags"
           onChange={(e) => setTags(e.target.value)}
         />
+        <fieldset className="cs-keep">
+          <legend className="small">
+            Conservation une fois cuisiné (facultatif, pour le batch cooking) — c’est toi qui la
+            renseignes, l’app ne la vérifie pas
+          </legend>
+          <label className="small">
+            Frigo{' '}
+            <input
+              className="input input--short num"
+              type="number"
+              min={0}
+              max={3650}
+              step={1}
+              value={fridgeDays}
+              placeholder="?"
+              aria-label="Jours au frigo"
+              onChange={(e) => setFridgeDays(e.target.value)}
+            />{' '}
+            jour(s)
+          </label>
+          <label className="small">
+            <input
+              type="checkbox"
+              checked={freezable}
+              onChange={(e) => setFreezable(e.target.checked)}
+            />{' '}
+            Congelable
+          </label>
+          {freezable && (
+            <label className="small">
+              Congélateur{' '}
+              <input
+                className="input input--short num"
+                type="number"
+                min={0}
+                max={3650}
+                step={1}
+                value={freezerDays}
+                placeholder="?"
+                aria-label="Jours au congélateur"
+                onChange={(e) => setFreezerDays(e.target.value)}
+              />{' '}
+              jour(s)
+            </label>
+          )}
+        </fieldset>
         <h4>Ingrédients</h4>
         {lines.map((l, i) => (
           <div key={i} className="cs-row">
@@ -1054,7 +1129,8 @@ function Meals(props: { state: StateDto; run: Run; onDeleted: (m: MealDto) => vo
                     <span className="small muted">
                       {' '}
                       · {m.servings} portion{m.servings > 1 ? 's' : ''}
-                      {m.tags.length ? ` · ${m.tags.map((t) => `#${t}`).join(' ')}` : ''}
+                      {m.tags.length ? ` · ${m.tags.map((t) => `#${t}`).join(' ')}` : ''} ·{' '}
+                      <KeepText meal={m} />
                     </span>
                     <br />
                     <span className="small">
@@ -1076,6 +1152,8 @@ function Meals(props: { state: StateDto; run: Run; onDeleted: (m: MealDto) => vo
                   <p className="small muted">
                     Pour {m.servings} portion{m.servings > 1 ? 's' : ''}
                     {m.tags.length ? ` · ${m.tags.map((t) => `#${t}`).join(' ')}` : ''}
+                    <br />
+                    <KeepText meal={m} />
                   </p>
                   <p className="small cs-facts">
                     Par portion : <CostText cost={m.perServing.cost} /> ·{' '}
@@ -2047,7 +2125,8 @@ function Exchange(props: { run: Run }) {
                         checked={replace.has(r.name)}
                         onChange={() => toggle(replace, setReplace, r.name)}
                       />{' '}
-                      <strong>{r.name}</strong>
+                      <strong>{r.name}</strong>{' '}
+                      <span className="muted">({r.changes.join(' ; ')})</span>
                     </label>
                   ))}
               </fieldset>
