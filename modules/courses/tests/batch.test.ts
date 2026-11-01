@@ -167,17 +167,18 @@ describe('batch cooking optimisation', () => {
 
 describe('beyond an exact answer', () => {
   it('three weeks with every slot ticked: no plan rather than an approximate one', () => {
-    const days = Array.from({ length: 21 }, (_, i) =>
-      new Date(Date.UTC(2026, 10, 2 + i)).toISOString().slice(0, 10),
+    const moments = ['matin', 'midi', 'gouter', 'soir'];
+    const days = Array.from({ length: 28 }, (_, i) =>
+      new Date(Date.UTC(2026, 10, 2 - 7 + i)).toISOString().slice(0, 10),
     );
-    const meals = days.flatMap((d, i) => [
-      meal(d, 'midi', ['A', 'B', 'C'][i % 3]!, { fridgeDays: 3 }),
-      meal(d, 'soir', ['D', 'E', 'F'][i % 3]!, { fridgeDays: 3 }),
-      meal(d, 'matin', 'G', { fridgeDays: 3 }),
-    ]);
-    const slots = days.flatMap((date) => MOMENTS.map((momentId) => ({ date, momentId })));
-    const r = run({ meals, slots });
-    expect(r).toMatchObject({ tooComplex: true, sessions: [], covered: 0 });
+    const meals = days
+      .slice(7)
+      .flatMap((d, i) =>
+        moments.map((m, j) => meal(d, m, `R${(i * 4 + j) % 6}`, { fridgeDays: 2 })),
+      );
+    const slots = days.flatMap((date) => moments.map((momentId) => ({ date, momentId })));
+    const r = planBatch({ meals, slots, momentOrder: moments, freezer: false });
+    expect(r).toMatchObject({ tooComplex: true, sessions: [], covered: 0, total: 84 });
   });
 });
 
