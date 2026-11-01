@@ -78,11 +78,20 @@ function Guide() {
           options, puis « Calculer ».
         </p>
         <p>
-          <strong>Comment les sessions sont choisies.</strong> Chaque repas a une fenêtre de cuisson
-          : on peut le cuisiner à son créneau ou avant, tant que la durée de conservation n’est pas
-          dépassée. L’outil cherche le moins de sessions qui couvrent le plus de repas, puis cuisine
-          chaque recette une seule fois si possible, met le moins possible au congélateur et cuisine
-          au plus près.
+          <strong>Par préparation.</strong> Ce qui se prépare à l’avance, ce sont les{' '}
+          <strong>préparations</strong> d’une recette (la sauce de la bolognaise, le riz cuit, les
+          œufs durs), chacune avec sa propre conservation. Les lignes d’ingrédients directes d’une
+          recette découpée (les pâtes) se font au moment du repas et n’apparaissent pas ici. Une
+          recette sans préparation est préparée en bloc, avec la conservation de la recette. Une
+          préparation utilisée par plusieurs recettes (le riz du chili et des boîtes) est cuite une
+          seule fois par session, portions additionnées.
+        </p>
+        <p>
+          <strong>Comment les sessions sont choisies.</strong> Chaque préparation d’un repas a une
+          fenêtre de cuisson : on peut la cuisiner à son créneau ou avant, tant que sa durée de
+          conservation n’est pas dépassée. L’outil cherche le moins de sessions qui couvrent le plus
+          de préparations, puis cuisine chaque préparation une seule fois si possible, met le moins
+          possible au congélateur et cuisine au plus près.
         </p>
         <svg
           className="cs-batch-guide__figure"
@@ -113,13 +122,14 @@ function Guide() {
         </svg>
         <p>
           <strong>Frigo ou congélateur.</strong> Sans congélation, un repas n’est couvert que dans
-          sa durée au frigo. Avec la congélation et une recette congelable, la fenêtre s’étend à sa
-          durée au congélateur : les portions mangées au-delà de la durée au frigo partent au
-          congélateur, et ne sont jamais mangées le jour de la cuisson (sortir la veille).
+          sa durée au frigo. Avec la congélation et une préparation (ou recette) congelable, la
+          fenêtre s’étend à sa durée au congélateur : les portions mangées au-delà de la durée au
+          frigo partent au congélateur, et ne sont jamais mangées le jour de la cuisson. Une fois le
+          plan validé, le planning affiche la veille « À décongeler : … ».
         </p>
         <p>
           <strong>Les durées de conservation sont celles que tu renseignes</strong> dans chaque
-          fiche recette : l’outil ne les vérifie pas.
+          fiche (préparation, ou recette non découpée) : l’outil ne les vérifie pas.
         </p>
         <p className="muted">
           Limite : une période ne réutilise pas les portions congelées d’une période précédente.

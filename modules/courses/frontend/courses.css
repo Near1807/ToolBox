@@ -775,3 +775,37 @@
   font-size: 0.78rem;
   font-weight: normal;
 }
+
+/* Preparations (v0.27). */
+.cs-subtabs {
+  margin-top: -4px;
+}
+.cs-subtabs button {
+  padding: 6px 12px;
+}
+.cs-prep-line {
+  padding: 6px 8px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+}
+.cs-prep-line__what {
+  flex-basis: 100%;
+}
+.cs-extract {
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.cs-keep__note {
+  flex-basis: 100%;
+  margin: 0 0 6px;
+}
+.cs-items ul {
+  margin: 2px 0 4px;
+  padding-left: 16px;
+}
+.cs-prep-help {
+  margin-bottom: 12px;
+}

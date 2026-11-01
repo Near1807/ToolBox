@@ -2133,7 +2133,7 @@ export default defineBackendModule({
       required: ['meal', 'day', 'moment'],
       risk: 'change',
       run: (params) => {
-        const match = matchByName(meals(), String(params.meal), (m) => m.name);
+        const match = matchByName(meals(), String(params.meal), (m) => [m.name, fold(m.name)]);
         if (match.kind === 'none')
           throw new HttpError(404, `Pas de repas « ${String(params.meal)} » dans la bibliothèque.`);
         if (match.kind === 'ambiguous')
