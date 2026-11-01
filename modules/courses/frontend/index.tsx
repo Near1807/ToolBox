@@ -45,17 +45,19 @@ import type {
   StateDto,
   SummaryDto,
 } from '../shared/types';
+import { BatchTab } from './BatchTab';
 import { MealFilters } from './MealFilters';
 import { MealPicker } from './MealPicker';
 import { Suggest } from './Suggest';
 import './courses.css';
 
 type Run = (action: () => Promise<unknown>) => Promise<boolean>;
-type Tab = 'plan' | 'list' | 'summary' | 'meals' | 'ingredients' | 'moments' | 'exchange';
+type Tab = 'plan' | 'list' | 'summary' | 'batch' | 'meals' | 'ingredients' | 'moments' | 'exchange';
 const TABS: [Tab, string][] = [
   ['plan', 'Planning des repas'],
   ['list', 'Liste de courses'],
   ['summary', 'Résumé de la semaine'],
+  ['batch', 'Batch'],
   ['meals', 'Repas'],
   ['ingredients', 'Ingrédients'],
   ['moments', 'Moments et extras'],
@@ -339,7 +341,18 @@ function Planning(props: { state: StateDto; summary: SummaryDto | null; run: Run
           <tbody>
             {days.map((d) => (
               <tr key={d} className={d === state.today ? 'cs-plan__today' : undefined}>
-                <th scope="row">{dayLabel(d)}</th>
+                <th scope="row">
+                  {dayLabel(d)}
+                  {state.thaw
+                    .filter((t) => t.date === d)
+                    .map((t) => (
+                      <span key={`${t.forDate}${t.forMomentId}${t.mealName}`} className="cs-thaw">
+                        <Icon name="warning" /> Ce soir, sortir du congélateur : {t.mealName} (
+                        {dayLabel(t.forDate).toLowerCase()},{' '}
+                        {state.moments.find((m) => m.id === t.forMomentId)?.name.toLowerCase()})
+                      </span>
+                    ))}
+                </th>
                 {state.moments.map((m) => (
                   <PlanSlot
                     key={m.id}
@@ -1036,10 +1049,18 @@ function MealEditor(props: {
   );
 }
 
-function Meals(props: { state: StateDto; run: Run; onDeleted: (m: MealDto) => void }) {
+function Meals(props: {
+  state: StateDto;
+  run: Run;
+  onDeleted: (m: MealDto) => void;
+  /** Opened directly (« compléter la fiche » of the batch tab). */
+  editMealId?: string | null;
+}) {
   const module = useModule();
   const [filter, setFilter] = useState<MealFilter>(NO_FILTER);
-  const [editing, setEditing] = useState<MealDto | 'new' | null>(null);
+  const [editing, setEditing] = useState<MealDto | 'new' | null>(
+    () => props.state.meals.find((m) => m.id === props.editMealId) ?? null,
+  );
   const [view, setView] = useState<'grid' | 'list'>(() => {
     try {
       return localStorage.getItem('toolbox.courses.mealsView') === 'list' ? 'list' : 'grid';
@@ -2297,14 +2318,30 @@ function CoursesPage() {
       </nav>
       {s && (
         <>
-          {(tab === 'plan' || tab === 'list' || tab === 'summary') && (
+          {(tab === 'plan' || tab === 'list' || tab === 'summary' || tab === 'batch') && (
             <PeriodPicker list={s.list} run={run} />
           )}
           {tab === 'plan' && <Planning state={s} summary={summary.data ?? null} run={run} />}
           {tab === 'summary' && <Summary summary={summary.data ?? null} run={run} />}
           {tab === 'exchange' && <Exchange run={run} />}
           {tab === 'list' && <ShoppingList list={s.list} run={run} />}
-          {tab === 'meals' && <Meals state={s} run={run} onDeleted={setUndo} />}
+          {tab === 'batch' && (
+            <BatchTab
+              from={s.list.from}
+              to={s.list.to}
+              run={run}
+              onEditMeal={(id) => setParams({ tab: 'meals', edit: id })}
+            />
+          )}
+          {tab === 'meals' && (
+            <Meals
+              key={params.get('edit') ?? ''}
+              state={s}
+              run={run}
+              onDeleted={setUndo}
+              editMealId={params.get('edit')}
+            />
+          )}
           {tab === 'ingredients' && <Ingredients state={s} run={run} />}
           {tab === 'moments' && (
             <MomentsAndExtras key={s.moments.map((m) => m.id).join()} state={s} run={run} />
