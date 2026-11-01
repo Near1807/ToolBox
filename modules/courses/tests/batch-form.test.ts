@@ -22,6 +22,18 @@ const entry = (id: string, date: string, extra: Partial<BatchEntryDto> = {}): Ba
   freezerDays: null,
   coveredBy: null,
   ...extra,
+  // A recipe without preparation: one part, the recipe itself (as in v0.26).
+  parts: [
+    {
+      prepId: null,
+      mealId: `m-${id}`,
+      name: id,
+      portions: 1,
+      fridgeDays: extra.fridgeDays === undefined ? 2 : extra.fridgeDays,
+      freezable: false,
+      freezerDays: null,
+    },
+  ],
 });
 const entries = [
   entry('curry', '2026-11-02', { batchTag: true }),

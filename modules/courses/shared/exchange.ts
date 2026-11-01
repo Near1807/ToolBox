@@ -3,6 +3,7 @@
 // tests/exchange.test.ts. Reading never writes anything: it gives what an
 // import would do (preview), with an error per element and its line.
 import { fold } from './quantities';
+import { product } from './recipe';
 import {
   defaultNutritionPer,
   NUTRIENT_KEYS,
@@ -25,12 +26,27 @@ export interface ExchangeIngredient {
   nutrition: Nutrition;
   price: { amount: number; per: PricePer } | null;
 }
+/** A line of a recipe: an ingredient, or a preparation (v0.27) with its portions for the whole recipe. */
+export type ExchangeLine =
+  { name: string; qty: number; unit: string } | { prep: string; qty: number };
+export const isPrepLine = (l: ExchangeLine): l is { prep: string; qty: number } => 'prep' in l;
+
+/** A preparation (v0.27): composition for ONE portion, its own keeping. */
+export interface ExchangePrep {
+  name: string;
+  ingredients: { name: string; qty: number; unit: string }[];
+  fridgeDays?: number | null;
+  freezable?: boolean;
+  freezerDays?: number | null;
+  note?: string;
+}
+
 export interface ExchangeRecipe {
   name: string;
   servings: number;
   tags: string[];
   note: string;
-  ingredients: { name: string; qty: number; unit: string }[];
+  ingredients: ExchangeLine[];
   /** Optional picture: `data:image/jpeg;base64,…` (also PNG, WebP). */
   image?: string | null;
   /**
@@ -45,6 +61,8 @@ export interface ExchangeFile {
   format: typeof FORMAT;
   version: number;
   ingredients: ExchangeIngredient[];
+  /** Optional (v0.27), absent when there is none. */
+  preparations?: ExchangePrep[];
   recipes: ExchangeRecipe[];
 }
 
@@ -56,6 +74,7 @@ export interface ParseError {
 }
 export interface Parsed {
   ingredients: (ExchangeIngredient & { line: number | null })[];
+  preparations: (ExchangePrep & { line: number | null })[];
   recipes: (ExchangeRecipe & { line: number | null })[];
   errors: ParseError[];
   /** Imported anyway, with something left out (e.g. an unreadable image). */
@@ -120,12 +139,20 @@ export const EXAMPLE: ExchangeFile = {
 };
 
 /** Line of each element of the top-level arrays `ingredients` and `recipes` (1-based). */
-function elementLines(text: string): { ingredients: number[]; recipes: number[] } {
-  const out = { ingredients: [] as number[], recipes: [] as number[] };
+function elementLines(text: string): {
+  ingredients: number[];
+  preparations: number[];
+  recipes: number[];
+} {
+  const out = {
+    ingredients: [] as number[],
+    preparations: [] as number[],
+    recipes: [] as number[],
+  };
   let line = 1;
   let depth = 0;
   let key: string | null = null;
-  let current: 'ingredients' | 'recipes' | null = null;
+  let current: 'ingredients' | 'preparations' | 'recipes' | null = null;
   for (let i = 0; i < text.length; i++) {
     const c = text[i]!;
     if (c === '\n') line++;
@@ -140,7 +167,12 @@ function elementLines(text: string): { ingredients: number[]; recipes: number[] 
       if (depth === 1) key = s;
       i = j;
     } else if (c === '[' || c === '{') {
-      if (depth === 1 && c === '[' && (key === 'ingredients' || key === 'recipes')) current = key;
+      if (
+        depth === 1 &&
+        c === '[' &&
+        (key === 'ingredients' || key === 'preparations' || key === 'recipes')
+      )
+        current = key;
       else if (depth === 2 && c === '{' && current) out[current].push(line);
       depth++;
     } else if (c === ']' || c === '}') {
@@ -162,9 +194,58 @@ const str = (v: unknown, max: number) =>
     ? String(v).trim().replace(/\s+/g, ' ').slice(0, max)
     : '';
 
+type Keeping = Pick<ExchangeRecipe, 'fridgeDays' | 'freezable' | 'freezerDays'>;
+/** The keeping fields the file gives (absent: not given), or an error. */
+function keepingOf(v: Record<string, unknown>): Keeping | string {
+  const keep: Keeping = {};
+  for (const key of ['fridgeDays', 'freezerDays'] as const) {
+    if (v[key] === undefined) continue;
+    if (v[key] === null || v[key] === '') {
+      keep[key] = null;
+      continue;
+    }
+    const days = num(v[key]);
+    if (days === null || !Number.isInteger(days) || days < 0 || days > 3650)
+      return `« ${key} » : un nombre entier de jours (0 à 3650), ou null`;
+    keep[key] = days;
+  }
+  if (v.freezable !== undefined) {
+    if (typeof v.freezable !== 'boolean') return '« freezable » : true ou false';
+    keep.freezable = v.freezable;
+  }
+  return keep;
+}
+/** The lines of a recipe (ingredients, and preparations when allowed) or of a preparation, or an error. */
+function ingredientLines(raw: unknown[], preps: boolean): ExchangeLine[] | string {
+  const items: ExchangeLine[] = [];
+  for (const [i, rawItem] of raw.entries()) {
+    const it = (rawItem ?? {}) as Record<string, unknown>;
+    const qty = num(it.qty);
+    if (it.prep !== undefined) {
+      if (!preps) return `ligne ${i + 1} : une préparation ne contient que des ingrédients`;
+      const prep = str(it.prep, 80);
+      if (!prep) return `ligne ${i + 1} : nom de la préparation manquant`;
+      if (qty === null || !(qty > 0)) return `« ${prep} » : portions > 0 attendues`;
+      items.push({ prep, qty });
+      continue;
+    }
+    const itemName = str(it.name, 80);
+    if (!itemName) return `ingrédient ${i + 1} : nom manquant`;
+    if (qty === null || !(qty > 0)) return `« ${itemName} » : quantité > 0 attendue`;
+    items.push({ name: itemName, qty, unit: str(it.unit, 20) || 'g' });
+  }
+  return items;
+}
+
 /** Reads a file (text): its ingredients and recipes, checked, and an error per bad element. */
 export function parseExchange(text: string): Parsed {
-  const result: Parsed = { ingredients: [], recipes: [], errors: [], warnings: [] };
+  const result: Parsed = {
+    ingredients: [],
+    preparations: [],
+    recipes: [],
+    errors: [],
+    warnings: [],
+  };
   let data: unknown;
   try {
     data = JSON.parse(text);
@@ -252,6 +333,36 @@ export function parseExchange(text: string): Parsed {
       line,
     });
   });
+  const preparations = Array.isArray(d.preparations) ? d.preparations : [];
+  if (d.preparations !== undefined && !Array.isArray(d.preparations))
+    result.errors.push({
+      line: null,
+      where: 'preparations',
+      message: '« preparations » doit être une liste',
+    });
+  const seenPreps = new Set<string>();
+  preparations.forEach((raw, index) => {
+    const line = lines.preparations[index] ?? null;
+    const v = (raw ?? {}) as Record<string, unknown>;
+    const name = str(v.name, 80);
+    const where = `préparation ${index + 1}${name ? ` « ${name} »` : ''}`;
+    const fail = (message: string) => result.errors.push({ line, where, message });
+    if (!name) return fail('nom manquant');
+    if (seenPreps.has(fold(name))) return fail('en double dans le fichier');
+    if (!Array.isArray(v.ingredients)) return fail('« ingredients » doit être une liste');
+    const items = ingredientLines(v.ingredients as unknown[], false);
+    if (typeof items === 'string') return fail(items);
+    const keep = keepingOf(v);
+    if (typeof keep === 'string') return fail(keep);
+    seenPreps.add(fold(name));
+    result.preparations.push({
+      name,
+      ingredients: items as ExchangePrep['ingredients'],
+      ...keep,
+      ...(v.note !== undefined ? { note: str(v.note, 2000) } : {}),
+      line,
+    });
+  });
   const recipes = Array.isArray(d.recipes) ? d.recipes : [];
   if (d.recipes !== undefined && !Array.isArray(d.recipes))
     result.errors.push({
@@ -272,35 +383,14 @@ export function parseExchange(text: string): Parsed {
     if (servings === null || !Number.isInteger(servings) || servings < 1 || servings > 50)
       return fail('« servings » : un nombre entier de portions, de 1 à 50');
     if (!Array.isArray(v.ingredients)) return fail('« ingredients » doit être une liste');
-    const items: ExchangeRecipe['ingredients'] = [];
-    for (const [i, rawItem] of (v.ingredients as unknown[]).entries()) {
-      const it = (rawItem ?? {}) as Record<string, unknown>;
-      const itemName = str(it.name, 80);
-      const qty = num(it.qty);
-      if (!itemName) return fail(`ingrédient ${i + 1} : nom manquant`);
-      if (qty === null || !(qty > 0)) return fail(`« ${itemName} » : quantité > 0 attendue`);
-      items.push({ name: itemName, qty, unit: str(it.unit, 20) || 'g' });
-    }
+    const items = ingredientLines(v.ingredients as unknown[], true);
+    if (typeof items === 'string') return fail(items);
     const tags = Array.isArray(v.tags)
       ? [...new Set((v.tags as unknown[]).map((t) => str(t, 30).replace(/^#/, '')).filter(Boolean))]
       : [];
     // Keeping (optional, never invented): only what the file gives.
-    const keep: Pick<ExchangeRecipe, 'fridgeDays' | 'freezable' | 'freezerDays'> = {};
-    for (const key of ['fridgeDays', 'freezerDays'] as const) {
-      if (v[key] === undefined) continue;
-      if (v[key] === null || v[key] === '') {
-        keep[key] = null;
-        continue;
-      }
-      const days = num(v[key]);
-      if (days === null || !Number.isInteger(days) || days < 0 || days > 3650)
-        return fail(`« ${key} » : un nombre entier de jours (0 à 3650), ou null`);
-      keep[key] = days;
-    }
-    if (v.freezable !== undefined) {
-      if (typeof v.freezable !== 'boolean') return fail('« freezable » : true ou false');
-      keep.freezable = v.freezable;
-    }
+    const keep = keepingOf(v);
+    if (typeof keep === 'string') return fail(keep);
     let image: string | null = null;
     if (v.image !== undefined && v.image !== null && v.image !== '') {
       if (
@@ -329,7 +419,7 @@ export function parseExchange(text: string): Parsed {
       ...keep,
     });
   });
-  if (!ingredients.length && !recipes.length && !result.errors.length)
+  if (!ingredients.length && !recipes.length && !preparations.length && !result.errors.length)
     result.errors.push({
       line: null,
       where: 'fichier',
@@ -341,6 +431,8 @@ export function parseExchange(text: string): Parsed {
 /** What is already in ToolBox, to compare with the file. */
 export interface Existing {
   ingredients: ExchangeIngredient[];
+  /** Optional: none before v0.27. */
+  preparations?: ExchangePrep[];
   recipes: ExchangeRecipe[];
 }
 
@@ -348,6 +440,16 @@ export type IngredientStatus = 'new' | 'same' | 'differs';
 export type RecipeStatus = 'new' | 'same' | 'differs';
 export interface Preview {
   ingredients: { name: string; line: number | null; status: IngredientStatus; changes: string[] }[];
+  /** v0.27: the preparations of the file, as the recipes. */
+  preparations: {
+    name: string;
+    line: number | null;
+    status: RecipeStatus;
+    unknown: string[];
+    changes: string[];
+    /** Existing recipes whose facts and lists change if its composition is replaced. */
+    usedBy: string[];
+  }[];
   recipes: {
     name: string;
     line: number | null;
@@ -387,17 +489,21 @@ export function ingredientChanges(before: ExchangeIngredient, after: ExchangeIng
 
 const days = (n: number | null | undefined) => (n === null || n === undefined ? '—' : `${n} j`);
 
-/** The fields of an existing recipe the file would change (keeping only when the file gives it). */
-export function recipeChanges(before: ExchangeRecipe, after: ExchangeRecipe): string[] {
+/** Composition of a preparation as text (comparison only). */
+const composition = (p: ExchangePrep) =>
+  JSON.stringify(p.ingredients.map((i) => [fold(i.name), i.qty, i.unit]));
+
+/** The fields of an existing preparation the file would change (keeping and note only when given). */
+export function prepChanges(before: ExchangePrep, after: ExchangePrep): string[] {
   const changes: string[] = [];
-  if (before.servings !== after.servings)
-    changes.push(`portions ${before.servings} → ${after.servings}`);
-  if (JSON.stringify([...before.tags].sort()) !== JSON.stringify([...after.tags].sort()))
-    changes.push('tags');
-  if (before.note !== after.note) changes.push('note');
-  const lines = (r: ExchangeRecipe) =>
-    JSON.stringify(r.ingredients.map((i) => [fold(i.name), i.qty, i.unit]));
-  if (lines(before) !== lines(after)) changes.push('ingrédients');
+  if (composition(before) !== composition(after)) changes.push('composition');
+  changes.push(...keepingChanges(before, after));
+  if (after.note !== undefined && (before.note ?? '') !== after.note) changes.push('note');
+  return changes;
+}
+
+function keepingChanges(before: Keeping, after: Keeping): string[] {
+  const changes: string[] = [];
   if (after.fridgeDays !== undefined && (before.fridgeDays ?? null) !== after.fridgeDays)
     changes.push(`frigo ${days(before.fridgeDays)} → ${days(after.fridgeDays)}`);
   if (after.freezable !== undefined && (before.freezable ?? false) !== after.freezable)
@@ -407,12 +513,120 @@ export function recipeChanges(before: ExchangeRecipe, after: ExchangeRecipe): st
   return changes;
 }
 
+/** Names of the preparations a recipe uses (structure), folded and sorted. */
+const structure = (r: ExchangeRecipe) =>
+  JSON.stringify(
+    r.ingredients
+      .filter(isPrepLine)
+      .map((l) => fold(l.prep))
+      .sort(),
+  );
+/** A recipe in ingredients (preparations expanded), added up by ingredient and unit. */
+function expanded(
+  r: ExchangeRecipe,
+  preps: ReadonlyMap<string, ExchangePrep>,
+): Map<string, { name: string; unit: string; qty: number }> {
+  const out = new Map<string, { name: string; unit: string; qty: number }>();
+  const add = (name: string, unit: string, qty: number) => {
+    const k = `${fold(name)}|${unit}`;
+    const x = out.get(k) ?? { name, unit, qty: 0 };
+    x.qty = Math.round((x.qty + qty) * 1e9) / 1e9;
+    out.set(k, x);
+  };
+  for (const l of r.ingredients) {
+    if (!isPrepLine(l)) add(l.name, l.unit, l.qty);
+    else
+      for (const i of preps.get(fold(l.prep))?.ingredients ?? [])
+        add(i.name, i.unit, product(i.qty, l.qty));
+  }
+  return out;
+}
+const amount = (x: { qty: number; unit: string }) => `${String(x.qty).replace('.', ',')} ${x.unit}`;
+/** What changes in ingredients between two expansions (« Riz 80 g → 100 g », « + Œuf 2 pièce »). */
+function expansionChanges(
+  before: Map<string, { name: string; unit: string; qty: number }>,
+  after: Map<string, { name: string; unit: string; qty: number }>,
+): string[] {
+  const out: string[] = [];
+  for (const [k, b] of before) {
+    const a = after.get(k);
+    if (!a) out.push(`− ${b.name} ${amount(b)}`);
+    else if (a.qty !== b.qty) out.push(`${b.name} ${amount(b)} → ${amount(a)}`);
+  }
+  for (const [k, a] of after) if (!before.has(k)) out.push(`+ ${a.name} ${amount(a)}`);
+  return out;
+}
+
+/**
+ * The fields of an existing recipe the file would change (keeping only when
+ * the file gives it). Structure (preparations ↔ direct lines) different:
+ * said, with the expansion compared (`preps`: the preparations each side
+ * reads; without them, the lines only, as before v0.27).
+ */
+export function recipeChanges(
+  before: ExchangeRecipe,
+  after: ExchangeRecipe,
+  preps?: {
+    before: ReadonlyMap<string, ExchangePrep>;
+    after: ReadonlyMap<string, ExchangePrep>;
+  },
+): string[] {
+  const changes: string[] = [];
+  if (before.servings !== after.servings)
+    changes.push(`portions ${before.servings} → ${after.servings}`);
+  if (JSON.stringify([...before.tags].sort()) !== JSON.stringify([...after.tags].sort()))
+    changes.push('tags');
+  if (before.note !== after.note) changes.push('note');
+  const lines = (r: ExchangeRecipe) =>
+    JSON.stringify(
+      r.ingredients.map((i) =>
+        isPrepLine(i) ? ['prep', fold(i.prep), i.qty] : [fold(i.name), i.qty, i.unit],
+      ),
+    );
+  if (preps && structure(before) !== structure(after)) {
+    const diff = expansionChanges(expanded(before, preps.before), expanded(after, preps.after));
+    changes.push(
+      diff.length
+        ? `structure et dépliage différents (${diff.join(' ; ')})`
+        : 'structure différente, même dépliage',
+    );
+  } else if (lines(before) !== lines(after)) changes.push('ingrédients');
+  changes.push(...keepingChanges(before, after));
+  return changes;
+}
+
 /** What an import would do, compared with what ToolBox already has. Writes nothing. */
 export function previewImport(parsed: Parsed, existing: Existing): Preview {
   const known = new Map(existing.ingredients.map((i) => [fold(i.name), i]));
   const knownRecipes = new Map(existing.recipes.map((r) => [fold(r.name), r]));
+  const knownPreps = new Map((existing.preparations ?? []).map((p) => [fold(p.name), p]));
+  const filePreps = new Map(parsed.preparations.map((p) => [fold(p.name), p]));
   const inFile = new Set(parsed.ingredients.map((i) => fold(i.name)));
   const toCreate = new Map<string, { name: string; unit: string }>();
+  const unknownOf = (lines: ExchangeLine[]) =>
+    lines
+      .filter((i): i is { name: string; qty: number; unit: string } => !isPrepLine(i))
+      .filter((i) => !known.has(fold(i.name)) && !inFile.has(fold(i.name)))
+      .map((i) => {
+        if (!toCreate.has(fold(i.name))) toCreate.set(fold(i.name), { name: i.name, unit: i.unit });
+        return i.name;
+      });
+  const errors = [...parsed.errors];
+  // A recipe naming a preparation neither in the file nor in ToolBox: an error, with its line.
+  const recipes = parsed.recipes.filter((r) => {
+    const missing = r.ingredients
+      .filter(isPrepLine)
+      .filter((l) => !filePreps.has(fold(l.prep)) && !knownPreps.has(fold(l.prep)));
+    if (!missing.length) return true;
+    errors.push({
+      line: r.line,
+      where: `recette « ${r.name} »`,
+      message: `préparation inconnue : ${missing.map((l) => `« ${l.prep} »`).join(', ')} (ni dans le fichier ni dans ToolBox)`,
+    });
+    return false;
+  });
+  // Each side reads its own preparations: the file's when it gives them, else ToolBox's.
+  const afterPreps = new Map([...knownPreps, ...filePreps]);
   return {
     ingredients: parsed.ingredients.map((i) => {
       const before = known.get(fold(i.name));
@@ -425,21 +639,32 @@ export function previewImport(parsed: Parsed, existing: Existing): Preview {
         changes,
       };
     }),
-    recipes: parsed.recipes.map((r) => {
-      const unknown = r.ingredients
-        .filter((i) => !known.has(fold(i.name)) && !inFile.has(fold(i.name)))
-        .map((i) => {
-          if (!toCreate.has(fold(i.name)))
-            toCreate.set(fold(i.name), { name: i.name, unit: i.unit });
-          return i.name;
-        });
+    preparations: parsed.preparations.map((p) => {
+      const unknown = unknownOf(p.ingredients);
+      const before = knownPreps.get(fold(p.name));
+      const changes = before ? prepChanges(before, p) : [];
+      const status: RecipeStatus = !before ? 'new' : changes.length ? 'differs' : 'same';
+      const usedBy =
+        before && composition(before) !== composition(p)
+          ? existing.recipes
+              .filter((r) =>
+                r.ingredients.some((l) => isPrepLine(l) && fold(l.prep) === fold(p.name)),
+              )
+              .map((r) => r.name)
+          : [];
+      return { name: before?.name ?? p.name, line: p.line, status, unknown, changes, usedBy };
+    }),
+    recipes: recipes.map((r) => {
+      const unknown = unknownOf(r.ingredients);
       const before = knownRecipes.get(fold(r.name));
-      const changes = before ? recipeChanges(before, r) : [];
+      const changes = before
+        ? recipeChanges(before, r, { before: knownPreps, after: afterPreps })
+        : [];
       const status: RecipeStatus = !before ? 'new' : changes.length ? 'differs' : 'same';
       return { name: r.name, line: r.line, status, unknown, changes };
     }),
     toCreate: [...toCreate.values()],
-    errors: parsed.errors,
+    errors,
     warnings: parsed.warnings,
   };
 }

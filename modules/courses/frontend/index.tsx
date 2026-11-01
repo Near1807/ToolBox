@@ -49,6 +49,21 @@ import { BatchTab } from './BatchTab';
 import { MealFilters } from './MealFilters';
 import { MealPicker } from './MealPicker';
 import { Suggest } from './Suggest';
+import { Preps } from './Preps';
+import {
+  IngredientRow,
+  KeepFields,
+  keepBody,
+  keepState,
+  keepText,
+  linesBody,
+  newKey,
+  parseQty,
+  prepLineText,
+  qtyText,
+  type EditLine,
+  type PrepEditLine,
+} from './RecipeLines';
 import './courses.css';
 
 type Run = (action: () => Promise<unknown>) => Promise<boolean>;
@@ -177,14 +192,53 @@ async function uploadImage(
 /** « Frigo 3 j · congelable 60 j », or that it is missing (filled in by Thomas only). */
 function KeepText(props: { meal: MealDto }) {
   const m = props.meal;
-  if (m.fridgeDays === null && !m.freezable) return <span>conservation non renseignée</span>;
+  // A split recipe: its preparations' keeping (the recipe's own fields have no effect then).
+  if (m.keeping.preps)
+    return (
+      <span>
+        préparations : {m.keeping.preps.known} sur {m.keeping.preps.total} renseignée
+        {m.keeping.preps.known > 1 ? 's' : ''}
+      </span>
+    );
+  return <span>{keepText(m)}</span>;
+}
+
+/**
+ * The ingredients of a recipe (its expansion): direct lines, then each
+ * preparation's under its name. Computed quantities rounded on screen only.
+ */
+function MealItems(props: { meal: MealDto; names: Map<string, string>; preps: StateDto['preps'] }) {
+  const m = props.meal;
+  const prepName = new Map(
+    m.lines.flatMap((l) =>
+      l.kind === 'prep'
+        ? [
+            [
+              l.id,
+              `${props.preps.find((p) => p.id === l.prepId)?.name ?? 'Préparation'} × ${qtyText(l.qty)}`,
+            ] as const,
+          ]
+        : [],
+    ),
+  );
+  const item = (i: MealDto['items'][number]) => (
+    <li key={i.id}>
+      {props.names.get(i.ingredientId) ?? '?'} —{' '}
+      <span className="num">
+        {i.fromLine === null ? String(i.qty).replace('.', ',') : qtyText(i.qty)} {i.unit}
+      </span>
+    </li>
+  );
   return (
-    <span>
-      Frigo {m.fridgeDays === null ? '?' : `${m.fridgeDays} j`}
-      {m.freezable
-        ? ` · congelable ${m.freezerDays === null ? '(durée ?)' : `${m.freezerDays} j`}`
-        : ' · non congelable'}
-    </span>
+    <ul className="cs-items small">
+      {m.items.filter((i) => i.fromLine === null).map(item)}
+      {[...prepName].map(([lineId, label]) => (
+        <li key={lineId}>
+          <span className="muted">{label} :</span>
+          <ul>{m.items.filter((i) => i.fromLine === lineId).map(item)}</ul>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -229,16 +283,7 @@ function MealPreview(props: { meal: MealDto; state: StateDto; onClose: () => voi
               Par portion : <CostText cost={m.perServing.cost} /> ·{' '}
               <FactsText facts={m.perServing.nutrition} />
             </p>
-            <ul className="cs-items small">
-              {m.items.map((i) => (
-                <li key={i.id}>
-                  {names.get(i.ingredientId) ?? '?'} —{' '}
-                  <span className="num">
-                    {String(i.qty).replace('.', ',')} {i.unit}
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <MealItems meal={m} names={names} preps={props.state.preps} />
             {m.note && <p className="small muted">{m.note}</p>}
           </div>
         </div>
@@ -346,10 +391,8 @@ function Planning(props: { state: StateDto; summary: SummaryDto | null; run: Run
                   {state.thaw
                     .filter((t) => t.date === d)
                     .map((t) => (
-                      <span key={`${t.forDate}${t.forMomentId}${t.mealName}`} className="cs-thaw">
-                        <Icon name="warning" /> Ce soir, sortir du congélateur : {t.mealName} (
-                        {dayLabel(t.forDate).toLowerCase()},{' '}
-                        {state.moments.find((m) => m.id === t.forMomentId)?.name.toLowerCase()})
+                      <span key={t.date} className="cs-thaw">
+                        <Icon name="warning" /> À décongeler : {t.names.join(', ').toLowerCase()}
                       </span>
                     ))}
                 </th>
@@ -712,13 +755,6 @@ function ShoppingList(props: { list: ListDto; run: Run }) {
   );
 }
 
-interface Line {
-  ingredientId: string;
-  name: string;
-  qty: string;
-  unit: string;
-}
-
 /**
  * Picture of a recipe in its editor: drop a file or choose one; replaced
  * or removed at once for a saved recipe (removal confirmed: the file goes
@@ -818,47 +854,51 @@ function MealEditor(props: {
   onDone: () => void;
 }) {
   const module = useModule();
-  const byId = new Map(props.state.ingredients.map((i) => [i.id, i]));
-  const ingredientNames = props.state.ingredients.map((i) => i.name);
+  const names = new Map(props.state.ingredients.map((i) => [i.id, i.name]));
+  const prepsById = new Map(props.state.preps.map((p) => [p.id, p]));
   const [name, setName] = useState(props.meal?.name ?? '');
   const [servings, setServings] = useState(String(props.meal?.servings ?? 2));
   const [tags, setTags] = useState((props.meal?.tags ?? []).join(', '));
   const [note, setNote] = useState(props.meal?.note ?? '');
   // Keeping (batch cooking): empty by default, never suggested.
-  const [fridgeDays, setFridgeDays] = useState(
-    props.meal?.fridgeDays === null || props.meal?.fridgeDays === undefined
-      ? ''
-      : String(props.meal.fridgeDays),
-  );
-  const [freezable, setFreezable] = useState(props.meal?.freezable ?? false);
-  const [freezerDays, setFreezerDays] = useState(
-    props.meal?.freezerDays === null || props.meal?.freezerDays === undefined
-      ? ''
-      : String(props.meal.freezerDays),
+  const [keep, setKeep] = useState(
+    keepState(props.meal ?? { fridgeDays: null, freezable: false, freezerDays: null }),
   );
   const [pendingImage, setPendingImage] = useState<File | null>(null);
   const current = props.meal
     ? (props.state.meals.find((m) => m.id === props.meal!.id) ?? props.meal)
     : null;
-  const [lines, setLines] = useState<Line[]>(
-    props.meal?.items.map((i) => ({
-      ingredientId: i.ingredientId,
-      name: byId.get(i.ingredientId)?.name ?? '',
-      qty: String(i.qty),
-      unit: i.unit,
-    })) ?? [],
-  );
-  const set = (index: number, patch: Partial<Line>) =>
-    setLines(lines.map((l, i) => (i === index ? { ...l, ...patch } : l)));
-  const pick = (index: number, value: string) => {
-    const found = props.state.ingredients.find((i) => fold(i.name) === fold(value));
-    set(
-      index,
-      found
-        ? { name: found.name, ingredientId: found.id, unit: lines[index]!.unit || found.unit }
-        : { name: value, ingredientId: '' },
-    );
-  };
+  // The lines as written (ingredients and preparations): the editor is one of the two raw readers.
+  const initial = (): EditLine[] =>
+    props.meal?.lines.map((l): EditLine =>
+      l.kind === 'prep'
+        ? {
+            kind: 'prep',
+            key: l.id,
+            prepId: l.prepId,
+            name: prepsById.get(l.prepId)?.name ?? 'Préparation supprimée',
+            qty: String(l.qty).replace('.', ','),
+            exact: l.qty,
+          }
+        : {
+            kind: 'ingredient',
+            key: l.id,
+            ingredientId: l.ingredientId,
+            name: names.get(l.ingredientId) ?? '',
+            qty: String(l.qty),
+            unit: l.unit,
+            exact: l.qty,
+          },
+    ) ?? [];
+  const [lines, setLines] = useState<EditLine[]>(initial);
+  const [picked, setPicked] = useState<Set<string> | null>(null);
+  const split = lines.some((l) => l.kind === 'prep');
+  const dirty =
+    JSON.stringify(linesBody(lines)) !== JSON.stringify(linesBody(initial())) ||
+    name !== (props.meal?.name ?? '') ||
+    servings !== String(props.meal?.servings ?? 2);
+  const set = (index: number, line: EditLine) =>
+    setLines(lines.map((l, i) => (i === index ? line : l)));
   const save = () =>
     void props
       .run(() => {
@@ -870,17 +910,8 @@ function MealEditor(props: {
             .map((t) => t.trim())
             .filter(Boolean),
           note,
-          fridgeDays: fridgeDays.trim() === '' ? null : Number(fridgeDays),
-          freezable,
-          freezerDays: !freezable || freezerDays.trim() === '' ? null : Number(freezerDays),
-          items: lines
-            .filter((l) => l.name.trim())
-            .map((l) => ({
-              ingredientId: l.ingredientId || undefined,
-              name: l.name,
-              qty: Number(l.qty.replace(',', '.')),
-              unit: l.unit || 'g',
-            })),
+          ...keepBody(keep),
+          items: linesBody(lines),
         };
         if (props.meal) return module.api.put(`/meals/${props.meal.id}`, body);
         return module.api
@@ -888,6 +919,12 @@ function MealEditor(props: {
           .then((r) => (pendingImage ? uploadImage(module.api, r.id, pendingImage) : r));
       })
       .then((ok) => ok && props.onDone());
+  /** « Remplacer par ses ingrédients »: on the saved recipe, confirmed (same expansion). */
+  const inline = (l: PrepEditLine) =>
+    window.confirm(
+      `Remplacer « ${l.name} » par ses ingrédients dans cette recette ? Elle garde exactement les mêmes ingrédients.`,
+    ) &&
+    void props.run(() => module.api.post(`/meals/${props.meal!.id}/inline`, { lineId: l.key }));
   return (
     <Card title={props.meal ? `Modifier « ${props.meal.name} »` : 'Nouveau repas'}>
       <div className="cs-form">
@@ -926,102 +963,146 @@ function MealEditor(props: {
           aria-label="Tags"
           onChange={(e) => setTags(e.target.value)}
         />
-        <fieldset className="cs-keep">
-          <legend className="small">
-            Conservation une fois cuisiné (facultatif, pour le batch cooking) — c’est toi qui la
-            renseignes, l’app ne la vérifie pas
-          </legend>
-          <label className="small">
-            Frigo{' '}
-            <input
-              className="input input--short num"
-              type="number"
-              min={0}
-              max={3650}
-              step={1}
-              value={fridgeDays}
-              placeholder="?"
-              aria-label="Jours au frigo"
-              onChange={(e) => setFridgeDays(e.target.value)}
-            />{' '}
-            jour(s)
-          </label>
-          <label className="small">
-            <input
-              type="checkbox"
-              checked={freezable}
-              onChange={(e) => setFreezable(e.target.checked)}
-            />{' '}
-            Congelable
-          </label>
-          {freezable && (
-            <label className="small">
-              Congélateur{' '}
+        <KeepFields
+          value={keep}
+          onChange={setKeep}
+          legend="Conservation une fois cuisiné (facultatif, pour le batch cooking) — c’est toi qui la renseignes, l’app ne la vérifie pas"
+          note={
+            split
+              ? 'Recette découpée en préparations : le batch utilise la conservation de chaque préparation. Ces champs restent enregistrés mais n’ont plus d’effet.'
+              : undefined
+          }
+        />
+        <h4>Ingrédients</h4>
+        {split && (
+          <p className="small muted">
+            Les lignes d’ingrédients directes se font au moment du repas (le batch prépare à
+            l’avance les préparations).
+          </p>
+        )}
+        {lines.map((l, i) =>
+          l.kind === 'prep' ? (
+            <div key={l.key} className="cs-row cs-prep-line">
+              <Suggest
+                className="cs-grow"
+                value={l.name}
+                options={props.state.preps.map((p) => p.name)}
+                placeholder="Préparation"
+                ariaLabel="Préparation"
+                onChange={(value) => {
+                  const found = props.state.preps.find((p) => fold(p.name) === fold(value));
+                  set(i, { ...l, name: value, prepId: found?.id ?? '' });
+                }}
+              />
+              <span className="small">×</span>
               <input
                 className="input input--short num"
-                type="number"
-                min={0}
-                max={3650}
-                step={1}
-                value={freezerDays}
-                placeholder="?"
-                aria-label="Jours au congélateur"
-                onChange={(e) => setFreezerDays(e.target.value)}
-              />{' '}
-              jour(s)
-            </label>
-          )}
-        </fieldset>
-        <h4>Ingrédients</h4>
-        {lines.map((l, i) => (
-          <div key={i} className="cs-row">
-            <Suggest
-              className="cs-grow"
-              value={l.name}
-              options={ingredientNames}
-              placeholder="Ingrédient"
-              ariaLabel="Ingrédient"
-              onChange={(value) => pick(i, value)}
+                value={l.qty}
+                placeholder="portions"
+                aria-label="Portions de la préparation pour toute la recette"
+                onChange={(e) => set(i, { ...l, qty: e.target.value })}
+              />
+              <span className="small">portion(s)</span>
+              {l.name.trim() && !l.prepId && (
+                <span className="small cs-batch-warning">préparation inconnue</span>
+              )}
+              {props.meal && props.meal.lines.some((x) => x.id === l.key) && !dirty && (
+                <button type="button" className="cs-link small" onClick={() => inline(l)}>
+                  Remplacer par ses ingrédients
+                </button>
+              )}
+              <button
+                type="button"
+                className="cs-x"
+                aria-label="Retirer la ligne"
+                onClick={() => setLines(lines.filter((_, j) => j !== i))}
+              >
+                <Icon name="close" />
+              </button>
+              <span className="small muted cs-prep-line__what">
+                = {prepLineText(prepsById.get(l.prepId), parseQty(l.qty), names)}
+              </span>
+            </div>
+          ) : (
+            <IngredientRow
+              key={l.key}
+              line={l}
+              ingredients={props.state.ingredients}
+              onChange={(next) => set(i, next)}
+              onRemove={() => setLines(lines.filter((_, j) => j !== i))}
+              note={split ? 'au moment du repas' : undefined}
+              select={
+                picked
+                  ? {
+                      checked: picked.has(l.key),
+                      onToggle: () => {
+                        const next = new Set(picked);
+                        if (next.has(l.key)) next.delete(l.key);
+                        else next.add(l.key);
+                        setPicked(next);
+                      },
+                    }
+                  : undefined
+              }
             />
-            <input
-              className="input input--short num"
-              value={l.qty}
-              placeholder="qté"
-              aria-label="Quantité"
-              onChange={(e) => set(i, { qty: e.target.value })}
-            />
-            <select
-              className="input input--short"
-              value={l.unit}
-              aria-label="Unité"
-              onChange={(e) => set(i, { unit: e.target.value })}
-            >
-              {[...new Set([...UNITS, l.unit].filter(Boolean))].map((u) => (
-                <option key={u} value={u}>
-                  {u}
-                </option>
-              ))}
-            </select>
-            {l.name.trim() && !l.ingredientId && (
-              <span className="small cs-new">nouvel ingrédient</span>
-            )}
+          ),
+        )}
+        <div className="cs-row">
+          <button
+            type="button"
+            className="cs-link small"
+            onClick={() =>
+              setLines([
+                ...lines,
+                {
+                  kind: 'ingredient',
+                  key: newKey(),
+                  ingredientId: '',
+                  name: '',
+                  qty: '',
+                  unit: 'g',
+                },
+              ])
+            }
+          >
+            + Ajouter un ingrédient
+          </button>
+          <button
+            type="button"
+            className="cs-link small"
+            disabled={!props.state.preps.length}
+            title={
+              props.state.preps.length
+                ? undefined
+                : 'Aucune préparation (onglet Repas › Préparations)'
+            }
+            onClick={() =>
+              setLines([...lines, { kind: 'prep', key: newKey(), prepId: '', name: '', qty: '' }])
+            }
+          >
+            + Ajouter une préparation
+          </button>
+          {props.meal && !picked && (
             <button
               type="button"
-              className="cs-x"
-              aria-label="Retirer la ligne"
-              onClick={() => setLines(lines.filter((_, j) => j !== i))}
+              className="cs-link small"
+              disabled={dirty}
+              title={dirty ? 'Enregistre d’abord tes changements' : undefined}
+              onClick={() => setPicked(new Set())}
             >
-              <Icon name="close" />
+              Extraire en préparation…
             </button>
-          </div>
-        ))}
-        <button
-          type="button"
-          className="cs-link small"
-          onClick={() => setLines([...lines, { ingredientId: '', name: '', qty: '', unit: 'g' }])}
-        >
-          + Ajouter un ingrédient
-        </button>
+          )}
+        </div>
+        {picked && props.meal && (
+          <ExtractPanel
+            meal={props.meal}
+            lineIds={[...picked]}
+            state={props.state}
+            run={props.run}
+            onClose={() => setPicked(null)}
+          />
+        )}
         <textarea
           className="input"
           rows={2}
@@ -1034,7 +1115,10 @@ function MealEditor(props: {
           <Button
             disabled={
               !name.trim() ||
-              lines.some((l) => l.name.trim() && !(Number(l.qty.replace(',', '.')) > 0))
+              lines.some(
+                (l) =>
+                  l.name.trim() && (!(parseQty(l.qty) > 0) || (l.kind === 'prep' && !l.prepId)),
+              )
             }
             onClick={save}
           >
@@ -1049,18 +1133,180 @@ function MealEditor(props: {
   );
 }
 
+/**
+ * « Extraire en préparation »: the lines ticked become a preparation (a new
+ * one, or an existing one with the same proportions) and one line; preview
+ * first, the recipe expands exactly as before (checked by the server).
+ */
+function ExtractPanel(props: {
+  meal: MealDto;
+  lineIds: string[];
+  state: StateDto;
+  run: Run;
+  onClose: () => void;
+}) {
+  const module = useModule();
+  const names = new Map(props.state.ingredients.map((i) => [i.id, i.name]));
+  const [prepName, setPrepName] = useState('');
+  const [portions, setPortions] = useState(String(props.meal.servings));
+  const [preview, setPreview] = useState<{
+    name: string;
+    portions: number;
+    items: { ingredientId: string; qty: number; unit: string }[];
+    existing: boolean;
+  } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const existing = props.state.preps.find((p) => fold(p.name) === fold(prepName));
+  const body = () => ({
+    lineIds: props.lineIds,
+    ...(existing ? { prepId: existing.id } : { name: prepName, portions: parseQty(portions) }),
+  });
+  const ask = () => {
+    setError(null);
+    setPreview(null);
+    module.api
+      .post<{ preview: NonNullable<typeof preview> }>(`/meals/${props.meal.id}/extract`, body())
+      .then((r) => setPreview(r.preview))
+      .catch((err: unknown) => setError(errorMessage(err)));
+  };
+  return (
+    <div className="cs-extract">
+      <p className="small">
+        Coche les lignes à mettre dans la préparation ({props.lineIds.length} cochée
+        {props.lineIds.length > 1 ? 's' : ''}).
+      </p>
+      <div className="cs-row">
+        <Suggest
+          className="cs-grow"
+          value={prepName}
+          options={props.state.preps.map((p) => p.name)}
+          placeholder="Nom de la préparation (nouvelle, ou une existante)"
+          ariaLabel="Nom de la préparation"
+          onChange={(v) => (setPrepName(v), setPreview(null))}
+        />
+        {!existing && (
+          <label className="small">
+            pour{' '}
+            <input
+              className="input input--short num"
+              value={portions}
+              aria-label="Portions de préparation pour toute la recette"
+              onChange={(e) => (setPortions(e.target.value), setPreview(null))}
+            />{' '}
+            portion(s) de la recette
+          </label>
+        )}
+        <Button small disabled={!props.lineIds.length || !prepName.trim()} onClick={ask}>
+          Aperçu
+        </Button>
+        <Button small variant="secondary" onClick={props.onClose}>
+          Annuler
+        </Button>
+      </div>
+      {existing && (
+        <p className="small muted">
+          Préparation existante : ses proportions doivent être les mêmes que celles des lignes
+          cochées.
+        </p>
+      )}
+      {error && <ErrorMessage>{error}</ErrorMessage>}
+      {preview && (
+        <div className="small">
+          <p>
+            {preview.existing ? 'Utiliser' : 'Créer'} « {preview.name} », composition pour une
+            portion :{' '}
+            {preview.items
+              .map((i) => `${names.get(i.ingredientId) ?? '?'} ${qtyText(i.qty)} ${i.unit}`)
+              .join(' · ')}
+            . Les lignes cochées deviennent « {preview.name} × {qtyText(preview.portions)} portion
+            {preview.portions > 1 ? 's' : ''} ». La recette garde exactement les mêmes ingrédients.
+          </p>
+          <Button
+            small
+            onClick={() =>
+              void props
+                .run(() =>
+                  module.api.post(`/meals/${props.meal.id}/extract`, { ...body(), apply: true }),
+                )
+                .then((ok) => ok && props.onClose())
+            }
+          >
+            Confirmer l’extraction
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Meals(props: {
   state: StateDto;
   run: Run;
   onDeleted: (m: MealDto) => void;
+  onPrepDeleted: (p: StateDto['preps'][number]) => void;
   /** Opened directly (« compléter la fiche » of the batch tab). */
+  editMealId?: string | null;
+  editPrepId?: string | null;
+  /** Sub-tab: the recipes, or the preparations. */
+  view: 'meals' | 'preps';
+  onView: (view: 'meals' | 'preps') => void;
+}) {
+  const sub = (
+    <nav className="cs-tabs cs-subtabs" role="tablist" aria-label="Recettes ou préparations">
+      {(
+        [
+          ['meals', 'Recettes'],
+          ['preps', 'Préparations'],
+        ] as const
+      ).map(([v, label]) => (
+        <button
+          key={v}
+          type="button"
+          role="tab"
+          aria-selected={props.view === v}
+          onClick={() => props.onView(v)}
+        >
+          {label}
+          {v === 'preps' && props.state.preps.length > 0 && (
+            <span className="small muted"> ({props.state.preps.length})</span>
+          )}
+        </button>
+      ))}
+    </nav>
+  );
+  if (props.view === 'preps')
+    return (
+      <>
+        {sub}
+        <Preps
+          state={props.state}
+          run={props.run}
+          editPrepId={props.editPrepId}
+          onDeleted={props.onPrepDeleted}
+        />
+      </>
+    );
+  return (
+    <>
+      {sub}
+      <MealsList {...props} />
+    </>
+  );
+}
+
+function MealsList(props: {
+  state: StateDto;
+  run: Run;
+  onDeleted: (m: MealDto) => void;
   editMealId?: string | null;
 }) {
   const module = useModule();
   const [filter, setFilter] = useState<MealFilter>(NO_FILTER);
-  const [editing, setEditing] = useState<MealDto | 'new' | null>(
-    () => props.state.meals.find((m) => m.id === props.editMealId) ?? null,
+  const [editingId, setEditing] = useState<string | 'new' | null>(
+    () => props.state.meals.find((m) => m.id === props.editMealId)?.id ?? null,
   );
+  const editing =
+    editingId === 'new' ? 'new' : (props.state.meals.find((m) => m.id === editingId) ?? null);
   const [view, setView] = useState<'grid' | 'list'>(() => {
     try {
       return localStorage.getItem('toolbox.courses.mealsView') === 'list' ? 'list' : 'grid';
@@ -1082,6 +1328,8 @@ function Meals(props: {
   if (editing)
     return (
       <MealEditor
+        // A recipe changed by « Extraire » or « Remplacer »: the editor starts again from it.
+        key={editing === 'new' ? 'new' : `${editing.id}|${editing.lines.map((l) => l.id).join()}`}
         meal={editing === 'new' ? null : editing}
         state={props.state}
         run={props.run}
@@ -1124,7 +1372,7 @@ function Meals(props: {
           {shown.map((m) => {
             const actions = (
               <span className="ui-actions">
-                <Button variant="secondary" small onClick={() => setEditing(m)}>
+                <Button variant="secondary" small onClick={() => setEditing(m.id)}>
                   Modifier
                 </Button>
                 <Button
@@ -1180,16 +1428,7 @@ function Meals(props: {
                     Par portion : <CostText cost={m.perServing.cost} /> ·{' '}
                     <FactsText facts={m.perServing.nutrition} />
                   </p>
-                  <ul className="cs-items small">
-                    {m.items.map((i) => (
-                      <li key={i.id}>
-                        {names.get(i.ingredientId) ?? '?'} —{' '}
-                        <span className="num">
-                          {String(i.qty).replace('.', ',')} {i.unit}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
+                  <MealItems meal={m} names={names} preps={props.state.preps} />
                   {m.note && <p className="small muted">{m.note}</p>}
                 </div>
               </div>
@@ -1359,6 +1598,30 @@ function Ingredients(props: { state: StateDto; run: Run }) {
       for (const i of m.items) n.set(i.ingredientId, (n.get(i.ingredientId) ?? 0) + 1);
     return n;
   }, [props.state.meals]);
+  /** Where an ingredient is used: recipes (through their preparations too) and preparations. */
+  const usedIn = useMemo(() => {
+    const out = new Map<string, { recipes: Set<string>; preps: Set<string> }>();
+    const at = (id: string) => {
+      const x = out.get(id) ?? { recipes: new Set<string>(), preps: new Set<string>() };
+      out.set(id, x);
+      return x;
+    };
+    for (const m of props.state.meals)
+      for (const i of m.items) at(i.ingredientId).recipes.add(m.name);
+    for (const p of props.state.preps)
+      for (const i of p.items) at(i.ingredientId).preps.add(p.name);
+    return out;
+  }, [props.state.meals, props.state.preps]);
+  const usedText = (id: string) => {
+    const u = usedIn.get(id);
+    if (!u) return 'Utilisé nulle part';
+    return [
+      u.recipes.size ? `Recettes : ${[...u.recipes].join(', ')}` : '',
+      u.preps.size ? `Préparations : ${[...u.preps].join(', ')}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+  };
   const aisles = [...new Set(props.state.ingredients.map((i) => i.aisle).filter(Boolean))].sort(
     (a, b) => a.localeCompare(b, 'fr'),
   );
@@ -1466,7 +1729,15 @@ function Ingredients(props: { state: StateDto; run: Run }) {
                       onCommit={(aisle) => aisle !== i.aisle && patch(i, { aisle })}
                     />
                   </td>
-                  <td className="num">{uses.get(i.id) ?? 0}</td>
+                  <td className="num" title={usedText(i.id)}>
+                    {uses.get(i.id) ?? 0}
+                    {(usedIn.get(i.id)?.preps.size ?? 0) > 0 && (
+                      <span className="small muted">
+                        {' '}
+                        (dont prép. : {usedIn.get(i.id)!.preps.size})
+                      </span>
+                    )}
+                  </td>
                   <td className="small">
                     <button
                       type="button"
@@ -1512,7 +1783,7 @@ function Ingredients(props: { state: StateDto; run: Run }) {
                             const into = props.state.ingredients.find((x) => x.id === merge.into)!;
                             if (
                               window.confirm(
-                                `Fusionner « ${i.name} » dans « ${into.name} » ? Ses lignes de repas passent à « ${into.name} ».`,
+                                `Fusionner « ${i.name} » dans « ${into.name} » ? Ses lignes de repas et de préparations passent à « ${into.name} ».\n\n${usedText(i.id)}`,
                               )
                             )
                               void props
@@ -1998,6 +2269,7 @@ function Exchange(props: { run: Run }) {
   const [preview, setPreview] = useState<Preview | null>(null);
   const [overwrite, setOverwrite] = useState<Set<string>>(new Set());
   const [replace, setReplace] = useState<Set<string>>(new Set());
+  const [overwritePreps, setOverwritePreps] = useState<Set<string>>(new Set());
   const [create, setCreate] = useState<Set<string>>(new Set());
   const [notice, setNotice] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
@@ -2015,6 +2287,7 @@ function Exchange(props: { run: Run }) {
       setPreview(p);
       setOverwrite(new Set());
       setReplace(new Set());
+      setOverwritePreps(new Set());
       // Creating a missing ingredient adds, it overwrites nothing: offered ticked.
       setCreate(new Set(p.toCreate.map((c) => c.name)));
     });
@@ -2022,7 +2295,11 @@ function Exchange(props: { run: Run }) {
     preview?.ingredients.filter((i) => i.status === status).length ?? 0;
   const recipes = (status: string) =>
     preview?.recipes.filter((r) => r.status === status).length ?? 0;
-  const skipped = preview?.recipes.filter((r) => r.unknown.some((u) => !create.has(u))) ?? [];
+  const preps = (status: string) =>
+    preview?.preparations.filter((r) => r.status === status).length ?? 0;
+  const skipped = [...(preview?.preparations ?? []), ...(preview?.recipes ?? [])].filter((r) =>
+    r.unknown.some((u) => !create.has(u)),
+  );
   return (
     <>
       <Card title="Importer des ingrédients et des recettes (JSON)">
@@ -2089,6 +2366,8 @@ function Exchange(props: { run: Run }) {
               <strong>Aperçu</strong> · ingrédients : {count('new')} à ajouter, {count('same')} déjà
               là (identiques), {count('differs')} à fusionner · recettes : {recipes('new')} à
               ajouter, {recipes('same')} identiques, {recipes('differs')} différentes ·{' '}
+              {preview.preparations.length > 0 &&
+                `préparations : ${preps('new')} à ajouter, ${preps('same')} identiques, ${preps('differs')} à fusionner · `}
               {preview.errors.length} erreur{preview.errors.length > 1 ? 's' : ''}
             </p>
             {preview.errors.length > 0 && (
@@ -2128,6 +2407,33 @@ function Exchange(props: { run: Run }) {
                       />{' '}
                       <strong>{i.name}</strong>{' '}
                       <span className="muted">({i.changes.join(' ; ')})</span>
+                    </label>
+                  ))}
+              </fieldset>
+            )}
+            {preps('differs') > 0 && (
+              <fieldset className="cs-choices">
+                <legend className="small">
+                  Préparations déjà là, différentes : cocher pour remplacer par celles du fichier
+                </legend>
+                {preview.preparations
+                  .filter((r) => r.status === 'differs')
+                  .map((r) => (
+                    <label key={r.name} className="small">
+                      <input
+                        type="checkbox"
+                        checked={overwritePreps.has(r.name)}
+                        onChange={() => toggle(overwritePreps, setOverwritePreps, r.name)}
+                      />{' '}
+                      <strong>{r.name}</strong>{' '}
+                      <span className="muted">({r.changes.join(' ; ')})</span>
+                      {r.usedBy.length > 0 && (
+                        <span className="cs-batch-warning">
+                          {' '}
+                          — utilisée par {r.usedBy.join(', ')} : leurs apports et listes de courses
+                          vont changer
+                        </span>
+                      )}
                     </label>
                   ))}
               </fieldset>
@@ -2178,14 +2484,27 @@ function Exchange(props: { run: Run }) {
             <div className="ui-actions">
               <Button
                 disabled={
-                  count('new') + count('differs') + recipes('new') + recipes('differs') === 0
+                  count('new') +
+                    count('differs') +
+                    recipes('new') +
+                    recipes('differs') +
+                    preps('new') +
+                    preps('differs') ===
+                  0
                 }
                 onClick={() => {
-                  const changes = overwrite.size + replace.size;
+                  const changes = overwrite.size + replace.size + overwritePreps.size;
+                  const affected = [
+                    ...new Set(
+                      preview.preparations
+                        .filter((r) => overwritePreps.has(r.name))
+                        .flatMap((r) => r.usedBy),
+                    ),
+                  ];
                   if (
                     changes > 0 &&
                     !window.confirm(
-                      `Remplacer ${changes} élément${changes > 1 ? 's' : ''} déjà là par les valeurs du fichier ?\n\nUne sauvegarde de la base est faite avant.`,
+                      `Remplacer ${changes} élément${changes > 1 ? 's' : ''} déjà là par les valeurs du fichier ?${affected.length ? `\n\nPréparations utilisées : les apports et listes de courses de ${affected.join(', ')} vont changer.` : ''}\n\nUne sauvegarde de la base est faite avant.`,
                     )
                   )
                     return;
@@ -2197,6 +2516,9 @@ function Exchange(props: { run: Run }) {
                       recipesAdded: number;
                       recipesReplaced: number;
                       recipesSkipped: string[];
+                      prepsAdded: number;
+                      prepsReplaced: number;
+                      prepsSkipped: string[];
                       backup: string;
                       imagesAdded: number;
                       imageWarnings: string[];
@@ -2204,11 +2526,12 @@ function Exchange(props: { run: Run }) {
                       text,
                       overwrite: [...overwrite],
                       replaceRecipes: [...replace],
+                      overwritePreps: [...overwritePreps],
                       create: [...create],
                     });
                     setPreview(null);
                     setNotice(
-                      `Importé : ${r.ingredientsAdded + r.ingredientsCreated} ingrédient(s) ajouté(s), ${r.ingredientsUpdated} remplacé(s), ${r.recipesAdded} recette(s) ajoutée(s), ${r.recipesReplaced} remplacée(s)${r.recipesSkipped.length ? `, non importées : ${r.recipesSkipped.join(', ')}` : ''}. ${r.imagesAdded ? ` ${r.imagesAdded} image(s).` : ''}${r.imageWarnings.length ? ` Images ignorées : ${r.imageWarnings.join(' ; ')}.` : ''} Sauvegarde avant import : ${r.backup}.`,
+                      `Importé : ${r.ingredientsAdded + r.ingredientsCreated} ingrédient(s) ajouté(s), ${r.ingredientsUpdated} remplacé(s), ${r.recipesAdded} recette(s) ajoutée(s), ${r.recipesReplaced} remplacée(s), ${r.prepsAdded} préparation(s) ajoutée(s), ${r.prepsReplaced} remplacée(s)${r.prepsSkipped.length ? `, préparations non importées : ${r.prepsSkipped.join(', ')}` : ''}${r.recipesSkipped.length ? `, non importées : ${r.recipesSkipped.join(', ')}` : ''}. ${r.imagesAdded ? ` ${r.imagesAdded} image(s).` : ''}${r.imageWarnings.length ? ` Images ignorées : ${r.imageWarnings.join(' ; ')}.` : ''} Sauvegarde avant import : ${r.backup}.`,
                     );
                   });
                 }}
@@ -2240,9 +2563,10 @@ function Exchange(props: { run: Run }) {
         <Card title="Format du fichier">
           <div className="cs-help small">
             <p>
-              Un objet JSON avec deux listes, <code>ingredients</code> et <code>recipes</code>{' '}
-              (l’une peut manquer). Un élément en erreur est ignoré, les autres sont importés ; les
-              noms se comparent sans accents ni majuscules.
+              Un objet JSON avec les listes <code>ingredients</code>, <code>recipes</code> et,
+              facultative, <code>preparations</code> (chacune peut manquer). Un élément en erreur
+              est ignoré, les autres sont importés ; les noms se comparent sans accents ni
+              majuscules.
             </p>
             <p>
               <strong>Ingrédient</strong> : <code>name</code> (obligatoire), <code>unit</code> (g,
@@ -2266,6 +2590,16 @@ function Exchange(props: { run: Run }) {
               <code>freezerDays</code> (jours au congélateur). Absents, rien ne change (un ancien
               fichier s’importe comme avant).
             </p>
+            <p>
+              <strong>Préparation</strong> (facultatif) : <code>name</code>,{' '}
+              <code>ingredients</code> : la composition pour <strong>une portion</strong> (
+              <code>{'{ "name", "qty", "unit" }'}</code>), <code>fridgeDays</code>,{' '}
+              <code>freezable</code>, <code>freezerDays</code>, <code>note</code>. Dans une recette,
+              une ligne <code>{'{ "prep": "Sauce bolognaise", "qty": 4 }'}</code> utilise 4 portions
+              de la préparation pour toute la recette. Une préparation absente du fichier et de
+              ToolBox est une erreur (la recette n’est pas importée). L’export n’écrit{' '}
+              <code>preparations</code> que s’il y en a.
+            </p>
             {example.data != null && (
               <pre className="cs-code">{JSON.stringify(example.data, null, 2)}</pre>
             )}
@@ -2285,7 +2619,9 @@ function CoursesPage() {
     tab === 'plan' || tab === 'summary' ? module.url('/summary') : null,
   );
   const [error, setError] = useState<string | null>(null);
-  const [undo, setUndo] = useState<MealDto | null>(null);
+  const [undo, setUndo] = useState<{ kind: 'meal' | 'prep'; id: string; name: string } | null>(
+    null,
+  );
   const run: Run = async (action) => {
     setError(null);
     try {
@@ -2335,15 +2671,20 @@ function CoursesPage() {
               to={s.list.to}
               run={run}
               onEditMeal={(id) => setParams({ tab: 'meals', edit: id })}
+              onEditPrep={(id) => setParams({ tab: 'meals', view: 'preps', prep: id })}
             />
           )}
           {tab === 'meals' && (
             <Meals
-              key={params.get('edit') ?? ''}
+              key={`${params.get('edit') ?? ''}|${params.get('prep') ?? ''}`}
               state={s}
               run={run}
-              onDeleted={setUndo}
+              onDeleted={(m) => setUndo({ kind: 'meal', id: m.id, name: m.name })}
+              onPrepDeleted={(p) => setUndo({ kind: 'prep', id: p.id, name: p.name })}
               editMealId={params.get('edit')}
+              editPrepId={params.get('prep')}
+              view={params.get('view') === 'preps' ? 'preps' : 'meals'}
+              onView={(view) => setParams({ tab: 'meals', ...(view === 'preps' ? { view } : {}) })}
             />
           )}
           {tab === 'ingredients' && <Ingredients state={s} run={run} />}
@@ -2354,8 +2695,12 @@ function CoursesPage() {
       )}
       {undo && (
         <UndoToast
-          message={`Repas supprimé : « ${undo.name} »`}
-          onUndo={() => void run(() => module.api.post(`/meals/${undo.id}/restore`))}
+          message={`${undo.kind === 'prep' ? 'Préparation supprimée' : 'Repas supprimé'} : « ${undo.name} »`}
+          onUndo={() =>
+            void run(() =>
+              module.api.post(`/${undo.kind === 'prep' ? 'preps' : 'meals'}/${undo.id}/restore`),
+            )
+          }
           onDismiss={() => setUndo(null)}
         />
       )}

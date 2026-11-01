@@ -146,10 +146,12 @@ describe('batch cooking plans', () => {
       })
     ).body;
     expect(journal()).toBe(before);
-    expect(proposal.missing).toEqual([e.pates]);
+    expect(proposal.missing.map((m) => m.entryId)).toEqual([e.pates]);
     expect(proposal.uncovered).toEqual([
       {
         entryId: e.dalWed,
+        prepId: null,
+        name: 'Dal',
         reason: 'se garde 1 jour au frigo, dernier créneau 2 jours avant (congélation désactivée)',
       },
     ]);
@@ -205,9 +207,8 @@ describe('batch cooking plans', () => {
     expect(plan.sessions[0]!.cooks[0]).toMatchObject({ mealName: 'Curry', portions: 4 });
     expect(plan.sessions[0]!.cooks[0]!.frozen.map((u) => u.date)).toEqual(['2026-11-06']);
     const state = (await hub.request<StateDto>('GET', `${API}/state`)).body;
-    expect(state.thaw).toEqual([
-      { date: '2026-11-05', mealName: 'Curry', forDate: '2026-11-06', forMomentId: soir.id },
-    ]);
+    // v0.27: one line per day, what to take out (no detail per meal).
+    expect(state.thaw).toEqual([{ date: '2026-11-05', names: ['Curry'] }]);
     // Calendar: the session, without time until one is given.
     const cal = async () =>
       (

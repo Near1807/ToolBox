@@ -1,0 +1,2281 @@
+{
+  "meals": [
+    {
+      "id": "#1",
+      "name": "Boîte riz-œufs",
+      "servings": 1,
+      "tags": ["protéiné"],
+      "note": "",
+      "fridgeDays": 3,
+      "freezable": false,
+      "freezerDays": null,
+      "items": [
+        {
+          "id": "#2",
+          "ingredientId": "#3",
+          "qty": 80,
+          "unit": "g"
+        },
+        {
+          "id": "#4",
+          "ingredientId": "#5",
+          "qty": 3,
+          "unit": "pièce"
+        },
+        {
+          "id": "#6",
+          "ingredientId": "#5",
+          "qty": 60,
+          "unit": "g"
+        }
+      ],
+      "perServing": {
+        "nutrition": {
+          "values": {
+            "kcal": 623.2,
+            "protein": 36.2,
+            "carbs": 64.1,
+            "sugars": 0,
+            "fat": 23.5,
+            "saturated": 7.4,
+            "fiber": 1,
+            "salt": 0.9
+          },
+          "missing": ["Œuf", "Riz basmati"]
+        },
+        "cost": {
+          "euros": 1.51,
+          "missing": []
+        }
+      },
+      "image": null
+    },
+    {
+      "id": "#7",
+      "name": "Bolognaise",
+      "servings": 4,
+      "tags": ["batch", "protéiné"],
+      "note": "",
+      "fridgeDays": 3,
+      "freezable": true,
+      "freezerDays": 90,
+      "items": [
+        {
+          "id": "#8",
+          "ingredientId": "#9",
+          "qty": 500,
+          "unit": "g"
+        },
+        {
+          "id": "#10",
+          "ingredientId": "#11",
+          "qty": 0.7,
+          "unit": "kg"
+        },
+        {
+          "id": "#12",
+          "ingredientId": "#13",
+          "qty": 1.5,
+          "unit": "pièce"
+        },
+        {
+          "id": "#14",
+          "ingredientId": "#15",
+          "qty": 1,
+          "unit": "c. à s."
+        },
+        {
+          "id": "#16",
+          "ingredientId": "#17",
+          "qty": 400,
+          "unit": "g"
+        },
+        {
+          "id": "#18",
+          "ingredientId": "#19",
+          "qty": 40,
+          "unit": "g"
+        }
+      ],
+      "perServing": {
+        "nutrition": {
+          "values": {
+            "kcal": 633,
+            "protein": 45.5,
+            "carbs": 85.2,
+            "sugars": 7.4,
+            "fat": 7.8,
+            "saturated": 2.8,
+            "fiber": 6.4,
+            "salt": 1.1
+          },
+          "missing": [
+            "Coulis de tomate",
+            "Huile d’olive",
+            "Oignon",
+            "Parmesan",
+            "Pâtes",
+            "Viande hachée 5 %"
+          ]
+        },
+        "cost": {
+          "euros": 2.08,
+          "missing": ["Huile d’olive", "Parmesan"]
+        }
+      },
+      "image": null
+    },
+    {
+      "id": "#20",
+      "name": "Curry de pois chiches",
+      "servings": 3,
+      "tags": ["VG", "batch"],
+      "note": "",
+      "fridgeDays": 4,
+      "freezable": true,
+      "freezerDays": 60,
+      "items": [
+        {
+          "id": "#21",
+          "ingredientId": "#22",
+          "qty": 530,
+          "unit": "g"
+        },
+        {
+          "id": "#23",
+          "ingredientId": "#24",
+          "qty": 40,
+          "unit": "cl"
+        },
+        {
+          "id": "#25",
+          "ingredientId": "#26",
+          "qty": 250,
+          "unit": "g"
+        },
+        {
+          "id": "#27",
+          "ingredientId": "#13",
+          "qty": 1,
+          "unit": "pièce"
+        },
+        {
+          "id": "#28",
+          "ingredientId": "#3",
+          "qty": 225,
+          "unit": "g"
+        }
+      ],
+      "perServing": {
+        "nutrition": {
+          "values": {
+            "kcal": 768.1,
+            "protein": 18.9,
+            "carbs": 91.4,
+            "sugars": 0,
+            "fat": 24.7,
+            "saturated": 0,
+            "fiber": 12.4,
+            "salt": 0
+          },
+          "missing": ["Épinards", "Lait de coco", "Oignon", "Pois chiches", "Riz basmati"]
+        },
+        "cost": {
+          "euros": 1.93,
+          "missing": []
+        }
+      },
+      "image": null
+    },
+    {
+      "id": "#29",
+      "name": "Omelette",
+      "servings": 2,
+      "tags": [],
+      "note": "Sans conservation renseignée.",
+      "fridgeDays": null,
+      "freezable": false,
+      "freezerDays": null,
+      "items": [
+        {
+          "id": "#30",
+          "ingredientId": "#5",
+          "qty": 5,
+          "unit": "pièce"
+        },
+        {
+          "id": "#31",
+          "ingredientId": "#32",
+          "qty": 3,
+          "unit": "c. à s."
+        },
+        {
+          "id": "#33",
+          "ingredientId": "#19",
+          "qty": 30,
+          "unit": "g"
+        }
+      ],
+      "perServing": {
+        "nutrition": {
+          "values": {
+            "kcal": 273.3,
+            "protein": 23.8,
+            "carbs": 1.1,
+            "sugars": 0,
+            "fat": 14.3,
+            "saturated": 4.7,
+            "fiber": 0,
+            "salt": 0.5
+          },
+          "missing": ["Lait", "Œuf", "Parmesan"]
+        },
+        "cost": {
+          "euros": 0.8,
+          "missing": ["Lait", "Parmesan"]
+        }
+      },
+      "image": null
+    },
+    {
+      "id": "#34",
+      "name": "Porridge",
+      "servings": 1,
+      "tags": [],
+      "note": "",
+      "fridgeDays": null,
+      "freezable": false,
+      "freezerDays": null,
+      "items": [
+        {
+          "id": "#35",
+          "ingredientId": "#36",
+          "qty": 60,
+          "unit": "g"
+        },
+        {
+          "id": "#37",
+          "ingredientId": "#32",
+          "qty": 25,
+          "unit": "cl"
+        },
+        {
+          "id": "#38",
+          "ingredientId": "#39",
+          "qty": 0.5,
+          "unit": "pièce"
+        }
+      ],
+      "perServing": {
+        "nutrition": {
+          "values": {
+            "kcal": 338.2,
+            "protein": 16.4,
+            "carbs": 47.2,
+            "sugars": 0,
+            "fat": 8,
+            "saturated": 0,
+            "fiber": 6,
+            "salt": 0
+          },
+          "missing": ["Banane", "Flocons d’avoine", "Lait"]
+        },
+        "cost": {
+          "euros": 0.39,
+          "missing": ["Banane"]
+        }
+      },
+      "image": null
+    }
+  ],
+  "list": {
+    "id": "#40",
+    "from": "D0",
+    "to": "D6",
+    "mealsPlanned": 14,
+    "cost": {
+      "euros": 37.94,
+      "missing": ["Banane", "Huile d’olive", "Lait", "Parmesan"]
+    },
+    "mealsCost": {
+      "euros": 33.74,
+      "missing": ["Banane", "Huile d’olive", "Lait", "Parmesan"]
+    },
+    "extrasCost": {
+      "euros": 4.2,
+      "missing": []
+    },
+    "groups": [
+      {
+        "aisle": "Boucherie",
+        "items": [
+          {
+            "key": "ing:#9",
+            "name": "Viande hachée 5 %",
+            "amount": "937,5 g",
+            "aisle": "Boucherie",
+            "checked": false,
+            "source": "meals"
+          }
+        ]
+      },
+      {
+        "aisle": "Épicerie",
+        "items": [
+          {
+            "key": "ing:#11",
+            "name": "Coulis de tomate",
+            "amount": "1,31 kg",
+            "aisle": "Épicerie",
+            "checked": false,
+            "source": "meals"
+          },
+          {
+            "key": "ing:#36",
+            "name": "Flocons d’avoine",
+            "amount": "300 g",
+            "aisle": "Épicerie",
+            "checked": false,
+            "source": "meals"
+          },
+          {
+            "key": "ing:#15",
+            "name": "Huile d’olive",
+            "amount": "1,88 c. à s.",
+            "aisle": "Épicerie",
+            "checked": false,
+            "source": "meals"
+          },
+          {
+            "key": "ing:#24",
+            "name": "Lait de coco",
+            "amount": "800 ml",
+            "aisle": "Épicerie",
+            "checked": false,
+            "source": "meals"
+          },
+          {
+            "key": "ing:#17",
+            "name": "Pâtes",
+            "amount": "750 g",
+            "aisle": "Épicerie",
+            "checked": false,
+            "source": "meals"
+          },
+          {
+            "key": "ing:#22",
+            "name": "Pois chiches",
+            "amount": "1,06 kg",
+            "aisle": "Épicerie",
+            "checked": false,
+            "source": "meals"
+          },
+          {
+            "key": "ing:#3",
+            "name": "Riz basmati",
+            "amount": "610 g",
+            "aisle": "Épicerie",
+            "checked": true,
+            "source": "meals"
+          }
+        ]
+      },
+      {
+        "aisle": "Frais",
+        "items": [
+          {
+            "key": "ing:#32",
+            "name": "Lait",
+            "amount": "1,25 l + 3 c. à s.",
+            "aisle": "Frais",
+            "checked": false,
+            "source": "meals"
+          },
+          {
+            "key": "ing:#5",
+            "name": "Œuf",
+            "amount": "13 pièces (≈ 780 g)",
+            "aisle": "Frais",
+            "checked": false,
+            "source": "meals"
+          },
+          {
+            "key": "ing:#19",
+            "name": "Parmesan",
+            "amount": "105 g",
+            "aisle": "Frais",
+            "checked": false,
+            "source": "meals"
+          }
+        ]
+      },
+      {
+        "aisle": "Fruits et légumes",
+        "items": [
+          {
+            "key": "ing:#39",
+            "name": "Banane",
+            "amount": "2,5 pièces (≈ 300 g)",
+            "aisle": "Fruits et légumes",
+            "checked": false,
+            "source": "meals"
+          },
+          {
+            "key": "ing:#13",
+            "name": "Oignon",
+            "amount": "4,81 pièces (≈ 721,88 g)",
+            "aisle": "Fruits et légumes",
+            "checked": false,
+            "source": "meals"
+          }
+        ]
+      },
+      {
+        "aisle": "Surgelés",
+        "items": [
+          {
+            "key": "ing:#26",
+            "name": "Épinards",
+            "amount": "500 g",
+            "aisle": "Surgelés",
+            "checked": false,
+            "source": "meals"
+          }
+        ]
+      },
+      {
+        "aisle": "Sans rayon",
+        "items": [
+          {
+            "key": "extra:#41",
+            "id": "#41",
+            "name": "Café",
+            "amount": "1 paquet",
+            "aisle": "Sans rayon",
+            "checked": false,
+            "source": "extra",
+            "price": 4.2
+          }
+        ]
+      }
+    ],
+    "habitual": []
+  },
+  "plan": [
+    {
+      "id": "#42",
+      "date": "D0",
+      "momentId": "#43",
+      "mealId": "#7",
+      "servings": 2
+    },
+    {
+      "id": "#44",
+      "date": "D0",
+      "momentId": "#45",
+      "mealId": "#34",
+      "servings": 1
+    },
+    {
+      "id": "#46",
+      "date": "D1",
+      "momentId": "#47",
+      "mealId": "#7",
+      "servings": 1.5
+    },
+    {
+      "id": "#48",
+      "date": "D1",
+      "momentId": "#43",
+      "mealId": "#20",
+      "servings": 2
+    },
+    {
+      "id": "#49",
+      "date": "D1",
+      "momentId": "#45",
+      "mealId": "#34",
+      "servings": 1
+    },
+    {
+      "id": "#50",
+      "date": "D2",
+      "momentId": "#47",
+      "mealId": "#1",
+      "servings": 1
+    },
+    {
+      "id": "#51",
+      "date": "D2",
+      "momentId": "#45",
+      "mealId": "#34",
+      "servings": 1
+    },
+    {
+      "id": "#52",
+      "date": "D3",
+      "momentId": "#47",
+      "mealId": "#1",
+      "servings": 1
+    },
+    {
+      "id": "#53",
+      "date": "D3",
+      "momentId": "#43",
+      "mealId": "#20",
+      "servings": 1
+    },
+    {
+      "id": "#54",
+      "date": "D3",
+      "momentId": "#45",
+      "mealId": "#34",
+      "servings": 1
+    },
+    {
+      "id": "#55",
+      "date": "D4",
+      "momentId": "#43",
+      "mealId": "#7",
+      "servings": 4
+    },
+    {
+      "id": "#56",
+      "date": "D4",
+      "momentId": "#45",
+      "mealId": "#34",
+      "servings": 1
+    },
+    {
+      "id": "#57",
+      "date": "D5",
+      "momentId": "#47",
+      "mealId": "#29",
+      "servings": 2
+    },
+    {
+      "id": "#58",
+      "date": "D6",
+      "momentId": "#43",
+      "mealId": "#20",
+      "servings": 3
+    }
+  ],
+  "thaw": [
+    {
+      "date": "D5",
+      "mealName": "Curry de pois chiches",
+      "forDate": "D6",
+      "forMomentId": "#43"
+    }
+  ],
+  "summary": {
+    "from": "D0",
+    "to": "D6",
+    "days": [
+      {
+        "date": "D0",
+        "meals": 2,
+        "nutrition": {
+          "values": {
+            "kcal": 1604.1,
+            "protein": 107.3,
+            "carbs": 217.5,
+            "sugars": 14.7,
+            "fat": 23.5,
+            "saturated": 5.5,
+            "fiber": 18.8,
+            "salt": 2.2
+          },
+          "missing": [
+            "Banane",
+            "Coulis de tomate",
+            "Flocons d’avoine",
+            "Huile d’olive",
+            "Lait",
+            "Oignon",
+            "Parmesan",
+            "Pâtes",
+            "Viande hachée 5 %"
+          ]
+        },
+        "cost": {
+          "euros": 4.55,
+          "missing": ["Banane", "Huile d’olive", "Parmesan"]
+        }
+      },
+      {
+        "date": "D1",
+        "meals": 3,
+        "nutrition": {
+          "values": {
+            "kcal": 2823.8,
+            "protein": 122.3,
+            "carbs": 357.8,
+            "sugars": 11,
+            "fat": 68.9,
+            "saturated": 4.1,
+            "fiber": 40.5,
+            "salt": 1.7
+          },
+          "missing": [
+            "Banane",
+            "Coulis de tomate",
+            "Épinards",
+            "Flocons d’avoine",
+            "Huile d’olive",
+            "Lait",
+            "Lait de coco",
+            "Oignon",
+            "Parmesan",
+            "Pâtes",
+            "Pois chiches",
+            "Riz basmati",
+            "Viande hachée 5 %"
+          ]
+        },
+        "cost": {
+          "euros": 7.36,
+          "missing": ["Banane", "Huile d’olive", "Parmesan"]
+        }
+      },
+      {
+        "date": "D2",
+        "meals": 2,
+        "nutrition": {
+          "values": {
+            "kcal": 961.4,
+            "protein": 52.6,
+            "carbs": 111.3,
+            "sugars": 0,
+            "fat": 31.5,
+            "saturated": 7.4,
+            "fiber": 7,
+            "salt": 0.9
+          },
+          "missing": ["Banane", "Flocons d’avoine", "Lait", "Œuf", "Riz basmati"]
+        },
+        "cost": {
+          "euros": 1.91,
+          "missing": ["Banane"]
+        }
+      },
+      {
+        "date": "D3",
+        "meals": 3,
+        "nutrition": {
+          "values": {
+            "kcal": 1729.5,
+            "protein": 71.5,
+            "carbs": 202.7,
+            "sugars": 0,
+            "fat": 56.1,
+            "saturated": 7.4,
+            "fiber": 19.5,
+            "salt": 0.9
+          },
+          "missing": [
+            "Banane",
+            "Épinards",
+            "Flocons d’avoine",
+            "Lait",
+            "Lait de coco",
+            "Œuf",
+            "Oignon",
+            "Pois chiches",
+            "Riz basmati"
+          ]
+        },
+        "cost": {
+          "euros": 3.83,
+          "missing": ["Banane"]
+        }
+      },
+      {
+        "date": "D4",
+        "meals": 2,
+        "nutrition": {
+          "values": {
+            "kcal": 2870,
+            "protein": 198.2,
+            "carbs": 387.8,
+            "sugars": 29.4,
+            "fat": 39,
+            "saturated": 11,
+            "fiber": 31.6,
+            "salt": 4.4
+          },
+          "missing": [
+            "Banane",
+            "Coulis de tomate",
+            "Flocons d’avoine",
+            "Huile d’olive",
+            "Lait",
+            "Oignon",
+            "Parmesan",
+            "Pâtes",
+            "Viande hachée 5 %"
+          ]
+        },
+        "cost": {
+          "euros": 8.7,
+          "missing": ["Banane", "Huile d’olive", "Parmesan"]
+        }
+      },
+      {
+        "date": "D5",
+        "meals": 1,
+        "nutrition": {
+          "values": {
+            "kcal": 546.6,
+            "protein": 47.7,
+            "carbs": 2.1,
+            "sugars": 0,
+            "fat": 28.5,
+            "saturated": 9.3,
+            "fiber": 0,
+            "salt": 1.1
+          },
+          "missing": ["Lait", "Œuf", "Parmesan"]
+        },
+        "cost": {
+          "euros": 1.6,
+          "missing": ["Lait", "Parmesan"]
+        }
+      },
+      {
+        "date": "D6",
+        "meals": 1,
+        "nutrition": {
+          "values": {
+            "kcal": 2304.2,
+            "protein": 56.7,
+            "carbs": 274.3,
+            "sugars": 0,
+            "fat": 74,
+            "saturated": 0,
+            "fiber": 37.3,
+            "salt": 0
+          },
+          "missing": ["Épinards", "Lait de coco", "Oignon", "Pois chiches", "Riz basmati"]
+        },
+        "cost": {
+          "euros": 5.78,
+          "missing": []
+        }
+      }
+    ],
+    "total": {
+      "nutrition": {
+        "values": {
+          "kcal": 12839.6,
+          "protein": 656.3,
+          "carbs": 1553.5,
+          "sugars": 55.1,
+          "fat": 321.5,
+          "saturated": 44.7,
+          "fiber": 154.7,
+          "salt": 11.2
+        },
+        "missing": [
+          "Banane",
+          "Coulis de tomate",
+          "Épinards",
+          "Flocons d’avoine",
+          "Huile d’olive",
+          "Lait",
+          "Lait de coco",
+          "Œuf",
+          "Oignon",
+          "Parmesan",
+          "Pâtes",
+          "Pois chiches",
+          "Riz basmati",
+          "Viande hachée 5 %"
+        ]
+      },
+      "cost": {
+        "euros": 33.73,
+        "missing": ["Banane", "Huile d’olive", "Lait", "Parmesan"]
+      }
+    },
+    "average": {
+      "nutrition": {
+        "kcal": 1834.2,
+        "protein": 93.8,
+        "carbs": 221.9,
+        "sugars": 7.9,
+        "fat": 45.9,
+        "saturated": 6.4,
+        "fiber": 22.1,
+        "salt": 1.6
+      },
+      "cost": 4.82,
+      "days": 7
+    },
+    "meals": [
+      {
+        "id": "#7",
+        "name": "Bolognaise",
+        "proteinPerServing": 45.5,
+        "missing": true
+      },
+      {
+        "id": "#1",
+        "name": "Boîte riz-œufs",
+        "proteinPerServing": 36.2,
+        "missing": true
+      },
+      {
+        "id": "#29",
+        "name": "Omelette",
+        "proteinPerServing": 23.8,
+        "missing": true
+      },
+      {
+        "id": "#20",
+        "name": "Curry de pois chiches",
+        "proteinPerServing": 18.9,
+        "missing": true
+      },
+      {
+        "id": "#34",
+        "name": "Porridge",
+        "proteinPerServing": 16.4,
+        "missing": true
+      }
+    ],
+    "goals": {
+      "proteinPerDay": 120,
+      "kcalPerDay": 2200,
+      "budgetPerWeek": 60
+    }
+  },
+  "history": {
+    "lists": [
+      {
+        "id": "#59",
+        "from": "D7",
+        "to": "D13",
+        "closedAt": "TIME",
+        "groups": [
+          {
+            "aisle": "Boucherie",
+            "items": [
+              {
+                "key": "ing:#9",
+                "name": "Viande hachée 5 %",
+                "amount": "375 g",
+                "aisle": "Boucherie",
+                "checked": true,
+                "source": "meals"
+              }
+            ]
+          },
+          {
+            "aisle": "Épicerie",
+            "items": [
+              {
+                "key": "ing:#11",
+                "name": "Coulis de tomate",
+                "amount": "525 g",
+                "aisle": "Épicerie",
+                "checked": false,
+                "source": "meals"
+              },
+              {
+                "key": "ing:#15",
+                "name": "Huile d’olive",
+                "amount": "0,75 c. à s.",
+                "aisle": "Épicerie",
+                "checked": false,
+                "source": "meals"
+              },
+              {
+                "key": "ing:#17",
+                "name": "Pâtes",
+                "amount": "300 g",
+                "aisle": "Épicerie",
+                "checked": false,
+                "source": "meals"
+              }
+            ]
+          },
+          {
+            "aisle": "Frais",
+            "items": [
+              {
+                "key": "ing:#19",
+                "name": "Parmesan",
+                "amount": "30 g",
+                "aisle": "Frais",
+                "checked": false,
+                "source": "meals"
+              }
+            ]
+          },
+          {
+            "aisle": "Fruits et légumes",
+            "items": [
+              {
+                "key": "ing:#13",
+                "name": "Oignon",
+                "amount": "1,13 pièces (≈ 168,75 g)",
+                "aisle": "Fruits et légumes",
+                "checked": false,
+                "source": "meals"
+              }
+            ]
+          }
+        ],
+        "cost": {
+          "euros": 6.23,
+          "missing": ["Huile d’olive", "Parmesan"]
+        }
+      }
+    ]
+  },
+  "text": {
+    "text": "Courses du D0 au D6\n\n## Boucherie\n- [ ] Viande hachée 5 % — 937,5 g\n\n## Épicerie\n- [ ] Coulis de tomate — 1,31 kg\n- [ ] Flocons d’avoine — 300 g\n- [ ] Huile d’olive — 1,88 c. à s.\n- [ ] Lait de coco — 800 ml\n- [ ] Pâtes — 750 g\n- [ ] Pois chiches — 1,06 kg\n- [x] Riz basmati — 610 g\n\n## Frais\n- [ ] Lait — 1,25 l + 3 c. à s.\n- [ ] Œuf — 13 pièces (≈ 780 g)\n- [ ] Parmesan — 105 g\n\n## Fruits et légumes\n- [ ] Banane — 2,5 pièces (≈ 300 g)\n- [ ] Oignon — 4,81 pièces (≈ 721,88 g)\n\n## Surgelés\n- [ ] Épinards — 500 g\n\n## Sans rayon\n- [ ] Café — 1 paquet\n"
+  },
+  "home": {
+    "today": "D6",
+    "meals": [
+      {
+        "moment": "Soir",
+        "name": "Curry de pois chiches",
+        "servings": 3
+      }
+    ]
+  },
+  "batch": {
+    "from": "D0",
+    "to": "D6",
+    "moments": [
+      {
+        "id": "#45",
+        "name": "Matin",
+        "time": "08:00",
+        "durationMin": 20
+      },
+      {
+        "id": "#47",
+        "name": "Midi",
+        "time": "12:30",
+        "durationMin": 45
+      },
+      {
+        "id": "#60",
+        "name": "Collation",
+        "time": "16:30",
+        "durationMin": 15
+      },
+      {
+        "id": "#43",
+        "name": "Soir",
+        "time": "19:30",
+        "durationMin": 45
+      }
+    ],
+    "daysBefore": 0,
+    "grid": {
+      "dates": [
+        "D-7",
+        "D-6",
+        "D-5",
+        "D-4",
+        "D-3",
+        "D-2",
+        "D-1",
+        "D0",
+        "D1",
+        "D2",
+        "D3",
+        "D4",
+        "D5",
+        "D6"
+      ],
+      "slots": [
+        {
+          "date": "D0",
+          "momentId": "#47"
+        },
+        {
+          "date": "D2",
+          "momentId": "#47"
+        },
+        {
+          "date": "D4",
+          "momentId": "#47"
+        }
+      ],
+      "saved": true
+    },
+    "entries": [
+      {
+        "entryId": "#44",
+        "date": "D0",
+        "momentId": "#45",
+        "mealId": "#34",
+        "mealName": "Porridge",
+        "servings": 1,
+        "batchTag": false,
+        "fridgeDays": null,
+        "freezable": false,
+        "freezerDays": null,
+        "coveredBy": null
+      },
+      {
+        "entryId": "#42",
+        "date": "D0",
+        "momentId": "#43",
+        "mealId": "#7",
+        "mealName": "Bolognaise",
+        "servings": 2,
+        "batchTag": true,
+        "fridgeDays": 3,
+        "freezable": true,
+        "freezerDays": 90,
+        "coveredBy": null
+      },
+      {
+        "entryId": "#49",
+        "date": "D1",
+        "momentId": "#45",
+        "mealId": "#34",
+        "mealName": "Porridge",
+        "servings": 1,
+        "batchTag": false,
+        "fridgeDays": null,
+        "freezable": false,
+        "freezerDays": null,
+        "coveredBy": null
+      },
+      {
+        "entryId": "#46",
+        "date": "D1",
+        "momentId": "#47",
+        "mealId": "#7",
+        "mealName": "Bolognaise",
+        "servings": 1.5,
+        "batchTag": true,
+        "fridgeDays": 3,
+        "freezable": true,
+        "freezerDays": 90,
+        "coveredBy": null
+      },
+      {
+        "entryId": "#48",
+        "date": "D1",
+        "momentId": "#43",
+        "mealId": "#20",
+        "mealName": "Curry de pois chiches",
+        "servings": 2,
+        "batchTag": true,
+        "fridgeDays": 4,
+        "freezable": true,
+        "freezerDays": 60,
+        "coveredBy": "#61"
+      },
+      {
+        "entryId": "#51",
+        "date": "D2",
+        "momentId": "#45",
+        "mealId": "#34",
+        "mealName": "Porridge",
+        "servings": 1,
+        "batchTag": false,
+        "fridgeDays": null,
+        "freezable": false,
+        "freezerDays": null,
+        "coveredBy": null
+      },
+      {
+        "entryId": "#50",
+        "date": "D2",
+        "momentId": "#47",
+        "mealId": "#1",
+        "mealName": "Boîte riz-œufs",
+        "servings": 1,
+        "batchTag": false,
+        "fridgeDays": 3,
+        "freezable": false,
+        "freezerDays": null,
+        "coveredBy": null
+      },
+      {
+        "entryId": "#54",
+        "date": "D3",
+        "momentId": "#45",
+        "mealId": "#34",
+        "mealName": "Porridge",
+        "servings": 1,
+        "batchTag": false,
+        "fridgeDays": null,
+        "freezable": false,
+        "freezerDays": null,
+        "coveredBy": null
+      },
+      {
+        "entryId": "#52",
+        "date": "D3",
+        "momentId": "#47",
+        "mealId": "#1",
+        "mealName": "Boîte riz-œufs",
+        "servings": 1,
+        "batchTag": false,
+        "fridgeDays": 3,
+        "freezable": false,
+        "freezerDays": null,
+        "coveredBy": null
+      },
+      {
+        "entryId": "#53",
+        "date": "D3",
+        "momentId": "#43",
+        "mealId": "#20",
+        "mealName": "Curry de pois chiches",
+        "servings": 1,
+        "batchTag": true,
+        "fridgeDays": 4,
+        "freezable": true,
+        "freezerDays": 60,
+        "coveredBy": "#61"
+      },
+      {
+        "entryId": "#56",
+        "date": "D4",
+        "momentId": "#45",
+        "mealId": "#34",
+        "mealName": "Porridge",
+        "servings": 1,
+        "batchTag": false,
+        "fridgeDays": null,
+        "freezable": false,
+        "freezerDays": null,
+        "coveredBy": null
+      },
+      {
+        "entryId": "#55",
+        "date": "D4",
+        "momentId": "#43",
+        "mealId": "#7",
+        "mealName": "Bolognaise",
+        "servings": 4,
+        "batchTag": true,
+        "fridgeDays": 3,
+        "freezable": true,
+        "freezerDays": 90,
+        "coveredBy": null
+      },
+      {
+        "entryId": "#57",
+        "date": "D5",
+        "momentId": "#47",
+        "mealId": "#29",
+        "mealName": "Omelette",
+        "servings": 2,
+        "batchTag": false,
+        "fridgeDays": null,
+        "freezable": false,
+        "freezerDays": null,
+        "coveredBy": null
+      },
+      {
+        "entryId": "#58",
+        "date": "D6",
+        "momentId": "#43",
+        "mealId": "#20",
+        "mealName": "Curry de pois chiches",
+        "servings": 3,
+        "batchTag": true,
+        "fridgeDays": 4,
+        "freezable": true,
+        "freezerDays": 60,
+        "coveredBy": "#61"
+      }
+    ],
+    "plans": [
+      {
+        "id": "#61",
+        "createdAt": "TIME",
+        "freezer": true,
+        "daysBefore": 0,
+        "grid": {
+          "dates": ["D0", "D1", "D2", "D3", "D4", "D5", "D6"],
+          "slots": [
+            {
+              "date": "D0",
+              "momentId": "#47"
+            },
+            {
+              "date": "D2",
+              "momentId": "#47"
+            },
+            {
+              "date": "D4",
+              "momentId": "#47"
+            }
+          ]
+        },
+        "sessions": [
+          {
+            "id": "#62",
+            "date": "D0",
+            "momentId": "#47",
+            "beforePeriod": false,
+            "startTime": null,
+            "durationMin": null,
+            "cooks": [
+              {
+                "mealId": "#20",
+                "mealName": "Curry de pois chiches",
+                "portions": 6,
+                "fridge": [
+                  {
+                    "entryId": "#48",
+                    "date": "D1",
+                    "momentId": "#43",
+                    "servings": 2
+                  },
+                  {
+                    "entryId": "#53",
+                    "date": "D3",
+                    "momentId": "#43",
+                    "servings": 1
+                  }
+                ],
+                "frozen": [
+                  {
+                    "entryId": "#58",
+                    "date": "D6",
+                    "momentId": "#43",
+                    "servings": 3
+                  }
+                ],
+                "ingredients": [
+                  {
+                    "name": "Épinards",
+                    "amount": "500 g"
+                  },
+                  {
+                    "name": "Lait de coco",
+                    "amount": "800 ml"
+                  },
+                  {
+                    "name": "Oignon",
+                    "amount": "2 pièces (≈ 300 g)"
+                  },
+                  {
+                    "name": "Pois chiches",
+                    "amount": "1,06 kg"
+                  },
+                  {
+                    "name": "Riz basmati",
+                    "amount": "450 g"
+                  }
+                ]
+              }
+            ],
+            "warnings": []
+          }
+        ],
+        "changes": []
+      }
+    ]
+  },
+  "proposals": {
+    "fridge": {
+      "sessions": [
+        {
+          "date": "D0",
+          "momentId": "#47",
+          "beforePeriod": false,
+          "cooks": [
+            {
+              "mealId": "#7",
+              "mealName": "Bolognaise",
+              "portions": 3.5,
+              "fridge": [
+                {
+                  "entryId": "#42",
+                  "date": "D0",
+                  "momentId": "#43",
+                  "servings": 2
+                },
+                {
+                  "entryId": "#46",
+                  "date": "D1",
+                  "momentId": "#47",
+                  "servings": 1.5
+                }
+              ],
+              "frozen": [],
+              "ingredients": [
+                {
+                  "name": "Coulis de tomate",
+                  "amount": "612,5 g"
+                },
+                {
+                  "name": "Huile d’olive",
+                  "amount": "0,88 c. à s."
+                },
+                {
+                  "name": "Oignon",
+                  "amount": "1,31 pièces (≈ 196,88 g)"
+                },
+                {
+                  "name": "Parmesan",
+                  "amount": "35 g"
+                },
+                {
+                  "name": "Pâtes",
+                  "amount": "350 g"
+                },
+                {
+                  "name": "Viande hachée 5 %",
+                  "amount": "437,5 g"
+                }
+              ]
+            },
+            {
+              "mealId": "#20",
+              "mealName": "Curry de pois chiches",
+              "portions": 2,
+              "fridge": [
+                {
+                  "entryId": "#48",
+                  "date": "D1",
+                  "momentId": "#43",
+                  "servings": 2
+                }
+              ],
+              "frozen": [],
+              "ingredients": [
+                {
+                  "name": "Épinards",
+                  "amount": "166,67 g"
+                },
+                {
+                  "name": "Lait de coco",
+                  "amount": "266,67 ml"
+                },
+                {
+                  "name": "Oignon",
+                  "amount": "0,67 pièce (≈ 100 g)"
+                },
+                {
+                  "name": "Pois chiches",
+                  "amount": "353,33 g"
+                },
+                {
+                  "name": "Riz basmati",
+                  "amount": "150 g"
+                }
+              ]
+            }
+          ],
+          "warnings": []
+        },
+        {
+          "date": "D2",
+          "momentId": "#47",
+          "beforePeriod": false,
+          "cooks": [
+            {
+              "mealId": "#1",
+              "mealName": "Boîte riz-œufs",
+              "portions": 2,
+              "fridge": [
+                {
+                  "entryId": "#50",
+                  "date": "D2",
+                  "momentId": "#47",
+                  "servings": 1
+                },
+                {
+                  "entryId": "#52",
+                  "date": "D3",
+                  "momentId": "#47",
+                  "servings": 1
+                }
+              ],
+              "frozen": [],
+              "ingredients": [
+                {
+                  "name": "Œuf",
+                  "amount": "8 pièces (≈ 480 g)"
+                },
+                {
+                  "name": "Riz basmati",
+                  "amount": "160 g"
+                }
+              ]
+            },
+            {
+              "mealId": "#7",
+              "mealName": "Bolognaise",
+              "portions": 4,
+              "fridge": [
+                {
+                  "entryId": "#55",
+                  "date": "D4",
+                  "momentId": "#43",
+                  "servings": 4
+                }
+              ],
+              "frozen": [],
+              "ingredients": [
+                {
+                  "name": "Coulis de tomate",
+                  "amount": "700 g"
+                },
+                {
+                  "name": "Huile d’olive",
+                  "amount": "1 c. à s."
+                },
+                {
+                  "name": "Oignon",
+                  "amount": "1,5 pièces (≈ 225 g)"
+                },
+                {
+                  "name": "Parmesan",
+                  "amount": "40 g"
+                },
+                {
+                  "name": "Pâtes",
+                  "amount": "400 g"
+                },
+                {
+                  "name": "Viande hachée 5 %",
+                  "amount": "500 g"
+                }
+              ]
+            },
+            {
+              "mealId": "#20",
+              "mealName": "Curry de pois chiches",
+              "portions": 4,
+              "fridge": [
+                {
+                  "entryId": "#53",
+                  "date": "D3",
+                  "momentId": "#43",
+                  "servings": 1
+                },
+                {
+                  "entryId": "#58",
+                  "date": "D6",
+                  "momentId": "#43",
+                  "servings": 3
+                }
+              ],
+              "frozen": [],
+              "ingredients": [
+                {
+                  "name": "Épinards",
+                  "amount": "333,33 g"
+                },
+                {
+                  "name": "Lait de coco",
+                  "amount": "533,33 ml"
+                },
+                {
+                  "name": "Oignon",
+                  "amount": "1,33 pièces (≈ 200 g)"
+                },
+                {
+                  "name": "Pois chiches",
+                  "amount": "706,67 g"
+                },
+                {
+                  "name": "Riz basmati",
+                  "amount": "300 g"
+                }
+              ]
+            }
+          ],
+          "warnings": []
+        }
+      ],
+      "uncovered": [],
+      "missing": ["#57"],
+      "covered": 8,
+      "total": 8,
+      "tooComplex": false
+    },
+    "freezer": {
+      "sessions": [
+        {
+          "date": "D0",
+          "momentId": "#47",
+          "beforePeriod": false,
+          "cooks": [
+            {
+              "mealId": "#1",
+              "mealName": "Boîte riz-œufs",
+              "portions": 2,
+              "fridge": [
+                {
+                  "entryId": "#50",
+                  "date": "D2",
+                  "momentId": "#47",
+                  "servings": 1
+                },
+                {
+                  "entryId": "#52",
+                  "date": "D3",
+                  "momentId": "#47",
+                  "servings": 1
+                }
+              ],
+              "frozen": [],
+              "ingredients": [
+                {
+                  "name": "Œuf",
+                  "amount": "8 pièces (≈ 480 g)"
+                },
+                {
+                  "name": "Riz basmati",
+                  "amount": "160 g"
+                }
+              ]
+            },
+            {
+              "mealId": "#7",
+              "mealName": "Bolognaise",
+              "portions": 7.5,
+              "fridge": [
+                {
+                  "entryId": "#42",
+                  "date": "D0",
+                  "momentId": "#43",
+                  "servings": 2
+                },
+                {
+                  "entryId": "#46",
+                  "date": "D1",
+                  "momentId": "#47",
+                  "servings": 1.5
+                }
+              ],
+              "frozen": [
+                {
+                  "entryId": "#55",
+                  "date": "D4",
+                  "momentId": "#43",
+                  "servings": 4
+                }
+              ],
+              "ingredients": [
+                {
+                  "name": "Coulis de tomate",
+                  "amount": "1,31 kg"
+                },
+                {
+                  "name": "Huile d’olive",
+                  "amount": "1,88 c. à s."
+                },
+                {
+                  "name": "Oignon",
+                  "amount": "2,81 pièces (≈ 421,88 g)"
+                },
+                {
+                  "name": "Parmesan",
+                  "amount": "75 g"
+                },
+                {
+                  "name": "Pâtes",
+                  "amount": "750 g"
+                },
+                {
+                  "name": "Viande hachée 5 %",
+                  "amount": "937,5 g"
+                }
+              ]
+            },
+            {
+              "mealId": "#20",
+              "mealName": "Curry de pois chiches",
+              "portions": 6,
+              "fridge": [
+                {
+                  "entryId": "#48",
+                  "date": "D1",
+                  "momentId": "#43",
+                  "servings": 2
+                },
+                {
+                  "entryId": "#53",
+                  "date": "D3",
+                  "momentId": "#43",
+                  "servings": 1
+                }
+              ],
+              "frozen": [
+                {
+                  "entryId": "#58",
+                  "date": "D6",
+                  "momentId": "#43",
+                  "servings": 3
+                }
+              ],
+              "ingredients": [
+                {
+                  "name": "Épinards",
+                  "amount": "500 g"
+                },
+                {
+                  "name": "Lait de coco",
+                  "amount": "800 ml"
+                },
+                {
+                  "name": "Oignon",
+                  "amount": "2 pièces (≈ 300 g)"
+                },
+                {
+                  "name": "Pois chiches",
+                  "amount": "1,06 kg"
+                },
+                {
+                  "name": "Riz basmati",
+                  "amount": "450 g"
+                }
+              ]
+            }
+          ],
+          "warnings": []
+        }
+      ],
+      "uncovered": [],
+      "missing": ["#57"],
+      "covered": 8,
+      "total": 8,
+      "tooComplex": false
+    }
+  },
+  "exported": {
+    "format": "toolbox-courses",
+    "version": 1,
+    "ingredients": [
+      {
+        "name": "Banane",
+        "unit": "pièce",
+        "aisle": "Fruits et légumes",
+        "pieceWeightG": 120,
+        "nutritionPer": "100g",
+        "nutrition": {},
+        "price": null
+      },
+      {
+        "name": "Coulis de tomate",
+        "unit": "g",
+        "aisle": "Épicerie",
+        "pieceWeightG": null,
+        "nutritionPer": "100g",
+        "nutrition": {
+          "kcal": 32,
+          "protein": 1.6,
+          "carbs": 5.1,
+          "sugars": 4.2,
+          "fiber": 1.4,
+          "salt": 0.5
+        },
+        "price": {
+          "amount": 2.1,
+          "per": "kg"
+        }
+      },
+      {
+        "name": "Épinards",
+        "unit": "g",
+        "aisle": "Surgelés",
+        "pieceWeightG": null,
+        "nutritionPer": "100g",
+        "nutrition": {},
+        "price": {
+          "amount": 2.5,
+          "per": "kg"
+        }
+      },
+      {
+        "name": "Flocons d’avoine",
+        "unit": "g",
+        "aisle": "Épicerie",
+        "pieceWeightG": null,
+        "nutritionPer": "100g",
+        "nutrition": {
+          "kcal": 372,
+          "protein": 13.5,
+          "carbs": 58.7,
+          "fat": 7,
+          "fiber": 10
+        },
+        "price": {
+          "amount": 2.2,
+          "per": "kg"
+        }
+      },
+      {
+        "name": "Huile d’olive",
+        "unit": "c. à s.",
+        "aisle": "Épicerie",
+        "pieceWeightG": null,
+        "nutritionPer": "100g",
+        "nutrition": {},
+        "price": null
+      },
+      {
+        "name": "Lait",
+        "unit": "l",
+        "aisle": "Frais",
+        "pieceWeightG": null,
+        "nutritionPer": "100ml",
+        "nutrition": {
+          "kcal": 46,
+          "protein": 3.3,
+          "carbs": 4.8,
+          "fat": 1.5
+        },
+        "price": {
+          "amount": 1.05,
+          "per": "l"
+        }
+      },
+      {
+        "name": "Lait de coco",
+        "unit": "ml",
+        "aisle": "Épicerie",
+        "pieceWeightG": null,
+        "nutritionPer": "100ml",
+        "nutrition": {
+          "kcal": 180,
+          "fat": 18
+        },
+        "price": {
+          "amount": 6,
+          "per": "l"
+        }
+      },
+      {
+        "name": "Œuf",
+        "unit": "pièce",
+        "aisle": "Frais",
+        "pieceWeightG": 60,
+        "nutritionPer": "100g",
+        "nutrition": {
+          "kcal": 143,
+          "protein": 12.6,
+          "carbs": 0.7,
+          "fat": 9.5,
+          "saturated": 3.1,
+          "salt": 0.36
+        },
+        "price": {
+          "amount": 0.32,
+          "per": "pièce"
+        }
+      },
+      {
+        "name": "Oignon",
+        "unit": "pièce",
+        "aisle": "Fruits et légumes",
+        "pieceWeightG": 150,
+        "nutritionPer": "100g",
+        "nutrition": {
+          "kcal": 40,
+          "protein": 1.1,
+          "carbs": 9.3,
+          "fiber": 1.7
+        },
+        "price": {
+          "amount": 0.3,
+          "per": "pièce"
+        }
+      },
+      {
+        "name": "Parmesan",
+        "unit": "g",
+        "aisle": "Frais",
+        "pieceWeightG": null,
+        "nutritionPer": "100g",
+        "nutrition": {
+          "kcal": 392,
+          "protein": 33
+        },
+        "price": null
+      },
+      {
+        "name": "Pâtes",
+        "unit": "g",
+        "aisle": "Épicerie",
+        "pieceWeightG": null,
+        "nutritionPer": "100g",
+        "nutrition": {
+          "kcal": 359,
+          "protein": 12.5,
+          "carbs": 71,
+          "fat": 1.5,
+          "fiber": 3,
+          "salt": 0.01
+        },
+        "price": {
+          "amount": 1.6,
+          "per": "kg"
+        }
+      },
+      {
+        "name": "Pois chiches",
+        "unit": "g",
+        "aisle": "Épicerie",
+        "pieceWeightG": null,
+        "nutritionPer": "100g",
+        "nutrition": {
+          "kcal": 139,
+          "protein": 7.2,
+          "carbs": 16,
+          "fiber": 6
+        },
+        "price": {
+          "amount": 3.4,
+          "per": "kg"
+        }
+      },
+      {
+        "name": "Riz basmati",
+        "unit": "g",
+        "aisle": "Épicerie",
+        "pieceWeightG": null,
+        "nutritionPer": "100g",
+        "nutrition": {
+          "kcal": 350,
+          "protein": 7.5,
+          "carbs": 78,
+          "fat": 0.9,
+          "fiber": 1.3,
+          "salt": 0
+        },
+        "price": {
+          "amount": 2.9,
+          "per": "kg"
+        }
+      },
+      {
+        "name": "Viande hachée 5 %",
+        "unit": "g",
+        "aisle": "Boucherie",
+        "pieceWeightG": null,
+        "nutritionPer": "100g",
+        "nutrition": {
+          "kcal": 125,
+          "protein": 21,
+          "fat": 5,
+          "saturated": 2.2,
+          "salt": 0.18
+        },
+        "price": {
+          "amount": 11.5,
+          "per": "kg"
+        }
+      }
+    ],
+    "recipes": [
+      {
+        "name": "Boîte riz-œufs",
+        "servings": 1,
+        "tags": ["protéiné"],
+        "note": "",
+        "fridgeDays": 3,
+        "freezable": false,
+        "freezerDays": null,
+        "ingredients": [
+          {
+            "name": "Riz basmati",
+            "qty": 80,
+            "unit": "g"
+          },
+          {
+            "name": "Œuf",
+            "qty": 3,
+            "unit": "pièce"
+          },
+          {
+            "name": "Œuf",
+            "qty": 60,
+            "unit": "g"
+          }
+        ],
+        "image": null
+      },
+      {
+        "name": "Bolognaise",
+        "servings": 4,
+        "tags": ["batch", "protéiné"],
+        "note": "",
+        "fridgeDays": 3,
+        "freezable": true,
+        "freezerDays": 90,
+        "ingredients": [
+          {
+            "name": "Viande hachée 5 %",
+            "qty": 500,
+            "unit": "g"
+          },
+          {
+            "name": "Coulis de tomate",
+            "qty": 0.7,
+            "unit": "kg"
+          },
+          {
+            "name": "Oignon",
+            "qty": 1.5,
+            "unit": "pièce"
+          },
+          {
+            "name": "Huile d’olive",
+            "qty": 1,
+            "unit": "c. à s."
+          },
+          {
+            "name": "Pâtes",
+            "qty": 400,
+            "unit": "g"
+          },
+          {
+            "name": "Parmesan",
+            "qty": 40,
+            "unit": "g"
+          }
+        ],
+        "image": null
+      },
+      {
+        "name": "Curry de pois chiches",
+        "servings": 3,
+        "tags": ["VG", "batch"],
+        "note": "",
+        "fridgeDays": 4,
+        "freezable": true,
+        "freezerDays": 60,
+        "ingredients": [
+          {
+            "name": "Pois chiches",
+            "qty": 530,
+            "unit": "g"
+          },
+          {
+            "name": "Lait de coco",
+            "qty": 40,
+            "unit": "cl"
+          },
+          {
+            "name": "Épinards",
+            "qty": 250,
+            "unit": "g"
+          },
+          {
+            "name": "Oignon",
+            "qty": 1,
+            "unit": "pièce"
+          },
+          {
+            "name": "Riz basmati",
+            "qty": 225,
+            "unit": "g"
+          }
+        ],
+        "image": null
+      },
+      {
+        "name": "Omelette",
+        "servings": 2,
+        "tags": [],
+        "note": "Sans conservation renseignée.",
+        "fridgeDays": null,
+        "freezable": false,
+        "freezerDays": null,
+        "ingredients": [
+          {
+            "name": "Œuf",
+            "qty": 5,
+            "unit": "pièce"
+          },
+          {
+            "name": "Lait",
+            "qty": 3,
+            "unit": "c. à s."
+          },
+          {
+            "name": "Parmesan",
+            "qty": 30,
+            "unit": "g"
+          }
+        ],
+        "image": null
+      },
+      {
+        "name": "Porridge",
+        "servings": 1,
+        "tags": [],
+        "note": "",
+        "fridgeDays": null,
+        "freezable": false,
+        "freezerDays": null,
+        "ingredients": [
+          {
+            "name": "Flocons d’avoine",
+            "qty": 60,
+            "unit": "g"
+          },
+          {
+            "name": "Lait",
+            "qty": 25,
+            "unit": "cl"
+          },
+          {
+            "name": "Banane",
+            "qty": 0.5,
+            "unit": "pièce"
+          }
+        ],
+        "image": null
+      }
+    ]
+  },
+  "assistant": {
+    "listCost": {
+      "status": "done",
+      "id": "courses.cost",
+      "message": "Liste de courses : 37,94 € estimés (incomplet : 4 articles sans prix), sur les quantités utilisées, pas les paquets.",
+      "data": {
+        "cost": {
+          "euros": 37.94,
+          "missing": ["Banane", "Huile d’olive", "Lait", "Parmesan"]
+        }
+      },
+      "undoId": null,
+      "open": "/m/courses?tab=list"
+    },
+    "weekCost": {
+      "status": "done",
+      "id": "courses.cost",
+      "message": "Repas du D0 au D6 : 33,73 € estimés (incomplet : 4 ingrédients sans prix).",
+      "data": {
+        "cost": {
+          "euros": 33.73,
+          "missing": ["Banane", "Huile d’olive", "Lait", "Parmesan"]
+        }
+      },
+      "undoId": null,
+      "open": "/m/courses?tab=summary"
+    },
+    "weekProtein": {
+      "status": "done",
+      "id": "courses.nutrition",
+      "message": "Du D0 au D6 : 656,3 g de protéines au total, soit 93,8 g de protéines par jour en moyenne (incomplet : des ingrédients n’ont pas de valeurs).",
+      "data": {
+        "total": {
+          "kcal": 12839.6,
+          "protein": 656.3,
+          "carbs": 1553.5,
+          "sugars": 55.1,
+          "fat": 321.5,
+          "saturated": 44.7,
+          "fiber": 154.7,
+          "salt": 11.2
+        },
+        "average": {
+          "kcal": 1834.2,
+          "protein": 93.8,
+          "carbs": 221.9,
+          "sugars": 7.9,
+          "fat": 45.9,
+          "saturated": 6.4,
+          "fiber": 22.1,
+          "salt": 1.6
+        },
+        "missing": [
+          "Banane",
+          "Coulis de tomate",
+          "Épinards",
+          "Flocons d’avoine",
+          "Huile d’olive",
+          "Lait",
+          "Lait de coco",
+          "Œuf",
+          "Oignon",
+          "Parmesan",
+          "Pâtes",
+          "Pois chiches",
+          "Riz basmati",
+          "Viande hachée 5 %"
+        ]
+      },
+      "undoId": null,
+      "open": "/m/courses?tab=summary"
+    },
+    "shopping": {
+      "status": "done",
+      "id": "courses.shopping-list",
+      "message": "14 articles à acheter : Viande hachée 5 %, Coulis de tomate, Flocons d’avoine, Huile d’olive, Lait de coco, Pâtes, Pois chiches et Lait, etc..",
+      "data": {
+        "groups": [
+          {
+            "aisle": "Boucherie",
+            "items": [
+              {
+                "key": "ing:#9",
+                "name": "Viande hachée 5 %",
+                "amount": "937,5 g",
+                "aisle": "Boucherie",
+                "checked": false,
+                "source": "meals"
+              }
+            ]
+          },
+          {
+            "aisle": "Épicerie",
+            "items": [
+              {
+                "key": "ing:#11",
+                "name": "Coulis de tomate",
+                "amount": "1,31 kg",
+                "aisle": "Épicerie",
+                "checked": false,
+                "source": "meals"
+              },
+              {
+                "key": "ing:#36",
+                "name": "Flocons d’avoine",
+                "amount": "300 g",
+                "aisle": "Épicerie",
+                "checked": false,
+                "source": "meals"
+              },
+              {
+                "key": "ing:#15",
+                "name": "Huile d’olive",
+                "amount": "1,88 c. à s.",
+                "aisle": "Épicerie",
+                "checked": false,
+                "source": "meals"
+              },
+              {
+                "key": "ing:#24",
+                "name": "Lait de coco",
+                "amount": "800 ml",
+                "aisle": "Épicerie",
+                "checked": false,
+                "source": "meals"
+              },
+              {
+                "key": "ing:#17",
+                "name": "Pâtes",
+                "amount": "750 g",
+                "aisle": "Épicerie",
+                "checked": false,
+                "source": "meals"
+              },
+              {
+                "key": "ing:#22",
+                "name": "Pois chiches",
+                "amount": "1,06 kg",
+                "aisle": "Épicerie",
+                "checked": false,
+                "source": "meals"
+              },
+              {
+                "key": "ing:#3",
+                "name": "Riz basmati",
+                "amount": "610 g",
+                "aisle": "Épicerie",
+                "checked": true,
+                "source": "meals"
+              }
+            ]
+          },
+          {
+            "aisle": "Frais",
+            "items": [
+              {
+                "key": "ing:#32",
+                "name": "Lait",
+                "amount": "1,25 l + 3 c. à s.",
+                "aisle": "Frais",
+                "checked": false,
+                "source": "meals"
+              },
+              {
+                "key": "ing:#5",
+                "name": "Œuf",
+                "amount": "13 pièces (≈ 780 g)",
+                "aisle": "Frais",
+                "checked": false,
+                "source": "meals"
+              },
+              {
+                "key": "ing:#19",
+                "name": "Parmesan",
+                "amount": "105 g",
+                "aisle": "Frais",
+                "checked": false,
+                "source": "meals"
+              }
+            ]
+          },
+          {
+            "aisle": "Fruits et légumes",
+            "items": [
+              {
+                "key": "ing:#39",
+                "name": "Banane",
+                "amount": "2,5 pièces (≈ 300 g)",
+                "aisle": "Fruits et légumes",
+                "checked": false,
+                "source": "meals"
+              },
+              {
+                "key": "ing:#13",
+                "name": "Oignon",
+                "amount": "4,81 pièces (≈ 721,88 g)",
+                "aisle": "Fruits et légumes",
+                "checked": false,
+                "source": "meals"
+              }
+            ]
+          },
+          {
+            "aisle": "Surgelés",
+            "items": [
+              {
+                "key": "ing:#26",
+                "name": "Épinards",
+                "amount": "500 g",
+                "aisle": "Surgelés",
+                "checked": false,
+                "source": "meals"
+              }
+            ]
+          },
+          {
+            "aisle": "Sans rayon",
+            "items": [
+              {
+                "key": "extra:#41",
+                "id": "#41",
+                "name": "Café",
+                "amount": "1 paquet",
+                "aisle": "Sans rayon",
+                "checked": false,
+                "source": "extra",
+                "price": 4.2
+              }
+            ]
+          }
+        ]
+      },
+      "undoId": null,
+      "open": "/m/courses?tab=list"
+    }
+  }
+}

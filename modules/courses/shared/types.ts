@@ -1,5 +1,6 @@
 // Shapes of the Courses API (shared by the backend and the page).
 import type { Cost, Facts, Nutrition, PricePer } from './nutrition';
+import type { RecipeLine } from './recipe';
 
 export interface IngredientDto {
   id: string;
@@ -27,11 +28,46 @@ export interface MealDto {
   freezable: boolean;
   /** Only for a freezable recipe. */
   freezerDays: number | null;
-  items: { id: string; ingredientId: string; qty: number; unit: string }[];
+  /**
+   * The ingredients of the recipe, preparations expanded (shared/recipe.ts,
+   * `expandRecipe`): what every calculation reads. `fromLine`: the
+   * preparation line it comes from (null: a direct line).
+   */
+  items: {
+    id: string;
+    ingredientId: string;
+    qty: number;
+    unit: string;
+    fromLine: string | null;
+  }[];
+  /** The lines as written (ingredients and preparations): the editor and the export only. */
+  lines: RecipeLine[];
+  /** At least one preparation line: its direct lines are « at meal time ». */
+  split: boolean;
+  /**
+   * Keeping as the batch sees it: the recipe's own fields when not split,
+   * else its preparations' (`preps`: how many are filled in).
+   */
+  keeping: { known: boolean; freezable: boolean; preps: { known: number; total: number } | null };
   /** For one portion. */
   perServing: { nutrition: Facts; cost: Cost };
   /** Optional picture of the recipe (signed URL for this session). */
   image: { url: string; width: number; height: number } | null;
+}
+/** A preparation (technical sheet): defined once, used by several recipes. */
+export interface PrepDto {
+  id: string;
+  name: string;
+  note: string;
+  /** For ONE portion. */
+  items: { id: string; ingredientId: string; qty: number; unit: string }[];
+  fridgeDays: number | null;
+  freezable: boolean;
+  freezerDays: number | null;
+  /** Recipes with a line of this preparation. */
+  usedBy: { id: string; name: string }[];
+  /** For one portion. */
+  perPortion: { nutrition: Facts; cost: Cost };
 }
 export interface MomentDto {
   id: string;
@@ -77,6 +113,7 @@ export interface StateDto {
   today: string;
   ingredients: IngredientDto[];
   meals: MealDto[];
+  preps: PrepDto[];
   moments: MomentDto[];
   /** Planned meals of the list's period. */
   plan: PlanDto[];
@@ -134,8 +171,25 @@ export interface BatchEntryDto {
   fridgeDays: number | null;
   freezable: boolean;
   freezerDays: number | null;
+  /**
+   * What the batch can cook for this meal (v0.27): each preparation of a
+   * split recipe, else the whole recipe (one part, the fields above).
+   */
+  parts: BatchPartDto[];
   /** Already covered by this validated plan (not tickable). */
   coveredBy: string | null;
+}
+/** One thing cooked for a planned meal: a preparation, or the whole recipe. */
+export interface BatchPartDto {
+  /** null: the whole recipe (it has no preparation). */
+  prepId: string | null;
+  mealId: string;
+  name: string;
+  /** Portions of the preparation for this meal: its line × portions planned / servings. */
+  portions: number;
+  fridgeDays: number | null;
+  freezable: boolean;
+  freezerDays: number | null;
 }
 export interface BatchSlotDto {
   date: string;
@@ -148,13 +202,20 @@ export interface BatchUseDto {
   servings: number;
 }
 export interface BatchCookDto {
-  mealId: string;
+  /** The recipe cooked whole (no preparation), else null. */
+  mealId: string | null;
+  /** The preparation cooked (v0.27), else null. */
+  prepId: string | null;
+  /** Name of what is cooked: the preparation, or the recipe. */
   mealName: string;
+  /** Portions of what is cooked (decimal for a preparation, shown rounded). */
   portions: number;
   fridge: BatchUseDto[];
   frozen: BatchUseDto[];
-  /** Quantities to prepare (the recipe scaled to these portions). */
+  /** Quantities to prepare (the recipe scaled to these portions, or the preparation × its portions). */
   ingredients: { name: string; amount: string }[];
+  /** Recipes of the meals it is for (« Utilisée dans »). */
+  usedIn: string[];
 }
 export interface BatchSessionDto extends BatchSlotDto {
   /** Validated plans only. */
@@ -170,9 +231,10 @@ export interface BatchSessionDto extends BatchSlotDto {
 }
 export interface BatchProposalDto {
   sessions: BatchSessionDto[];
-  uncovered: { entryId: string; reason: string }[];
-  /** Ticked meals left out: their recipe has no fridge days. */
-  missing: string[];
+  /** Couples no slot can cover (to cook on the day), with what and why. */
+  uncovered: { entryId: string; prepId: string | null; name: string; reason: string }[];
+  /** Ticked couples left out: no fridge days (the recipe, or the preparation). */
+  missing: { entryId: string; prepId: string | null; name: string }[];
   covered: number;
   total: number;
   tooComplex: boolean;
@@ -203,7 +265,6 @@ export interface BatchStateDto {
 export interface ThawDto {
   /** The day to take it out (the evening before the meal). */
   date: string;
-  mealName: string;
-  forDate: string;
-  forMomentId: string;
+  /** What to take out that evening (preparations, or recipes cooked whole), once each. */
+  names: string[];
 }
