@@ -2,7 +2,7 @@
   "id": "courses",
   "name": "Courses",
   "description": "Ta liste de courses faite à partir des repas : ingrédients (nutrition et prix facultatifs) et recettes importables en JSON, le planning des repas d'une période, la liste générée (quantités additionnées, par rayon), les extras et le résumé de la semaine.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "section": "Vie perso",
   "icon": "shopping-cart",
   "order": 20,

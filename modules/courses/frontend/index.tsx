@@ -2260,7 +2260,11 @@ function Exchange(props: { run: Run }) {
               liste de <code>{'{ "name", "qty", "unit" }'}</code> (par nom ; un nom inconnu est
               proposé à la création), <code>image</code> (facultatif :{' '}
               <code>data:image/jpeg;base64,…</code>, aussi PNG ou WebP ; l’export complet y met
-              l’image de chaque recette ; une image illisible est ignorée, la recette importée).
+              l’image de chaque recette ; une image illisible est ignorée, la recette importée), et,
+              facultatifs aussi, la conservation une fois cuisiné : <code>fridgeDays</code> (jours
+              au frigo), <code>freezable</code> (<code>true</code> / <code>false</code>),{' '}
+              <code>freezerDays</code> (jours au congélateur). Absents, rien ne change (un ancien
+              fichier s’importe comme avant).
             </p>
             {example.data != null && (
               <pre className="cs-code">{JSON.stringify(example.data, null, 2)}</pre>
