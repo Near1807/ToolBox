@@ -60,13 +60,24 @@
   background: var(--surface);
 }
 .cs-slot__add {
-  margin: 4px 0 0;
-}
-.cs-slot__meal {
-  flex: 1;
-  min-width: 90px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  margin: 2px 0 0;
   padding: 3px 6px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-3);
+  font: inherit;
   font-size: 0.82rem;
+  cursor: pointer;
+}
+.cs-slot__add:hover,
+.cs-slot__add:focus-visible {
+  border-color: var(--accent);
+  color: var(--text);
 }
 .cs-entry {
   display: flex;
@@ -535,4 +546,110 @@
   margin: 0;
   padding-left: 18px;
   color: var(--text-2);
+}
+
+/* v0.26: meal picker of the planning, suggestions instead of <datalist>. */
+.cs-picker-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: var(--overlay);
+}
+.cs-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(720px, 100%);
+  /* Always inside the window, whatever the scaling: the list takes what is left. */
+  max-height: calc(100vh - 32px);
+  padding: 16px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-solid);
+  box-shadow: var(--elev-modal);
+}
+.cs-picker__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.cs-picker__head h2 {
+  flex: 1;
+  margin: 0;
+  font-size: 1.1rem;
+}
+.cs-picker__list {
+  flex: 1 1 auto;
+  min-height: 120px;
+  margin: 0;
+  padding: 4px;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.cs-picker__item {
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.cs-picker__item--active {
+  background: var(--accent-soft);
+  outline: 1px solid var(--accent);
+}
+.cs-picker__empty {
+  padding: 12px;
+}
+.cs-picker p {
+  margin: 0;
+}
+.cs-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cs-filters > .cs-row {
+  flex-wrap: wrap;
+}
+.cs-filters input[type='search'] {
+  flex: 1 1 240px;
+}
+.cs-picker__head .input {
+  width: 76px;
+}
+.cs-suggest {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+}
+.cs-suggest .input {
+  width: 100%;
+}
+.cs-suggest__list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  max-height: min(240px, 40vh);
+  margin: 2px 0 0;
+  padding: 4px;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-solid);
+  box-shadow: var(--elev-modal);
+}
+.cs-suggest__list li {
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.cs-suggest__list li:hover,
+.cs-suggest__item--active {
+  background: var(--accent-soft);
 }

@@ -35,6 +35,7 @@ import {
   type Facts,
 } from '../shared/nutrition';
 import type { Preview } from '../shared/exchange';
+import { filterMeals, NO_FILTER, type MealFilter } from '../shared/meal-filter';
 import type {
   IngredientDto,
   ListDto,
@@ -44,6 +45,9 @@ import type {
   StateDto,
   SummaryDto,
 } from '../shared/types';
+import { MealFilters } from './MealFilters';
+import { MealPicker } from './MealPicker';
+import { Suggest } from './Suggest';
 import './courses.css';
 
 type Run = (action: () => Promise<unknown>) => Promise<boolean>;
@@ -200,7 +204,6 @@ function MealPreview(props: { meal: MealDto; state: StateDto; onClose: () => voi
         }
       >
         <div className="cs-preview-meal">
-          {m.image && <img className="cs-preview-meal__image" src={m.image.url} alt={m.name} />}
           <div>
             <p className="small muted">
               Pour {m.servings} portion{m.servings > 1 ? 's' : ''}
@@ -234,34 +237,17 @@ function PlanSlot(props: {
   state: StateDto;
   run: Run;
   onPreview: (mealId: string) => void;
+  onPick: () => void;
 }) {
   const module = useModule();
-  const [meal, setMeal] = useState('');
-  const [servings, setServings] = useState('1');
   const entries = props.state.plan.filter(
     (p) => p.date === props.date && p.momentId === props.moment.id,
   );
   const names = new Map(props.state.meals.map((m) => [m.id, m.name]));
-  const byId = new Map(props.state.meals.map((m) => [m.id, m]));
-  const add = () => {
-    const found = props.state.meals.find((m) => fold(m.name) === fold(meal));
-    if (!found) return;
-    void props
-      .run(() =>
-        module.api.post('/plan', {
-          date: props.date,
-          momentId: props.moment.id,
-          mealId: found.id,
-          servings: Number(servings),
-        }),
-      )
-      .then((ok) => ok && setMeal(''));
-  };
   return (
     <td className="cs-slot">
       {entries.map((p) => (
         <span key={p.id} className="cs-entry">
-          {byId.get(p.mealId) && <MealThumb meal={byId.get(p.mealId)!} />}
           <button
             type="button"
             className="cs-entry__name cs-link"
@@ -296,43 +282,22 @@ function PlanSlot(props: {
           </button>
         </span>
       ))}
-      <span className="cs-row cs-slot__add">
-        <input
-          className="input cs-slot__meal"
-          list="cs-meals"
-          value={meal}
-          placeholder="+ repas"
-          aria-label={`Repas ${props.moment.name} ${props.date}`}
-          onChange={(e) => setMeal(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && add()}
-        />
-        {meal && (
-          <>
-            <input
-              className="input cs-entry__servings num"
-              type="number"
-              min={0.5}
-              step={0.5}
-              value={servings}
-              onChange={(e) => setServings(e.target.value)}
-              aria-label="Portions"
-            />
-            <Button
-              small
-              onClick={add}
-              disabled={!props.state.meals.some((m) => fold(m.name) === fold(meal))}
-            >
-              OK
-            </Button>
-          </>
-        )}
-      </span>
+      <button
+        type="button"
+        className="cs-slot__add"
+        aria-label={`Ajouter un repas : ${dayLabel(props.date)} · ${props.moment.name}`}
+        onClick={props.onPick}
+      >
+        <Icon name="plus" /> repas
+      </button>
     </td>
   );
 }
 
 function Planning(props: { state: StateDto; summary: SummaryDto | null; run: Run }) {
+  const module = useModule();
   const [preview, setPreview] = useState<string | null>(null);
+  const [picking, setPicking] = useState<{ date: string; moment: MomentDto } | null>(null);
   const { state, summary } = props;
   const dayFacts = new Map((summary?.days ?? []).map((d) => [d.date, d]));
   const days = daysBetween(state.list.from, state.list.to);
@@ -344,11 +309,6 @@ function Planning(props: { state: StateDto; summary: SummaryDto | null; run: Run
     );
   return (
     <>
-      <datalist id="cs-meals">
-        {state.meals.map((m) => (
-          <option key={m.id} value={m.name} />
-        ))}
-      </datalist>
       <div className="cs-plan-wrap">
         <table className="cs-plan">
           <thead>
@@ -374,6 +334,7 @@ function Planning(props: { state: StateDto; summary: SummaryDto | null; run: Run
                     state={state}
                     run={props.run}
                     onPreview={setPreview}
+                    onPick={() => setPicking({ date: d, moment: m })}
                   />
                 ))}
                 <td className="cs-plan__facts small">
@@ -392,6 +353,23 @@ function Planning(props: { state: StateDto; summary: SummaryDto | null; run: Run
           </tbody>
         </table>
       </div>
+      {picking && (
+        <MealPicker
+          state={state}
+          slotLabel={`${dayLabel(picking.date)} · ${picking.moment.name}`}
+          onClose={() => setPicking(null)}
+          onChoose={(mealId, servings) =>
+            props.run(() =>
+              module.api.post('/plan', {
+                date: picking.date,
+                momentId: picking.moment.id,
+                mealId,
+                servings,
+              }),
+            )
+          }
+        />
+      )}
       {preview && state.meals.find((m) => m.id === preview) && (
         <MealPreview
           meal={state.meals.find((m) => m.id === preview)!}
@@ -814,6 +792,7 @@ function MealEditor(props: {
 }) {
   const module = useModule();
   const byId = new Map(props.state.ingredients.map((i) => [i.id, i]));
+  const ingredientNames = props.state.ingredients.map((i) => i.name);
   const [name, setName] = useState(props.meal?.name ?? '');
   const [servings, setServings] = useState(String(props.meal?.servings ?? 2));
   const [tags, setTags] = useState((props.meal?.tags ?? []).join(', '));
@@ -869,11 +848,6 @@ function MealEditor(props: {
       .then((ok) => ok && props.onDone());
   return (
     <Card title={props.meal ? `Modifier « ${props.meal.name} »` : 'Nouveau repas'}>
-      <datalist id="cs-ingredients">
-        {props.state.ingredients.map((i) => (
-          <option key={i.id} value={i.name} />
-        ))}
-      </datalist>
       <div className="cs-form">
         <MealImageField
           meal={current}
@@ -913,13 +887,13 @@ function MealEditor(props: {
         <h4>Ingrédients</h4>
         {lines.map((l, i) => (
           <div key={i} className="cs-row">
-            <input
-              className="input cs-grow"
-              list="cs-ingredients"
+            <Suggest
+              className="cs-grow"
               value={l.name}
+              options={ingredientNames}
               placeholder="Ingrédient"
-              aria-label="Ingrédient"
-              onChange={(e) => pick(i, e.target.value)}
+              ariaLabel="Ingrédient"
+              onChange={(value) => pick(i, value)}
             />
             <input
               className="input input--short num"
@@ -989,10 +963,8 @@ function MealEditor(props: {
 
 function Meals(props: { state: StateDto; run: Run; onDeleted: (m: MealDto) => void }) {
   const module = useModule();
-  const [q, setQ] = useState('');
-  const [tag, setTag] = useState<string | null>(null);
+  const [filter, setFilter] = useState<MealFilter>(NO_FILTER);
   const [editing, setEditing] = useState<MealDto | 'new' | null>(null);
-  const [sort, setSort] = useState<'name' | 'cost' | 'protein'>('name');
   const [view, setView] = useState<'grid' | 'list'>(() => {
     try {
       return localStorage.getItem('toolbox.courses.mealsView') === 'list' ? 'list' : 'grid';
@@ -1008,26 +980,9 @@ function Meals(props: { state: StateDto; run: Run; onDeleted: (m: MealDto) => vo
       // Not remembered: the choice still applies now.
     }
   };
-  const [maxCost, setMaxCost] = useState('');
   const names = new Map(props.state.ingredients.map((i) => [i.id, i.name]));
   const tags = [...new Set(props.state.meals.flatMap((m) => m.tags))].sort();
-  const limit = Number(maxCost.replace(',', '.'));
-  const shown = props.state.meals
-    .filter(
-      (m) =>
-        (!tag || m.tags.includes(tag)) &&
-        (!maxCost.trim() || !(limit >= 0) || m.perServing.cost.euros <= limit) &&
-        fold(
-          `${m.name} ${m.tags.join(' ')} ${m.items.map((i) => names.get(i.ingredientId)).join(' ')}`,
-        ).includes(fold(q)),
-    )
-    .sort((a, b) =>
-      sort === 'cost'
-        ? a.perServing.cost.euros - b.perServing.cost.euros
-        : sort === 'protein'
-          ? b.perServing.nutrition.values.protein - a.perServing.nutrition.values.protein
-          : 0,
-    );
+  const shown = filterMeals(props.state.meals, names, filter);
   if (editing)
     return (
       <MealEditor
@@ -1039,36 +994,7 @@ function Meals(props: { state: StateDto; run: Run; onDeleted: (m: MealDto) => vo
     );
   return (
     <>
-      <div className="cs-row">
-        <input
-          className="input cs-grow"
-          type="search"
-          value={q}
-          placeholder="Rechercher un repas ou un ingrédient"
-          aria-label="Rechercher"
-          onChange={(e) => setQ(e.target.value)}
-        />
-        <select
-          className="input"
-          value={sort}
-          aria-label="Trier"
-          onChange={(e) => setSort(e.target.value as typeof sort)}
-        >
-          <option value="name">Trier par nom</option>
-          <option value="cost">Moins chers d’abord</option>
-          <option value="protein">Plus protéinés d’abord</option>
-        </select>
-        <label className="small">
-          Max{' '}
-          <input
-            className="input input--tiny num"
-            value={maxCost}
-            placeholder="€"
-            aria-label="Coût maximal par portion"
-            onChange={(e) => setMaxCost(e.target.value)}
-          />{' '}
-          € / portion
-        </label>
+      <MealFilters filter={filter} onChange={setFilter} tags={tags}>
         <span className="cs-view" role="group" aria-label="Affichage">
           <button
             type="button"
@@ -1090,22 +1016,7 @@ function Meals(props: { state: StateDto; run: Run; onDeleted: (m: MealDto) => vo
           </button>
         </span>
         <Button onClick={() => setEditing('new')}>Nouveau repas</Button>
-      </div>
-      {tags.length > 0 && (
-        <div className="cs-row">
-          {tags.map((t) => (
-            <button
-              key={t}
-              type="button"
-              className={`cs-chip${tag === t ? ' cs-chip--on' : ''}`}
-              aria-pressed={tag === t}
-              onClick={() => setTag(tag === t ? null : t)}
-            >
-              #{t}
-            </button>
-          ))}
-        </div>
-      )}
+      </MealFilters>
       {shown.length === 0 ? (
         <EmptyState
           title={
@@ -1321,6 +1232,21 @@ function IngredientFacts(props: { ingredient: IngredientDto; run: Run; onDone: (
   );
 }
 
+/** The aisle of an ingredient: suggestions from the other aisles, saved when the field is left. */
+function AisleField(props: { aisle: string; aisles: string[]; onCommit: (aisle: string) => void }) {
+  const [value, setValue] = useState(props.aisle);
+  return (
+    <Suggest
+      value={value}
+      onChange={setValue}
+      options={props.aisles}
+      placeholder="ex. Frais"
+      ariaLabel="Rayon"
+      onCommit={props.onCommit}
+    />
+  );
+}
+
 function Ingredients(props: { state: StateDto; run: Run }) {
   const module = useModule();
   const [q, setQ] = useState('');
@@ -1334,6 +1260,9 @@ function Ingredients(props: { state: StateDto; run: Run }) {
       for (const i of m.items) n.set(i.ingredientId, (n.get(i.ingredientId) ?? 0) + 1);
     return n;
   }, [props.state.meals]);
+  const aisles = [...new Set(props.state.ingredients.map((i) => i.aisle).filter(Boolean))].sort(
+    (a, b) => a.localeCompare(b, 'fr'),
+  );
   const similar = props.state.ingredients.filter(
     (i) => name.trim() && fold(i.name).includes(fold(name)),
   );
@@ -1432,15 +1361,10 @@ function Ingredients(props: { state: StateDto; run: Run }) {
                     </select>
                   </td>
                   <td>
-                    <input
-                      className="input"
-                      defaultValue={i.aisle}
-                      placeholder="ex. Frais"
-                      list="cs-aisles"
-                      aria-label="Rayon"
-                      onBlur={(e) =>
-                        e.target.value !== i.aisle && patch(i, { aisle: e.target.value })
-                      }
+                    <AisleField
+                      aisle={i.aisle}
+                      aisles={aisles}
+                      onCommit={(aisle) => aisle !== i.aisle && patch(i, { aisle })}
                     />
                   </td>
                   <td className="num">{uses.get(i.id) ?? 0}</td>
@@ -1527,11 +1451,6 @@ function Ingredients(props: { state: StateDto; run: Run }) {
             ))}
         </tbody>
       </table>
-      <datalist id="cs-aisles">
-        {[...new Set(props.state.ingredients.map((i) => i.aisle).filter(Boolean))].map((a) => (
-          <option key={a} value={a} />
-        ))}
-      </datalist>
     </>
   );
 }
