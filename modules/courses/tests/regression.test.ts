@@ -187,7 +187,7 @@ function relative(value: unknown, monday: string): unknown {
 
 type Snapshot = Record<string, unknown> & { thaw: unknown[] };
 /**
- * The v0.27 answers in the v0.26 shape: only what v0.27 ADDED is left out
+ * The answers in the v0.26 shape: only what v0.27 and v0.28 ADDED is left out
  * (the parts of a planned meal, the preparation of a cooking, « Utilisée
  * dans », what and which preparation for a meal to cook on the day or left
  * out). Everything else must be strictly the same.
@@ -203,6 +203,10 @@ function asV026(value: unknown): Snapshot {
     const out: Record<string, unknown> = {};
     for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
       if (k === 'parts' || k === 'prepId' || k === 'usedIn') continue;
+      // v0.28: what « Pourrait aussi servir » needs, the recipe of each use, meals before the period.
+      if (k === 'basis' || k === 'suggestions' || k === 'facts') continue;
+      if (key === 'entries[]' && k === 'beforePeriod') continue;
+      if ((key === 'fridge[]' || key === 'frozen[]') && k === 'mealName') continue;
       if (key === 'uncovered[]' && k === 'name') continue;
       out[k] = walk(x, k);
     }

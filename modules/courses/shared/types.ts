@@ -176,8 +176,10 @@ export interface BatchEntryDto {
    * split recipe, else the whole recipe (one part, the fields above).
    */
   parts: BatchPartDto[];
-  /** Already covered by this validated plan (not tickable). */
+  /** Covered by this validated plan for all its parts (not tickable). */
   coveredBy: string | null;
+  /** v0.28: planned in the days before the period (listed only when sessions may be before it). */
+  beforePeriod?: boolean;
 }
 /** One thing cooked for a planned meal: a preparation, or the whole recipe. */
 export interface BatchPartDto {
@@ -190,6 +192,8 @@ export interface BatchPartDto {
   fridgeDays: number | null;
   freezable: boolean;
   freezerDays: number | null;
+  /** v0.28: covered by this validated plan (this part only), else null. */
+  coveredBy?: string | null;
 }
 export interface BatchSlotDto {
   date: string;
@@ -199,8 +203,31 @@ export interface BatchUseDto {
   entryId: string;
   date: string;
   momentId: string;
+  /** Portions of what is cooked for this meal. */
   servings: number;
+  /** Recipe of the meal (« pour : mar. soir (Chili) »). */
+  mealName?: string;
+  /** Added from « Pourrait aussi servir » (not from the calculation): can be taken back. */
+  added?: boolean;
 }
+/**
+ * « Pourrait aussi servir » (v0.28): a planned meal NOT ticked for this
+ * preparation (or this whole recipe) that this very cooking can cover by the
+ * same rules: cooking a little more, no new session, no new cooking.
+ */
+export interface BatchSuggestionDto extends BatchUseDto {
+  mealName: string;
+  /** Beyond the fridge days: frozen (taken out the evening before). */
+  frozen: boolean;
+}
+/** What a cooking is made of, to recompute its quantities for other portions (same functions as the server). */
+export type CookBasis =
+  | { kind: 'prep'; items: { ingredientId: string; qty: number; unit: string }[] }
+  | {
+      kind: 'meal';
+      servings: number;
+      items: { ingredientId: string; qty: number; unit: string }[];
+    };
 export interface BatchCookDto {
   /** The recipe cooked whole (no preparation), else null. */
   mealId: string | null;
@@ -216,6 +243,10 @@ export interface BatchCookDto {
   ingredients: { name: string; amount: string }[];
   /** Recipes of the meals it is for (« Utilisée dans »). */
   usedIn: string[];
+  /** v0.28: proposals only, to recompute the quantities after « Ajouter ». */
+  basis?: CookBasis;
+  /** v0.28: proposals only, « Pourrait aussi servir » (empty: nothing shown). */
+  suggestions?: BatchSuggestionDto[];
 }
 export interface BatchSessionDto extends BatchSlotDto {
   /** Validated plans only. */
@@ -238,6 +269,19 @@ export interface BatchProposalDto {
   covered: number;
   total: number;
   tooComplex: boolean;
+  /** v0.28: names and piece weights of the ingredients of the cookings (quantities after « Ajouter »). */
+  facts?: {
+    names: Record<string, string>;
+    pieces: Record<string, { unit: string; pieceG: number | null }>;
+  };
+}
+/** « Ajouter » a suggestion: this meal joins this cooking of this session. */
+export interface BatchAdditionDto {
+  date: string;
+  momentId: string;
+  /** The cooking: `prep:<id>` or `meal:<id>`. */
+  cook: string;
+  entryId: string;
 }
 export interface BatchPlanDto {
   id: string;

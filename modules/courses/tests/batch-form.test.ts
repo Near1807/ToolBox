@@ -42,7 +42,8 @@ const entries = [
   entry('soupe', '2026-11-05', { batchTag: true, coveredBy: 'plan-1' }),
   entry('salade', '2026-11-06'),
 ];
-const ids = (s: Set<string>) => [...s].sort();
+// v0.28: the selection holds couples « entry|part »; the meals they belong to.
+const ids = (s: Set<string>) => [...new Set([...s].map((k) => k.split('|')[0]!))].sort();
 
 describe('batch form, step 1', () => {
   it('pre-ticked by the tag, except meals already covered', () => {

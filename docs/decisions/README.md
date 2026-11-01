@@ -60,3 +60,4 @@ Modèle :
 | 0039 | [La fenêtre flottante prend le clavier par étapes, et le dit quand elle n'y arrive pas](0039-clavier-de-la-fenetre-flottante.md)     |
 | 0040 | [Batch cooking : un calcul exact qui propose, des plans validés qui ne touchent à rien](0040-batch-cooking.md)                       |
 | 0041 | [Préparations : une seule fonction de dépliage, et le batch par préparation](0041-preparations.md)                                   |
+| 0042 | [Batch : « Pourrait aussi servir », un gain pur, et l'inclusion par préparation](0042-batch-suggestions.md)                          |

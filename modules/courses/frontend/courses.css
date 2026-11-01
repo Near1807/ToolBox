@@ -809,3 +809,28 @@
 .cs-prep-help {
   margin-bottom: 12px;
 }
+
+/* « Pourrait aussi servir » (v0.28). */
+.cs-batch-for {
+  margin: 2px 0 0;
+}
+.cs-batch-suggest {
+  margin: 4px 0 6px;
+  padding: 6px 10px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+}
+.cs-batch-suggest ul {
+  margin: 4px 0;
+  padding-left: 16px;
+}
+.cs-batch-suggest li {
+  margin: 2px 0;
+}
+.cs-batch-partial {
+  color: var(--accent);
+}
+.cs-batch-entries__head {
+  text-align: left;
+  padding-top: 8px;
+}
