@@ -62,6 +62,7 @@ import {
   toDataUrl,
   type StoredImage,
 } from './images';
+import { createBatch } from './batch';
 import type {
   DayFacts,
   Goals,
@@ -701,10 +702,26 @@ export default defineBackendModule({
       };
     };
 
+    const batch = createBatch({
+      ctx,
+      store,
+      live,
+      meals: () => meals(),
+      moments,
+      planBetween,
+      ingredientNames: () => new Map(ingredients().map((i) => [i.id, i.name])),
+      pieceWeights: () => pieceWeights(allFacts()),
+      period: () => {
+        const list = currentList();
+        return { from: list.date_from, to: list.date_to };
+      },
+    });
+
     const state = (): StateDto => {
       const list = currentList();
       const facts = allFacts();
       return {
+        thaw: batch.thaw(list.date_from, list.date_to),
         today: today(),
         ingredients: ingredients(),
         meals: meals(facts),
@@ -1427,7 +1444,7 @@ export default defineBackendModule({
       events: (from, to) => {
         const m = new Map(moments().map((x) => [x.id, x]));
         const names = new Map(meals().map((x) => [x.id, x.name]));
-        return planBetween(from, to).map((p) => {
+        const planned = planBetween(from, to).map((p) => {
           const moment = m.get(p.momentId);
           return {
             id: p.id,
@@ -1438,6 +1455,8 @@ export default defineBackendModule({
             status: `${String(p.servings).replace('.', ',')} portion${p.servings > 1 ? 's' : ''}`,
           };
         });
+        // Batch cooking sessions: validated plans only.
+        return [...planned, ...batch.calendarEvents(from, to)];
       },
     });
 

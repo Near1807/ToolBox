@@ -81,6 +81,8 @@ export interface StateDto {
   /** Planned meals of the list's period. */
   plan: PlanDto[];
   list: ListDto;
+  /** Validated batch plans: frozen portions to take out the evening before (read only). */
+  thaw: ThawDto[];
 }
 
 /** A list of an earlier period, as it was when its period changed. */
@@ -115,4 +117,93 @@ export interface SummaryDto {
   /** Planned meals by protein per portion (most first). */
   meals: { id: string; name: string; proteinPerServing: number; missing: boolean }[];
   goals: Goals;
+}
+
+// --- Batch cooking ---------------------------------------------------------------
+
+/** A planned meal of the period, as the batch form lists it. */
+export interface BatchEntryDto {
+  entryId: string;
+  date: string;
+  momentId: string;
+  mealId: string;
+  mealName: string;
+  servings: number;
+  /** The recipe has the tag « batch » (pre-ticked; accents and case ignored). */
+  batchTag: boolean;
+  fridgeDays: number | null;
+  freezable: boolean;
+  freezerDays: number | null;
+  /** Already covered by this validated plan (not tickable). */
+  coveredBy: string | null;
+}
+export interface BatchSlotDto {
+  date: string;
+  momentId: string;
+}
+export interface BatchUseDto {
+  entryId: string;
+  date: string;
+  momentId: string;
+  servings: number;
+}
+export interface BatchCookDto {
+  mealId: string;
+  mealName: string;
+  portions: number;
+  fridge: BatchUseDto[];
+  frozen: BatchUseDto[];
+  /** Quantities to prepare (the recipe scaled to these portions). */
+  ingredients: { name: string; amount: string }[];
+}
+export interface BatchSessionDto extends BatchSlotDto {
+  /** Validated plans only. */
+  id?: string;
+  /** Before the period: its ingredients are bought before that day (indication only). */
+  beforePeriod: boolean;
+  /** Validated plans only: free, empty by default. */
+  startTime?: string | null;
+  durationMin?: number | null;
+  cooks: BatchCookDto[];
+  /** Another validated plan already has a session on this slot (never merged). */
+  warnings: string[];
+}
+export interface BatchProposalDto {
+  sessions: BatchSessionDto[];
+  uncovered: { entryId: string; reason: string }[];
+  /** Ticked meals left out: their recipe has no fridge days. */
+  missing: string[];
+  covered: number;
+  total: number;
+  tooComplex: boolean;
+}
+export interface BatchPlanDto {
+  id: string;
+  createdAt: string;
+  freezer: boolean;
+  daysBefore: number;
+  /** The grid really used (dates and slots ticked). */
+  grid: { dates: string[]; slots: BatchSlotDto[] };
+  sessions: BatchSessionDto[];
+  /** The planning changed since the validation (meal removed, moved, portions changed). */
+  changes: string[];
+}
+export interface BatchStateDto {
+  from: string;
+  to: string;
+  moments: MomentDto[];
+  /** Setting « Sessions jusqu'à N jours avant la période » (0 by default). */
+  daysBefore: number;
+  /** Saved cooking slots of this period (dates shown then), else the usual model laid on it. */
+  grid: { dates: string[]; slots: BatchSlotDto[]; saved: boolean };
+  entries: BatchEntryDto[];
+  plans: BatchPlanDto[];
+}
+/** « Sortir du congélateur » the evening before a frozen portion (validated plans only). */
+export interface ThawDto {
+  /** The day to take it out (the evening before the meal). */
+  date: string;
+  mealName: string;
+  forDate: string;
+  forMomentId: string;
 }
