@@ -58,3 +58,4 @@ Modèle :
 | 0037 | [Barre de commande écrite de l'assistant : même chemin que la voix, touche partagée possible](0037-barre-de-commande-ecrite.md)      |
 | 0038 | [Boîte à idées : un module à part, pas une variante de la To-do](0038-boite-a-idees.md)                                              |
 | 0039 | [La fenêtre flottante prend le clavier par étapes, et le dit quand elle n'y arrive pas](0039-clavier-de-la-fenetre-flottante.md)     |
+| 0040 | [Batch cooking : un calcul exact qui propose, des plans validés qui ne touchent à rien](0040-batch-cooking.md)                       |

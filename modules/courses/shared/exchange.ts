@@ -33,6 +33,13 @@ export interface ExchangeRecipe {
   ingredients: { name: string; qty: number; unit: string }[];
   /** Optional picture: `data:image/jpeg;base64,…` (also PNG, WebP). */
   image?: string | null;
+  /**
+   * Keeping once cooked (batch cooking), each optional: absent from the file =
+   * not given (an import leaves the recipe's value as it is); null = unknown.
+   */
+  fridgeDays?: number | null;
+  freezable?: boolean;
+  freezerDays?: number | null;
 }
 export interface ExchangeFile {
   format: typeof FORMAT;
@@ -277,6 +284,23 @@ export function parseExchange(text: string): Parsed {
     const tags = Array.isArray(v.tags)
       ? [...new Set((v.tags as unknown[]).map((t) => str(t, 30).replace(/^#/, '')).filter(Boolean))]
       : [];
+    // Keeping (optional, never invented): only what the file gives.
+    const keep: Pick<ExchangeRecipe, 'fridgeDays' | 'freezable' | 'freezerDays'> = {};
+    for (const key of ['fridgeDays', 'freezerDays'] as const) {
+      if (v[key] === undefined) continue;
+      if (v[key] === null || v[key] === '') {
+        keep[key] = null;
+        continue;
+      }
+      const days = num(v[key]);
+      if (days === null || !Number.isInteger(days) || days < 0 || days > 3650)
+        return fail(`« ${key} » : un nombre entier de jours (0 à 3650), ou null`);
+      keep[key] = days;
+    }
+    if (v.freezable !== undefined) {
+      if (typeof v.freezable !== 'boolean') return fail('« freezable » : true ou false');
+      keep.freezable = v.freezable;
+    }
     let image: string | null = null;
     if (v.image !== undefined && v.image !== null && v.image !== '') {
       if (
@@ -302,6 +326,7 @@ export function parseExchange(text: string): Parsed {
       ingredients: items,
       line,
       image,
+      ...keep,
     });
   });
   if (!ingredients.length && !recipes.length && !result.errors.length)
@@ -323,7 +348,14 @@ export type IngredientStatus = 'new' | 'same' | 'differs';
 export type RecipeStatus = 'new' | 'same' | 'differs';
 export interface Preview {
   ingredients: { name: string; line: number | null; status: IngredientStatus; changes: string[] }[];
-  recipes: { name: string; line: number | null; status: RecipeStatus; unknown: string[] }[];
+  recipes: {
+    name: string;
+    line: number | null;
+    status: RecipeStatus;
+    unknown: string[];
+    /** What the file would change in the recipe (shown before replacing it). */
+    changes: string[];
+  }[];
   /** Ingredients named in recipes, unknown in ToolBox and in the file: offered for creation (with the unit first seen). */
   toCreate: { name: string; unit: string }[];
   errors: ParseError[];
@@ -353,13 +385,27 @@ export function ingredientChanges(before: ExchangeIngredient, after: ExchangeIng
   return changes;
 }
 
-const recipeKey = (r: ExchangeRecipe) =>
-  JSON.stringify([
-    r.servings,
-    [...r.tags].sort(),
-    r.note,
-    r.ingredients.map((i) => [fold(i.name), i.qty, i.unit]),
-  ]);
+const days = (n: number | null | undefined) => (n === null || n === undefined ? '—' : `${n} j`);
+
+/** The fields of an existing recipe the file would change (keeping only when the file gives it). */
+export function recipeChanges(before: ExchangeRecipe, after: ExchangeRecipe): string[] {
+  const changes: string[] = [];
+  if (before.servings !== after.servings)
+    changes.push(`portions ${before.servings} → ${after.servings}`);
+  if (JSON.stringify([...before.tags].sort()) !== JSON.stringify([...after.tags].sort()))
+    changes.push('tags');
+  if (before.note !== after.note) changes.push('note');
+  const lines = (r: ExchangeRecipe) =>
+    JSON.stringify(r.ingredients.map((i) => [fold(i.name), i.qty, i.unit]));
+  if (lines(before) !== lines(after)) changes.push('ingrédients');
+  if (after.fridgeDays !== undefined && (before.fridgeDays ?? null) !== after.fridgeDays)
+    changes.push(`frigo ${days(before.fridgeDays)} → ${days(after.fridgeDays)}`);
+  if (after.freezable !== undefined && (before.freezable ?? false) !== after.freezable)
+    changes.push(after.freezable ? 'devient congelable' : 'n’est plus congelable');
+  if (after.freezerDays !== undefined && (before.freezerDays ?? null) !== after.freezerDays)
+    changes.push(`congélateur ${days(before.freezerDays)} → ${days(after.freezerDays)}`);
+  return changes;
+}
 
 /** What an import would do, compared with what ToolBox already has. Writes nothing. */
 export function previewImport(parsed: Parsed, existing: Existing): Preview {
@@ -388,12 +434,9 @@ export function previewImport(parsed: Parsed, existing: Existing): Preview {
           return i.name;
         });
       const before = knownRecipes.get(fold(r.name));
-      const status: RecipeStatus = !before
-        ? 'new'
-        : recipeKey(before) === recipeKey(r)
-          ? 'same'
-          : 'differs';
-      return { name: r.name, line: r.line, status, unknown };
+      const changes = before ? recipeChanges(before, r) : [];
+      const status: RecipeStatus = !before ? 'new' : changes.length ? 'differs' : 'same';
+      return { name: r.name, line: r.line, status, unknown, changes };
     }),
     toCreate: [...toCreate.values()],
     errors: parsed.errors,

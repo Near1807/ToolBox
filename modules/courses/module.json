@@ -2,7 +2,7 @@
   "id": "courses",
   "name": "Courses",
   "description": "Ta liste de courses faite à partir des repas : ingrédients (nutrition et prix facultatifs) et recettes importables en JSON, le planning des repas d'une période, la liste générée (quantités additionnées, par rayon), les extras et le résumé de la semaine.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "section": "Vie perso",
   "icon": "shopping-cart",
   "order": 20,
@@ -36,6 +36,24 @@
       "max": 100000,
       "step": 1,
       "default": 0
+    },
+    {
+      "key": "batchDaysBefore",
+      "type": "number",
+      "label": "Batch cooking : sessions jusqu'à N jours avant la période",
+      "description": "0 par défaut : aucune session avant le premier jour de la période. Valeur de départ du formulaire de calcul, modifiable à chaque calcul (de 0 à 7).",
+      "min": 0,
+      "max": 7,
+      "step": 1,
+      "default": 0
+    },
+    {
+      "key": "batchGridModel",
+      "type": "text",
+      "label": "Batch cooking : créneaux de cuisine habituels",
+      "description": "Modèle de la grille (jour de la semaine × moment), modifié par « Retenir comme habituels » dans l'onglet Batch.",
+      "hidden": true,
+      "default": "{}"
     }
   ]
 }

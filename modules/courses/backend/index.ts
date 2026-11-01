@@ -62,6 +62,7 @@ import {
   toDataUrl,
   type StoredImage,
 } from './images';
+import { createBatch } from './batch';
 import type {
   DayFacts,
   Goals,
@@ -109,6 +110,10 @@ interface MealRow extends Base {
   servings: number;
   tags: string;
   note: string;
+  /** Keeping once cooked (batch cooking), all optional: days in the fridge, freezable, days frozen. */
+  fridge_days: number | null;
+  freezable: number;
+  freezer_days: number | null;
 }
 interface ImageRow extends Base {
   meal_id: string;
@@ -273,6 +278,25 @@ export default defineBackendModule({
           }
         }
       },
+    },
+    {
+      version: 4,
+      description:
+        'batch cooking: keeping of a recipe (fridge, freezer); cooking slots of a period; validated plans',
+      // Columns added only: no existing row changes (fridge_days and freezer_days empty, not freezable).
+      up: `
+        ALTER TABLE courses__meals ADD COLUMN fridge_days INTEGER;
+        ALTER TABLE courses__meals ADD COLUMN freezable INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE courses__meals ADD COLUMN freezer_days INTEGER;
+        CREATE TABLE courses__batch_grids (${SYNC_COLUMNS}, date_from TEXT NOT NULL, date_to TEXT NOT NULL, slots TEXT NOT NULL DEFAULT '[]');
+        CREATE INDEX courses__batch_grids_period ON courses__batch_grids (date_from, date_to);
+        CREATE TABLE courses__batch_plans (${SYNC_COLUMNS}, date_from TEXT NOT NULL, date_to TEXT NOT NULL, freezer INTEGER NOT NULL, days_before INTEGER NOT NULL, grid TEXT NOT NULL);
+        CREATE TABLE courses__batch_sessions (${SYNC_COLUMNS}, plan_id TEXT NOT NULL, date TEXT NOT NULL, moment_id TEXT NOT NULL, start_time TEXT, duration_min INTEGER);
+        CREATE INDEX courses__batch_sessions_plan ON courses__batch_sessions (plan_id);
+        CREATE TABLE courses__batch_portions (${SYNC_COLUMNS}, session_id TEXT NOT NULL, plan_entry_id TEXT NOT NULL, meal_id TEXT NOT NULL, date TEXT NOT NULL, moment_id TEXT NOT NULL, servings REAL NOT NULL, frozen INTEGER NOT NULL);
+        CREATE INDEX courses__batch_portions_session ON courses__batch_portions (session_id);
+        CREATE INDEX courses__batch_portions_entry ON courses__batch_portions (plan_entry_id);
+      `,
     },
   ],
 
@@ -459,6 +483,9 @@ export default defineBackendModule({
             servings: r.servings,
             tags: JSON.parse(r.tags) as string[],
             note: r.note,
+            fridgeDays: r.fridge_days,
+            freezable: r.freezable === 1,
+            freezerDays: r.freezable === 1 ? r.freezer_days : null,
             items: lines,
             perServing: { nutrition: nutritionOf(one, facts), cost: costOf(one, facts) },
             image: imageDto(images.get(r.id)),
@@ -675,10 +702,26 @@ export default defineBackendModule({
       };
     };
 
+    const batch = createBatch({
+      ctx,
+      store,
+      live,
+      meals: () => meals(),
+      moments,
+      planBetween,
+      ingredientNames: () => new Map(ingredients().map((i) => [i.id, i.name])),
+      pieceWeights: () => pieceWeights(allFacts()),
+      period: () => {
+        const list = currentList();
+        return { from: list.date_from, to: list.date_to };
+      },
+    });
+
     const state = (): StateDto => {
       const list = currentList();
       const facts = allFacts();
       return {
+        thaw: batch.thaw(list.date_from, list.date_to),
         today: today(),
         ingredients: ingredients(),
         meals: meals(facts),
@@ -767,6 +810,32 @@ export default defineBackendModule({
         }
         store.create('meal_items', { meal_id: mealId, ingredient_id: ingredientId, qty, unit });
       }
+    };
+    /** Days of keeping (optional): empty = unknown, else a whole number of days. */
+    const daysFrom = (value: unknown, what: string): number | null => {
+      if (value === null || value === undefined || value === '') return null;
+      const n = Number(value);
+      if (!(Number.isInteger(n) && n >= 0 && n <= 3650))
+        throw new HttpError(400, `${what} : un nombre entier de jours (0 à 3650), ou vide`);
+      return n;
+    };
+    /** Keeping of a recipe; fields not sent keep their value (or stay empty for a new one). */
+    const keepFields = (body: Record<string, unknown>, current?: MealRow) => {
+      const freezable =
+        'freezable' in body ? body.freezable === true : (current?.freezable ?? 0) === 1;
+      return {
+        fridge_days:
+          'fridgeDays' in body
+            ? daysFrom(body.fridgeDays, 'Frigo')
+            : (current?.fridge_days ?? null),
+        freezable: freezable ? 1 : 0,
+        // Only for a freezable recipe: else forgotten (not kept hidden).
+        freezer_days: !freezable
+          ? null
+          : 'freezerDays' in body
+            ? daysFrom(body.freezerDays, 'Congélateur')
+            : (current?.freezer_days ?? null),
+      };
     };
     const mealFields = (body: Record<string, unknown>) => {
       const servings = Number(body.servings ?? 1);
@@ -893,16 +962,16 @@ export default defineBackendModule({
 
     ctx.routes.post('/meals', (request) => {
       const body = requestBody(request);
-      const meal = store.create<MealRow>('meals', mealFields(body));
+      const meal = store.create<MealRow>('meals', { ...mealFields(body), ...keepFields(body) });
       saveItems(meal.id, body.items ?? []);
       return { id: meal.id };
     });
     ctx.routes.put('/meals/:id', (request) => {
       const id = (request.params as { id: string }).id;
-      mealOf(id);
+      const current = mealOf(id);
       const body = requestBody(request);
       ctx.db.transaction(() => {
-        store.update('meals', id, mealFields(body));
+        store.update('meals', id, { ...mealFields(body), ...keepFields(body, current) });
         saveItems(id, body.items ?? []);
       });
       return { id };
@@ -1189,6 +1258,9 @@ export default defineBackendModule({
           servings: m.servings,
           tags: m.tags,
           note: m.note,
+          fridgeDays: m.fridgeDays,
+          freezable: m.freezable,
+          freezerDays: m.freezerDays,
           ingredients: m.items.map((it) => ({
             name: names.get(it.ingredientId) ?? 'Ingrédient supprimé',
             qty: it.qty,
@@ -1296,12 +1368,15 @@ export default defineBackendModule({
               qty: it.qty,
               unit: it.unit,
             }));
-            const fields = mealFields({
-              name: r.name,
-              servings: r.servings,
-              tags: r.tags,
-              note: r.note,
-            });
+            // Keeping: only what the file gives (an older file leaves it as it is).
+            const keep: Record<string, unknown> = {};
+            if (r.fridgeDays !== undefined) keep.fridgeDays = r.fridgeDays;
+            if (r.freezable !== undefined) keep.freezable = r.freezable;
+            if (r.freezerDays !== undefined) keep.freezerDays = r.freezerDays;
+            const fields = {
+              ...mealFields({ name: r.name, servings: r.servings, tags: r.tags, note: r.note }),
+              ...keepFields(keep, before),
+            };
             if (before) {
               store.update('meals', before.id, fields);
               saveItems(before.id, items);
@@ -1369,7 +1444,7 @@ export default defineBackendModule({
       events: (from, to) => {
         const m = new Map(moments().map((x) => [x.id, x]));
         const names = new Map(meals().map((x) => [x.id, x.name]));
-        return planBetween(from, to).map((p) => {
+        const planned = planBetween(from, to).map((p) => {
           const moment = m.get(p.momentId);
           return {
             id: p.id,
@@ -1380,6 +1455,8 @@ export default defineBackendModule({
             status: `${String(p.servings).replace('.', ',')} portion${p.servings > 1 ? 's' : ''}`,
           };
         });
+        // Batch cooking sessions: validated plans only.
+        return [...planned, ...batch.calendarEvents(from, to)];
       },
     });
 

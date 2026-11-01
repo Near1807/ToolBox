@@ -4,6 +4,25 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.26.0] — 2026-11-01
+
+Session « Courses : corrections du planning et batch cooking ».
+
+### Ajouté
+
+- Courses, onglet **Batch** (facultatif ; il propose, ne modifie rien) : formulaire en trois étapes (repas à couvrir pré-cochés par le tag « batch », grille jours × moments des créneaux de cuisine avec modèle habituel, options congélation et « sessions jusqu'à N jours avant »), calcul exact au clic, proposition détaillée (frigo, congélateur, quantités à préparer, à cuisiner le jour même avec la raison), plans validés (plusieurs par période, jamais sur les mêmes repas, annulables, bandeau si le planning change). Après validation seulement : rappel « sortir du congélateur » la veille dans le planning et sessions dans le calendrier. Guide intégré.
+- Recettes : conservation une fois cuisiné (jours au frigo, congelable, jours au congélateur), vide par défaut, éditable, affichée, filtrable ; trois champs facultatifs dans le JSON (un ancien fichier s'importe comme avant).
+- Réglages du module : « Sessions jusqu'à N jours avant la période » (0 par défaut), modèle de créneaux (caché, changé par « Retenir comme habituels »).
+
+### Modifié
+
+- Planning des repas : sélecteur de repas avec recherche (focus à l'ouverture), les mêmes filtres que l'onglet Repas (composant et logique communs), liste qui défile, clavier, portions ; plus d'images dans le planning.
+- Suggestions qui défilent à la place des listes natives (ingrédients d'une recette, rayons).
+
+### Corrigé
+
+- La liste de choix des repas du planning ne défilait pas (recettes de fin de liste inaccessibles).
+
 ## [0.25.0] — 2026-10-31
 
 Session « Solidification, finitions et audit » : plus rien d'expérimental, une base solide pour la version Android synchronisée et le calendrier général.

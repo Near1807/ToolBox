@@ -63,7 +63,7 @@ describe('previewImport', () => {
       'Bouillon de légumes: new ',
     ]);
     expect(preview.recipes).toEqual([
-      { name: 'Risotto', line: 1, status: 'new', unknown: ['Parmesan'] },
+      { name: 'Risotto', line: 1, status: 'new', unknown: ['Parmesan'], changes: [] },
     ]);
     expect(preview.toCreate).toEqual([{ name: 'Parmesan', unit: 'g' }]);
   });

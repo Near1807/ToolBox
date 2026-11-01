@@ -60,13 +60,24 @@
   background: var(--surface);
 }
 .cs-slot__add {
-  margin: 4px 0 0;
-}
-.cs-slot__meal {
-  flex: 1;
-  min-width: 90px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  margin: 2px 0 0;
   padding: 3px 6px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-3);
+  font: inherit;
   font-size: 0.82rem;
+  cursor: pointer;
+}
+.cs-slot__add:hover,
+.cs-slot__add:focus-visible {
+  border-color: var(--accent);
+  color: var(--text);
 }
 .cs-entry {
   display: flex;
@@ -535,4 +546,232 @@
   margin: 0;
   padding-left: 18px;
   color: var(--text-2);
+}
+
+/* v0.26: meal picker of the planning, suggestions instead of <datalist>. */
+.cs-picker-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: var(--overlay);
+}
+.cs-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(720px, 100%);
+  /* Always inside the window, whatever the scaling: the list takes what is left. */
+  max-height: calc(100vh - 32px);
+  padding: 16px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-solid);
+  box-shadow: var(--elev-modal);
+}
+.cs-picker__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.cs-picker__head h2 {
+  flex: 1;
+  margin: 0;
+  font-size: 1.1rem;
+}
+.cs-picker__list {
+  flex: 1 1 auto;
+  min-height: 120px;
+  margin: 0;
+  padding: 4px;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.cs-picker__item {
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.cs-picker__item--active {
+  background: var(--accent-soft);
+  outline: 1px solid var(--accent);
+}
+.cs-picker__empty {
+  padding: 12px;
+}
+.cs-picker p {
+  margin: 0;
+}
+.cs-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cs-filters > .cs-row {
+  flex-wrap: wrap;
+}
+.cs-filters input[type='search'] {
+  flex: 1 1 240px;
+}
+.cs-picker__head .input {
+  width: 76px;
+}
+.cs-suggest {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+}
+.cs-suggest .input {
+  width: 100%;
+}
+.cs-suggest__list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  max-height: min(240px, 40vh);
+  margin: 2px 0 0;
+  padding: 4px;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-solid);
+  box-shadow: var(--elev-modal);
+}
+.cs-suggest__list li {
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.cs-suggest__list li:hover,
+.cs-suggest__item--active {
+  background: var(--accent-soft);
+}
+
+/* v0.26: keeping of a recipe (batch cooking). */
+.cs-keep {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.cs-keep legend {
+  padding: 0 4px;
+}
+.cs-keep label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.cs-keep .input {
+  width: 80px;
+}
+
+/* v0.26: batch cooking. */
+.cs-batch {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.cs-batch-guide {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.cs-batch-guide summary {
+  cursor: pointer;
+}
+.cs-batch-guide__body p {
+  max-width: 72ch;
+}
+.cs-batch-guide__figure {
+  width: 100%;
+  max-width: 460px;
+  height: auto;
+}
+.cs-svg-text {
+  fill: var(--text-2);
+  font-size: 11px;
+}
+.cs-svg-axis {
+  stroke: var(--border-strong);
+  stroke-width: 1.5;
+}
+.cs-svg-window {
+  fill: var(--accent-soft);
+  stroke: var(--accent);
+}
+.cs-svg-meal {
+  fill: var(--accent);
+}
+.cs-batch-entries {
+  width: 100%;
+  border-collapse: collapse;
+}
+.cs-batch-entries td {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.cs-batch-entry--covered td {
+  color: var(--text-3);
+}
+.cs-batch-grid td {
+  text-align: center;
+}
+.cs-batch-grid th,
+.cs-batch-grid td {
+  padding: 3px 10px;
+}
+.cs-batch-grid__before th {
+  color: var(--text-2);
+  font-style: italic;
+}
+.cs-batch-warning {
+  color: var(--warning);
+}
+.cs-batch-banner {
+  padding: 8px 12px;
+  border: 1px solid var(--warning);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+}
+.cs-batch-session {
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+}
+.cs-batch-session h4 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+}
+.cs-batch-cooks {
+  margin: 0;
+  padding-left: 18px;
+}
+.cs-batch-plan + .cs-batch-plan {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 2px solid var(--border);
+}
+.cs-thaw {
+  display: block;
+  max-width: 170px;
+  white-space: normal;
+  margin-top: 4px;
+  color: var(--warning);
+  font-size: 0.78rem;
+  font-weight: normal;
 }
