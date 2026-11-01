@@ -4,6 +4,25 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.27.0] — 2026-11-01
+
+Session « Courses : préparations (fiches techniques) et batch par préparation ».
+
+### Ajouté
+
+- Courses, **préparations** (Repas › Préparations) : une fiche technique définie une fois (composition pour une portion, conservation, note) et utilisée par plusieurs recettes. Lignes « préparation × portions » dans les recettes (avec ce qu'elles représentent en aliments), « Extraire en préparation » (aperçu, dépliage identique vérifié), « Remplacer par ses ingrédients » (confirmé), avertissement avant de changer la composition d'une préparation utilisée, suppression refusée tant qu'elle est utilisée. Aide intégrée.
+- JSON : tableau `preparations` et lignes `{ "prep", "qty" }`, facultatifs (un ancien fichier s'importe comme avant) ; aperçu des préparations, structure différente signalée (« même dépliage » ou non).
+
+### Modifié
+
+- Batch cooking **par préparation** : la sauce de la bolognaise en batch, les pâtes au moment du repas ; une préparation partagée cuite une fois par session ; chaque préparation avec sa propre conservation. Résultat par session sans détail par repas (« Utilisée dans » replié). Une recette sans préparation garde le comportement v0.26.
+- Rappel de décongélation : une ligne par jour, « À décongeler : riz cuit, sauce bolognaise ».
+- Bandeau d'un plan validé aussi quand une recette couverte est découpée ou qu'une préparation utilisée change.
+
+### Corrigé
+
+- Recherche : « oeuf » trouve « Œuf » (ligatures œ et æ dans toutes les comparaisons de noms du module, import et assistant compris).
+
 ## [0.26.0] — 2026-11-01
 
 Session « Courses : corrections du planning et batch cooking ».
