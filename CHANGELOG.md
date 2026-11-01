@@ -4,6 +4,20 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.28.0] — 2026-11-01
+
+Session « Courses, batch : suggestions « tant que la casserole est sur le feu » ».
+
+### Ajouté
+
+- Batch : **« Pourrait aussi servir »** sous chaque cuisson de la proposition : les repas planifiés non cochés qui utilisent la même préparation (ou la même recette entière) et que cette cuisson peut couvrir avec les mêmes règles. Gain pur : jamais de session, de cuisson ou de créneau en plus ; jamais par ingrédient brut. « Ajouter » (ou « Tout ajouter ») met à jour la quantité et la ligne « pour : » sans recalcul ; « Retirer » revient exactement à l'état d'avant ; rien n'est écrit avant « Valider ce plan ».
+- Étape 1 : inclusion d'un repas **par préparation** (« Riz cuit seulement »), partie déjà couverte par un plan signalée ; repas des jours avant la période listés quand des sessions peuvent y être (N > 0).
+
+### Modifié
+
+- Sous chaque cuisson, ligne « pour : mar. soir (Chili) · ven. soir (Bolognaise) — congélateur, sortir la veille » (à la place de « Utilisée dans » replié).
+- La couverture d'un plan validé est par préparation : les autres préparations d'un repas restent cochables.
+
 ## [0.27.0] — 2026-11-01
 
 Session « Courses : préparations (fiches techniques) et batch par préparation ».

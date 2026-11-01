@@ -255,6 +255,7 @@ describe('recalculating after additions: never more sessions nor more cookings',
       expect(again.covered).toBe(first.covered + additions.length);
       checked++;
     }
+    console.log(`garantie vérifiée sur ${checked} semaines avec des ajouts`);
     expect(checked).toBeGreaterThan(100);
   });
 });
