@@ -86,7 +86,8 @@ describe('batch cooking plans', () => {
           slots: [],
         })
       ).body,
-    ).toMatchObject({ error: 'Coche les créneaux où tu peux cuisiner.' });
+      // v0.29: no slot is not an error any more (the double doses need none): no session.
+    ).toMatchObject({ sessions: [], covered: 0 });
   });
 
   it('grid: a period changed alone, the model only through « Retenir comme habituels »', async () => {
@@ -263,7 +264,8 @@ describe('batch cooking plans', () => {
         daysBefore: 0,
       })
     ).body;
-    expect(none).toMatchObject({ error: 'Coche les créneaux où tu peux cuisiner.' });
+    // v0.29: a slot outside the days allowed is ignored: no session (not an error any more).
+    expect(none).toMatchObject({ sessions: [], covered: 0 });
     const two = (
       await hub.request<BatchProposalDto>('POST', `${API}/batch/compute`, {
         ...P2,

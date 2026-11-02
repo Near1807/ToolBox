@@ -341,6 +341,20 @@ function PlanSlot(props: {
           >
             <Icon name="close" />
           </button>
+          {(props.state.doubles ?? [])
+            .filter((d) => d.entryId === p.id)
+            .map((d) => (
+              <span key={`${d.name}`} className="cs-thaw small">
+                Double dose : {d.name.toLowerCase()} (aussi{' '}
+                {d.also
+                  .map(
+                    (a) =>
+                      `${new Intl.DateTimeFormat('fr-FR', { weekday: 'short', timeZone: 'UTC' }).format(new Date(`${a.date}T00:00:00Z`))} ${(props.state.moments.find((m) => m.id === a.momentId)?.name ?? '').toLowerCase()}`,
+                  )
+                  .join(', ')}
+                )
+              </span>
+            ))}
         </span>
       ))}
       <button

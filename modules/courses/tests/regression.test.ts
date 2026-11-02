@@ -205,6 +205,18 @@ function asV026(value: unknown): Snapshot {
       if (k === 'parts' || k === 'prepId' || k === 'usedIn') continue;
       // v0.28: what « Pourrait aussi servir » needs, the recipe of each use, meals before the period.
       if (k === 'basis' || k === 'suggestions' || k === 'facts') continue;
+      // v0.29: the two times (double doses, elements of the last plan, cooking moments, bases).
+      if (['doubles', 'lastElements', 'cookMoments', 'bases'].includes(k)) continue;
+      // v0.29: the ingredients of a cooking in the recipe's order (v0.26: by name).
+      if (
+        k === 'ingredients' &&
+        key !== 'exported' &&
+        Array.isArray(x) &&
+        x.every((i) => i && typeof i === 'object' && 'amount' in i)
+      ) {
+        out[k] = [...(x as { name: string }[])].sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+        continue;
+      }
       if (key === 'entries[]' && k === 'beforePeriod') continue;
       if ((key === 'fridge[]' || key === 'frozen[]') && k === 'mealName') continue;
       if (key === 'uncovered[]' && k === 'name') continue;
@@ -350,8 +362,21 @@ describe('non-regression of the readers of a recipe (reference: v0.26.0)', () =>
     );
     if (process.env.TOOLBOX_WRITE_REFERENCE === '1')
       writeFileSync(REFERENCE, `${JSON.stringify(snapshot, null, 2)}\n`);
-    expect(asV026(snapshot)).toEqual(
-      withThawByDay(JSON.parse(readFileSync(REFERENCE, 'utf8')) as Snapshot),
+    // The home card lists today's meals: it depends on the day the test runs (the reference
+    // was written on a Sunday), so it is checked apart, against the planning of today.
+    const { home, ...rest } = asV026(snapshot) as Snapshot & {
+      home: { today: string; meals: { name: string }[] };
+    };
+    const { home: _home, ...reference } = withThawByDay(
+      JSON.parse(readFileSync(REFERENCE, 'utf8')) as Snapshot,
+    );
+    void _home;
+    expect(rest).toEqual(reference);
+    const todayPlan = (state.plan as { date: string; mealId: string }[]).filter(
+      (p) => p.date === localToday(),
+    );
+    expect(home.meals.map((m) => m.name).sort()).toEqual(
+      todayPlan.map((p) => state.meals.find((m) => m.id === p.mealId)!.name).sort(),
     );
   });
 });

@@ -1,69 +1,97 @@
-// The ticks of the batch form (step 1).
+// Temps 1 of the batch form (v0.29): elements by number of meals, a meal
+// left out, pre-ticked from the last validated plan (never by the tag).
 import { describe, expect, it } from 'vitest';
 import {
+  elementsOf,
+  elementState,
   forCalculation,
   initialSelection,
-  selectAll,
-  selectRange,
-  toggle,
+  toggleElement,
+  toggleMeal,
 } from '../shared/batch-form';
-import type { BatchEntryDto } from '../shared/types';
+import type { BatchEntryDto, BatchPartDto } from '../shared/types';
 
-const entry = (id: string, date: string, extra: Partial<BatchEntryDto> = {}): BatchEntryDto => ({
-  entryId: id,
-  date,
-  momentId: 'soir',
-  mealId: `m-${id}`,
-  mealName: id,
-  servings: 1,
-  batchTag: false,
-  fridgeDays: 2,
+const part = (prepId: string | null, extra: Partial<BatchPartDto> = {}): BatchPartDto => ({
+  prepId,
+  mealId: 'm-curry',
+  name: prepId ?? 'Curry',
+  portions: 1,
+  fridgeDays: 3,
   freezable: false,
   freezerDays: null,
   coveredBy: null,
   ...extra,
-  // A recipe without preparation: one part, the recipe itself (as in v0.26).
-  parts: [
-    {
-      prepId: null,
-      mealId: `m-${id}`,
-      name: id,
-      portions: 1,
-      fridgeDays: extra.fridgeDays === undefined ? 2 : extra.fridgeDays,
-      freezable: false,
-      freezerDays: null,
-    },
-  ],
+});
+const entry = (id: string, date: string, parts: BatchPartDto[], extra = {}): BatchEntryDto => ({
+  entryId: id,
+  date,
+  momentId: 'soir',
+  mealId: parts[0]!.mealId,
+  mealName: id,
+  servings: 1,
+  batchTag: true,
+  fridgeDays: null,
+  freezable: false,
+  freezerDays: null,
+  parts,
+  coveredBy: null,
+  ...extra,
 });
 const entries = [
-  entry('curry', '2026-11-02', { batchTag: true }),
-  entry('dal', '2026-11-03', { batchTag: true, fridgeDays: null }),
-  entry('pates', '2026-11-04'),
-  entry('soupe', '2026-11-05', { batchTag: true, coveredBy: 'plan-1' }),
-  entry('salade', '2026-11-06'),
+  entry('boite1', '2026-11-02', [
+    part('riz', { name: 'Riz cuit' }),
+    part('oeufs', { name: 'Œufs' }),
+  ]),
+  entry('boite2', '2026-11-03', [
+    part('riz', { name: 'Riz cuit' }),
+    part('oeufs', { name: 'Œufs' }),
+  ]),
+  entry('chili', '2026-11-04', [part('riz', { name: 'Riz cuit' })]),
+  entry('curry', '2026-11-05', [part(null)]),
+  entry('dal', '2026-11-06', [part(null, { mealId: 'm-dal', name: 'Dal', fridgeDays: null })]),
 ];
-// v0.28: the selection holds couples « entry|part »; the meals they belong to.
-const ids = (s: Set<string>) => [...new Set([...s].map((k) => k.split('|')[0]!))].sort();
 
-describe('batch form, step 1', () => {
-  it('pre-ticked by the tag, except meals already covered', () => {
-    expect(ids(initialSelection(entries))).toEqual(['curry', 'dal']);
+describe('temps 1: elements', () => {
+  it('listed by number of meals (then name), keeping missing said', () => {
+    const els = elementsOf(entries);
+    expect(els.map((e) => [e.name, e.meals.length, e.keepKnown])).toEqual([
+      ['Riz cuit', 3, true],
+      ['Œufs', 2, true],
+      ['Curry', 1, true],
+      ['Dal', 1, false],
+    ]);
   });
-  it('a meal without the tag ticked by hand is included; a tagged one unticked is left out', () => {
-    let s = initialSelection(entries);
-    s = toggle(s, entries[2]!); // pâtes, no tag
-    s = toggle(s, entries[0]!); // curry unticked
-    expect(forCalculation(entries, s).entryIds).toEqual(['pates']);
+  it('nothing pre-ticked the first time, not even the tag « batch »; then the last plan', () => {
+    expect(initialSelection(entries, []).size).toBe(0);
+    const s = initialSelection(entries, ['prep:riz', 'meal:m-dal']);
+    expect(forCalculation(entries, s).couples).toEqual([
+      { entryId: 'boite1', prepId: 'riz' },
+      { entryId: 'boite2', prepId: 'riz' },
+      { entryId: 'chili', prepId: 'riz' },
+    ]);
   });
-  it('« du jour X au jour Y », everything, never a covered meal', () => {
-    expect(ids(selectRange(entries, '2026-11-03', '2026-11-05'))).toEqual(['dal', 'pates']);
-    expect(ids(selectRange(entries, '2026-11-05', '2026-11-03'))).toEqual(['dal', 'pates']);
-    expect(ids(selectAll(entries))).not.toContain('soupe');
-    expect(ids(toggle(new Set(), entries[3]!))).toEqual([]);
+  it('an element ticked = all its meals; one meal left out; covered meals never ticked', () => {
+    const covered = [
+      ...entries.slice(0, 2),
+      entry('chili', '2026-11-04', [part('riz', { name: 'Riz cuit', coveredBy: 'plan-1' })], {
+        coveredBy: 'plan-1',
+      }),
+    ];
+    const riz = elementsOf(covered)[0]!;
+    let s = toggleElement(new Set(), riz);
+    expect(elementState(s, riz)).toBe('all');
+    expect(forCalculation(covered, s).couples.map((c) => c.entryId)).toEqual(['boite1', 'boite2']);
+    s = toggleMeal(s, riz.meals[1]!);
+    expect(elementState(s, riz)).toBe('partial');
+    expect(forCalculation(covered, s).couples.map((c) => c.entryId)).toEqual(['boite1']);
+    expect(toggleMeal(s, riz.meals[2]!)).toEqual(s); // covered: not tickable
+    expect(elementState(toggleElement(s, riz), riz)).toBe('none');
   });
-  it('a ticked meal without fridge days is left out and said', () => {
-    const r = forCalculation(entries, initialSelection(entries));
-    expect(r.entryIds).toEqual(['curry']);
-    expect(r.missing.map((e) => e.entryId)).toEqual(['dal']);
+  it('meals before the shown days are left out', () => {
+    const s = initialSelection(entries, ['prep:riz']);
+    expect(forCalculation(entries, s, '2026-11-03').couples.map((c) => c.entryId)).toEqual([
+      'boite2',
+      'chili',
+    ]);
   });
 });
