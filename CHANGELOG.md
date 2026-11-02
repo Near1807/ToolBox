@@ -4,6 +4,28 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.29.0] — 2026-11-02
+
+Session « Courses, batch en deux temps : éléments de base + doubles doses ».
+
+### Ajouté
+
+- Batch, **temps 2 — doubles doses** : cuisiner plus au moment d'un repas pour les repas suivants du même élément (moins de cuissons possible), moments de cuisine mémorisés, case « inclure », « déjà préparé » quand la session couvre une autre préparation du repas. Validées avec le plan ; dans le planning, « Double dose : … (aussi …) » sur le repas de cuisson.
+
+### Modifié
+
+- Batch, **temps 1 — éléments de base** : l'étape 1 liste les éléments (préparations, recettes non découpées) par nombre de repas, repas excluables, pré-cochés depuis le dernier plan validé ; le tag « batch » ne pré-coche plus rien.
+- Lisibilité : « pour » groupé par recette, « Ce que tu utilises » par session, ingrédients dans l'ordre de la recette.
+- Sans créneau coché, le temps 1 ne propose rien (ce n'est plus une erreur).
+
+### Retiré
+
+- Les suggestions « Pourrait aussi servir » (v0.28) : cocher un élément couvre déjà tous ses repas.
+
+### Corrigé
+
+- Le test de non-régression dépendait du jour d'exécution (carte d'accueil).
+
 ## [0.28.0] — 2026-11-01
 
 Session « Courses, batch : suggestions « tant que la casserole est sur le feu » ».
