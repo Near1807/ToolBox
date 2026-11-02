@@ -810,27 +810,29 @@
   margin-bottom: 12px;
 }
 
-/* « Pourrait aussi servir » (v0.28). */
+/* Batch en deux temps (v0.29). */
 .cs-batch-for {
   margin: 2px 0 0;
 }
-.cs-batch-suggest {
-  margin: 4px 0 6px;
-  padding: 6px 10px;
-  border: 1px dashed var(--border);
-  border-radius: var(--radius-sm);
+.cs-batch-elements,
+.cs-batch-doubles {
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
-.cs-batch-suggest ul {
-  margin: 4px 0;
-  padding-left: 16px;
+.cs-batch-elements > li,
+.cs-batch-doubles > li {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
 }
-.cs-batch-suggest li {
-  margin: 2px 0;
+.cs-batch-elements ul {
+  list-style: none;
+  margin: 4px 0 0 22px;
+  padding: 0;
 }
-.cs-batch-partial {
-  color: var(--accent);
+.cs-entry {
+  flex-wrap: wrap;
 }
-.cs-batch-entries__head {
-  text-align: left;
-  padding-top: 8px;
+.cs-entry .cs-thaw {
+  flex-basis: 100%;
 }

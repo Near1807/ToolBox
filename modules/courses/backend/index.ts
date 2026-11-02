@@ -354,6 +354,12 @@ export default defineBackendModule({
         ALTER TABLE courses__batch_portions ADD COLUMN basis TEXT;
       `,
     },
+    {
+      version: 6,
+      description: 'batch in two times: a double dose (cooked at its meal) next to the sessions',
+      // A column added only: every existing session stays a session (kind empty).
+      up: `ALTER TABLE courses__batch_sessions ADD COLUMN kind TEXT;`,
+    },
   ],
 
   register(ctx: ModuleContext) {
@@ -878,6 +884,7 @@ export default defineBackendModule({
       const facts = allFacts();
       return {
         thaw: batch.thaw(list.date_from, list.date_to),
+        doubles: batch.doubleNotes(list.date_from, list.date_to),
         today: today(),
         ingredients: ingredients(),
         meals: meals(facts),

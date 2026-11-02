@@ -25,14 +25,14 @@ import { prepPortions } from '../shared/recipe';
 import { coupleKey } from '../shared/batch-form';
 import {
   cookIngredients,
-  suggest,
-  withAdditions,
-  type Candidate,
+  doubleDoses,
+  doubleKey,
   type IngredientFacts,
-} from '../shared/batch-suggest';
+} from '../shared/batch-cook';
 import type {
-  BatchAdditionDto,
   BatchCookDto,
+  BatchDoubleDto,
+  DoubleNoteDto,
   BatchEntryDto,
   BatchUseDto,
   CookBasis,
@@ -69,6 +69,8 @@ interface SessionRow extends SyncRow {
   moment_id: string;
   start_time: string | null;
   duration_min: number | null;
+  /** v0.29: null = a session (temps 1); 'double' = a double dose cooked at its meal (temps 2). */
+  kind?: string | null;
 }
 interface PortionRow extends SyncRow {
   session_id: string;
@@ -131,6 +133,30 @@ export function createBatch(d: BatchDeps) {
   const settingDaysBefore = () => {
     const n = Number(ctx.settings.get<number>('batchDaysBefore') ?? 0);
     return Number.isInteger(n) && n >= 0 && n <= MAX_DAYS_BEFORE ? n : 0;
+  };
+  /** « Je cuisine mes repas aux moments : … » (moment ids); empty or unknown: all the moments. */
+  const cookMomentsSetting = (): string[] => {
+    const ids = d.moments().map((m) => m.id);
+    try {
+      const v = JSON.parse(ctx.settings.get<string>('batchCookMoments') || '[]') as unknown;
+      const list = Array.isArray(v) ? v.map(String).filter((x) => ids.includes(x)) : [];
+      return list.length ? list : ids;
+    } catch {
+      return ids;
+    }
+  };
+  const cookMomentsFrom = (value: unknown): string[] => {
+    if (!Array.isArray(value)) return cookMomentsSetting();
+    const ids = d.moments().map((m) => m.id);
+    return value.map(String).filter((x) => ids.includes(x));
+  };
+  const lastElements = (): string[] => {
+    try {
+      const v = JSON.parse(ctx.settings.get<string>('batchLastElements') || '[]') as unknown;
+      return Array.isArray(v) ? v.map(String) : [];
+    } catch {
+      return [];
+    }
   };
   const model = () => parseModel(ctx.settings.get<string>('batchGridModel') ?? '{}');
 
@@ -239,7 +265,7 @@ export function createBatch(d: BatchDeps) {
     };
   };
 
-  /** What a cooking is made of (its quantities: shared/batch-suggest.ts, cookIngredients). */
+  /** What a cooking is made of (its quantities: shared/batch-cook.ts, cookIngredients). */
   const basisOf = (key: CookKey): CookBasis => {
     if (key.prepId) {
       const prep = d.preps().find((p) => p.id === key.prepId);
@@ -247,13 +273,6 @@ export function createBatch(d: BatchDeps) {
     }
     const meal = d.meals().find((m) => m.id === key.mealId);
     return { kind: 'meal', servings: meal?.servings ?? 1, items: (meal?.items ?? []).map(lineOf) };
-  };
-  /** The facts of the ingredients of these cookings only. */
-  const factsFor = (bases: CookBasis[], all: IngredientFacts): IngredientFacts => {
-    const ids = new Set(bases.flatMap((b) => b.items.map((i) => i.ingredientId)));
-    const pick = <T>(r: Record<string, T>) =>
-      Object.fromEntries(Object.entries(r).filter(([id]) => ids.has(id)));
-    return { names: pick(all.names), pieces: pick(all.pieces) };
   };
   /** Names and piece weights of the ingredients (quantities computed the same on the page). */
   const factsOf = (): IngredientFacts => ({
@@ -291,6 +310,7 @@ export function createBatch(d: BatchDeps) {
       fridge,
       frozen,
       ingredients: cookIngredients(basisOf(key), portions, facts),
+      basis: basisOf(key),
       usedIn: [
         ...new Set(
           [...fridge, ...frozen].map(
@@ -309,7 +329,7 @@ export function createBatch(d: BatchDeps) {
     if (session.date >= from) return [];
     return live<SessionRow>(
       'batch_sessions',
-      'date = ? AND moment_id = ?',
+      'date = ? AND moment_id = ? AND kind IS NULL',
       session.date,
       session.momentId,
     ).flatMap((other) => {
@@ -322,6 +342,27 @@ export function createBatch(d: BatchDeps) {
     });
   };
 
+  /** A double dose of a validated plan, from its « session » at the cooking meal. */
+  const doubleOf = (s: BatchSessionDto): BatchDoubleDto[] =>
+    s.cooks.map((cook) => {
+      const uses = [
+        ...cook.fridge.map((u) => ({ ...u, frozen: false })),
+        ...cook.frozen.map((u) => ({ ...u, frozen: true })),
+      ].sort((a, b) => a.date.localeCompare(b.date) || order(a.momentId) - order(b.momentId));
+      const at = uses.findIndex((u) => u.date === s.date && u.momentId === s.momentId && !u.frozen);
+      const opener = uses[Math.max(0, at)]!;
+      return {
+        key: `${cook.prepId ? `prep:${cook.prepId}` : `meal:${cook.mealId}`}|${opener.entryId}`,
+        prepId: cook.prepId,
+        mealId: cook.mealId,
+        name: cook.mealName,
+        opener: { ...opener, frozen: undefined },
+        also: uses.filter((u) => u !== opener),
+        portions: cook.portions,
+        ingredients: cook.ingredients,
+        prepared: [],
+      };
+    });
   const planDto = (plan: PlanRow): BatchPlanDto => {
     const current = new Map(
       live<{ id: string; date: string; moment_id: string; meal_id: string; servings: number }>(
@@ -332,7 +373,8 @@ export function createBatch(d: BatchDeps) {
     const preps = new Map(d.preps().map((p) => [p.id, p]));
     const changes = new Set<string>();
     const entryMeals = new Map<string, string>();
-    const sessions = sessionsOf(plan.id).map((s): BatchSessionDto => {
+    const rows = sessionsOf(plan.id);
+    const all = rows.map((s): BatchSessionDto => {
       const byCook = new Map<string, PortionRow[]>();
       for (const p of portionsOf(s.id)) {
         entryMeals.set(p.plan_entry_id, p.meal_id);
@@ -398,8 +440,11 @@ export function createBatch(d: BatchDeps) {
         warnings: overlapWarnings({ date: s.date, momentId: s.moment_id }, plan.date_from, plan.id),
       };
     });
+    const sessions = all.filter((_, i) => rows[i]!.kind !== 'double');
+    const doubles = all.filter((_, i) => rows[i]!.kind === 'double').flatMap(doubleOf);
     const grid = JSON.parse(plan.grid) as BatchPlanDto['grid'];
     return {
+      doubles,
       id: plan.id,
       createdAt: plan.created_at,
       freezer: plan.freezer === 1,
@@ -443,7 +488,6 @@ export function createBatch(d: BatchDeps) {
     const daysBefore = daysBeforeFrom(body.daysBefore);
     const dates = gridDates(from, to, daysBefore);
     const slots = slotsFrom(body.slots, dates);
-    if (!slots.length) throw new HttpError(400, 'Coche les créneaux où tu peux cuisiner.');
     const freezer = body.freezer === true;
     // v0.28: couples (meal, preparation); `entryIds` alone = every part of these meals.
     const wanted = new Set<string>();
@@ -479,19 +523,59 @@ export function createBatch(d: BatchDeps) {
     const momentOrder = d.moments().map((m) => m.id);
     const result = planBatch({ meals: batchMeals, slots, momentOrder, freezer });
     const facts = factsOf();
-    const cooks = result.sessions.flatMap((s) =>
-      s.cooks.map((c) => ({ date: s.date, momentId: s.momentId, key: c.recipeId })),
-    );
-    // « Pourrait aussi servir »: couples not ticked for that preparation, not covered, keeping known.
-    const candidates: Candidate[] = known.flatMap((e) =>
-      couplesOf(e, meals.get(e.mealId)).flatMap(({ part, couple }) =>
-        isWanted(e.id, part.prepId) || covered.of(e.id, part.prepId) || part.fridgeDays === null
-          ? []
-          : [{ ...couple, mealName: meals.get(e.mealId)?.name ?? 'Repas supprimé' }],
+    const mealName = (entryId: string) =>
+      meals.get(entryMeals.get(entryId) ?? '')?.name ?? 'Repas supprimé';
+    // Temps 2, « Doubles doses »: the couples covered neither by the sessions nor by a validated
+    // plan, keeping known, cooked at meal time for the next meals of the same element.
+    const inSessions = new Set(
+      result.sessions.flatMap((s) =>
+        s.cooks.flatMap((c) => [...c.fridge, ...c.frozen].map((u) => `${u.entryId}|${c.recipeId}`)),
       ),
     );
-    const suggestions = suggest(cooks, candidates, momentOrder, freezer);
-    let k = 0;
+    const candidates = known.flatMap((e) =>
+      couplesOf(e, meals.get(e.mealId))
+        .filter(
+          ({ part, couple }) =>
+            part.fridgeDays !== null &&
+            !covered.of(e.id, part.prepId) &&
+            !inSessions.has(`${e.id}|${couple.recipeId}`),
+        )
+        .map((x) => x.couple),
+    );
+    const cookMoments = new Set(cookMomentsFrom(body.cookMoments));
+    const use = (m: BatchMeal): BatchUseDto => ({
+      entryId: m.entryId,
+      date: m.date,
+      momentId: m.momentId,
+      servings: m.servings,
+      mealName: mealName(m.entryId),
+    });
+    const doubles = doubleDoses(candidates, cookMoments, momentOrder, freezer).map(
+      (dd): BatchDoubleDto => {
+        const key = keyOf(dd.key);
+        const portions = total([dd.opener, ...dd.also.map((a) => a.meal)]);
+        return {
+          key: doubleKey(dd),
+          prepId: key.prepId,
+          mealId: key.mealId,
+          name: dd.opener.recipeName,
+          opener: use(dd.opener),
+          also: dd.also.map((a) => ({ ...use(a.meal), frozen: a.frozen })),
+          portions,
+          ingredients: cookIngredients(basisOf(key), portions, facts),
+          // Other preparations of the cooking meal prepared in a session (« riz : déjà préparé »).
+          prepared: result.sessions.flatMap((s) =>
+            s.cooks
+              .filter(
+                (c) =>
+                  c.recipeId !== dd.key &&
+                  [...c.fridge, ...c.frozen].some((u) => u.entryId === dd.opener.entryId),
+              )
+              .map((c) => ({ name: c.recipeName, date: s.date, momentId: s.momentId })),
+          ),
+        };
+      },
+    );
     const proposal: BatchProposalDto = {
       sessions: result.sessions.map((s) => ({
         date: s.date,
@@ -499,11 +583,7 @@ export function createBatch(d: BatchDeps) {
         beforePeriod: s.date < from,
         cooks: s.cooks.map((c) => {
           const key = keyOf(c.recipeId);
-          return {
-            ...cookDto(key, c.fridge, c.frozen, entryMeals, facts),
-            basis: basisOf(key),
-            suggestions: suggestions[k++]!,
-          };
+          return cookDto(key, c.fridge, c.frozen, entryMeals, facts);
         }),
         warnings: overlapWarnings(s, from, null),
       })),
@@ -517,13 +597,10 @@ export function createBatch(d: BatchDeps) {
       covered: result.covered,
       total: result.total,
       tooComplex: result.tooComplex,
-      // Only the ingredients of these cookings (their quantities after « Ajouter »).
-      facts: factsFor(
-        cooks.map((c) => basisOf(keyOf(c.key))),
-        facts,
-      ),
+      doubles,
     };
-    return { from, to, daysBefore, dates, slots, freezer, proposal, meals, known, momentOrder };
+    const elements = [...new Set(batchMeals.map((m) => m.recipeId))];
+    return { from, to, daysBefore, dates, slots, freezer, proposal, known, elements, meals };
   };
 
   // --- Routes ---------------------------------------------------------------------------
@@ -578,6 +655,20 @@ export function createBatch(d: BatchDeps) {
         } satisfies BatchEntryDto;
       }),
       plans: plansTouching(from, to).map(planDto),
+      lastElements: lastElements(),
+      cookMoments: cookMomentsSetting(),
+      // What each element of these meals is made of: its totals, computed on the page.
+      bases: Object.fromEntries(
+        entriesBetween(from, to, MAX_DAYS_BEFORE).flatMap((p) =>
+          partsOf(meals.get(p.mealId), p.servings).map((part) => {
+            const key: CookKey = part.prepId
+              ? { prepId: part.prepId, mealId: null }
+              : { prepId: null, mealId: part.mealId };
+            return [part.prepId ? `prep:${part.prepId}` : `meal:${part.mealId}`, basisOf(key)];
+          }),
+        ),
+      ),
+      facts: factsOf(),
     };
   });
 
@@ -602,6 +693,13 @@ export function createBatch(d: BatchDeps) {
     return { model: next };
   });
 
+  /** « Je cuisine mes repas aux moments : … » (remembered; empty = all the moments). */
+  ctx.routes.put('/batch/cook-moments', (request) => {
+    const ids = cookMomentsFrom(requestBody(request).moments);
+    ctx.settings.set('batchCookMoments', JSON.stringify(ids));
+    return { cookMoments: cookMomentsSetting() };
+  });
+
   /** Proposes, writes nothing. */
   ctx.routes.post('/batch/compute', (request) => compute(requestBody(request)).proposal);
 
@@ -609,22 +707,22 @@ export function createBatch(d: BatchDeps) {
   ctx.routes.post('/batch/plans', (request) => {
     const body = requestBody(request);
     const c = compute(body);
-    if (c.proposal.tooComplex || !c.proposal.sessions.length)
-      throw new HttpError(400, 'Rien à valider : aucune session proposée.');
-    // v0.28: the proposal as shown, with the suggestions « Ajouter » took (each checked).
-    const additions = (Array.isArray(body.additions) ? body.additions : []).map(
-      (a: Record<string, unknown>): BatchAdditionDto => ({
-        date: String(a?.date ?? ''),
-        momentId: String(a?.momentId ?? ''),
-        cook: String(a?.cook ?? ''),
-        entryId: String(a?.entryId ?? ''),
-      }),
-    );
-    try {
-      c.proposal = withAdditions(c.proposal, additions, c.momentOrder);
-    } catch (err) {
-      throw new HttpError(409, (err as Error).message);
-    }
+    // v0.29: the double doses as shown: every one kept or left out by Thomas (else the proposal
+    // changed since: refused, nothing written).
+    // Neither list sent (an older page): no double dose kept, the sessions only.
+    const keys = (v: unknown) => new Set(Array.isArray(v) ? v.map(String) : []);
+    const kept = keys(body.doubles);
+    const left = keys(body.excludedDoubles);
+    const now = (c.proposal.doubles ?? []).map((x) => x.key);
+    const sent = Array.isArray(body.doubles) || Array.isArray(body.excludedDoubles);
+    if (
+      sent &&
+      (now.length !== kept.size + left.size || now.some((k) => !kept.has(k) && !left.has(k)))
+    )
+      throw new HttpError(409, 'La proposition a changé : recalcule.');
+    const doubles = (c.proposal.doubles ?? []).filter((x) => kept.has(x.key));
+    if (c.proposal.tooComplex || (!c.proposal.sessions.length && !doubles.length))
+      throw new HttpError(400, 'Rien à valider : aucune session ni double dose proposée.');
     const planned = new Map(c.known.map((p) => [p.id, p]));
     const prepsNow = new Map(d.preps().map((p) => [p.id, p]));
     const plan = ctx.db.transaction(() => {
@@ -635,49 +733,71 @@ export function createBatch(d: BatchDeps) {
         days_before: c.daysBefore,
         grid: JSON.stringify({ dates: c.dates, slots: c.slots }),
       });
-      for (const s of c.proposal.sessions) {
-        const session = store.create<SessionRow>('batch_sessions', {
+      const sessionRow = (date: string, momentId: string, kind: string | null) =>
+        store.create<SessionRow>('batch_sessions', {
           plan_id: row.id,
-          date: s.date,
-          moment_id: s.momentId,
+          date,
+          moment_id: momentId,
           start_time: null,
           duration_min: null,
+          kind,
         });
-        for (const cook of s.cooks)
-          for (const [uses, frozen] of [
-            [cook.fridge, 0],
-            [cook.frozen, 1],
-          ] as const)
-            for (const u of uses) {
-              const entry = planned.get(u.entryId)!;
-              const recipe = c.meals.get(entry.mealId);
-              const prep = cook.prepId ? prepsNow.get(cook.prepId) : undefined;
-              const basis: Basis = prep
-                ? {
-                    portions: u.servings,
-                    lineQty: prepPortions(recipe?.lines ?? []).get(prep.id),
-                    recipeServings: recipe?.servings,
-                    composition: compositionOf(prep),
-                  }
-                : { portions: u.servings };
-              store.create('batch_portions', {
-                session_id: session.id,
-                plan_entry_id: u.entryId,
-                meal_id: entry.mealId,
-                date: u.date,
-                moment_id: u.momentId,
-                // The portions planned (as in v0.26: the banner compares them); the cooked ones in basis.
-                servings: entry.servings,
-                frozen,
-                prep_id: cook.prepId,
-                basis: JSON.stringify(basis),
-              });
-            }
+      const writeUses = (
+        sessionId: string,
+        cook: { prepId: string | null },
+        uses: readonly BatchUseDto[],
+        frozen: 0 | 1,
+      ) => {
+        for (const u of uses) {
+          const entry = planned.get(u.entryId)!;
+          const recipe = c.meals.get(entry.mealId);
+          const prep = cook.prepId ? prepsNow.get(cook.prepId) : undefined;
+          const basis: Basis = prep
+            ? {
+                portions: u.servings,
+                lineQty: prepPortions(recipe?.lines ?? []).get(prep.id),
+                recipeServings: recipe?.servings,
+                composition: compositionOf(prep),
+              }
+            : { portions: u.servings };
+          store.create('batch_portions', {
+            session_id: sessionId,
+            plan_entry_id: u.entryId,
+            meal_id: entry.mealId,
+            date: u.date,
+            moment_id: u.momentId,
+            // The portions planned (as in v0.26: the banner compares them); the cooked ones in basis.
+            servings: entry.servings,
+            frozen,
+            prep_id: cook.prepId,
+            basis: JSON.stringify(basis),
+          });
+        }
+      };
+      for (const s of c.proposal.sessions) {
+        const session = sessionRow(s.date, s.momentId, null);
+        for (const cook of s.cooks) {
+          writeUses(session.id, cook, cook.fridge, 0);
+          writeUses(session.id, cook, cook.frozen, 1);
+        }
       }
+      // Temps 2: a cooking at its meal (not a session: not in the calendar).
+      for (const dd of doubles) {
+        const session = sessionRow(dd.opener.date, dd.opener.momentId, 'double');
+        writeUses(session.id, dd, [dd.opener, ...dd.also.filter((a) => !a.frozen)], 0);
+        writeUses(
+          session.id,
+          dd,
+          dd.also.filter((a) => a.frozen),
+          1,
+        );
+      }
+      // Pre-ticked next time: the elements of this plan.
+      ctx.settings.set('batchLastElements', JSON.stringify(c.elements));
       return row;
     });
     ctx.logger.info(
-      `Plan de batch cooking validé : ${c.proposal.sessions.length} session(s), du ${c.from} au ${c.to}`,
+      `Plan de batch cooking validé : ${c.proposal.sessions.length} session(s), ${doubles.length} double(s) dose(s), du ${c.from} au ${c.to}`,
     );
     return planDto(plan);
   });
@@ -748,9 +868,50 @@ export function createBatch(d: BatchDeps) {
         }))
         .sort((a, b) => a.date.localeCompare(b.date));
     },
+    /** v0.29: double doses of validated plans, on their cooking meal (planning, read only). */
+    doubleNotes(from: string, to: string): DoubleNoteDto[] {
+      const names = new Map(d.meals().map((m) => [m.id, m.name]));
+      const prepNames = new Map(d.preps().map((p) => [p.id, p.name]));
+      return live<SessionRow>(
+        'batch_sessions',
+        "kind = 'double' AND date >= ? AND date <= ?",
+        from,
+        to,
+      )
+        .filter((s) => store.get('batch_plans', s.plan_id) !== null)
+        .flatMap((s) => {
+          const portions = portionsOf(s.id);
+          const opener = portions.find(
+            (p) => p.date === s.date && p.moment_id === s.moment_id && !p.frozen,
+          );
+          if (!opener) return [];
+          return [
+            {
+              date: s.date,
+              momentId: s.moment_id,
+              entryId: opener.plan_entry_id,
+              name: opener.prep_id
+                ? (prepNames.get(opener.prep_id) ?? 'Préparation')
+                : (names.get(opener.meal_id) ?? 'Repas'),
+              also: portions
+                .filter((p) => p !== opener)
+                .map((p) => ({ date: p.date, momentId: p.moment_id }))
+                .sort(
+                  (a, b) => a.date.localeCompare(b.date) || order(a.momentId) - order(b.momentId),
+                ),
+            },
+          ];
+        });
+    },
     /** The sessions of the validated plans, for the general calendar. */
     calendarEvents(from: string, to: string): CalendarEvent[] {
-      return live<SessionRow>('batch_sessions', 'date >= ? AND date <= ?', from, to)
+      // Sessions only (temps 1): a double dose is cooked at its meal, already in the calendar.
+      return live<SessionRow>(
+        'batch_sessions',
+        'date >= ? AND date <= ? AND kind IS NULL',
+        from,
+        to,
+      )
         .filter((s) => store.get('batch_plans', s.plan_id) !== null)
         .map((s) => {
           const meals = d.meals();

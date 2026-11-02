@@ -1,92 +1,115 @@
-// The ticks of the batch form (step 1), pure (tested in tests/batch-form.test.ts).
-// v0.28: a meal is included preparation by preparation (the unit of the
-// calculation): the selection holds couples `entryId|prepId` (`entryId|*`
-// for a recipe cooked whole). The whole meal ticked = all its parts not yet
-// covered; unticked = none; some = partial (« Riz cuit seulement »), e.g.
-// after « Ajouter » a suggestion. Pre-ticked by the tag « batch »; meals
-// already covered never tickable; meals before the period never pre-ticked.
+// Temps 1 of the batch form (v0.29: « Éléments de base »), pure (tested in
+// tests/batch-form.test.ts). The selection holds couples `entryId|prepId`
+// (`entryId|*` for a recipe cooked whole), the unit of the calculation. The
+// form lists ELEMENTS: each preparation and each recipe not split used in
+// the period, by number of meals; an element ticked = all its meals not yet
+// covered, each meal can be left out. Pre-ticked: the elements of the last
+// validated plan. The tag « batch » no longer pre-ticks anything.
 import type { BatchEntryDto, BatchPartDto } from './types';
 
-export const partKey = (p: Pick<BatchPartDto, 'prepId'>) => p.prepId ?? '*';
 export const coupleKey = (entryId: string, prepId: string | null) => `${entryId}|${prepId ?? '*'}`;
+export const elementKey = (p: Pick<BatchPartDto, 'prepId' | 'mealId'>) =>
+  p.prepId ? `prep:${p.prepId}` : `meal:${p.mealId}`;
 
-/** Parts of a meal that can be ticked: not covered by a validated plan. */
-const freeParts = (e: BatchEntryDto) => e.parts.filter((p) => !p.coveredBy);
-const free = (entries: readonly BatchEntryDto[]) =>
-  entries.filter((e) => e.coveredBy === null && freeParts(e).length > 0);
-const inPeriod = (entries: readonly BatchEntryDto[]) => entries.filter((e) => !e.beforePeriod);
-const all = (entries: readonly BatchEntryDto[]) =>
-  new Set(entries.flatMap((e) => freeParts(e).map((p) => coupleKey(e.entryId, p.prepId))));
+export interface ElementMeal {
+  entry: BatchEntryDto;
+  part: BatchPartDto;
+  /** Covered by a validated plan: shown, not tickable. */
+  covered: boolean;
+}
+export interface Element {
+  key: string;
+  name: string;
+  prepId: string | null;
+  mealId: string;
+  /** Keeping known (else: said, not tickable, link to its sheet). */
+  keepKnown: boolean;
+  meals: ElementMeal[];
+}
 
-/** Pre-ticked: the recipes with the tag « batch », in the period, not already covered. */
-export function initialSelection(entries: readonly BatchEntryDto[]): Set<string> {
-  return all(free(inPeriod(entries)).filter((e) => e.batchTag));
+/** The elements of the meals shown (from `minDate`), by number of meals, then name. */
+export function elementsOf(entries: readonly BatchEntryDto[], minDate = ''): Element[] {
+  const byKey = new Map<string, Element>();
+  for (const entry of entries) {
+    if (entry.date < minDate) continue;
+    for (const part of entry.parts) {
+      const key = elementKey(part);
+      const el = byKey.get(key) ?? {
+        key,
+        name: part.name,
+        prepId: part.prepId,
+        mealId: part.mealId,
+        keepKnown: part.fridgeDays !== null,
+        meals: [],
+      };
+      el.meals.push({ entry, part, covered: Boolean(part.coveredBy) || entry.coveredBy !== null });
+      byKey.set(key, el);
+    }
+  }
+  return [...byKey.values()].sort(
+    (a, b) => b.meals.length - a.meals.length || a.name.localeCompare(b.name, 'fr'),
+  );
 }
-/** « Tout »: every meal of the period (those before it are ticked by hand). */
-export function selectAll(entries: readonly BatchEntryDto[]): Set<string> {
-  return all(free(inPeriod(entries)));
-}
-export const selectNone = (): Set<string> => new Set();
-export const selectTagged = initialSelection;
-/** « du jour X au jour Y » (both included). */
-export function selectRange(
+
+const free = (el: Element) => (el.keepKnown ? el.meals.filter((m) => !m.covered) : []);
+const keysOf = (el: Element) => free(el).map((m) => coupleKey(m.entry.entryId, m.part.prepId));
+
+/** Pre-ticked: the elements ticked in the last validated plan (none the first time). */
+export function initialSelection(
   entries: readonly BatchEntryDto[],
-  from: string,
-  to: string,
+  lastElements: readonly string[],
+  minDate = '',
 ): Set<string> {
-  const [a, b] = from <= to ? [from, to] : [to, from];
-  return all(free(entries).filter((e) => e.date >= a && e.date <= b));
+  const last = new Set(lastElements);
+  return new Set(
+    elementsOf(entries, minDate)
+      .filter((el) => last.has(el.key))
+      .flatMap(keysOf),
+  );
 }
+export const selectAll = (entries: readonly BatchEntryDto[], minDate = '') =>
+  new Set(elementsOf(entries, minDate).flatMap(keysOf));
+export const selectNone = (): Set<string> => new Set();
 
-/** The whole meal, part of it, or nothing. */
-export function entryState(
+/** The whole element (all its free meals), some of them, or nothing. */
+export function elementState(
   selection: ReadonlySet<string>,
-  entry: BatchEntryDto,
+  el: Element,
 ): 'all' | 'partial' | 'none' {
-  const parts = freeParts(entry);
-  const n = parts.filter((p) => selection.has(coupleKey(entry.entryId, p.prepId))).length;
-  return n === 0 ? 'none' : n === parts.length ? 'all' : 'partial';
+  const keys = keysOf(el);
+  const n = keys.filter((k) => selection.has(k)).length;
+  return n === 0 ? 'none' : n === keys.length ? 'all' : 'partial';
 }
-/** The parts ticked of a meal included in part (« Riz cuit seulement »). */
-export const tickedParts = (selection: ReadonlySet<string>, entry: BatchEntryDto) =>
-  freeParts(entry).filter((p) => selection.has(coupleKey(entry.entryId, p.prepId)));
-
-/**
- * The tick of a meal: none → all its free parts; all or partial → none (a
- * partial inclusion is taken back like any other). A covered meal stays as it is.
- */
-export function toggle(selection: ReadonlySet<string>, entry: BatchEntryDto): Set<string> {
+/** An element ticked: none → all its free meals; all or some → none. */
+export function toggleElement(selection: ReadonlySet<string>, el: Element): Set<string> {
   const next = new Set(selection);
-  if (entry.coveredBy !== null) return next;
-  const keys = freeParts(entry).map((p) => coupleKey(entry.entryId, p.prepId));
-  if (entryState(selection, entry) === 'none') keys.forEach((k) => next.add(k));
-  else entry.parts.forEach((p) => next.delete(coupleKey(entry.entryId, p.prepId)));
+  const keys = keysOf(el);
+  if (elementState(selection, el) === 'none') keys.forEach((k) => next.add(k));
+  else keys.forEach((k) => next.delete(k));
+  return next;
+}
+/** One meal of an element left out (or put back). */
+export function toggleMeal(selection: ReadonlySet<string>, m: ElementMeal): Set<string> {
+  const next = new Set(selection);
+  const k = coupleKey(m.entry.entryId, m.part.prepId);
+  if (next.has(k)) next.delete(k);
+  else if (!m.covered && m.part.fridgeDays !== null) next.add(k);
   return next;
 }
 
 /**
- * What the calculation receives: the couples ticked that can be computed
- * (keeping known), the meals they belong to, and the parts left out because
- * their keeping is missing (the recipe's, or a preparation's). `minDate`:
- * the first day shown (meals before the period only within N days).
+ * What the calculation receives: the couples ticked (keeping known, not
+ * covered, shown from `minDate`) and the meals they belong to.
  */
 export function forCalculation(
   entries: readonly BatchEntryDto[],
   selection: ReadonlySet<string>,
   minDate = '',
-): {
-  entryIds: string[];
-  couples: { entryId: string; prepId: string | null }[];
-  missing: { entryId: string; entry: BatchEntryDto; part: BatchPartDto }[];
-} {
-  const shown = free(entries).filter((e) => e.date >= minDate);
-  const ticked = shown.flatMap((e) => tickedParts(selection, e).map((part) => ({ e, part })));
-  const couples = ticked.filter((t) => t.part.fridgeDays !== null);
-  return {
-    entryIds: [...new Set(couples.map((t) => t.e.entryId))],
-    couples: couples.map((t) => ({ entryId: t.e.entryId, prepId: t.part.prepId })),
-    missing: ticked
-      .filter((t) => t.part.fridgeDays === null)
-      .map((t) => ({ entryId: t.e.entryId, entry: t.e, part: t.part })),
-  };
+): { entryIds: string[]; couples: { entryId: string; prepId: string | null }[] } {
+  const couples = elementsOf(entries, minDate).flatMap((el) =>
+    free(el)
+      .filter((m) => selection.has(coupleKey(m.entry.entryId, m.part.prepId)))
+      .map((m) => ({ entryId: m.entry.entryId, prepId: m.part.prepId })),
+  );
+  return { entryIds: [...new Set(couples.map((c) => c.entryId))], couples };
 }

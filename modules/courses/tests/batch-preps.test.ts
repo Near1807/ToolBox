@@ -116,9 +116,10 @@ describe('batch cooking by preparation', () => {
       ['Sauce bolognaise', 2],
     ]);
     const cook = p.sessions[0]!.cooks[0]!;
+    // v0.29: in the order of the preparation's lines.
     expect(cook.ingredients).toEqual([
-      { name: 'Coulis', amount: '300 g' },
       { name: 'Viande hachée', amount: '200 g' },
+      { name: 'Coulis', amount: '300 g' },
     ]);
     expect(JSON.stringify(p)).not.toContain('Pâtes');
     expect(cook.usedIn).toEqual(['Bolognaise']);

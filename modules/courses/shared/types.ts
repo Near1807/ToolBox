@@ -120,6 +120,8 @@ export interface StateDto {
   list: ListDto;
   /** Validated batch plans: frozen portions to take out the evening before (read only). */
   thaw: ThawDto[];
+  /** v0.29: double doses of validated plans, on their cooking meal (read only). */
+  doubles?: DoubleNoteDto[];
 }
 
 /** A list of an earlier period, as it was when its period changed. */
@@ -207,18 +209,6 @@ export interface BatchUseDto {
   servings: number;
   /** Recipe of the meal (« pour : mar. soir (Chili) »). */
   mealName?: string;
-  /** Added from « Pourrait aussi servir » (not from the calculation): can be taken back. */
-  added?: boolean;
-}
-/**
- * « Pourrait aussi servir » (v0.28): a planned meal NOT ticked for this
- * preparation (or this whole recipe) that this very cooking can cover by the
- * same rules: cooking a little more, no new session, no new cooking.
- */
-export interface BatchSuggestionDto extends BatchUseDto {
-  mealName: string;
-  /** Beyond the fridge days: frozen (taken out the evening before). */
-  frozen: boolean;
 }
 /** What a cooking is made of, to recompute its quantities for other portions (same functions as the server). */
 export type CookBasis =
@@ -243,10 +233,8 @@ export interface BatchCookDto {
   ingredients: { name: string; amount: string }[];
   /** Recipes of the meals it is for (« Utilisée dans »). */
   usedIn: string[];
-  /** v0.28: proposals only, to recompute the quantities after « Ajouter ». */
+  /** What the cooking is made of (totals of a session, v0.29). */
   basis?: CookBasis;
-  /** v0.28: proposals only, « Pourrait aussi servir » (empty: nothing shown). */
-  suggestions?: BatchSuggestionDto[];
 }
 export interface BatchSessionDto extends BatchSlotDto {
   /** Validated plans only. */
@@ -269,19 +257,25 @@ export interface BatchProposalDto {
   covered: number;
   total: number;
   tooComplex: boolean;
-  /** v0.28: names and piece weights of the ingredients of the cookings (quantities after « Ajouter »). */
-  facts?: {
-    names: Record<string, string>;
-    pieces: Record<string, { unit: string; pieceG: number | null }>;
-  };
+  /** v0.29, temps 2: the double doses (cookings for one meal only are not listed). */
+  doubles?: BatchDoubleDto[];
 }
-/** « Ajouter » a suggestion: this meal joins this cooking of this session. */
-export interface BatchAdditionDto {
-  date: string;
-  momentId: string;
-  /** The cooking: `prep:<id>` or `meal:<id>`. */
-  cook: string;
-  entryId: string;
+/** v0.29, temps 2: a double dose, cooked during a meal for the next meals of the same element. */
+export interface BatchDoubleDto {
+  /** `prep:<id>|<entry>`: kept or left out by Thomas, checked at validation. */
+  key: string;
+  prepId: string | null;
+  mealId: string | null;
+  /** The element: a preparation, or the recipe cooked whole. */
+  name: string;
+  /** The meal during which it is cooked, and its recipe. */
+  opener: BatchUseDto;
+  /** The next meals it also covers. */
+  also: (BatchUseDto & { frozen: boolean })[];
+  portions: number;
+  ingredients: { name: string; amount: string }[];
+  /** Other preparations of the cooking meal already prepared in a session (« riz : déjà préparé »). */
+  prepared: { name: string; date: string; momentId: string }[];
 }
 export interface BatchPlanDto {
   id: string;
@@ -291,6 +285,8 @@ export interface BatchPlanDto {
   /** The grid really used (dates and slots ticked). */
   grid: { dates: string[]; slots: BatchSlotDto[] };
   sessions: BatchSessionDto[];
+  /** v0.29: the double doses validated with the plan. */
+  doubles?: BatchDoubleDto[];
   /** The planning changed since the validation (meal removed, moved, portions changed). */
   changes: string[];
 }
@@ -304,6 +300,24 @@ export interface BatchStateDto {
   grid: { dates: string[]; slots: BatchSlotDto[]; saved: boolean };
   entries: BatchEntryDto[];
   plans: BatchPlanDto[];
+  /** v0.29: elements ticked in the last validated plan (pre-ticked), `prep:<id>` / `meal:<id>`. */
+  lastElements: string[];
+  /** v0.29: setting « Je cuisine mes repas aux moments : … » (moment ids). */
+  cookMoments: string[];
+  /** v0.29: what each element is made of, and the ingredients' names and piece weights (totals). */
+  bases: Record<string, CookBasis>;
+  facts: {
+    names: Record<string, string>;
+    pieces: Record<string, { unit: string; pieceG: number | null }>;
+  };
+}
+/** v0.29: a double dose of a validated plan, on its cooking meal in the planning (read only). */
+export interface DoubleNoteDto {
+  date: string;
+  momentId: string;
+  entryId: string;
+  name: string;
+  also: { date: string; momentId: string }[];
 }
 /** « Sortir du congélateur » the evening before a frozen portion (validated plans only). */
 export interface ThawDto {
