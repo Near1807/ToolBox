@@ -22,7 +22,95 @@ export interface BackupCopy {
   /** Version of the app that took it. */
   appVersion: string;
   /** Why it was taken. */
-  reason: 'quotidienne' | 'avant-restauration';
+  reason: 'quotidienne' | 'avant-restauration' | 'avant-migration';
+  /**
+   * Elements per module in it (key: COUNTED[].key), e.g. { tasks: 12, ideas: 3 }.
+   * Absent on the copies of 0.30.0 (they only have `tasks`).
+   */
+  counts?: Record<string, number>;
+}
+
+/** What a copy card counts, module by module (only tables that exist are read). */
+export const COUNTED: readonly {
+  key: string;
+  module: string;
+  table: string;
+  one: string;
+  many: string;
+}[] = [
+  { key: 'tasks', module: 'todo', table: 'todo__tasks', one: 'tâche', many: 'tâches' },
+  { key: 'ideas', module: 'ideas', table: 'ideas__ideas', one: 'idée', many: 'idées' },
+  { key: 'sessions', module: 'sport', table: 'sport__sessions', one: 'séance', many: 'séances' },
+  {
+    key: 'timers',
+    module: 'timer',
+    table: 'timer__sessions',
+    one: 'session de timer',
+    many: 'sessions de timer',
+  },
+  { key: 'recipes', module: 'courses', table: 'courses__meals', one: 'recette', many: 'recettes' },
+  {
+    key: 'ingredients',
+    module: 'courses',
+    table: 'courses__ingredients',
+    one: 'ingrédient',
+    many: 'ingrédients',
+  },
+];
+
+/** The SQL connection the counts need (the Worker's adapter, or better-sqlite3 in tests). */
+interface CountDb {
+  prepare(sql: string): { get(...p: unknown[]): unknown; all(...p: unknown[]): unknown[] };
+}
+
+/**
+ * Counts of the base: every row of the modules' tables (0: an empty base) and
+ * the elements per module (not deleted). Works on a base not migrated yet.
+ */
+export function countBase(db: CountDb): {
+  rows: number;
+  tasks: number;
+  counts: Record<string, number>;
+} {
+  const tables = (
+    db
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")
+      .all() as { name: string }[]
+  )
+    .map((t) => t.name)
+    .filter((name) => !name.startsWith('core__'));
+  let rows = 0;
+  for (const name of tables)
+    rows += (db.prepare(`SELECT COUNT(*) AS n FROM "${name}"`).get() as { n: number }).n;
+  const counts: Record<string, number> = {};
+  for (const c of COUNTED) {
+    if (!tables.includes(c.table)) continue;
+    const columns = db.prepare(`PRAGMA table_info("${c.table}")`).all() as { name: string }[];
+    const where = columns.some((col) => col.name === 'deleted_at')
+      ? ' WHERE deleted_at IS NULL'
+      : '';
+    counts[c.key] = (
+      db.prepare(`SELECT COUNT(*) AS n FROM "${c.table}"${where}`).get() as { n: number }
+    ).n;
+  }
+  return { rows, tasks: counts.tasks ?? 0, counts };
+}
+
+/** « 12 tâches · 1 idée · 3 séances » (only what the copy holds; old cards: the tasks). */
+export function describeCounts(copy: Pick<BackupCopy, 'tasks' | 'counts'>): string {
+  const counts = copy.counts ?? { tasks: copy.tasks };
+  const parts = COUNTED.filter((c) => (counts[c.key] ?? 0) > 0).map(
+    (c) => `${counts[c.key]} ${counts[c.key] === 1 ? c.one : c.many}`,
+  );
+  return parts.length ? parts.join(' · ') : 'aucun élément';
+}
+
+/**
+ * Whether to copy the base BEFORE migrating it: a migration is pending and the
+ * base holds something (an absent or empty base has nothing to protect).
+ */
+export function needsCopyBeforeMigration(base: BaseState, pendingMigrations: number): boolean {
+  return pendingMigrations > 0 && !base.absent && base.rows > 0;
 }
 
 /** What the app knows of its base when it opens. */

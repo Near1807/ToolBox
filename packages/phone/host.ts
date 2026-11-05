@@ -188,6 +188,37 @@ export class PhoneHub {
     });
   }
 
+  /**
+   * The migrations a start would apply, per scope (core first), WITHOUT
+   * writing anything: the app copies a non-empty base before (« avant-migration »).
+   * A scope whose base is newer than its code is left out (it is not migrated).
+   */
+  static pendingMigrations(
+    db: SqlDatabase,
+    modules: PhoneModule[],
+  ): { scope: string; count: number }[] {
+    const hasTable = db
+      .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'core__migrations'")
+      .get();
+    const scopes: [string, Migration[]][] = [
+      ['core', coreMigrations],
+      ...modules.map((m): [string, Migration[]] => [m.manifest.id, m.backend?.migrations ?? []]),
+    ];
+    const pending: { scope: string; count: number }[] = [];
+    for (const [scope, migrations] of scopes) {
+      let count = migrations.length;
+      if (hasTable) {
+        try {
+          count = getPendingMigrations(db, scope, migrations).length;
+        } catch {
+          count = 0;
+        }
+      }
+      if (count > 0) pending.push({ scope, count });
+    }
+    return pending;
+  }
+
   /** Migrates the core and the modules, then registers the modules (providers first). */
   static async start(options: PhoneHubOptions): Promise<PhoneHub> {
     const hub = new PhoneHub(options);

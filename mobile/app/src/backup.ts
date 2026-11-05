@@ -21,6 +21,9 @@ const card = (file: string) => file.replace(/\.sqlite3$/, '.json');
 
 export interface BaseStatus extends BaseState {
   tasks: number;
+  counts: Record<string, number>;
+  /** Migrations waiting for the copy « avant-migration » (empty: none). */
+  pending: { scope: string; count: number }[];
   modules: { id: string; status: string; error?: string }[];
   sqlite: string;
   vfs: string;
@@ -51,12 +54,21 @@ export async function listCopies(): Promise<BackupCopy[]> {
   return sortCopies(copies);
 }
 
-/** Takes a copy now, then keeps the 7 newest (the older copies are deleted). */
+/**
+ * Takes a copy now, then keeps the 7 newest (the older copies are deleted).
+ * Reasons: the daily copy, before a restore, before a migration (an update
+ * of the app that changes the structure of a base holding something).
+ */
 export async function takeCopy(
   client: WorkerClient,
   reason: BackupCopy['reason'],
 ): Promise<BackupCopy> {
-  const snap = await client.call<{ bytes: Uint8Array; rows: number; tasks: number }>({
+  const snap = await client.call<{
+    bytes: Uint8Array;
+    rows: number;
+    tasks: number;
+    counts: Record<string, number>;
+  }>({
     kind: 'snapshot',
   });
   const createdAt = new Date().toISOString();
@@ -66,6 +78,7 @@ export async function takeCopy(
     day: localDay(new Date()),
     tasks: snap.tasks,
     rows: snap.rows,
+    counts: snap.counts,
     appVersion: __APP_VERSION__,
     reason,
   };

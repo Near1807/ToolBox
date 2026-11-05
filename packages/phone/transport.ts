@@ -10,6 +10,7 @@ export type WorkerCall =
   | { kind: 'request'; request: PhoneRequest }
   | { kind: 'status' }
   | { kind: 'snapshot' }
+  | { kind: 'migrate' }
   | { kind: 'restore'; bytes: Uint8Array };
 
 export interface WorkerEnvelope {
@@ -56,6 +57,7 @@ export class WorkerClient {
 /** The SDK's API client over the Worker (given to setApiTransport at start-up). */
 export function workerTransport(client: WorkerClient): ApiTransport {
   return {
+    device: 'phone',
     request: async (path, init) => {
       const headers = new Headers(init.headers);
       const body = typeof init.body === 'string' ? init.body : null;

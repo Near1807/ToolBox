@@ -5,8 +5,14 @@ import { useEffect, useState } from 'react';
 import { App as CapacitorApp } from '@capacitor/app';
 import { Button, Card, Page, errorMessage } from '@hub/sdk/frontend';
 import { applyTheme, cachedTheme, THEMES } from '../../../frontend/src/themes';
-import { KEEP_COPIES, type BackupCopy } from '../../../packages/phone/backup';
+import { describeCounts, KEEP_COPIES, type BackupCopy } from '../../../packages/phone/backup';
 import { dateFr, type Shell } from './App';
+
+const REASONS: Record<BackupCopy['reason'], string> = {
+  quotidienne: '',
+  'avant-restauration': ' · avant une restauration',
+  'avant-migration': ' · avant une mise à jour des données',
+};
 
 export function SettingsPage(props: { shell: Shell }) {
   const { shell } = props;
@@ -27,8 +33,8 @@ export function SettingsPage(props: { shell: Shell }) {
   const restore = async (copy: BackupCopy) => {
     const replace = shell.base.rows > 0;
     const question = replace
-      ? `Remplacer les données actuelles du téléphone par la copie du ${dateFr(copy.createdAt)} (${copy.tasks} tâche(s)) ?\n\nUne copie des données actuelles est faite avant.`
-      : `Restaurer la copie du ${dateFr(copy.createdAt)} (${copy.tasks} tâche(s)) ?`;
+      ? `Remplacer les données actuelles du téléphone par la copie du ${dateFr(copy.createdAt)} (${describeCounts(copy)}) ?\n\nUne copie des données actuelles est faite avant.`
+      : `Restaurer la copie du ${dateFr(copy.createdAt)} (${describeCounts(copy)}) ?`;
     if (!window.confirm(question)) return;
     setBusy(true);
     setError(null);
@@ -49,7 +55,8 @@ export function SettingsPage(props: { shell: Shell }) {
         </p>
         <p className="small muted">
           Une copie par jour, à l’ouverture de l’appli, dans le stockage propre de ToolBox (jamais
-          vidé par Android). Les {KEEP_COPIES} plus récentes sont gardées.
+          vidé par Android), et une juste avant chaque mise à jour qui modifie la structure des
+          données. Les {KEEP_COPIES} plus récentes sont gardées.
         </p>
         {error && <p className="error">{error}</p>}
         {!choosing ? (
@@ -67,9 +74,8 @@ export function SettingsPage(props: { shell: Shell }) {
                 <div>
                   <strong>{dateFr(copy.createdAt)}</strong>
                   <div className="small muted">
-                    {copy.tasks} tâche(s)
-                    {copy.reason === 'avant-restauration' ? ' · avant une restauration' : ''} ·
-                    version {copy.appVersion}
+                    {describeCounts(copy)}
+                    {REASONS[copy.reason]} · version {copy.appVersion}
                   </div>
                 </div>
                 <Button variant="secondary" disabled={busy} onClick={() => void restore(copy)}>

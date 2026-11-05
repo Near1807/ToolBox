@@ -1,9 +1,12 @@
 // The mobile shell (ADR 0044): one column, navigation at the bottom (Accueil,
-// To-do, Réglages), the module's own screens inside. At opening: the state of
-// the base, the restore OFFER when it is absent or empty and a copy exists
-// (never automatic), otherwise today's copy (safety net).
+// Courses, To-do, Sport, « Plus » for the Boîte à idées, the Timer and
+// Réglages), the modules' own screens inside. At opening: the state of the
+// base; a copy « avant-migration » when an update must migrate a base that
+// holds something (the migration waits for it); the restore OFFER when the
+// base is absent or empty and a copy exists (never automatic); otherwise
+// today's copy (safety net).
 import { useCallback, useEffect, useState } from 'react';
-import { NavLink, Route, Routes } from 'react-router';
+import { Link, NavLink, Route, Routes, useLocation } from 'react-router';
 import {
   Button,
   Card,
@@ -12,19 +15,24 @@ import {
   ModuleProvider,
   Page,
   errorMessage,
-  type ModuleManifest,
 } from '@hub/sdk/frontend';
-import todoFrontend from '../../../modules/todo/frontend/index';
-import todoManifest from '../../../modules/todo/module.json';
-import '../../../modules/todo/frontend/todo.mobile.css';
-import type { BackupCopy } from '../../../packages/phone/backup';
+import { describeCounts, type BackupCopy } from '../../../packages/phone/backup';
 import type { WorkerClient } from '../../../packages/phone/transport';
-import { dailyCopy, listCopies, offerAtOpening, restoreCopy, type BaseStatus } from './backup';
+import {
+  dailyCopy,
+  listCopies,
+  offerAtOpening,
+  restoreCopy,
+  takeCopy,
+  type BaseStatus,
+} from './backup';
+import { PAGE_MODULES, type PageModule } from './page-modules';
 import { SettingsPage } from './SettingsPage';
 
-const TODO = todoManifest as ModuleManifest;
-const TodoPage = todoFrontend.pages![0]!.component;
-const TodoWidget = todoFrontend.HomeWidget!;
+const MORE_PATHS = [
+  '/settings',
+  ...PAGE_MODULES.filter((m) => m.place === 'more').map((m) => `/m/${m.manifest.id}`),
+];
 
 export const dateFr = (iso: string) =>
   new Date(iso).toLocaleString('fr-BE', { dateStyle: 'long', timeStyle: 'short' });
@@ -37,27 +45,115 @@ export interface Shell {
   restore: (copy: BackupCopy) => Promise<void>;
 }
 
+/** The pages of one module under /m/<id>/*, isolated in an error boundary (like the PC). */
+function ModuleRoutes(props: { module: PageModule }) {
+  const { manifest, frontend } = props.module;
+  return (
+    <ModuleProvider manifest={manifest}>
+      <ErrorBoundary label={manifest.name}>
+        <Routes>
+          {(frontend.pages ?? []).map(({ path, component: Component }) => (
+            <Route
+              key={path}
+              path={path === '' ? undefined : path}
+              index={path === ''}
+              element={<Component />}
+            />
+          ))}
+          <Route path="*" element={<Page title="Page introuvable">{null}</Page>} />
+        </Routes>
+      </ErrorBoundary>
+    </ModuleProvider>
+  );
+}
+
+/** Accueil: one card per installed module (its home widget when it has one). */
 function HomePage(props: { shell: Shell }) {
   const last = props.shell.copies[0];
+  const failed = new Map(
+    props.shell.base.modules.filter((m) => m.status !== 'loaded').map((m) => [m.id, m]),
+  );
   return (
     <Page title="ToolBox">
-      <Card
-        title="To-do"
-        actions={
-          <NavLink to="/m/todo" className="button button--secondary">
-            Ouvrir
-          </NavLink>
-        }
-      >
-        <ModuleProvider manifest={TODO}>
-          <ErrorBoundary label="To-do">
-            <TodoWidget />
-          </ErrorBoundary>
-        </ModuleProvider>
-      </Card>
+      {PAGE_MODULES.map(({ manifest, frontend }) => {
+        const Widget = frontend.HomeWidget;
+        const problem = failed.get(manifest.id);
+        return (
+          <Card
+            key={manifest.id}
+            title={
+              <span className="m-home__title">
+                <Icon name={manifest.icon} />
+                {manifest.name}
+              </span>
+            }
+            actions={
+              <Link to={`/m/${manifest.id}`} className="button button--secondary">
+                Ouvrir
+              </Link>
+            }
+          >
+            {problem ? (
+              <p className="error small">{problem.error ?? 'Ce module n’a pas pu démarrer.'}</p>
+            ) : Widget ? (
+              <ModuleProvider manifest={manifest}>
+                <ErrorBoundary label={manifest.name}>
+                  <Widget />
+                </ErrorBoundary>
+              </ModuleProvider>
+            ) : (
+              <p className="small muted">{manifest.description}</p>
+            )}
+          </Card>
+        );
+      })}
       <p className="small muted m-home__copy">
         Dernière copie de sauvegarde : {last ? dateFr(last.createdAt) : 'aucune pour l’instant'}
       </p>
+    </Page>
+  );
+}
+
+/** « Plus »: the modules not in the bottom bar, and Réglages. */
+function MorePage() {
+  return (
+    <Page title="Plus">
+      <ul className="m-more">
+        {PAGE_MODULES.filter((m) => m.place === 'more').map(({ manifest }) => (
+          <li key={manifest.id}>
+            <Link to={`/m/${manifest.id}`} className="m-more__item">
+              <Icon name={manifest.icon} />
+              <span>{manifest.name}</span>
+            </Link>
+          </li>
+        ))}
+        <li>
+          <Link to="/settings" className="m-more__item">
+            <Icon name="settings" />
+            <span>Réglages</span>
+          </Link>
+        </li>
+      </ul>
+    </Page>
+  );
+}
+
+/** The copy « avant-migration » failed: nothing was migrated; try again. */
+function MigrationBlocked(props: { error: string; onRetry: () => void }) {
+  return (
+    <Page title="Mise à jour en attente">
+      <div className="card card--error">
+        <p>
+          ToolBox doit mettre à jour la structure de tes données, mais la copie de sauvegarde faite
+          avant n’a pas réussi : {props.error}
+        </p>
+        <p className="small">
+          Rien n’a été modifié : la mise à jour attend que la copie réussisse.
+        </p>
+        <div className="m-actions">
+          <Button onClick={props.onRetry}>Réessayer</Button>
+        </div>
+      </div>
     </Page>
   );
 }
@@ -76,7 +172,7 @@ function RestoreOffer(props: {
       <Card title="Une copie de sauvegarde existe">
         <p>
           La base de ToolBox est vide sur ce téléphone, mais une copie existe :{' '}
-          <strong>{dateFr(copy.createdAt)}</strong>, avec <strong>{copy.tasks}</strong> tâche(s).
+          <strong>{dateFr(copy.createdAt)}</strong>, avec <strong>{describeCounts(copy)}</strong>.
         </p>
         <p className="small muted">
           Rien n’est restauré sans ton accord. Si tu continues sans restaurer, les copies restent
@@ -89,7 +185,7 @@ function RestoreOffer(props: {
             onClick={() => {
               if (
                 !window.confirm(
-                  `Restaurer la copie du ${dateFr(copy.createdAt)} (${copy.tasks} tâche(s)) ?`,
+                  `Restaurer la copie du ${dateFr(copy.createdAt)} (${describeCounts(copy)}) ?`,
                 )
               )
                 return;
@@ -118,6 +214,9 @@ export function App(props: { client: WorkerClient }) {
   const [offer, setOffer] = useState<BackupCopy | null>(null);
   const [fatal, setFatal] = useState<string | null>(null);
   const [copyError, setCopyError] = useState<string | null>(null);
+  const [migrationError, setMigrationError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const location = useLocation();
 
   const refresh = useCallback(async () => {
     setBase(await client.call<BaseStatus>({ kind: 'status' }));
@@ -127,7 +226,19 @@ export function App(props: { client: WorkerClient }) {
   useEffect(() => {
     void (async () => {
       try {
-        const status = await client.call<BaseStatus>({ kind: 'status' });
+        let status = await client.call<BaseStatus>({ kind: 'status' });
+        if (status.pending.length > 0) {
+          // An update must migrate a base that holds something: copy it first.
+          try {
+            await takeCopy(client, 'avant-migration');
+          } catch (e) {
+            setMigrationError(errorMessage(e));
+            return; // Nothing migrated.
+          }
+          setMigrationError(null);
+          await client.call({ kind: 'migrate' });
+          status = await client.call<BaseStatus>({ kind: 'status' });
+        }
         setBase(status);
         const offered = await offerAtOpening(status);
         if (offered) setOffer(offered);
@@ -140,7 +251,7 @@ export function App(props: { client: WorkerClient }) {
         setFatal(errorMessage(e));
       }
     })();
-  }, [client]);
+  }, [client, attempt]);
 
   const restore = useCallback(
     async (copy: BackupCopy) => {
@@ -164,6 +275,14 @@ export function App(props: { client: WorkerClient }) {
         </main>
       </div>
     );
+  if (migrationError)
+    return (
+      <div className="m-shell">
+        <main className="m-content">
+          <MigrationBlocked error={migrationError} onRetry={() => setAttempt((n) => n + 1)} />
+        </main>
+      </div>
+    );
   if (!base) return <p className="m-loading muted">Ouverture…</p>;
   if (offer)
     return (
@@ -179,22 +298,23 @@ export function App(props: { client: WorkerClient }) {
     );
 
   const shell: Shell = { client, base, copies, refresh, restore };
+  // « Plus » stays lit on the pages it leads to (Boîte à idées, Timer, Réglages).
+  const moreClass = ({ isActive }: { isActive: boolean }) =>
+    `m-nav__item${isActive || MORE_PATHS.some((p) => location.pathname.startsWith(p)) ? ' active' : ''}`;
   return (
     <div className="m-shell">
       <main className="m-content">
         {copyError && <p className="error m-banner">{copyError}</p>}
         <Routes>
           <Route index element={<HomePage shell={shell} />} />
-          <Route
-            path="m/todo/*"
-            element={
-              <ModuleProvider manifest={TODO}>
-                <ErrorBoundary label="To-do">
-                  <TodoPage />
-                </ErrorBoundary>
-              </ModuleProvider>
-            }
-          />
+          {PAGE_MODULES.map((module) => (
+            <Route
+              key={module.manifest.id}
+              path={`m/${module.manifest.id}/*`}
+              element={<ModuleRoutes module={module} />}
+            />
+          ))}
+          <Route path="more" element={<MorePage />} />
           <Route path="settings" element={<SettingsPage shell={shell} />} />
           <Route path="*" element={<HomePage shell={shell} />} />
         </Routes>
@@ -204,13 +324,15 @@ export function App(props: { client: WorkerClient }) {
           <Icon name="home" />
           <span>Accueil</span>
         </NavLink>
-        <NavLink to="/m/todo" className="m-nav__item">
-          <Icon name="list-todo" />
-          <span>To-do</span>
-        </NavLink>
-        <NavLink to="/settings" className="m-nav__item">
-          <Icon name="settings" />
-          <span>Réglages</span>
+        {PAGE_MODULES.filter((m) => m.place === 'bar').map(({ manifest }) => (
+          <NavLink key={manifest.id} to={`/m/${manifest.id}`} className="m-nav__item">
+            <Icon name={manifest.icon} />
+            <span>{manifest.name}</span>
+          </NavLink>
+        ))}
+        <NavLink to="/more" className={moreClass}>
+          <Icon name="ellipsis" />
+          <span>Plus</span>
         </NavLink>
       </nav>
     </div>

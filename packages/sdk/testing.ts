@@ -197,4 +197,6 @@ export {
   phoneRequest,
   PhoneHub,
   UnavailableOnPhoneError,
+  WorkerClient,
+  workerTransport,
 } from './testing-phone';
