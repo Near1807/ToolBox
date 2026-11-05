@@ -1,0 +1,1461 @@
+{
+  "steps": [
+    [
+      "GET /ideas",
+      {
+        "status": 200,
+        "body": {
+          "ideas": [],
+          "tags": [],
+          "counts": {
+            "active": 0,
+            "archived": 0
+          },
+          "library": true,
+          "tracks": [
+            {
+              "id": 1,
+              "title": "Nuit blanche"
+            },
+            {
+              "id": 2,
+              "title": "Aube"
+            }
+          ],
+          "todo": true
+        }
+      }
+    ],
+    [
+      "GET /home",
+      {
+        "status": 200,
+        "body": {
+          "show": true,
+          "count": 0,
+          "latest": []
+        }
+      }
+    ],
+    [
+      "POST /ideas",
+      {
+        "status": 200,
+        "body": {
+          "id": "#1",
+          "title": "Un break avec des cordes",
+          "body": "Pizzicati sur le 2e couplet.\nEssayer en ré mineur.",
+          "tags": ["arrangement", "cordes"],
+          "createdAt": "+420000ms",
+          "updatedAt": "+420000ms",
+          "archived": false,
+          "track": {
+            "id": 1,
+            "title": "Nuit blanche"
+          },
+          "task": null
+        }
+      }
+    ],
+    [
+      "POST /ideas",
+      {
+        "status": 200,
+        "body": {
+          "id": "#2",
+          "title": "Pochette en noir et blanc",
+          "body": "",
+          "tags": ["visuel"],
+          "createdAt": "+840000ms",
+          "updatedAt": "+840000ms",
+          "archived": false,
+          "track": null,
+          "task": null
+        }
+      }
+    ],
+    [
+      "POST /ideas",
+      {
+        "status": 200,
+        "body": {
+          "id": "#3",
+          "title": "Version live acoustique",
+          "body": "Guitare + voix, « une prise »",
+          "tags": ["arrangement", "live"],
+          "createdAt": "+1260000ms",
+          "updatedAt": "+1260000ms",
+          "archived": false,
+          "track": null,
+          "task": null
+        }
+      }
+    ],
+    [
+      "POST /ideas",
+      {
+        "status": 200,
+        "body": {
+          "id": "#4",
+          "title": "Clip tourné à l’Été",
+          "body": "Plage, 16 mm",
+          "tags": ["visuel"],
+          "createdAt": "+1680000ms",
+          "updatedAt": "+1680000ms",
+          "archived": false,
+          "track": null,
+          "task": null
+        }
+      }
+    ],
+    [
+      "POST /ideas",
+      {
+        "status": 200,
+        "body": {
+          "id": "#5",
+          "title": "Vieux projet",
+          "body": "",
+          "tags": ["archives"],
+          "createdAt": "+2100000ms",
+          "updatedAt": "+2100000ms",
+          "archived": false,
+          "track": null,
+          "task": null
+        }
+      }
+    ],
+    [
+      "POST /ideas",
+      {
+        "status": 400,
+        "body": {
+          "error": "Le titre de l’idée est obligatoire"
+        }
+      }
+    ],
+    [
+      "POST /ideas",
+      {
+        "status": 400,
+        "body": {
+          "error": "Morceau introuvable"
+        }
+      }
+    ],
+    [
+      "PATCH /ideas/#2",
+      {
+        "status": 200,
+        "body": {
+          "id": "#2",
+          "title": "Pochette en noir et blanc",
+          "body": "Photo argentique",
+          "tags": ["visuel", "photo"],
+          "createdAt": "+840000ms",
+          "updatedAt": "+4740000ms",
+          "archived": false,
+          "track": null,
+          "task": null
+        }
+      }
+    ],
+    [
+      "PATCH /ideas/#3",
+      {
+        "status": 200,
+        "body": {
+          "id": "#3",
+          "title": "Version live acoustique",
+          "body": "Guitare + voix, « une prise »",
+          "tags": ["arrangement", "live"],
+          "createdAt": "+1260000ms",
+          "updatedAt": "+4800000ms",
+          "archived": false,
+          "track": {
+            "id": 2,
+            "title": "Aube"
+          },
+          "task": null
+        }
+      }
+    ],
+    [
+      "PATCH /ideas/#5",
+      {
+        "status": 200,
+        "body": {
+          "id": "#5",
+          "title": "Vieux projet",
+          "body": "",
+          "tags": ["archives"],
+          "createdAt": "+2100000ms",
+          "updatedAt": "+2100000ms",
+          "archived": true,
+          "track": null,
+          "task": null
+        }
+      }
+    ],
+    [
+      "PATCH /ideas/#4",
+      {
+        "status": 200,
+        "body": {
+          "id": "#4",
+          "title": "Clip tourné à l’Été",
+          "body": "Plage, 16 mm",
+          "tags": ["visuel"],
+          "createdAt": "+1680000ms",
+          "updatedAt": "+1680000ms",
+          "archived": true,
+          "track": null,
+          "task": null
+        }
+      }
+    ],
+    [
+      "PATCH /ideas/#4",
+      {
+        "status": 200,
+        "body": {
+          "id": "#4",
+          "title": "Clip tourné à l’Été",
+          "body": "Plage, 16 mm",
+          "tags": ["visuel"],
+          "createdAt": "+1680000ms",
+          "updatedAt": "+1680000ms",
+          "archived": false,
+          "track": null,
+          "task": null
+        }
+      }
+    ],
+    [
+      "DELETE /ideas/#3",
+      {
+        "status": 200,
+        "body": {
+          "ok": true
+        }
+      }
+    ],
+    [
+      "POST /ideas/#3/restore",
+      {
+        "status": 200,
+        "body": {
+          "id": "#3",
+          "title": "Version live acoustique",
+          "body": "Guitare + voix, « une prise »",
+          "tags": ["arrangement", "live"],
+          "createdAt": "+1260000ms",
+          "updatedAt": "+4800000ms",
+          "archived": false,
+          "track": {
+            "id": 2,
+            "title": "Aube"
+          },
+          "task": null
+        }
+      }
+    ],
+    [
+      "POST /ideas/#3/restore",
+      {
+        "status": 404,
+        "body": {
+          "error": "Plus rien à restaurer pour cette idée"
+        }
+      }
+    ],
+    [
+      "PUT /tags/visuel",
+      {
+        "status": 200,
+        "body": {
+          "tags": [
+            {
+              "name": "arrangement",
+              "count": 2,
+              "color": 0
+            },
+            {
+              "name": "visuel",
+              "count": 2,
+              "color": 3
+            },
+            {
+              "name": "archives",
+              "count": 1,
+              "color": 0
+            },
+            {
+              "name": "cordes",
+              "count": 1,
+              "color": 0
+            },
+            {
+              "name": "live",
+              "count": 1,
+              "color": 0
+            },
+            {
+              "name": "photo",
+              "count": 1,
+              "color": 0
+            }
+          ]
+        }
+      }
+    ],
+    [
+      "PUT /tags/cordes",
+      {
+        "status": 200,
+        "body": {
+          "tags": [
+            {
+              "name": "arrangement",
+              "count": 2,
+              "color": 0
+            },
+            {
+              "name": "visuel",
+              "count": 2,
+              "color": 3
+            },
+            {
+              "name": "archives",
+              "count": 1,
+              "color": 0
+            },
+            {
+              "name": "live",
+              "count": 1,
+              "color": 0
+            },
+            {
+              "name": "orchestre",
+              "count": 1,
+              "color": 0
+            },
+            {
+              "name": "photo",
+              "count": 1,
+              "color": 0
+            }
+          ]
+        }
+      }
+    ],
+    [
+      "PUT /tags/photo",
+      {
+        "status": 200,
+        "body": {
+          "tags": [
+            {
+              "name": "arrangement",
+              "count": 2,
+              "color": 0
+            },
+            {
+              "name": "visuel",
+              "count": 2,
+              "color": 3
+            },
+            {
+              "name": "archives",
+              "count": 1,
+              "color": 0
+            },
+            {
+              "name": "live",
+              "count": 1,
+              "color": 0
+            },
+            {
+              "name": "orchestre",
+              "count": 1,
+              "color": 0
+            }
+          ]
+        }
+      }
+    ],
+    [
+      "PUT /tags/inconnu",
+      {
+        "status": 404,
+        "body": {
+          "error": "Tag introuvable"
+        }
+      }
+    ],
+    [
+      "PUT /tags/live",
+      {
+        "status": 400,
+        "body": {
+          "error": "Couleur invalide"
+        }
+      }
+    ],
+    [
+      "POST /ideas/#1/to-task",
+      {
+        "status": 200,
+        "body": {
+          "idea": {
+            "id": "#1",
+            "title": "Un break avec des cordes",
+            "body": "Pizzicati sur le 2e couplet.\nEssayer en ré mineur.",
+            "tags": ["arrangement", "orchestre"],
+            "createdAt": "+420000ms",
+            "updatedAt": "+420000ms",
+            "archived": false,
+            "track": {
+              "id": 1,
+              "title": "Nuit blanche"
+            },
+            "task": {
+              "id": "#6",
+              "title": "Un break avec des cordes"
+            }
+          },
+          "task": {
+            "id": "#6",
+            "title": "Un break avec des cordes",
+            "tags": ["arrangement", "orchestre"],
+            "due": null,
+            "done": false
+          }
+        }
+      }
+    ],
+    [
+      "POST /ideas/#1/to-task",
+      {
+        "status": 409,
+        "body": {
+          "error": "Cette idée est déjà devenue une tâche."
+        }
+      }
+    ],
+    [
+      "GET /ideas",
+      {
+        "status": 200,
+        "body": {
+          "ideas": [
+            {
+              "id": "#4",
+              "title": "Clip tourné à l’Été",
+              "body": "Plage, 16 mm",
+              "tags": ["visuel"],
+              "createdAt": "+1680000ms",
+              "updatedAt": "+1680000ms",
+              "archived": false,
+              "track": null,
+              "task": null
+            },
+            {
+              "id": "#3",
+              "title": "Version live acoustique",
+              "body": "Guitare + voix, « une prise »",
+              "tags": ["arrangement", "live"],
+              "createdAt": "+1260000ms",
+              "updatedAt": "+4800000ms",
+              "archived": false,
+              "track": {
+                "id": 2,
+                "title": "Aube"
+              },
+              "task": null
+            },
+            {
+              "id": "#2",
+              "title": "Pochette en noir et blanc",
+              "body": "Photo argentique",
+              "tags": ["visuel"],
+              "createdAt": "+840000ms",
+              "updatedAt": "+4740000ms",
+              "archived": false,
+              "track": null,
+              "task": null
+            },
+            {
+              "id": "#1",
+              "title": "Un break avec des cordes",
+              "body": "Pizzicati sur le 2e couplet.\nEssayer en ré mineur.",
+              "tags": ["arrangement", "orchestre"],
+              "createdAt": "+420000ms",
+              "updatedAt": "+420000ms",
+              "archived": false,
+              "track": {
+                "id": 1,
+                "title": "Nuit blanche"
+              },
+              "task": {
+                "id": "#6",
+                "title": "Un break avec des cordes"
+              }
+            }
+          ],
+          "tags": [
+            {
+              "name": "arrangement",
+              "count": 2,
+              "color": 0
+            },
+            {
+              "name": "visuel",
+              "count": 2,
+              "color": 3
+            },
+            {
+              "name": "archives",
+              "count": 1,
+              "color": 0
+            },
+            {
+              "name": "live",
+              "count": 1,
+              "color": 0
+            },
+            {
+              "name": "orchestre",
+              "count": 1,
+              "color": 0
+            }
+          ],
+          "counts": {
+            "active": 4,
+            "archived": 1
+          },
+          "library": true,
+          "tracks": [
+            {
+              "id": 1,
+              "title": "Nuit blanche"
+            },
+            {
+              "id": 2,
+              "title": "Aube"
+            }
+          ],
+          "todo": true
+        }
+      }
+    ],
+    [
+      "GET /ideas?q=ete",
+      {
+        "status": 200,
+        "body": {
+          "ideas": [
+            {
+              "id": "#4",
+              "title": "Clip tourné à l’Été",
+              "body": "Plage, 16 mm",
+              "tags": ["visuel"],
+              "createdAt": "+1680000ms",
+              "updatedAt": "+1680000ms",
+              "archived": false,
+              "track": null,
+              "task": null
+            }
+          ],
+          "tags": [
+            {
+              "name": "arrangement",
+              "count": 2,
+              "color": 0
+            },
+            {
+              "name": "visuel",
+              "count": 2,
+              "color": 3
+            },
+            {
+              "name": "archives",
+              "count": 1,
+              "color": 0
+            },
+            {
+              "name": "live",
+              "count": 1,
+              "color": 0
+            },
+            {
+              "name": "orchestre",
+              "count": 1,
+              "color": 0
+            }
+          ],
+          "counts": {
+            "active": 4,
+            "archived": 1
+          },
+          "library": true,
+          "tracks": [
+            {
+              "id": 1,
+              "title": "Nuit blanche"
+            },
+            {
+              "id": 2,
+              "title": "Aube"
+            }
+          ],
+          "todo": true
+        }
+      }
+    ],
+    [
+      "GET /ideas?q=CORDES",
+      {
+        "status": 200,
+        "body": {
+          "ideas": [
+            {
+              "id": "#1",
+              "title": "Un break avec des cordes",
+              "body": "Pizzicati sur le 2e couplet.\nEssayer en ré mineur.",
+              "tags": ["arrangement", "orchestre"],
+              "createdAt": "+420000ms",
+              "updatedAt": "+420000ms",
+              "archived": false,
+              "track": {
+                "id": 1,
+                "title": "Nuit blanche"
+              },
+              "task": {
+                "id": "#6",
+                "title": "Un break avec des cordes"
+              }
+            }
+          ],
+          "tags": [
+            {
+              "name": "arrangement",
+              "count": 2,
+              "color": 0
+            },
+            {
+              "name": "visuel",
+              "count": 2,
+              "color": 3
+            },
+            {
+              "name": "archives",
+              "count": 1,
+              "color": 0
+            },
+            {
+              "name": "live",
+              "count": 1,
+              "color": 0
+            },
+            {
+              "name": "orchestre",
+              "count": 1,
+              "color": 0
+            }
+          ],
+          "counts": {
+            "active": 4,
+            "archived": 1
+          },
+          "library": true,
+          "tracks": [
+            {
+              "id": 1,
+              "title": "Nuit blanche"
+            },
+            {
+              "id": 2,
+              "title": "Aube"
+            }
+          ],
+          "todo": true
+        }
+      }
+    ],
+    [
+      "GET /ideas?tags=visuel",
+      {
+        "status": 200,
+        "body": {
+          "ideas": [
+            {
+              "id": "#4",
+              "title": "Clip tourné à l’Été",
+              "body": "Plage, 16 mm",
+              "tags": ["visuel"],
+              "createdAt": "+1680000ms",
+              "updatedAt": "+1680000ms",
+              "archived": false,
+              "track": null,
+              "task": null
+            },
+            {
+              "id": "#2",
+              "title": "Pochette en noir et blanc",
+              "body": "Photo argentique",
+              "tags": ["visuel"],
+              "createdAt": "+840000ms",
+              "updatedAt": "+4740000ms",
+              "archived": false,
+              "track": null,
+              "task": null
+            }
+          ],
+          "tags": [
+            {
+              "name": "arrangement",
+              "count": 2,
+              "color": 0
+            },
+            {
+              "name": "visuel",
+              "count": 2,
+              "color": 3
+            },
+            {
+              "name": "archives",
+              "count": 1,
+              "color": 0
+            },
+            {
+              "name": "live",
+              "count": 1,
+              "color": 0
+            },
+            {
+              "name": "orchestre",
+              "count": 1,
+              "color": 0
+            }
+          ],
+          "counts": {
+            "active": 4,
+            "archived": 1
+          },
+          "library": true,
+          "tracks": [
+            {
+              "id": 1,
+              "title": "Nuit blanche"
+            },
+            {
+              "id": 2,
+              "title": "Aube"
+            }
+          ],
+          "todo": true
+        }
+      }
+    ],
+    [
+      "GET /ideas?tags=arrangement,live&sort=old",
+      {
+        "status": 200,
+        "body": {
+          "ideas": [
+            {
+              "id": "#3",
+              "title": "Version live acoustique",
+              "body": "Guitare + voix, « une prise »",
+              "tags": ["arrangement", "live"],
+              "createdAt": "+1260000ms",
+              "updatedAt": "+4800000ms",
+              "archived": false,
+              "track": {
+                "id": 2,
+                "title": "Aube"
+              },
+              "task": null
+            }
+          ],
+          "tags": [
+            {
+              "name": "arrangement",
+              "count": 2,
+              "color": 0
+            },
+            {
+              "name": "visuel",
+              "count": 2,
+              "color": 3
+            },
+            {
+              "name": "archives",
+              "count": 1,
+              "color": 0
+            },
+            {
+              "name": "live",
+              "count": 1,
+              "color": 0
+            },
+            {
+              "name": "orchestre",
+              "count": 1,
+              "color": 0
+            }
+          ],
+          "counts": {
+            "active": 4,
+            "archived": 1
+          },
+          "library": true,
+          "tracks": [
+            {
+              "id": 1,
+              "title": "Nuit blanche"
+            },
+            {
+              "id": 2,
+              "title": "Aube"
+            }
+          ],
+          "todo": true
+        }
+      }
+    ],
+    [
+      "GET /ideas?sort=modified",
+      {
+        "status": 200,
+        "body": {
+          "ideas": [
+            {
+              "id": "#3",
+              "title": "Version live acoustique",
+              "body": "Guitare + voix, « une prise »",
+              "tags": ["arrangement", "live"],
+              "createdAt": "+1260000ms",
+              "updatedAt": "+4800000ms",
+              "archived": false,
+              "track": {
+                "id": 2,
+                "title": "Aube"
+              },
+              "task": null
+            },
+            {
+              "id": "#2",
+              "title": "Pochette en noir et blanc",
+              "body": "Photo argentique",
+              "tags": ["visuel"],
+              "createdAt": "+840000ms",
+              "updatedAt": "+4740000ms",
+              "archived": false,
+              "track": null,
+              "task": null
+            },
+            {
+              "id": "#4",
+              "title": "Clip tourné à l’Été",
+              "body": "Plage, 16 mm",
+              "tags": ["visuel"],
+              "createdAt": "+1680000ms",
+              "updatedAt": "+1680000ms",
+              "archived": false,
+              "track": null,
+              "task": null
+            },
+            {
+              "id": "#1",
+              "title": "Un break avec des cordes",
+              "body": "Pizzicati sur le 2e couplet.\nEssayer en ré mineur.",
+              "tags": ["arrangement", "orchestre"],
+              "createdAt": "+420000ms",
+              "updatedAt": "+420000ms",
+              "archived": false,
+              "track": {
+                "id": 1,
+                "title": "Nuit blanche"
+              },
+              "task": {
+                "id": "#6",
+                "title": "Un break avec des cordes"
+              }
+            }
+          ],
+          "tags": [
+            {
+              "name": "arrangement",
+              "count": 2,
+              "color": 0
+            },
+            {
+              "name": "visuel",
+              "count": 2,
+              "color": 3
+            },
+            {
+              "name": "archives",
+              "count": 1,
+              "color": 0
+            },
+            {
+              "name": "live",
+              "count": 1,
+              "color": 0
+            },
+            {
+              "name": "orchestre",
+              "count": 1,
+              "color": 0
+            }
+          ],
+          "counts": {
+            "active": 4,
+            "archived": 1
+          },
+          "library": true,
+          "tracks": [
+            {
+              "id": 1,
+              "title": "Nuit blanche"
+            },
+            {
+              "id": 2,
+              "title": "Aube"
+            }
+          ],
+          "todo": true
+        }
+      }
+    ],
+    [
+      "GET /ideas?archived=1",
+      {
+        "status": 200,
+        "body": {
+          "ideas": [
+            {
+              "id": "#5",
+              "title": "Vieux projet",
+              "body": "",
+              "tags": ["archives"],
+              "createdAt": "+2100000ms",
+              "updatedAt": "+2100000ms",
+              "archived": true,
+              "track": null,
+              "task": null
+            }
+          ],
+          "tags": [
+            {
+              "name": "arrangement",
+              "count": 2,
+              "color": 0
+            },
+            {
+              "name": "visuel",
+              "count": 2,
+              "color": 3
+            },
+            {
+              "name": "archives",
+              "count": 1,
+              "color": 0
+            },
+            {
+              "name": "live",
+              "count": 1,
+              "color": 0
+            },
+            {
+              "name": "orchestre",
+              "count": 1,
+              "color": 0
+            }
+          ],
+          "counts": {
+            "active": 4,
+            "archived": 1
+          },
+          "library": true,
+          "tracks": [
+            {
+              "id": 1,
+              "title": "Nuit blanche"
+            },
+            {
+              "id": 2,
+              "title": "Aube"
+            }
+          ],
+          "todo": true
+        }
+      }
+    ],
+    [
+      "GET /random",
+      {
+        "status": 200,
+        "body": {
+          "idea": {
+            "id": "#2",
+            "title": "Pochette en noir et blanc",
+            "body": "Photo argentique",
+            "tags": ["visuel"],
+            "createdAt": "+840000ms",
+            "updatedAt": "+4740000ms",
+            "archived": false,
+            "track": null,
+            "task": null
+          }
+        }
+      }
+    ],
+    [
+      "GET /random?tags=visuel",
+      {
+        "status": 200,
+        "body": {
+          "idea": {
+            "id": "#2",
+            "title": "Pochette en noir et blanc",
+            "body": "Photo argentique",
+            "tags": ["visuel"],
+            "createdAt": "+840000ms",
+            "updatedAt": "+4740000ms",
+            "archived": false,
+            "track": null,
+            "task": null
+          }
+        }
+      }
+    ],
+    [
+      "GET /random?tags=rien",
+      {
+        "status": 200,
+        "body": {
+          "idea": null
+        }
+      }
+    ],
+    [
+      "GET /home",
+      {
+        "status": 200,
+        "body": {
+          "show": true,
+          "count": 4,
+          "latest": [
+            {
+              "id": "#4",
+              "title": "Clip tourné à l’Été"
+            },
+            {
+              "id": "#3",
+              "title": "Version live acoustique"
+            },
+            {
+              "id": "#2",
+              "title": "Pochette en noir et blanc"
+            }
+          ]
+        }
+      }
+    ],
+    [
+      "todo",
+      {
+        "today": "2026-11-04",
+        "tasks": [
+          {
+            "id": "#6",
+            "title": "Un break avec des cordes",
+            "tags": ["arrangement", "orchestre"],
+            "due": null,
+            "done": false,
+            "doneAt": null,
+            "createdAt": "+5520000ms",
+            "track": {
+              "id": 1,
+              "title": "Nuit blanche"
+            },
+            "timeSpent": 0
+          }
+        ],
+        "tags": [
+          {
+            "name": "arrangement",
+            "count": 1
+          },
+          {
+            "name": "orchestre",
+            "count": 1
+          }
+        ],
+        "library": true,
+        "tracks": [
+          {
+            "id": 1,
+            "title": "Nuit blanche"
+          },
+          {
+            "id": 2,
+            "title": "Aube"
+          }
+        ],
+        "timer": false
+      }
+    ],
+    [
+      "POST /export",
+      {
+        "status": 200,
+        "body": {
+          "path": "export-1",
+          "count": 4
+        }
+      }
+    ],
+    [
+      "POST /export",
+      {
+        "status": 200,
+        "body": {
+          "path": "export-2",
+          "count": 5
+        }
+      }
+    ]
+  ],
+  "saves": [
+    {
+      "name": "Boîte à idées - 2026-11-04.md",
+      "data": "# Boîte à idées\n\n4 idée(s), exportées le 2026-11-04.\n\n## Un break avec des cordes\n\n*#arrangement #orchestre · créée le 2026-11-04 · morceau : Nuit blanche · devenue une tâche*\n\nPizzicati sur le 2e couplet.\nEssayer en ré mineur.\n\n## Pochette en noir et blanc\n\n*#visuel · créée le 2026-11-04 · modifiée le 2026-11-04*\n\nPhoto argentique\n\n## Version live acoustique\n\n*#arrangement #live · créée le 2026-11-04 · modifiée le 2026-11-04 · morceau : Aube*\n\nGuitare + voix, « une prise »\n\n## Clip tourné à l’Été\n\n*#visuel · créée le 2026-11-04*\n\nPlage, 16 mm\n"
+    },
+    {
+      "name": "Boîte à idées - 2026-11-04.md",
+      "data": "# Boîte à idées\n\n5 idée(s), exportées le 2026-11-04.\n\n## Un break avec des cordes\n\n*#arrangement #orchestre · créée le 2026-11-04 · morceau : Nuit blanche · devenue une tâche*\n\nPizzicati sur le 2e couplet.\nEssayer en ré mineur.\n\n## Pochette en noir et blanc\n\n*#visuel · créée le 2026-11-04 · modifiée le 2026-11-04*\n\nPhoto argentique\n\n## Version live acoustique\n\n*#arrangement #live · créée le 2026-11-04 · modifiée le 2026-11-04 · morceau : Aube*\n\nGuitare + voix, « une prise »\n\n## Clip tourné à l’Été\n\n*#visuel · créée le 2026-11-04*\n\nPlage, 16 mm\n\n## Vieux projet\n\n*#archives · créée le 2026-11-04 · archivée*\n"
+    }
+  ],
+  "assistant": {
+    "list": {
+      "status": "done",
+      "id": "ideas.list-ideas",
+      "message": "4 idées : « Clip tourné à l’Été », « Version live acoustique », « Pochette en noir et blanc » et « Un break avec des cordes ».",
+      "data": {
+        "ideas": [
+          {
+            "id": "#4",
+            "title": "Clip tourné à l’Été",
+            "tags": ["visuel"]
+          },
+          {
+            "id": "#3",
+            "title": "Version live acoustique",
+            "tags": ["arrangement", "live"]
+          },
+          {
+            "id": "#2",
+            "title": "Pochette en noir et blanc",
+            "tags": ["visuel"]
+          },
+          {
+            "id": "#1",
+            "title": "Un break avec des cordes",
+            "tags": ["arrangement", "orchestre"]
+          }
+        ],
+        "count": 4
+      },
+      "undoId": null,
+      "open": null
+    },
+    "tag": {
+      "status": "done",
+      "id": "ideas.list-ideas",
+      "message": "2 idées avec le tag visuel : « Clip tourné à l’Été » et « Pochette en noir et blanc ».",
+      "data": {
+        "ideas": [
+          {
+            "id": "#4",
+            "title": "Clip tourné à l’Été",
+            "tags": ["visuel"]
+          },
+          {
+            "id": "#2",
+            "title": "Pochette en noir et blanc",
+            "tags": ["visuel"]
+          }
+        ],
+        "count": 2
+      },
+      "undoId": null,
+      "open": null
+    },
+    "random": {
+      "status": "done",
+      "id": "ideas.random-idea",
+      "message": "Une idée au hasard : « Pochette en noir et blanc ».",
+      "data": {
+        "idea": {
+          "id": "#2",
+          "title": "Pochette en noir et blanc",
+          "body": "Photo argentique"
+        }
+      },
+      "undoId": null,
+      "open": null
+    },
+    "add": {
+      "status": "forbidden",
+      "id": "ideas.add-idea",
+      "message": "Je n’ai pas le droit de le faire : « L’assistant peut ajouter des idées » est désactivé dans les droits de l’assistant.",
+      "right": {
+        "id": "ideas.add-ideas",
+        "label": "L’assistant peut ajouter des idées"
+      }
+    }
+  },
+  "tables": {
+    "ideas__changes": [
+      {
+        "id": "#7",
+        "at": "+420000ms",
+        "entity": "ideas",
+        "entity_id": "#1",
+        "op": "create",
+        "data": "{\"title\":\"Un break avec des cordes\",\"body\":\"Pizzicati sur le 2e couplet.\\nEssayer en ré mineur.\",\"tags\":\"[\\\"arrangement\\\",\\\"cordes\\\"]\",\"subject\":\"music-library:track:1\",\"archived_at\":null,\"task_id\":null,\"task_title\":null,\"edited_at\":null,\"legacy_id\":null}"
+      },
+      {
+        "id": "#8",
+        "at": "+840000ms",
+        "entity": "ideas",
+        "entity_id": "#2",
+        "op": "create",
+        "data": "{\"title\":\"Pochette en noir et blanc\",\"body\":\"\",\"tags\":\"[\\\"visuel\\\"]\",\"subject\":null,\"archived_at\":null,\"task_id\":null,\"task_title\":null,\"edited_at\":null,\"legacy_id\":null}"
+      },
+      {
+        "id": "#9",
+        "at": "+1260000ms",
+        "entity": "ideas",
+        "entity_id": "#3",
+        "op": "create",
+        "data": "{\"title\":\"Version live acoustique\",\"body\":\"Guitare + voix, « une prise »\",\"tags\":\"[\\\"arrangement\\\",\\\"live\\\"]\",\"subject\":null,\"archived_at\":null,\"task_id\":null,\"task_title\":null,\"edited_at\":null,\"legacy_id\":null}"
+      },
+      {
+        "id": "#10",
+        "at": "+1680000ms",
+        "entity": "ideas",
+        "entity_id": "#4",
+        "op": "create",
+        "data": "{\"title\":\"Clip tourné à l’Été\",\"body\":\"Plage, 16 mm\",\"tags\":\"[\\\"visuel\\\"]\",\"subject\":null,\"archived_at\":null,\"task_id\":null,\"task_title\":null,\"edited_at\":null,\"legacy_id\":null}"
+      },
+      {
+        "id": "#11",
+        "at": "+2100000ms",
+        "entity": "ideas",
+        "entity_id": "#5",
+        "op": "create",
+        "data": "{\"title\":\"Vieux projet\",\"body\":\"\",\"tags\":\"[\\\"archives\\\"]\",\"subject\":null,\"archived_at\":null,\"task_id\":null,\"task_title\":null,\"edited_at\":null,\"legacy_id\":null}"
+      },
+      {
+        "id": "#12",
+        "at": "+4740000ms",
+        "entity": "ideas",
+        "entity_id": "#2",
+        "op": "update",
+        "data": "{\"body\":\"Photo argentique\",\"tags\":\"[\\\"visuel\\\",\\\"photo\\\"]\",\"edited_at\":\"+4740000ms\"}"
+      },
+      {
+        "id": "#13",
+        "at": "+4800000ms",
+        "entity": "ideas",
+        "entity_id": "#3",
+        "op": "update",
+        "data": "{\"subject\":\"music-library:track:2\",\"edited_at\":\"+4800000ms\"}"
+      },
+      {
+        "id": "#14",
+        "at": "+5100000ms",
+        "entity": "ideas",
+        "entity_id": "#5",
+        "op": "update",
+        "data": "{\"archived_at\":\"+5100000ms\"}"
+      },
+      {
+        "id": "#15",
+        "at": "+5100001ms",
+        "entity": "ideas",
+        "entity_id": "#4",
+        "op": "update",
+        "data": "{\"archived_at\":\"+5100000ms\"}"
+      },
+      {
+        "id": "#16",
+        "at": "+5400000ms",
+        "entity": "ideas",
+        "entity_id": "#4",
+        "op": "update",
+        "data": "{\"archived_at\":null}"
+      },
+      {
+        "id": "#17",
+        "at": "+5400001ms",
+        "entity": "ideas",
+        "entity_id": "#3",
+        "op": "delete",
+        "data": null
+      },
+      {
+        "id": "#18",
+        "at": "+5400002ms",
+        "entity": "ideas",
+        "entity_id": "#3",
+        "op": "restore",
+        "data": null
+      },
+      {
+        "id": "#19",
+        "at": "+5400003ms",
+        "entity": "tags",
+        "entity_id": "#20",
+        "op": "create",
+        "data": "{\"name\":\"visuel\",\"color\":3}"
+      },
+      {
+        "id": "#21",
+        "at": "+5400004ms",
+        "entity": "ideas",
+        "entity_id": "#1",
+        "op": "update",
+        "data": "{\"tags\":\"[\\\"arrangement\\\",\\\"orchestre\\\"]\"}"
+      },
+      {
+        "id": "#22",
+        "at": "+5400005ms",
+        "entity": "tags",
+        "entity_id": "#23",
+        "op": "create",
+        "data": "{\"name\":\"orchestre\",\"color\":0}"
+      },
+      {
+        "id": "#24",
+        "at": "+5400006ms",
+        "entity": "ideas",
+        "entity_id": "#2",
+        "op": "update",
+        "data": "{\"tags\":\"[\\\"visuel\\\"]\"}"
+      },
+      {
+        "id": "#25",
+        "at": "+5520001ms",
+        "entity": "ideas",
+        "entity_id": "#1",
+        "op": "update",
+        "data": "{\"task_id\":\"#6\",\"task_title\":\"Un break avec des cordes\"}"
+      }
+    ],
+    "ideas__ideas": [
+      {
+        "id": "#1",
+        "created_at": "+420000ms",
+        "updated_at": "+5520001ms",
+        "deleted_at": null,
+        "title": "Un break avec des cordes",
+        "body": "Pizzicati sur le 2e couplet.\nEssayer en ré mineur.",
+        "tags": "[\"arrangement\",\"orchestre\"]",
+        "subject": "music-library:track:1",
+        "archived_at": null,
+        "task_id": "#6",
+        "task_title": "Un break avec des cordes",
+        "edited_at": null,
+        "legacy_id": null
+      },
+      {
+        "id": "#2",
+        "created_at": "+840000ms",
+        "updated_at": "+5400006ms",
+        "deleted_at": null,
+        "title": "Pochette en noir et blanc",
+        "body": "Photo argentique",
+        "tags": "[\"visuel\"]",
+        "subject": null,
+        "archived_at": null,
+        "task_id": null,
+        "task_title": null,
+        "edited_at": "+4740000ms",
+        "legacy_id": null
+      },
+      {
+        "id": "#3",
+        "created_at": "+1260000ms",
+        "updated_at": "+5400002ms",
+        "deleted_at": null,
+        "title": "Version live acoustique",
+        "body": "Guitare + voix, « une prise »",
+        "tags": "[\"arrangement\",\"live\"]",
+        "subject": "music-library:track:2",
+        "archived_at": null,
+        "task_id": null,
+        "task_title": null,
+        "edited_at": "+4800000ms",
+        "legacy_id": null
+      },
+      {
+        "id": "#4",
+        "created_at": "+1680000ms",
+        "updated_at": "+5400000ms",
+        "deleted_at": null,
+        "title": "Clip tourné à l’Été",
+        "body": "Plage, 16 mm",
+        "tags": "[\"visuel\"]",
+        "subject": null,
+        "archived_at": null,
+        "task_id": null,
+        "task_title": null,
+        "edited_at": null,
+        "legacy_id": null
+      },
+      {
+        "id": "#5",
+        "created_at": "+2100000ms",
+        "updated_at": "+5100000ms",
+        "deleted_at": null,
+        "title": "Vieux projet",
+        "body": "",
+        "tags": "[\"archives\"]",
+        "subject": null,
+        "archived_at": "+5100000ms",
+        "task_id": null,
+        "task_title": null,
+        "edited_at": null,
+        "legacy_id": null
+      }
+    ],
+    "ideas__ideas_v1": [],
+    "ideas__legacy_ids": [],
+    "ideas__tags": [
+      {
+        "id": "#20",
+        "created_at": "+5400003ms",
+        "updated_at": "+5400003ms",
+        "deleted_at": null,
+        "name": "visuel",
+        "color": 3
+      },
+      {
+        "id": "#23",
+        "created_at": "+5400005ms",
+        "updated_at": "+5400005ms",
+        "deleted_at": null,
+        "name": "orchestre",
+        "color": 0
+      }
+    ],
+    "ideas__tags_v1": []
+  }
+}

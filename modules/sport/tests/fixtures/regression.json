@@ -1,0 +1,5623 @@
+{
+  "steps": [
+    [
+      "GET /home",
+      {
+        "status": 200,
+        "body": {
+          "today": "2026-11-04",
+          "sessions": []
+        }
+      }
+    ],
+    [
+      "PUT /template",
+      {
+        "status": 200,
+        "body": {
+          "template": [
+            {
+              "id": "#1",
+              "weekday": 1,
+              "name": "Haut du corps",
+              "start": "18:30",
+              "durationMin": 75,
+              "exercises": [
+                {
+                  "id": "#2",
+                  "exerciseId": "#3",
+                  "name": "Développé couché",
+                  "sets": 4,
+                  "reps": "8",
+                  "load": "60 kg",
+                  "restSec": 120,
+                  "note": ""
+                },
+                {
+                  "id": "#4",
+                  "exerciseId": "#5",
+                  "name": "Tractions",
+                  "sets": 3,
+                  "reps": "6-8",
+                  "load": "",
+                  "restSec": 90,
+                  "note": ""
+                }
+              ]
+            },
+            {
+              "id": "#6",
+              "weekday": 3,
+              "name": "Course",
+              "start": "07:30",
+              "durationMin": 40,
+              "exercises": []
+            },
+            {
+              "id": "#7",
+              "weekday": 5,
+              "name": "Jambes",
+              "start": "18:00",
+              "durationMin": 60,
+              "exercises": [
+                {
+                  "id": "#8",
+                  "exerciseId": "#9",
+                  "name": "Squat",
+                  "sets": 5,
+                  "reps": "5",
+                  "load": "80 kg",
+                  "restSec": 180,
+                  "note": ""
+                },
+                {
+                  "id": "#10",
+                  "exerciseId": "#11",
+                  "name": "Fentes",
+                  "sets": 3,
+                  "reps": "10",
+                  "load": "2 × 12 kg",
+                  "restSec": 90,
+                  "note": ""
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    [
+      "GET /week",
+      {
+        "status": 200,
+        "body": {
+          "week": "2026-11-02",
+          "today": "2026-11-04",
+          "days": [
+            {
+              "date": "2026-11-02",
+              "sessions": [
+                {
+                  "id": "#12",
+                  "date": "2026-11-02",
+                  "name": "Haut du corps",
+                  "start": "18:30",
+                  "durationMin": 75,
+                  "status": "planned",
+                  "mood": null,
+                  "comment": "",
+                  "templateId": "#1",
+                  "custom": false,
+                  "exercises": [
+                    {
+                      "id": "#13",
+                      "exerciseId": "#3",
+                      "name": "Développé couché",
+                      "sets": 4,
+                      "reps": "8",
+                      "load": "60 kg",
+                      "restSec": 120,
+                      "note": ""
+                    },
+                    {
+                      "id": "#14",
+                      "exerciseId": "#5",
+                      "name": "Tractions",
+                      "sets": 3,
+                      "reps": "6-8",
+                      "load": "",
+                      "restSec": 90,
+                      "note": ""
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "date": "2026-11-03",
+              "sessions": []
+            },
+            {
+              "date": "2026-11-04",
+              "sessions": [
+                {
+                  "id": "#15",
+                  "date": "2026-11-04",
+                  "name": "Course",
+                  "start": "07:30",
+                  "durationMin": 40,
+                  "status": "planned",
+                  "mood": null,
+                  "comment": "",
+                  "templateId": "#6",
+                  "custom": false,
+                  "exercises": []
+                }
+              ]
+            },
+            {
+              "date": "2026-11-05",
+              "sessions": []
+            },
+            {
+              "date": "2026-11-06",
+              "sessions": [
+                {
+                  "id": "#16",
+                  "date": "2026-11-06",
+                  "name": "Jambes",
+                  "start": "18:00",
+                  "durationMin": 60,
+                  "status": "planned",
+                  "mood": null,
+                  "comment": "",
+                  "templateId": "#7",
+                  "custom": false,
+                  "exercises": [
+                    {
+                      "id": "#17",
+                      "exerciseId": "#9",
+                      "name": "Squat",
+                      "sets": 5,
+                      "reps": "5",
+                      "load": "80 kg",
+                      "restSec": 180,
+                      "note": ""
+                    },
+                    {
+                      "id": "#18",
+                      "exerciseId": "#11",
+                      "name": "Fentes",
+                      "sets": 3,
+                      "reps": "10",
+                      "load": "2 × 12 kg",
+                      "restSec": 90,
+                      "note": ""
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "date": "2026-11-07",
+              "sessions": []
+            },
+            {
+              "date": "2026-11-08",
+              "sessions": []
+            }
+          ],
+          "summary": {
+            "done": 0,
+            "planned": 3,
+            "toValidate": 1,
+            "mood": null
+          },
+          "month": {
+            "done": 0,
+            "planned": 3,
+            "toValidate": 1,
+            "mood": null
+          },
+          "streak": 0,
+          "template": [
+            {
+              "id": "#1",
+              "weekday": 1,
+              "name": "Haut du corps",
+              "start": "18:30",
+              "durationMin": 75,
+              "exercises": [
+                {
+                  "id": "#2",
+                  "exerciseId": "#3",
+                  "name": "Développé couché",
+                  "sets": 4,
+                  "reps": "8",
+                  "load": "60 kg",
+                  "restSec": 120,
+                  "note": ""
+                },
+                {
+                  "id": "#4",
+                  "exerciseId": "#5",
+                  "name": "Tractions",
+                  "sets": 3,
+                  "reps": "6-8",
+                  "load": "",
+                  "restSec": 90,
+                  "note": ""
+                }
+              ]
+            },
+            {
+              "id": "#6",
+              "weekday": 3,
+              "name": "Course",
+              "start": "07:30",
+              "durationMin": 40,
+              "exercises": []
+            },
+            {
+              "id": "#7",
+              "weekday": 5,
+              "name": "Jambes",
+              "start": "18:00",
+              "durationMin": 60,
+              "exercises": [
+                {
+                  "id": "#8",
+                  "exerciseId": "#9",
+                  "name": "Squat",
+                  "sets": 5,
+                  "reps": "5",
+                  "load": "80 kg",
+                  "restSec": 180,
+                  "note": ""
+                },
+                {
+                  "id": "#10",
+                  "exerciseId": "#11",
+                  "name": "Fentes",
+                  "sets": 3,
+                  "reps": "10",
+                  "load": "2 × 12 kg",
+                  "restSec": 90,
+                  "note": ""
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    [
+      "GET /home",
+      {
+        "status": 200,
+        "body": {
+          "today": "2026-11-04",
+          "sessions": [
+            {
+              "id": "#15",
+              "date": "2026-11-04",
+              "name": "Course",
+              "start": "07:30",
+              "durationMin": 40,
+              "status": "planned",
+              "mood": null,
+              "comment": "",
+              "templateId": "#6",
+              "custom": false,
+              "exercises": []
+            }
+          ]
+        }
+      }
+    ],
+    [
+      "PATCH /sessions/#12",
+      {
+        "status": 200,
+        "body": {
+          "id": "#12",
+          "date": "2026-11-02",
+          "name": "Haut du corps",
+          "start": "18:30",
+          "durationMin": 75,
+          "status": "done",
+          "mood": 4,
+          "comment": "Bonne séance ; un peu fatigué",
+          "templateId": "#1",
+          "custom": false,
+          "exercises": [
+            {
+              "id": "#13",
+              "exerciseId": "#3",
+              "name": "Développé couché",
+              "sets": 4,
+              "reps": "8",
+              "load": "60 kg",
+              "restSec": 120,
+              "note": ""
+            },
+            {
+              "id": "#14",
+              "exerciseId": "#5",
+              "name": "Tractions",
+              "sets": 3,
+              "reps": "6-8",
+              "load": "",
+              "restSec": 90,
+              "note": ""
+            }
+          ]
+        }
+      }
+    ],
+    [
+      "PATCH /sessions/#12",
+      {
+        "status": 200,
+        "body": {
+          "id": "#12",
+          "date": "2026-11-02",
+          "name": "Haut du corps",
+          "start": "18:30",
+          "durationMin": 75,
+          "status": "done",
+          "mood": 4,
+          "comment": "Bonne séance ; un peu fatigué",
+          "templateId": "#1",
+          "custom": true,
+          "exercises": [
+            {
+              "id": "#13",
+              "exerciseId": "#3",
+              "name": "Développé couché",
+              "sets": 4,
+              "reps": "8",
+              "load": "62,5 kg",
+              "restSec": 120,
+              "note": ""
+            },
+            {
+              "id": "#14",
+              "exerciseId": "#5",
+              "name": "Tractions",
+              "sets": 3,
+              "reps": "6-8",
+              "load": "",
+              "restSec": 90,
+              "note": ""
+            }
+          ]
+        }
+      }
+    ],
+    [
+      "PATCH /sessions/#15",
+      {
+        "status": 200,
+        "body": {
+          "id": "#15",
+          "date": "2026-11-04",
+          "name": "Course",
+          "start": "07:30",
+          "durationMin": 40,
+          "status": "cancelled",
+          "mood": null,
+          "comment": "",
+          "templateId": "#6",
+          "custom": false,
+          "exercises": []
+        }
+      }
+    ],
+    [
+      "GET /home",
+      {
+        "status": 200,
+        "body": {
+          "today": "2026-11-04",
+          "sessions": []
+        }
+      }
+    ],
+    [
+      "PATCH /sessions/#15",
+      {
+        "status": 200,
+        "body": {
+          "id": "#15",
+          "date": "2026-11-04",
+          "name": "Course",
+          "start": "07:30",
+          "durationMin": 40,
+          "status": "planned",
+          "mood": null,
+          "comment": "",
+          "templateId": "#6",
+          "custom": false,
+          "exercises": []
+        }
+      }
+    ],
+    [
+      "PATCH /sessions/#16",
+      {
+        "status": 200,
+        "body": {
+          "id": "#16",
+          "date": "2026-11-07",
+          "name": "Jambes",
+          "start": "10:00",
+          "durationMin": 60,
+          "status": "planned",
+          "mood": null,
+          "comment": "",
+          "templateId": "#7",
+          "custom": true,
+          "exercises": [
+            {
+              "id": "#17",
+              "exerciseId": "#9",
+              "name": "Squat",
+              "sets": 5,
+              "reps": "5",
+              "load": "80 kg",
+              "restSec": 180,
+              "note": ""
+            },
+            {
+              "id": "#18",
+              "exerciseId": "#11",
+              "name": "Fentes",
+              "sets": 3,
+              "reps": "10",
+              "load": "2 × 12 kg",
+              "restSec": 90,
+              "note": ""
+            }
+          ]
+        }
+      }
+    ],
+    [
+      "POST /sessions",
+      {
+        "status": 200,
+        "body": {
+          "id": "#19",
+          "date": "2026-11-08",
+          "name": "Vélo \"long\"",
+          "start": "09:00",
+          "durationMin": 120,
+          "status": "planned",
+          "mood": null,
+          "comment": "",
+          "templateId": null,
+          "custom": true,
+          "exercises": []
+        }
+      }
+    ],
+    [
+      "DELETE /sessions/#19",
+      {
+        "status": 200,
+        "body": {
+          "ok": true
+        }
+      }
+    ],
+    [
+      "POST /sessions/#19/restore",
+      {
+        "status": 200,
+        "body": {
+          "id": "#19",
+          "date": "2026-11-08",
+          "name": "Vélo \"long\"",
+          "start": "09:00",
+          "durationMin": 120,
+          "status": "planned",
+          "mood": null,
+          "comment": "",
+          "templateId": null,
+          "custom": true,
+          "exercises": []
+        }
+      }
+    ],
+    [
+      "POST /exercises",
+      {
+        "status": 200,
+        "body": {
+          "id": "#20",
+          "created_at": "+28ms",
+          "updated_at": "+28ms",
+          "deleted_at": null,
+          "name": "Gainage",
+          "note": "planche"
+        }
+      }
+    ],
+    [
+      "PATCH /exercises/#20",
+      {
+        "status": 200,
+        "body": {
+          "id": "#20",
+          "created_at": "+28ms",
+          "updated_at": "+29ms",
+          "deleted_at": null,
+          "name": "Gainage ventral",
+          "note": "3 × 1 min"
+        }
+      }
+    ],
+    [
+      "DELETE /exercises/#20",
+      {
+        "status": 200,
+        "body": {
+          "ok": true
+        }
+      }
+    ],
+    [
+      "POST /exercises/#20/restore",
+      {
+        "status": 200,
+        "body": {
+          "exercises": [
+            {
+              "id": "#3",
+              "name": "Développé couché",
+              "note": "",
+              "uses": 2
+            },
+            {
+              "id": "#11",
+              "name": "Fentes",
+              "note": "",
+              "uses": 2
+            },
+            {
+              "id": "#20",
+              "name": "Gainage ventral",
+              "note": "3 × 1 min",
+              "uses": 0
+            },
+            {
+              "id": "#9",
+              "name": "Squat",
+              "note": "",
+              "uses": 2
+            },
+            {
+              "id": "#5",
+              "name": "Tractions",
+              "note": "",
+              "uses": 2
+            }
+          ]
+        }
+      }
+    ],
+    [
+      "GET /exercises",
+      {
+        "status": 200,
+        "body": {
+          "exercises": [
+            {
+              "id": "#3",
+              "name": "Développé couché",
+              "note": "",
+              "uses": 2
+            },
+            {
+              "id": "#11",
+              "name": "Fentes",
+              "note": "",
+              "uses": 2
+            },
+            {
+              "id": "#20",
+              "name": "Gainage ventral",
+              "note": "3 × 1 min",
+              "uses": 0
+            },
+            {
+              "id": "#9",
+              "name": "Squat",
+              "note": "",
+              "uses": 2
+            },
+            {
+              "id": "#5",
+              "name": "Tractions",
+              "note": "",
+              "uses": 2
+            }
+          ]
+        }
+      }
+    ],
+    [
+      "DELETE /exercises/#9",
+      {
+        "status": 400,
+        "body": {
+          "error": "« Squat » sert encore dans 2 séance(s) : fusionne-le plutôt."
+        }
+      }
+    ],
+    [
+      "POST /exercises/merge",
+      {
+        "status": 200,
+        "body": {
+          "exercises": [
+            {
+              "id": "#3",
+              "name": "Développé couché",
+              "note": "",
+              "uses": 2
+            },
+            {
+              "id": "#20",
+              "name": "Gainage ventral",
+              "note": "3 × 1 min",
+              "uses": 0
+            },
+            {
+              "id": "#9",
+              "name": "Squat",
+              "note": "",
+              "uses": 4
+            },
+            {
+              "id": "#5",
+              "name": "Tractions",
+              "note": "",
+              "uses": 2
+            }
+          ]
+        }
+      }
+    ],
+    [
+      "PATCH /sessions/#21",
+      {
+        "status": 404,
+        "body": {
+          "error": "Séance introuvable"
+        }
+      }
+    ],
+    [
+      "POST /sessions",
+      {
+        "status": 400,
+        "body": {
+          "error": "Jour invalide"
+        }
+      }
+    ],
+    [
+      "GET /week",
+      {
+        "status": 200,
+        "body": {
+          "week": "2026-11-02",
+          "today": "2026-11-04",
+          "days": [
+            {
+              "date": "2026-11-02",
+              "sessions": [
+                {
+                  "id": "#12",
+                  "date": "2026-11-02",
+                  "name": "Haut du corps",
+                  "start": "18:30",
+                  "durationMin": 75,
+                  "status": "done",
+                  "mood": 4,
+                  "comment": "Bonne séance ; un peu fatigué",
+                  "templateId": "#1",
+                  "custom": true,
+                  "exercises": [
+                    {
+                      "id": "#13",
+                      "exerciseId": "#3",
+                      "name": "Développé couché",
+                      "sets": 4,
+                      "reps": "8",
+                      "load": "62,5 kg",
+                      "restSec": 120,
+                      "note": ""
+                    },
+                    {
+                      "id": "#14",
+                      "exerciseId": "#5",
+                      "name": "Tractions",
+                      "sets": 3,
+                      "reps": "6-8",
+                      "load": "",
+                      "restSec": 90,
+                      "note": ""
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "date": "2026-11-03",
+              "sessions": []
+            },
+            {
+              "date": "2026-11-04",
+              "sessions": [
+                {
+                  "id": "#15",
+                  "date": "2026-11-04",
+                  "name": "Course",
+                  "start": "07:30",
+                  "durationMin": 40,
+                  "status": "planned",
+                  "mood": null,
+                  "comment": "",
+                  "templateId": "#6",
+                  "custom": false,
+                  "exercises": []
+                }
+              ]
+            },
+            {
+              "date": "2026-11-05",
+              "sessions": []
+            },
+            {
+              "date": "2026-11-06",
+              "sessions": []
+            },
+            {
+              "date": "2026-11-07",
+              "sessions": [
+                {
+                  "id": "#16",
+                  "date": "2026-11-07",
+                  "name": "Jambes",
+                  "start": "10:00",
+                  "durationMin": 60,
+                  "status": "planned",
+                  "mood": null,
+                  "comment": "",
+                  "templateId": "#7",
+                  "custom": true,
+                  "exercises": [
+                    {
+                      "id": "#17",
+                      "exerciseId": "#9",
+                      "name": "Squat",
+                      "sets": 5,
+                      "reps": "5",
+                      "load": "80 kg",
+                      "restSec": 180,
+                      "note": ""
+                    },
+                    {
+                      "id": "#18",
+                      "exerciseId": "#9",
+                      "name": "Squat",
+                      "sets": 3,
+                      "reps": "10",
+                      "load": "2 × 12 kg",
+                      "restSec": 90,
+                      "note": ""
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "date": "2026-11-08",
+              "sessions": [
+                {
+                  "id": "#19",
+                  "date": "2026-11-08",
+                  "name": "Vélo \"long\"",
+                  "start": "09:00",
+                  "durationMin": 120,
+                  "status": "planned",
+                  "mood": null,
+                  "comment": "",
+                  "templateId": null,
+                  "custom": true,
+                  "exercises": []
+                }
+              ]
+            }
+          ],
+          "summary": {
+            "done": 1,
+            "planned": 4,
+            "toValidate": 0,
+            "mood": 4
+          },
+          "month": {
+            "done": 1,
+            "planned": 4,
+            "toValidate": 0,
+            "mood": 4
+          },
+          "streak": 0,
+          "template": [
+            {
+              "id": "#1",
+              "weekday": 1,
+              "name": "Haut du corps",
+              "start": "18:30",
+              "durationMin": 75,
+              "exercises": [
+                {
+                  "id": "#2",
+                  "exerciseId": "#3",
+                  "name": "Développé couché",
+                  "sets": 4,
+                  "reps": "8",
+                  "load": "60 kg",
+                  "restSec": 120,
+                  "note": ""
+                },
+                {
+                  "id": "#4",
+                  "exerciseId": "#5",
+                  "name": "Tractions",
+                  "sets": 3,
+                  "reps": "6-8",
+                  "load": "",
+                  "restSec": 90,
+                  "note": ""
+                }
+              ]
+            },
+            {
+              "id": "#6",
+              "weekday": 3,
+              "name": "Course",
+              "start": "07:30",
+              "durationMin": 40,
+              "exercises": []
+            },
+            {
+              "id": "#7",
+              "weekday": 5,
+              "name": "Jambes",
+              "start": "18:00",
+              "durationMin": 60,
+              "exercises": [
+                {
+                  "id": "#8",
+                  "exerciseId": "#9",
+                  "name": "Squat",
+                  "sets": 5,
+                  "reps": "5",
+                  "load": "80 kg",
+                  "restSec": 180,
+                  "note": ""
+                },
+                {
+                  "id": "#10",
+                  "exerciseId": "#9",
+                  "name": "Squat",
+                  "sets": 3,
+                  "reps": "10",
+                  "load": "2 × 12 kg",
+                  "restSec": 90,
+                  "note": ""
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    [
+      "GET /week?start=2026-11-09",
+      {
+        "status": 200,
+        "body": {
+          "week": "2026-11-09",
+          "today": "2026-11-04",
+          "days": [
+            {
+              "date": "2026-11-09",
+              "sessions": [
+                {
+                  "id": "#22",
+                  "date": "2026-11-09",
+                  "name": "Haut du corps",
+                  "start": "18:30",
+                  "durationMin": 75,
+                  "status": "planned",
+                  "mood": null,
+                  "comment": "",
+                  "templateId": "#1",
+                  "custom": false,
+                  "exercises": [
+                    {
+                      "id": "#23",
+                      "exerciseId": "#3",
+                      "name": "Développé couché",
+                      "sets": 4,
+                      "reps": "8",
+                      "load": "60 kg",
+                      "restSec": 120,
+                      "note": ""
+                    },
+                    {
+                      "id": "#24",
+                      "exerciseId": "#5",
+                      "name": "Tractions",
+                      "sets": 3,
+                      "reps": "6-8",
+                      "load": "",
+                      "restSec": 90,
+                      "note": ""
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "date": "2026-11-10",
+              "sessions": []
+            },
+            {
+              "date": "2026-11-11",
+              "sessions": [
+                {
+                  "id": "#25",
+                  "date": "2026-11-11",
+                  "name": "Course",
+                  "start": "07:30",
+                  "durationMin": 40,
+                  "status": "planned",
+                  "mood": null,
+                  "comment": "",
+                  "templateId": "#6",
+                  "custom": false,
+                  "exercises": []
+                }
+              ]
+            },
+            {
+              "date": "2026-11-12",
+              "sessions": []
+            },
+            {
+              "date": "2026-11-13",
+              "sessions": [
+                {
+                  "id": "#26",
+                  "date": "2026-11-13",
+                  "name": "Jambes",
+                  "start": "18:00",
+                  "durationMin": 60,
+                  "status": "planned",
+                  "mood": null,
+                  "comment": "",
+                  "templateId": "#7",
+                  "custom": false,
+                  "exercises": [
+                    {
+                      "id": "#27",
+                      "exerciseId": "#9",
+                      "name": "Squat",
+                      "sets": 5,
+                      "reps": "5",
+                      "load": "80 kg",
+                      "restSec": 180,
+                      "note": ""
+                    },
+                    {
+                      "id": "#28",
+                      "exerciseId": "#9",
+                      "name": "Squat",
+                      "sets": 3,
+                      "reps": "10",
+                      "load": "2 × 12 kg",
+                      "restSec": 90,
+                      "note": ""
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "date": "2026-11-14",
+              "sessions": []
+            },
+            {
+              "date": "2026-11-15",
+              "sessions": []
+            }
+          ],
+          "summary": {
+            "done": 0,
+            "planned": 3,
+            "toValidate": 0,
+            "mood": null
+          },
+          "month": {
+            "done": 1,
+            "planned": 7,
+            "toValidate": 0,
+            "mood": 4
+          },
+          "streak": 0,
+          "template": [
+            {
+              "id": "#1",
+              "weekday": 1,
+              "name": "Haut du corps",
+              "start": "18:30",
+              "durationMin": 75,
+              "exercises": [
+                {
+                  "id": "#2",
+                  "exerciseId": "#3",
+                  "name": "Développé couché",
+                  "sets": 4,
+                  "reps": "8",
+                  "load": "60 kg",
+                  "restSec": 120,
+                  "note": ""
+                },
+                {
+                  "id": "#4",
+                  "exerciseId": "#5",
+                  "name": "Tractions",
+                  "sets": 3,
+                  "reps": "6-8",
+                  "load": "",
+                  "restSec": 90,
+                  "note": ""
+                }
+              ]
+            },
+            {
+              "id": "#6",
+              "weekday": 3,
+              "name": "Course",
+              "start": "07:30",
+              "durationMin": 40,
+              "exercises": []
+            },
+            {
+              "id": "#7",
+              "weekday": 5,
+              "name": "Jambes",
+              "start": "18:00",
+              "durationMin": 60,
+              "exercises": [
+                {
+                  "id": "#8",
+                  "exerciseId": "#9",
+                  "name": "Squat",
+                  "sets": 5,
+                  "reps": "5",
+                  "load": "80 kg",
+                  "restSec": 180,
+                  "note": ""
+                },
+                {
+                  "id": "#10",
+                  "exerciseId": "#9",
+                  "name": "Squat",
+                  "sets": 3,
+                  "reps": "10",
+                  "load": "2 × 12 kg",
+                  "restSec": 90,
+                  "note": ""
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    [
+      "GET /week?start=2026-10-26",
+      {
+        "status": 200,
+        "body": {
+          "week": "2026-10-26",
+          "today": "2026-11-04",
+          "days": [
+            {
+              "date": "2026-10-26",
+              "sessions": []
+            },
+            {
+              "date": "2026-10-27",
+              "sessions": []
+            },
+            {
+              "date": "2026-10-28",
+              "sessions": []
+            },
+            {
+              "date": "2026-10-29",
+              "sessions": []
+            },
+            {
+              "date": "2026-10-30",
+              "sessions": []
+            },
+            {
+              "date": "2026-10-31",
+              "sessions": []
+            },
+            {
+              "date": "2026-11-01",
+              "sessions": []
+            }
+          ],
+          "summary": {
+            "done": 0,
+            "planned": 0,
+            "toValidate": 0,
+            "mood": null
+          },
+          "month": {
+            "done": 1,
+            "planned": 7,
+            "toValidate": 0,
+            "mood": 4
+          },
+          "streak": 0,
+          "template": [
+            {
+              "id": "#1",
+              "weekday": 1,
+              "name": "Haut du corps",
+              "start": "18:30",
+              "durationMin": 75,
+              "exercises": [
+                {
+                  "id": "#2",
+                  "exerciseId": "#3",
+                  "name": "Développé couché",
+                  "sets": 4,
+                  "reps": "8",
+                  "load": "60 kg",
+                  "restSec": 120,
+                  "note": ""
+                },
+                {
+                  "id": "#4",
+                  "exerciseId": "#5",
+                  "name": "Tractions",
+                  "sets": 3,
+                  "reps": "6-8",
+                  "load": "",
+                  "restSec": 90,
+                  "note": ""
+                }
+              ]
+            },
+            {
+              "id": "#6",
+              "weekday": 3,
+              "name": "Course",
+              "start": "07:30",
+              "durationMin": 40,
+              "exercises": []
+            },
+            {
+              "id": "#7",
+              "weekday": 5,
+              "name": "Jambes",
+              "start": "18:00",
+              "durationMin": 60,
+              "exercises": [
+                {
+                  "id": "#8",
+                  "exerciseId": "#9",
+                  "name": "Squat",
+                  "sets": 5,
+                  "reps": "5",
+                  "load": "80 kg",
+                  "restSec": 180,
+                  "note": ""
+                },
+                {
+                  "id": "#10",
+                  "exerciseId": "#9",
+                  "name": "Squat",
+                  "sets": 3,
+                  "reps": "10",
+                  "load": "2 × 12 kg",
+                  "restSec": 90,
+                  "note": ""
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    [
+      "GET /month",
+      {
+        "status": 200,
+        "body": {
+          "month": "2026-11",
+          "today": "2026-11-04",
+          "weeks": [
+            {
+              "week": "2026-10-26",
+              "today": "2026-11-04",
+              "days": [
+                {
+                  "date": "2026-10-26",
+                  "sessions": []
+                },
+                {
+                  "date": "2026-10-27",
+                  "sessions": []
+                },
+                {
+                  "date": "2026-10-28",
+                  "sessions": []
+                },
+                {
+                  "date": "2026-10-29",
+                  "sessions": []
+                },
+                {
+                  "date": "2026-10-30",
+                  "sessions": []
+                },
+                {
+                  "date": "2026-10-31",
+                  "sessions": []
+                },
+                {
+                  "date": "2026-11-01",
+                  "sessions": []
+                }
+              ],
+              "summary": {
+                "done": 0,
+                "planned": 0,
+                "toValidate": 0,
+                "mood": null
+              },
+              "month": {
+                "done": 1,
+                "planned": 7,
+                "toValidate": 0,
+                "mood": 4
+              },
+              "streak": 0,
+              "template": [
+                {
+                  "id": "#1",
+                  "weekday": 1,
+                  "name": "Haut du corps",
+                  "start": "18:30",
+                  "durationMin": 75,
+                  "exercises": [
+                    {
+                      "id": "#2",
+                      "exerciseId": "#3",
+                      "name": "Développé couché",
+                      "sets": 4,
+                      "reps": "8",
+                      "load": "60 kg",
+                      "restSec": 120,
+                      "note": ""
+                    },
+                    {
+                      "id": "#4",
+                      "exerciseId": "#5",
+                      "name": "Tractions",
+                      "sets": 3,
+                      "reps": "6-8",
+                      "load": "",
+                      "restSec": 90,
+                      "note": ""
+                    }
+                  ]
+                },
+                {
+                  "id": "#6",
+                  "weekday": 3,
+                  "name": "Course",
+                  "start": "07:30",
+                  "durationMin": 40,
+                  "exercises": []
+                },
+                {
+                  "id": "#7",
+                  "weekday": 5,
+                  "name": "Jambes",
+                  "start": "18:00",
+                  "durationMin": 60,
+                  "exercises": [
+                    {
+                      "id": "#8",
+                      "exerciseId": "#9",
+                      "name": "Squat",
+                      "sets": 5,
+                      "reps": "5",
+                      "load": "80 kg",
+                      "restSec": 180,
+                      "note": ""
+                    },
+                    {
+                      "id": "#10",
+                      "exerciseId": "#9",
+                      "name": "Squat",
+                      "sets": 3,
+                      "reps": "10",
+                      "load": "2 × 12 kg",
+                      "restSec": 90,
+                      "note": ""
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "week": "2026-11-02",
+              "today": "2026-11-04",
+              "days": [
+                {
+                  "date": "2026-11-02",
+                  "sessions": [
+                    {
+                      "id": "#12",
+                      "date": "2026-11-02",
+                      "name": "Haut du corps",
+                      "start": "18:30",
+                      "durationMin": 75,
+                      "status": "done",
+                      "mood": 4,
+                      "comment": "Bonne séance ; un peu fatigué",
+                      "templateId": "#1",
+                      "custom": true,
+                      "exercises": [
+                        {
+                          "id": "#13",
+                          "exerciseId": "#3",
+                          "name": "Développé couché",
+                          "sets": 4,
+                          "reps": "8",
+                          "load": "62,5 kg",
+                          "restSec": 120,
+                          "note": ""
+                        },
+                        {
+                          "id": "#14",
+                          "exerciseId": "#5",
+                          "name": "Tractions",
+                          "sets": 3,
+                          "reps": "6-8",
+                          "load": "",
+                          "restSec": 90,
+                          "note": ""
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "date": "2026-11-03",
+                  "sessions": []
+                },
+                {
+                  "date": "2026-11-04",
+                  "sessions": [
+                    {
+                      "id": "#15",
+                      "date": "2026-11-04",
+                      "name": "Course",
+                      "start": "07:30",
+                      "durationMin": 40,
+                      "status": "planned",
+                      "mood": null,
+                      "comment": "",
+                      "templateId": "#6",
+                      "custom": false,
+                      "exercises": []
+                    }
+                  ]
+                },
+                {
+                  "date": "2026-11-05",
+                  "sessions": []
+                },
+                {
+                  "date": "2026-11-06",
+                  "sessions": []
+                },
+                {
+                  "date": "2026-11-07",
+                  "sessions": [
+                    {
+                      "id": "#16",
+                      "date": "2026-11-07",
+                      "name": "Jambes",
+                      "start": "10:00",
+                      "durationMin": 60,
+                      "status": "planned",
+                      "mood": null,
+                      "comment": "",
+                      "templateId": "#7",
+                      "custom": true,
+                      "exercises": [
+                        {
+                          "id": "#17",
+                          "exerciseId": "#9",
+                          "name": "Squat",
+                          "sets": 5,
+                          "reps": "5",
+                          "load": "80 kg",
+                          "restSec": 180,
+                          "note": ""
+                        },
+                        {
+                          "id": "#18",
+                          "exerciseId": "#9",
+                          "name": "Squat",
+                          "sets": 3,
+                          "reps": "10",
+                          "load": "2 × 12 kg",
+                          "restSec": 90,
+                          "note": ""
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "date": "2026-11-08",
+                  "sessions": [
+                    {
+                      "id": "#19",
+                      "date": "2026-11-08",
+                      "name": "Vélo \"long\"",
+                      "start": "09:00",
+                      "durationMin": 120,
+                      "status": "planned",
+                      "mood": null,
+                      "comment": "",
+                      "templateId": null,
+                      "custom": true,
+                      "exercises": []
+                    }
+                  ]
+                }
+              ],
+              "summary": {
+                "done": 1,
+                "planned": 4,
+                "toValidate": 0,
+                "mood": 4
+              },
+              "month": {
+                "done": 1,
+                "planned": 7,
+                "toValidate": 0,
+                "mood": 4
+              },
+              "streak": 0,
+              "template": [
+                {
+                  "id": "#1",
+                  "weekday": 1,
+                  "name": "Haut du corps",
+                  "start": "18:30",
+                  "durationMin": 75,
+                  "exercises": [
+                    {
+                      "id": "#2",
+                      "exerciseId": "#3",
+                      "name": "Développé couché",
+                      "sets": 4,
+                      "reps": "8",
+                      "load": "60 kg",
+                      "restSec": 120,
+                      "note": ""
+                    },
+                    {
+                      "id": "#4",
+                      "exerciseId": "#5",
+                      "name": "Tractions",
+                      "sets": 3,
+                      "reps": "6-8",
+                      "load": "",
+                      "restSec": 90,
+                      "note": ""
+                    }
+                  ]
+                },
+                {
+                  "id": "#6",
+                  "weekday": 3,
+                  "name": "Course",
+                  "start": "07:30",
+                  "durationMin": 40,
+                  "exercises": []
+                },
+                {
+                  "id": "#7",
+                  "weekday": 5,
+                  "name": "Jambes",
+                  "start": "18:00",
+                  "durationMin": 60,
+                  "exercises": [
+                    {
+                      "id": "#8",
+                      "exerciseId": "#9",
+                      "name": "Squat",
+                      "sets": 5,
+                      "reps": "5",
+                      "load": "80 kg",
+                      "restSec": 180,
+                      "note": ""
+                    },
+                    {
+                      "id": "#10",
+                      "exerciseId": "#9",
+                      "name": "Squat",
+                      "sets": 3,
+                      "reps": "10",
+                      "load": "2 × 12 kg",
+                      "restSec": 90,
+                      "note": ""
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "week": "2026-11-09",
+              "today": "2026-11-04",
+              "days": [
+                {
+                  "date": "2026-11-09",
+                  "sessions": [
+                    {
+                      "id": "#22",
+                      "date": "2026-11-09",
+                      "name": "Haut du corps",
+                      "start": "18:30",
+                      "durationMin": 75,
+                      "status": "planned",
+                      "mood": null,
+                      "comment": "",
+                      "templateId": "#1",
+                      "custom": false,
+                      "exercises": [
+                        {
+                          "id": "#23",
+                          "exerciseId": "#3",
+                          "name": "Développé couché",
+                          "sets": 4,
+                          "reps": "8",
+                          "load": "60 kg",
+                          "restSec": 120,
+                          "note": ""
+                        },
+                        {
+                          "id": "#24",
+                          "exerciseId": "#5",
+                          "name": "Tractions",
+                          "sets": 3,
+                          "reps": "6-8",
+                          "load": "",
+                          "restSec": 90,
+                          "note": ""
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "date": "2026-11-10",
+                  "sessions": []
+                },
+                {
+                  "date": "2026-11-11",
+                  "sessions": [
+                    {
+                      "id": "#25",
+                      "date": "2026-11-11",
+                      "name": "Course",
+                      "start": "07:30",
+                      "durationMin": 40,
+                      "status": "planned",
+                      "mood": null,
+                      "comment": "",
+                      "templateId": "#6",
+                      "custom": false,
+                      "exercises": []
+                    }
+                  ]
+                },
+                {
+                  "date": "2026-11-12",
+                  "sessions": []
+                },
+                {
+                  "date": "2026-11-13",
+                  "sessions": [
+                    {
+                      "id": "#26",
+                      "date": "2026-11-13",
+                      "name": "Jambes",
+                      "start": "18:00",
+                      "durationMin": 60,
+                      "status": "planned",
+                      "mood": null,
+                      "comment": "",
+                      "templateId": "#7",
+                      "custom": false,
+                      "exercises": [
+                        {
+                          "id": "#27",
+                          "exerciseId": "#9",
+                          "name": "Squat",
+                          "sets": 5,
+                          "reps": "5",
+                          "load": "80 kg",
+                          "restSec": 180,
+                          "note": ""
+                        },
+                        {
+                          "id": "#28",
+                          "exerciseId": "#9",
+                          "name": "Squat",
+                          "sets": 3,
+                          "reps": "10",
+                          "load": "2 × 12 kg",
+                          "restSec": 90,
+                          "note": ""
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "date": "2026-11-14",
+                  "sessions": []
+                },
+                {
+                  "date": "2026-11-15",
+                  "sessions": []
+                }
+              ],
+              "summary": {
+                "done": 0,
+                "planned": 3,
+                "toValidate": 0,
+                "mood": null
+              },
+              "month": {
+                "done": 1,
+                "planned": 7,
+                "toValidate": 0,
+                "mood": 4
+              },
+              "streak": 0,
+              "template": [
+                {
+                  "id": "#1",
+                  "weekday": 1,
+                  "name": "Haut du corps",
+                  "start": "18:30",
+                  "durationMin": 75,
+                  "exercises": [
+                    {
+                      "id": "#2",
+                      "exerciseId": "#3",
+                      "name": "Développé couché",
+                      "sets": 4,
+                      "reps": "8",
+                      "load": "60 kg",
+                      "restSec": 120,
+                      "note": ""
+                    },
+                    {
+                      "id": "#4",
+                      "exerciseId": "#5",
+                      "name": "Tractions",
+                      "sets": 3,
+                      "reps": "6-8",
+                      "load": "",
+                      "restSec": 90,
+                      "note": ""
+                    }
+                  ]
+                },
+                {
+                  "id": "#6",
+                  "weekday": 3,
+                  "name": "Course",
+                  "start": "07:30",
+                  "durationMin": 40,
+                  "exercises": []
+                },
+                {
+                  "id": "#7",
+                  "weekday": 5,
+                  "name": "Jambes",
+                  "start": "18:00",
+                  "durationMin": 60,
+                  "exercises": [
+                    {
+                      "id": "#8",
+                      "exerciseId": "#9",
+                      "name": "Squat",
+                      "sets": 5,
+                      "reps": "5",
+                      "load": "80 kg",
+                      "restSec": 180,
+                      "note": ""
+                    },
+                    {
+                      "id": "#10",
+                      "exerciseId": "#9",
+                      "name": "Squat",
+                      "sets": 3,
+                      "reps": "10",
+                      "load": "2 × 12 kg",
+                      "restSec": 90,
+                      "note": ""
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "week": "2026-11-16",
+              "today": "2026-11-04",
+              "days": [
+                {
+                  "date": "2026-11-16",
+                  "sessions": [
+                    {
+                      "id": "#29",
+                      "date": "2026-11-16",
+                      "name": "Haut du corps",
+                      "start": "18:30",
+                      "durationMin": 75,
+                      "status": "planned",
+                      "mood": null,
+                      "comment": "",
+                      "templateId": "#1",
+                      "custom": false,
+                      "exercises": [
+                        {
+                          "id": "#30",
+                          "exerciseId": "#3",
+                          "name": "Développé couché",
+                          "sets": 4,
+                          "reps": "8",
+                          "load": "60 kg",
+                          "restSec": 120,
+                          "note": ""
+                        },
+                        {
+                          "id": "#31",
+                          "exerciseId": "#5",
+                          "name": "Tractions",
+                          "sets": 3,
+                          "reps": "6-8",
+                          "load": "",
+                          "restSec": 90,
+                          "note": ""
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "date": "2026-11-17",
+                  "sessions": []
+                },
+                {
+                  "date": "2026-11-18",
+                  "sessions": [
+                    {
+                      "id": "#32",
+                      "date": "2026-11-18",
+                      "name": "Course",
+                      "start": "07:30",
+                      "durationMin": 40,
+                      "status": "planned",
+                      "mood": null,
+                      "comment": "",
+                      "templateId": "#6",
+                      "custom": false,
+                      "exercises": []
+                    }
+                  ]
+                },
+                {
+                  "date": "2026-11-19",
+                  "sessions": []
+                },
+                {
+                  "date": "2026-11-20",
+                  "sessions": [
+                    {
+                      "id": "#33",
+                      "date": "2026-11-20",
+                      "name": "Jambes",
+                      "start": "18:00",
+                      "durationMin": 60,
+                      "status": "planned",
+                      "mood": null,
+                      "comment": "",
+                      "templateId": "#7",
+                      "custom": false,
+                      "exercises": [
+                        {
+                          "id": "#34",
+                          "exerciseId": "#9",
+                          "name": "Squat",
+                          "sets": 5,
+                          "reps": "5",
+                          "load": "80 kg",
+                          "restSec": 180,
+                          "note": ""
+                        },
+                        {
+                          "id": "#35",
+                          "exerciseId": "#9",
+                          "name": "Squat",
+                          "sets": 3,
+                          "reps": "10",
+                          "load": "2 × 12 kg",
+                          "restSec": 90,
+                          "note": ""
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "date": "2026-11-21",
+                  "sessions": []
+                },
+                {
+                  "date": "2026-11-22",
+                  "sessions": []
+                }
+              ],
+              "summary": {
+                "done": 0,
+                "planned": 3,
+                "toValidate": 0,
+                "mood": null
+              },
+              "month": {
+                "done": 1,
+                "planned": 10,
+                "toValidate": 0,
+                "mood": 4
+              },
+              "streak": 0,
+              "template": [
+                {
+                  "id": "#1",
+                  "weekday": 1,
+                  "name": "Haut du corps",
+                  "start": "18:30",
+                  "durationMin": 75,
+                  "exercises": [
+                    {
+                      "id": "#2",
+                      "exerciseId": "#3",
+                      "name": "Développé couché",
+                      "sets": 4,
+                      "reps": "8",
+                      "load": "60 kg",
+                      "restSec": 120,
+                      "note": ""
+                    },
+                    {
+                      "id": "#4",
+                      "exerciseId": "#5",
+                      "name": "Tractions",
+                      "sets": 3,
+                      "reps": "6-8",
+                      "load": "",
+                      "restSec": 90,
+                      "note": ""
+                    }
+                  ]
+                },
+                {
+                  "id": "#6",
+                  "weekday": 3,
+                  "name": "Course",
+                  "start": "07:30",
+                  "durationMin": 40,
+                  "exercises": []
+                },
+                {
+                  "id": "#7",
+                  "weekday": 5,
+                  "name": "Jambes",
+                  "start": "18:00",
+                  "durationMin": 60,
+                  "exercises": [
+                    {
+                      "id": "#8",
+                      "exerciseId": "#9",
+                      "name": "Squat",
+                      "sets": 5,
+                      "reps": "5",
+                      "load": "80 kg",
+                      "restSec": 180,
+                      "note": ""
+                    },
+                    {
+                      "id": "#10",
+                      "exerciseId": "#9",
+                      "name": "Squat",
+                      "sets": 3,
+                      "reps": "10",
+                      "load": "2 × 12 kg",
+                      "restSec": 90,
+                      "note": ""
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "week": "2026-11-23",
+              "today": "2026-11-04",
+              "days": [
+                {
+                  "date": "2026-11-23",
+                  "sessions": [
+                    {
+                      "id": "#36",
+                      "date": "2026-11-23",
+                      "name": "Haut du corps",
+                      "start": "18:30",
+                      "durationMin": 75,
+                      "status": "planned",
+                      "mood": null,
+                      "comment": "",
+                      "templateId": "#1",
+                      "custom": false,
+                      "exercises": [
+                        {
+                          "id": "#37",
+                          "exerciseId": "#3",
+                          "name": "Développé couché",
+                          "sets": 4,
+                          "reps": "8",
+                          "load": "60 kg",
+                          "restSec": 120,
+                          "note": ""
+                        },
+                        {
+                          "id": "#38",
+                          "exerciseId": "#5",
+                          "name": "Tractions",
+                          "sets": 3,
+                          "reps": "6-8",
+                          "load": "",
+                          "restSec": 90,
+                          "note": ""
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "date": "2026-11-24",
+                  "sessions": []
+                },
+                {
+                  "date": "2026-11-25",
+                  "sessions": [
+                    {
+                      "id": "#39",
+                      "date": "2026-11-25",
+                      "name": "Course",
+                      "start": "07:30",
+                      "durationMin": 40,
+                      "status": "planned",
+                      "mood": null,
+                      "comment": "",
+                      "templateId": "#6",
+                      "custom": false,
+                      "exercises": []
+                    }
+                  ]
+                },
+                {
+                  "date": "2026-11-26",
+                  "sessions": []
+                },
+                {
+                  "date": "2026-11-27",
+                  "sessions": [
+                    {
+                      "id": "#40",
+                      "date": "2026-11-27",
+                      "name": "Jambes",
+                      "start": "18:00",
+                      "durationMin": 60,
+                      "status": "planned",
+                      "mood": null,
+                      "comment": "",
+                      "templateId": "#7",
+                      "custom": false,
+                      "exercises": [
+                        {
+                          "id": "#41",
+                          "exerciseId": "#9",
+                          "name": "Squat",
+                          "sets": 5,
+                          "reps": "5",
+                          "load": "80 kg",
+                          "restSec": 180,
+                          "note": ""
+                        },
+                        {
+                          "id": "#42",
+                          "exerciseId": "#9",
+                          "name": "Squat",
+                          "sets": 3,
+                          "reps": "10",
+                          "load": "2 × 12 kg",
+                          "restSec": 90,
+                          "note": ""
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "date": "2026-11-28",
+                  "sessions": []
+                },
+                {
+                  "date": "2026-11-29",
+                  "sessions": []
+                }
+              ],
+              "summary": {
+                "done": 0,
+                "planned": 3,
+                "toValidate": 0,
+                "mood": null
+              },
+              "month": {
+                "done": 1,
+                "planned": 13,
+                "toValidate": 0,
+                "mood": 4
+              },
+              "streak": 0,
+              "template": [
+                {
+                  "id": "#1",
+                  "weekday": 1,
+                  "name": "Haut du corps",
+                  "start": "18:30",
+                  "durationMin": 75,
+                  "exercises": [
+                    {
+                      "id": "#2",
+                      "exerciseId": "#3",
+                      "name": "Développé couché",
+                      "sets": 4,
+                      "reps": "8",
+                      "load": "60 kg",
+                      "restSec": 120,
+                      "note": ""
+                    },
+                    {
+                      "id": "#4",
+                      "exerciseId": "#5",
+                      "name": "Tractions",
+                      "sets": 3,
+                      "reps": "6-8",
+                      "load": "",
+                      "restSec": 90,
+                      "note": ""
+                    }
+                  ]
+                },
+                {
+                  "id": "#6",
+                  "weekday": 3,
+                  "name": "Course",
+                  "start": "07:30",
+                  "durationMin": 40,
+                  "exercises": []
+                },
+                {
+                  "id": "#7",
+                  "weekday": 5,
+                  "name": "Jambes",
+                  "start": "18:00",
+                  "durationMin": 60,
+                  "exercises": [
+                    {
+                      "id": "#8",
+                      "exerciseId": "#9",
+                      "name": "Squat",
+                      "sets": 5,
+                      "reps": "5",
+                      "load": "80 kg",
+                      "restSec": 180,
+                      "note": ""
+                    },
+                    {
+                      "id": "#10",
+                      "exerciseId": "#9",
+                      "name": "Squat",
+                      "sets": 3,
+                      "reps": "10",
+                      "load": "2 × 12 kg",
+                      "restSec": 90,
+                      "note": ""
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "week": "2026-11-30",
+              "today": "2026-11-04",
+              "days": [
+                {
+                  "date": "2026-11-30",
+                  "sessions": [
+                    {
+                      "id": "#43",
+                      "date": "2026-11-30",
+                      "name": "Haut du corps",
+                      "start": "18:30",
+                      "durationMin": 75,
+                      "status": "planned",
+                      "mood": null,
+                      "comment": "",
+                      "templateId": "#1",
+                      "custom": false,
+                      "exercises": [
+                        {
+                          "id": "#44",
+                          "exerciseId": "#3",
+                          "name": "Développé couché",
+                          "sets": 4,
+                          "reps": "8",
+                          "load": "60 kg",
+                          "restSec": 120,
+                          "note": ""
+                        },
+                        {
+                          "id": "#45",
+                          "exerciseId": "#5",
+                          "name": "Tractions",
+                          "sets": 3,
+                          "reps": "6-8",
+                          "load": "",
+                          "restSec": 90,
+                          "note": ""
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "date": "2026-12-01",
+                  "sessions": []
+                },
+                {
+                  "date": "2026-12-02",
+                  "sessions": [
+                    {
+                      "id": "#46",
+                      "date": "2026-12-02",
+                      "name": "Course",
+                      "start": "07:30",
+                      "durationMin": 40,
+                      "status": "planned",
+                      "mood": null,
+                      "comment": "",
+                      "templateId": "#6",
+                      "custom": false,
+                      "exercises": []
+                    }
+                  ]
+                },
+                {
+                  "date": "2026-12-03",
+                  "sessions": []
+                },
+                {
+                  "date": "2026-12-04",
+                  "sessions": [
+                    {
+                      "id": "#47",
+                      "date": "2026-12-04",
+                      "name": "Jambes",
+                      "start": "18:00",
+                      "durationMin": 60,
+                      "status": "planned",
+                      "mood": null,
+                      "comment": "",
+                      "templateId": "#7",
+                      "custom": false,
+                      "exercises": [
+                        {
+                          "id": "#48",
+                          "exerciseId": "#9",
+                          "name": "Squat",
+                          "sets": 5,
+                          "reps": "5",
+                          "load": "80 kg",
+                          "restSec": 180,
+                          "note": ""
+                        },
+                        {
+                          "id": "#49",
+                          "exerciseId": "#9",
+                          "name": "Squat",
+                          "sets": 3,
+                          "reps": "10",
+                          "load": "2 × 12 kg",
+                          "restSec": 90,
+                          "note": ""
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "date": "2026-12-05",
+                  "sessions": []
+                },
+                {
+                  "date": "2026-12-06",
+                  "sessions": []
+                }
+              ],
+              "summary": {
+                "done": 0,
+                "planned": 3,
+                "toValidate": 0,
+                "mood": null
+              },
+              "month": {
+                "done": 1,
+                "planned": 14,
+                "toValidate": 0,
+                "mood": 4
+              },
+              "streak": 0,
+              "template": [
+                {
+                  "id": "#1",
+                  "weekday": 1,
+                  "name": "Haut du corps",
+                  "start": "18:30",
+                  "durationMin": 75,
+                  "exercises": [
+                    {
+                      "id": "#2",
+                      "exerciseId": "#3",
+                      "name": "Développé couché",
+                      "sets": 4,
+                      "reps": "8",
+                      "load": "60 kg",
+                      "restSec": 120,
+                      "note": ""
+                    },
+                    {
+                      "id": "#4",
+                      "exerciseId": "#5",
+                      "name": "Tractions",
+                      "sets": 3,
+                      "reps": "6-8",
+                      "load": "",
+                      "restSec": 90,
+                      "note": ""
+                    }
+                  ]
+                },
+                {
+                  "id": "#6",
+                  "weekday": 3,
+                  "name": "Course",
+                  "start": "07:30",
+                  "durationMin": 40,
+                  "exercises": []
+                },
+                {
+                  "id": "#7",
+                  "weekday": 5,
+                  "name": "Jambes",
+                  "start": "18:00",
+                  "durationMin": 60,
+                  "exercises": [
+                    {
+                      "id": "#8",
+                      "exerciseId": "#9",
+                      "name": "Squat",
+                      "sets": 5,
+                      "reps": "5",
+                      "load": "80 kg",
+                      "restSec": 180,
+                      "note": ""
+                    },
+                    {
+                      "id": "#10",
+                      "exerciseId": "#9",
+                      "name": "Squat",
+                      "sets": 3,
+                      "reps": "10",
+                      "load": "2 × 12 kg",
+                      "restSec": 90,
+                      "note": ""
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "summary": {
+            "done": 1,
+            "planned": 14,
+            "toValidate": 0,
+            "mood": 4
+          }
+        }
+      }
+    ],
+    [
+      "GET /month?month=2026-12",
+      {
+        "status": 200,
+        "body": {
+          "month": "2026-12",
+          "today": "2026-11-04",
+          "weeks": [
+            {
+              "week": "2026-11-30",
+              "today": "2026-11-04",
+              "days": [
+                {
+                  "date": "2026-11-30",
+                  "sessions": [
+                    {
+                      "id": "#43",
+                      "date": "2026-11-30",
+                      "name": "Haut du corps",
+                      "start": "18:30",
+                      "durationMin": 75,
+                      "status": "planned",
+                      "mood": null,
+                      "comment": "",
+                      "templateId": "#1",
+                      "custom": false,
+                      "exercises": [
+                        {
+                          "id": "#44",
+                          "exerciseId": "#3",
+                          "name": "Développé couché",
+                          "sets": 4,
+                          "reps": "8",
+                          "load": "60 kg",
+                          "restSec": 120,
+                          "note": ""
+                        },
+                        {
+                          "id": "#45",
+                          "exerciseId": "#5",
+                          "name": "Tractions",
+                          "sets": 3,
+                          "reps": "6-8",
+                          "load": "",
+                          "restSec": 90,
+                          "note": ""
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "date": "2026-12-01",
+                  "sessions": []
+                },
+                {
+                  "date": "2026-12-02",
+                  "sessions": [
+                    {
+                      "id": "#46",
+                      "date": "2026-12-02",
+                      "name": "Course",
+                      "start": "07:30",
+                      "durationMin": 40,
+                      "status": "planned",
+                      "mood": null,
+                      "comment": "",
+                      "templateId": "#6",
+                      "custom": false,
+                      "exercises": []
+                    }
+                  ]
+                },
+                {
+                  "date": "2026-12-03",
+                  "sessions": []
+                },
+                {
+                  "date": "2026-12-04",
+                  "sessions": [
+                    {
+                      "id": "#47",
+                      "date": "2026-12-04",
+                      "name": "Jambes",
+                      "start": "18:00",
+                      "durationMin": 60,
+                      "status": "planned",
+                      "mood": null,
+                      "comment": "",
+                      "templateId": "#7",
+                      "custom": false,
+                      "exercises": [
+                        {
+                          "id": "#48",
+                          "exerciseId": "#9",
+                          "name": "Squat",
+                          "sets": 5,
+                          "reps": "5",
+                          "load": "80 kg",
+                          "restSec": 180,
+                          "note": ""
+                        },
+                        {
+                          "id": "#49",
+                          "exerciseId": "#9",
+                          "name": "Squat",
+                          "sets": 3,
+                          "reps": "10",
+                          "load": "2 × 12 kg",
+                          "restSec": 90,
+                          "note": ""
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "date": "2026-12-05",
+                  "sessions": []
+                },
+                {
+                  "date": "2026-12-06",
+                  "sessions": []
+                }
+              ],
+              "summary": {
+                "done": 0,
+                "planned": 3,
+                "toValidate": 0,
+                "mood": null
+              },
+              "month": {
+                "done": 1,
+                "planned": 14,
+                "toValidate": 0,
+                "mood": 4
+              },
+              "streak": 0,
+              "template": [
+                {
+                  "id": "#1",
+                  "weekday": 1,
+                  "name": "Haut du corps",
+                  "start": "18:30",
+                  "durationMin": 75,
+                  "exercises": [
+                    {
+                      "id": "#2",
+                      "exerciseId": "#3",
+                      "name": "Développé couché",
+                      "sets": 4,
+                      "reps": "8",
+                      "load": "60 kg",
+                      "restSec": 120,
+                      "note": ""
+                    },
+                    {
+                      "id": "#4",
+                      "exerciseId": "#5",
+                      "name": "Tractions",
+                      "sets": 3,
+                      "reps": "6-8",
+                      "load": "",
+                      "restSec": 90,
+                      "note": ""
+                    }
+                  ]
+                },
+                {
+                  "id": "#6",
+                  "weekday": 3,
+                  "name": "Course",
+                  "start": "07:30",
+                  "durationMin": 40,
+                  "exercises": []
+                },
+                {
+                  "id": "#7",
+                  "weekday": 5,
+                  "name": "Jambes",
+                  "start": "18:00",
+                  "durationMin": 60,
+                  "exercises": [
+                    {
+                      "id": "#8",
+                      "exerciseId": "#9",
+                      "name": "Squat",
+                      "sets": 5,
+                      "reps": "5",
+                      "load": "80 kg",
+                      "restSec": 180,
+                      "note": ""
+                    },
+                    {
+                      "id": "#10",
+                      "exerciseId": "#9",
+                      "name": "Squat",
+                      "sets": 3,
+                      "reps": "10",
+                      "load": "2 × 12 kg",
+                      "restSec": 90,
+                      "note": ""
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "week": "2026-12-07",
+              "today": "2026-11-04",
+              "days": [
+                {
+                  "date": "2026-12-07",
+                  "sessions": [
+                    {
+                      "id": "#50",
+                      "date": "2026-12-07",
+                      "name": "Haut du corps",
+                      "start": "18:30",
+                      "durationMin": 75,
+                      "status": "planned",
+                      "mood": null,
+                      "comment": "",
+                      "templateId": "#1",
+                      "custom": false,
+                      "exercises": [
+                        {
+                          "id": "#51",
+                          "exerciseId": "#3",
+                          "name": "Développé couché",
+                          "sets": 4,
+                          "reps": "8",
+                          "load": "60 kg",
+                          "restSec": 120,
+                          "note": ""
+                        },
+                        {
+                          "id": "#52",
+                          "exerciseId": "#5",
+                          "name": "Tractions",
+                          "sets": 3,
+                          "reps": "6-8",
+                          "load": "",
+                          "restSec": 90,
+                          "note": ""
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "date": "2026-12-08",
+                  "sessions": []
+                },
+                {
+                  "date": "2026-12-09",
+                  "sessions": [
+                    {
+                      "id": "#53",
+                      "date": "2026-12-09",
+                      "name": "Course",
+                      "start": "07:30",
+                      "durationMin": 40,
+                      "status": "planned",
+                      "mood": null,
+                      "comment": "",
+                      "templateId": "#6",
+                      "custom": false,
+                      "exercises": []
+                    }
+                  ]
+                },
+                {
+                  "date": "2026-12-10",
+                  "sessions": []
+                },
+                {
+                  "date": "2026-12-11",
+                  "sessions": [
+                    {
+                      "id": "#54",
+                      "date": "2026-12-11",
+                      "name": "Jambes",
+                      "start": "18:00",
+                      "durationMin": 60,
+                      "status": "planned",
+                      "mood": null,
+                      "comment": "",
+                      "templateId": "#7",
+                      "custom": false,
+                      "exercises": [
+                        {
+                          "id": "#55",
+                          "exerciseId": "#9",
+                          "name": "Squat",
+                          "sets": 5,
+                          "reps": "5",
+                          "load": "80 kg",
+                          "restSec": 180,
+                          "note": ""
+                        },
+                        {
+                          "id": "#56",
+                          "exerciseId": "#9",
+                          "name": "Squat",
+                          "sets": 3,
+                          "reps": "10",
+                          "load": "2 × 12 kg",
+                          "restSec": 90,
+                          "note": ""
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "date": "2026-12-12",
+                  "sessions": []
+                },
+                {
+                  "date": "2026-12-13",
+                  "sessions": []
+                }
+              ],
+              "summary": {
+                "done": 0,
+                "planned": 3,
+                "toValidate": 0,
+                "mood": null
+              },
+              "month": {
+                "done": 1,
+                "planned": 14,
+                "toValidate": 0,
+                "mood": 4
+              },
+              "streak": 0,
+              "template": [
+                {
+                  "id": "#1",
+                  "weekday": 1,
+                  "name": "Haut du corps",
+                  "start": "18:30",
+                  "durationMin": 75,
+                  "exercises": [
+                    {
+                      "id": "#2",
+                      "exerciseId": "#3",
+                      "name": "Développé couché",
+                      "sets": 4,
+                      "reps": "8",
+                      "load": "60 kg",
+                      "restSec": 120,
+                      "note": ""
+                    },
+                    {
+                      "id": "#4",
+                      "exerciseId": "#5",
+                      "name": "Tractions",
+                      "sets": 3,
+                      "reps": "6-8",
+                      "load": "",
+                      "restSec": 90,
+                      "note": ""
+                    }
+                  ]
+                },
+                {
+                  "id": "#6",
+                  "weekday": 3,
+                  "name": "Course",
+                  "start": "07:30",
+                  "durationMin": 40,
+                  "exercises": []
+                },
+                {
+                  "id": "#7",
+                  "weekday": 5,
+                  "name": "Jambes",
+                  "start": "18:00",
+                  "durationMin": 60,
+                  "exercises": [
+                    {
+                      "id": "#8",
+                      "exerciseId": "#9",
+                      "name": "Squat",
+                      "sets": 5,
+                      "reps": "5",
+                      "load": "80 kg",
+                      "restSec": 180,
+                      "note": ""
+                    },
+                    {
+                      "id": "#10",
+                      "exerciseId": "#9",
+                      "name": "Squat",
+                      "sets": 3,
+                      "reps": "10",
+                      "load": "2 × 12 kg",
+                      "restSec": 90,
+                      "note": ""
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "week": "2026-12-14",
+              "today": "2026-11-04",
+              "days": [
+                {
+                  "date": "2026-12-14",
+                  "sessions": [
+                    {
+                      "id": "#57",
+                      "date": "2026-12-14",
+                      "name": "Haut du corps",
+                      "start": "18:30",
+                      "durationMin": 75,
+                      "status": "planned",
+                      "mood": null,
+                      "comment": "",
+                      "templateId": "#1",
+                      "custom": false,
+                      "exercises": [
+                        {
+                          "id": "#58",
+                          "exerciseId": "#3",
+                          "name": "Développé couché",
+                          "sets": 4,
+                          "reps": "8",
+                          "load": "60 kg",
+                          "restSec": 120,
+                          "note": ""
+                        },
+                        {
+                          "id": "#59",
+                          "exerciseId": "#5",
+                          "name": "Tractions",
+                          "sets": 3,
+                          "reps": "6-8",
+                          "load": "",
+                          "restSec": 90,
+                          "note": ""
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "date": "2026-12-15",
+                  "sessions": []
+                },
+                {
+                  "date": "2026-12-16",
+                  "sessions": [
+                    {
+                      "id": "#60",
+                      "date": "2026-12-16",
+                      "name": "Course",
+                      "start": "07:30",
+                      "durationMin": 40,
+                      "status": "planned",
+                      "mood": null,
+                      "comment": "",
+                      "templateId": "#6",
+                      "custom": false,
+                      "exercises": []
+                    }
+                  ]
+                },
+                {
+                  "date": "2026-12-17",
+                  "sessions": []
+                },
+                {
+                  "date": "2026-12-18",
+                  "sessions": [
+                    {
+                      "id": "#61",
+                      "date": "2026-12-18",
+                      "name": "Jambes",
+                      "start": "18:00",
+                      "durationMin": 60,
+                      "status": "planned",
+                      "mood": null,
+                      "comment": "",
+                      "templateId": "#7",
+                      "custom": false,
+                      "exercises": [
+                        {
+                          "id": "#62",
+                          "exerciseId": "#9",
+                          "name": "Squat",
+                          "sets": 5,
+                          "reps": "5",
+                          "load": "80 kg",
+                          "restSec": 180,
+                          "note": ""
+                        },
+                        {
+                          "id": "#63",
+                          "exerciseId": "#9",
+                          "name": "Squat",
+                          "sets": 3,
+                          "reps": "10",
+                          "load": "2 × 12 kg",
+                          "restSec": 90,
+                          "note": ""
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "date": "2026-12-19",
+                  "sessions": []
+                },
+                {
+                  "date": "2026-12-20",
+                  "sessions": []
+                }
+              ],
+              "summary": {
+                "done": 0,
+                "planned": 3,
+                "toValidate": 0,
+                "mood": null
+              },
+              "month": {
+                "done": 1,
+                "planned": 14,
+                "toValidate": 0,
+                "mood": 4
+              },
+              "streak": 0,
+              "template": [
+                {
+                  "id": "#1",
+                  "weekday": 1,
+                  "name": "Haut du corps",
+                  "start": "18:30",
+                  "durationMin": 75,
+                  "exercises": [
+                    {
+                      "id": "#2",
+                      "exerciseId": "#3",
+                      "name": "Développé couché",
+                      "sets": 4,
+                      "reps": "8",
+                      "load": "60 kg",
+                      "restSec": 120,
+                      "note": ""
+                    },
+                    {
+                      "id": "#4",
+                      "exerciseId": "#5",
+                      "name": "Tractions",
+                      "sets": 3,
+                      "reps": "6-8",
+                      "load": "",
+                      "restSec": 90,
+                      "note": ""
+                    }
+                  ]
+                },
+                {
+                  "id": "#6",
+                  "weekday": 3,
+                  "name": "Course",
+                  "start": "07:30",
+                  "durationMin": 40,
+                  "exercises": []
+                },
+                {
+                  "id": "#7",
+                  "weekday": 5,
+                  "name": "Jambes",
+                  "start": "18:00",
+                  "durationMin": 60,
+                  "exercises": [
+                    {
+                      "id": "#8",
+                      "exerciseId": "#9",
+                      "name": "Squat",
+                      "sets": 5,
+                      "reps": "5",
+                      "load": "80 kg",
+                      "restSec": 180,
+                      "note": ""
+                    },
+                    {
+                      "id": "#10",
+                      "exerciseId": "#9",
+                      "name": "Squat",
+                      "sets": 3,
+                      "reps": "10",
+                      "load": "2 × 12 kg",
+                      "restSec": 90,
+                      "note": ""
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "week": "2026-12-21",
+              "today": "2026-11-04",
+              "days": [
+                {
+                  "date": "2026-12-21",
+                  "sessions": [
+                    {
+                      "id": "#64",
+                      "date": "2026-12-21",
+                      "name": "Haut du corps",
+                      "start": "18:30",
+                      "durationMin": 75,
+                      "status": "planned",
+                      "mood": null,
+                      "comment": "",
+                      "templateId": "#1",
+                      "custom": false,
+                      "exercises": [
+                        {
+                          "id": "#65",
+                          "exerciseId": "#3",
+                          "name": "Développé couché",
+                          "sets": 4,
+                          "reps": "8",
+                          "load": "60 kg",
+                          "restSec": 120,
+                          "note": ""
+                        },
+                        {
+                          "id": "#66",
+                          "exerciseId": "#5",
+                          "name": "Tractions",
+                          "sets": 3,
+                          "reps": "6-8",
+                          "load": "",
+                          "restSec": 90,
+                          "note": ""
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "date": "2026-12-22",
+                  "sessions": []
+                },
+                {
+                  "date": "2026-12-23",
+                  "sessions": [
+                    {
+                      "id": "#67",
+                      "date": "2026-12-23",
+                      "name": "Course",
+                      "start": "07:30",
+                      "durationMin": 40,
+                      "status": "planned",
+                      "mood": null,
+                      "comment": "",
+                      "templateId": "#6",
+                      "custom": false,
+                      "exercises": []
+                    }
+                  ]
+                },
+                {
+                  "date": "2026-12-24",
+                  "sessions": []
+                },
+                {
+                  "date": "2026-12-25",
+                  "sessions": [
+                    {
+                      "id": "#68",
+                      "date": "2026-12-25",
+                      "name": "Jambes",
+                      "start": "18:00",
+                      "durationMin": 60,
+                      "status": "planned",
+                      "mood": null,
+                      "comment": "",
+                      "templateId": "#7",
+                      "custom": false,
+                      "exercises": [
+                        {
+                          "id": "#69",
+                          "exerciseId": "#9",
+                          "name": "Squat",
+                          "sets": 5,
+                          "reps": "5",
+                          "load": "80 kg",
+                          "restSec": 180,
+                          "note": ""
+                        },
+                        {
+                          "id": "#70",
+                          "exerciseId": "#9",
+                          "name": "Squat",
+                          "sets": 3,
+                          "reps": "10",
+                          "load": "2 × 12 kg",
+                          "restSec": 90,
+                          "note": ""
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "date": "2026-12-26",
+                  "sessions": []
+                },
+                {
+                  "date": "2026-12-27",
+                  "sessions": []
+                }
+              ],
+              "summary": {
+                "done": 0,
+                "planned": 3,
+                "toValidate": 0,
+                "mood": null
+              },
+              "month": {
+                "done": 1,
+                "planned": 14,
+                "toValidate": 0,
+                "mood": 4
+              },
+              "streak": 0,
+              "template": [
+                {
+                  "id": "#1",
+                  "weekday": 1,
+                  "name": "Haut du corps",
+                  "start": "18:30",
+                  "durationMin": 75,
+                  "exercises": [
+                    {
+                      "id": "#2",
+                      "exerciseId": "#3",
+                      "name": "Développé couché",
+                      "sets": 4,
+                      "reps": "8",
+                      "load": "60 kg",
+                      "restSec": 120,
+                      "note": ""
+                    },
+                    {
+                      "id": "#4",
+                      "exerciseId": "#5",
+                      "name": "Tractions",
+                      "sets": 3,
+                      "reps": "6-8",
+                      "load": "",
+                      "restSec": 90,
+                      "note": ""
+                    }
+                  ]
+                },
+                {
+                  "id": "#6",
+                  "weekday": 3,
+                  "name": "Course",
+                  "start": "07:30",
+                  "durationMin": 40,
+                  "exercises": []
+                },
+                {
+                  "id": "#7",
+                  "weekday": 5,
+                  "name": "Jambes",
+                  "start": "18:00",
+                  "durationMin": 60,
+                  "exercises": [
+                    {
+                      "id": "#8",
+                      "exerciseId": "#9",
+                      "name": "Squat",
+                      "sets": 5,
+                      "reps": "5",
+                      "load": "80 kg",
+                      "restSec": 180,
+                      "note": ""
+                    },
+                    {
+                      "id": "#10",
+                      "exerciseId": "#9",
+                      "name": "Squat",
+                      "sets": 3,
+                      "reps": "10",
+                      "load": "2 × 12 kg",
+                      "restSec": 90,
+                      "note": ""
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "week": "2026-12-28",
+              "today": "2026-11-04",
+              "days": [
+                {
+                  "date": "2026-12-28",
+                  "sessions": [
+                    {
+                      "id": "#71",
+                      "date": "2026-12-28",
+                      "name": "Haut du corps",
+                      "start": "18:30",
+                      "durationMin": 75,
+                      "status": "planned",
+                      "mood": null,
+                      "comment": "",
+                      "templateId": "#1",
+                      "custom": false,
+                      "exercises": [
+                        {
+                          "id": "#72",
+                          "exerciseId": "#3",
+                          "name": "Développé couché",
+                          "sets": 4,
+                          "reps": "8",
+                          "load": "60 kg",
+                          "restSec": 120,
+                          "note": ""
+                        },
+                        {
+                          "id": "#73",
+                          "exerciseId": "#5",
+                          "name": "Tractions",
+                          "sets": 3,
+                          "reps": "6-8",
+                          "load": "",
+                          "restSec": 90,
+                          "note": ""
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "date": "2026-12-29",
+                  "sessions": []
+                },
+                {
+                  "date": "2026-12-30",
+                  "sessions": [
+                    {
+                      "id": "#74",
+                      "date": "2026-12-30",
+                      "name": "Course",
+                      "start": "07:30",
+                      "durationMin": 40,
+                      "status": "planned",
+                      "mood": null,
+                      "comment": "",
+                      "templateId": "#6",
+                      "custom": false,
+                      "exercises": []
+                    }
+                  ]
+                },
+                {
+                  "date": "2026-12-31",
+                  "sessions": []
+                },
+                {
+                  "date": "2027-01-01",
+                  "sessions": [
+                    {
+                      "id": "#75",
+                      "date": "2027-01-01",
+                      "name": "Jambes",
+                      "start": "18:00",
+                      "durationMin": 60,
+                      "status": "planned",
+                      "mood": null,
+                      "comment": "",
+                      "templateId": "#7",
+                      "custom": false,
+                      "exercises": [
+                        {
+                          "id": "#76",
+                          "exerciseId": "#9",
+                          "name": "Squat",
+                          "sets": 5,
+                          "reps": "5",
+                          "load": "80 kg",
+                          "restSec": 180,
+                          "note": ""
+                        },
+                        {
+                          "id": "#77",
+                          "exerciseId": "#9",
+                          "name": "Squat",
+                          "sets": 3,
+                          "reps": "10",
+                          "load": "2 × 12 kg",
+                          "restSec": 90,
+                          "note": ""
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "date": "2027-01-02",
+                  "sessions": []
+                },
+                {
+                  "date": "2027-01-03",
+                  "sessions": []
+                }
+              ],
+              "summary": {
+                "done": 0,
+                "planned": 3,
+                "toValidate": 0,
+                "mood": null
+              },
+              "month": {
+                "done": 1,
+                "planned": 14,
+                "toValidate": 0,
+                "mood": 4
+              },
+              "streak": 0,
+              "template": [
+                {
+                  "id": "#1",
+                  "weekday": 1,
+                  "name": "Haut du corps",
+                  "start": "18:30",
+                  "durationMin": 75,
+                  "exercises": [
+                    {
+                      "id": "#2",
+                      "exerciseId": "#3",
+                      "name": "Développé couché",
+                      "sets": 4,
+                      "reps": "8",
+                      "load": "60 kg",
+                      "restSec": 120,
+                      "note": ""
+                    },
+                    {
+                      "id": "#4",
+                      "exerciseId": "#5",
+                      "name": "Tractions",
+                      "sets": 3,
+                      "reps": "6-8",
+                      "load": "",
+                      "restSec": 90,
+                      "note": ""
+                    }
+                  ]
+                },
+                {
+                  "id": "#6",
+                  "weekday": 3,
+                  "name": "Course",
+                  "start": "07:30",
+                  "durationMin": 40,
+                  "exercises": []
+                },
+                {
+                  "id": "#7",
+                  "weekday": 5,
+                  "name": "Jambes",
+                  "start": "18:00",
+                  "durationMin": 60,
+                  "exercises": [
+                    {
+                      "id": "#8",
+                      "exerciseId": "#9",
+                      "name": "Squat",
+                      "sets": 5,
+                      "reps": "5",
+                      "load": "80 kg",
+                      "restSec": 180,
+                      "note": ""
+                    },
+                    {
+                      "id": "#10",
+                      "exerciseId": "#9",
+                      "name": "Squat",
+                      "sets": 3,
+                      "reps": "10",
+                      "load": "2 × 12 kg",
+                      "restSec": 90,
+                      "note": ""
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "summary": {
+            "done": 0,
+            "planned": 13,
+            "toValidate": 0,
+            "mood": null
+          }
+        }
+      }
+    ],
+    [
+      "GET /exercises",
+      {
+        "status": 200,
+        "body": {
+          "exercises": [
+            {
+              "id": "#3",
+              "name": "Développé couché",
+              "note": "",
+              "uses": 10
+            },
+            {
+              "id": "#20",
+              "name": "Gainage ventral",
+              "note": "3 × 1 min",
+              "uses": 0
+            },
+            {
+              "id": "#9",
+              "name": "Squat",
+              "note": "",
+              "uses": 20
+            },
+            {
+              "id": "#5",
+              "name": "Tractions",
+              "note": "",
+              "uses": 10
+            }
+          ]
+        }
+      }
+    ],
+    [
+      "GET /home",
+      {
+        "status": 200,
+        "body": {
+          "today": "2026-11-04",
+          "sessions": [
+            {
+              "id": "#15",
+              "date": "2026-11-04",
+              "name": "Course",
+              "start": "07:30",
+              "durationMin": 40,
+              "status": "planned",
+              "mood": null,
+              "comment": "",
+              "templateId": "#6",
+              "custom": false,
+              "exercises": []
+            }
+          ]
+        }
+      }
+    ],
+    [
+      "POST /export",
+      {
+        "status": 200,
+        "body": {
+          "path": "export-1",
+          "count": 14
+        }
+      }
+    ],
+    [
+      "POST /export",
+      {
+        "status": 200,
+        "body": {
+          "path": "export-2",
+          "count": 4
+        }
+      }
+    ]
+  ],
+  "saves": [
+    {
+      "name": "Sport 2026-11-01 - 2026-11-30.csv",
+      "data": "date;séance;début;durée_min;état;humeur;commentaire;exercices\n2026-11-02;Haut du corps;18:30;75;faite;4;\"Bonne séance ; un peu fatigué\";\"Développé couché 4 × 8 · 62,5 kg · repos 2 min ; Tractions 3 × 6-8 · repos 1 min 30\"\n2026-11-04;Course;07:30;40;prévue;;;\n2026-11-07;Jambes;10:00;60;prévue;;;\"Squat 5 × 5 · 80 kg · repos 3 min ; Squat 3 × 10 · 2 × 12 kg · repos 1 min 30\"\n2026-11-08;\"Vélo \"\"long\"\"\";09:00;120;prévue;;;\n2026-11-09;Haut du corps;18:30;75;prévue;;;\"Développé couché 4 × 8 · 60 kg · repos 2 min ; Tractions 3 × 6-8 · repos 1 min 30\"\n2026-11-11;Course;07:30;40;prévue;;;\n2026-11-13;Jambes;18:00;60;prévue;;;\"Squat 5 × 5 · 80 kg · repos 3 min ; Squat 3 × 10 · 2 × 12 kg · repos 1 min 30\"\n2026-11-16;Haut du corps;18:30;75;prévue;;;\"Développé couché 4 × 8 · 60 kg · repos 2 min ; Tractions 3 × 6-8 · repos 1 min 30\"\n2026-11-18;Course;07:30;40;prévue;;;\n2026-11-20;Jambes;18:00;60;prévue;;;\"Squat 5 × 5 · 80 kg · repos 3 min ; Squat 3 × 10 · 2 × 12 kg · repos 1 min 30\"\n2026-11-23;Haut du corps;18:30;75;prévue;;;\"Développé couché 4 × 8 · 60 kg · repos 2 min ; Tractions 3 × 6-8 · repos 1 min 30\"\n2026-11-25;Course;07:30;40;prévue;;;\n2026-11-27;Jambes;18:00;60;prévue;;;\"Squat 5 × 5 · 80 kg · repos 3 min ; Squat 3 × 10 · 2 × 12 kg · repos 1 min 30\"\n2026-11-30;Haut du corps;18:30;75;prévue;;;\"Développé couché 4 × 8 · 60 kg · repos 2 min ; Tractions 3 × 6-8 · repos 1 min 30\"\n"
+    },
+    {
+      "name": "Sport 2026-11-02 - 2026-11-08.md",
+      "data": "# Sport — du 2026-11-02 au 2026-11-08\n\n- 2026-11-02 18:30 · **Haut du corps** (75 min) — faite 🙂\n  - Commentaire : Bonne séance ; un peu fatigué\n  - Exercices :\n    - Développé couché 4 × 8 · 62,5 kg · repos 2 min\n    - Tractions 3 × 6-8 · repos 1 min 30\n- 2026-11-04 07:30 · **Course** (40 min) — prévue\n- 2026-11-07 10:00 · **Jambes** (60 min) — prévue\n  - Exercices :\n    - Squat 5 × 5 · 80 kg · repos 3 min\n    - Squat 3 × 10 · 2 × 12 kg · repos 1 min 30\n- 2026-11-08 09:00 · **Vélo \"long\"** (120 min) — prévue\n"
+    }
+  ],
+  "assistant": {
+    "session": {
+      "status": "done",
+      "id": "sport.today-session",
+      "message": "Aujourd’hui : Course à 07h30 (40 min).",
+      "data": {
+        "sessions": [
+          {
+            "id": "#15",
+            "date": "2026-11-04",
+            "name": "Course",
+            "start": "07:30",
+            "durationMin": 40,
+            "status": "planned",
+            "mood": null,
+            "comment": "",
+            "templateId": "#6",
+            "custom": false,
+            "exercises": []
+          }
+        ]
+      },
+      "undoId": null,
+      "open": null
+    },
+    "exercises": {
+      "status": "done",
+      "id": "sport.today-exercises",
+      "message": "Course : pas d’exercice noté.",
+      "data": {
+        "sessions": [
+          {
+            "id": "#15",
+            "date": "2026-11-04",
+            "name": "Course",
+            "start": "07:30",
+            "durationMin": 40,
+            "status": "planned",
+            "mood": null,
+            "comment": "",
+            "templateId": "#6",
+            "custom": false,
+            "exercises": []
+          }
+        ]
+      },
+      "undoId": null,
+      "open": null
+    },
+    "week": {
+      "status": "done",
+      "id": "sport.week-summary",
+      "message": "Cette semaine : 1 séance faite sur 4, humeur moyenne 4 sur 5.",
+      "data": {
+        "summary": {
+          "done": 1,
+          "planned": 4,
+          "toValidate": 0,
+          "mood": 4
+        },
+        "month": {
+          "done": 1,
+          "planned": 14,
+          "toValidate": 0,
+          "mood": 4
+        },
+        "streak": 0
+      },
+      "undoId": null,
+      "open": null
+    },
+    "done": {
+      "status": "forbidden",
+      "id": "sport.session-done",
+      "message": "Je n’ai pas le droit de le faire : « L’assistant peut valider et modifier les séances » est désactivé dans les droits de l’assistant.",
+      "right": {
+        "id": "sport.edit-sessions",
+        "label": "L’assistant peut valider et modifier les séances"
+      }
+    }
+  },
+  "calendar": {
+    "sources": ["sport"],
+    "events": [
+      {
+        "id": "#12",
+        "title": "Haut du corps",
+        "start": "2026-11-02T18:30",
+        "durationMin": 75,
+        "open": "/m/sport?week=2026-11-02",
+        "status": "fait",
+        "moduleId": "sport"
+      },
+      {
+        "id": "#15",
+        "title": "Course",
+        "start": "2026-11-04T07:30",
+        "durationMin": 40,
+        "open": "/m/sport?week=2026-11-02",
+        "moduleId": "sport"
+      },
+      {
+        "id": "#16",
+        "title": "Jambes",
+        "start": "2026-11-07T10:00",
+        "durationMin": 60,
+        "open": "/m/sport?week=2026-11-02",
+        "moduleId": "sport"
+      },
+      {
+        "id": "#19",
+        "title": "Vélo \"long\"",
+        "start": "2026-11-08T09:00",
+        "durationMin": 120,
+        "open": "/m/sport?week=2026-11-02",
+        "moduleId": "sport"
+      },
+      {
+        "id": "#22",
+        "title": "Haut du corps",
+        "start": "2026-11-09T18:30",
+        "durationMin": 75,
+        "open": "/m/sport?week=2026-11-09",
+        "moduleId": "sport"
+      },
+      {
+        "id": "#25",
+        "title": "Course",
+        "start": "2026-11-11T07:30",
+        "durationMin": 40,
+        "open": "/m/sport?week=2026-11-09",
+        "moduleId": "sport"
+      },
+      {
+        "id": "#26",
+        "title": "Jambes",
+        "start": "2026-11-13T18:00",
+        "durationMin": 60,
+        "open": "/m/sport?week=2026-11-09",
+        "moduleId": "sport"
+      }
+    ]
+  },
+  "tables": {
+    "sport__changes": [
+      {
+        "id": "#78",
+        "at": "+0ms",
+        "entity": "exercises",
+        "entity_id": "#3",
+        "op": "create",
+        "data": "{\"name\":\"Développé couché\",\"note\":\"\"}"
+      },
+      {
+        "id": "#79",
+        "at": "+1ms",
+        "entity": "exercises",
+        "entity_id": "#5",
+        "op": "create",
+        "data": "{\"name\":\"Tractions\",\"note\":\"\"}"
+      },
+      {
+        "id": "#80",
+        "at": "+2ms",
+        "entity": "templates",
+        "entity_id": "#1",
+        "op": "create",
+        "data": "{\"weekday\":1,\"name\":\"Haut du corps\",\"start_time\":\"18:30\",\"duration_min\":75}"
+      },
+      {
+        "id": "#81",
+        "at": "+3ms",
+        "entity": "template_exercises",
+        "entity_id": "#2",
+        "op": "create",
+        "data": "{\"template_id\":\"#1\",\"exercise_id\":\"#3\",\"position\":0,\"sets\":4,\"reps\":\"8\",\"load\":\"60 kg\",\"rest_sec\":120,\"note\":\"\"}"
+      },
+      {
+        "id": "#82",
+        "at": "+4ms",
+        "entity": "template_exercises",
+        "entity_id": "#4",
+        "op": "create",
+        "data": "{\"template_id\":\"#1\",\"exercise_id\":\"#5\",\"position\":1,\"sets\":3,\"reps\":\"6-8\",\"load\":\"\",\"rest_sec\":90,\"note\":\"\"}"
+      },
+      {
+        "id": "#83",
+        "at": "+5ms",
+        "entity": "templates",
+        "entity_id": "#6",
+        "op": "create",
+        "data": "{\"weekday\":3,\"name\":\"Course\",\"start_time\":\"07:30\",\"duration_min\":40}"
+      },
+      {
+        "id": "#84",
+        "at": "+6ms",
+        "entity": "exercises",
+        "entity_id": "#9",
+        "op": "create",
+        "data": "{\"name\":\"Squat\",\"note\":\"\"}"
+      },
+      {
+        "id": "#85",
+        "at": "+7ms",
+        "entity": "exercises",
+        "entity_id": "#11",
+        "op": "create",
+        "data": "{\"name\":\"Fentes\",\"note\":\"\"}"
+      },
+      {
+        "id": "#86",
+        "at": "+8ms",
+        "entity": "templates",
+        "entity_id": "#7",
+        "op": "create",
+        "data": "{\"weekday\":5,\"name\":\"Jambes\",\"start_time\":\"18:00\",\"duration_min\":60}"
+      },
+      {
+        "id": "#87",
+        "at": "+9ms",
+        "entity": "template_exercises",
+        "entity_id": "#8",
+        "op": "create",
+        "data": "{\"template_id\":\"#7\",\"exercise_id\":\"#9\",\"position\":0,\"sets\":5,\"reps\":\"5\",\"load\":\"80 kg\",\"rest_sec\":180,\"note\":\"\"}"
+      },
+      {
+        "id": "#88",
+        "at": "+10ms",
+        "entity": "template_exercises",
+        "entity_id": "#10",
+        "op": "create",
+        "data": "{\"template_id\":\"#7\",\"exercise_id\":\"#11\",\"position\":1,\"sets\":3,\"reps\":\"10\",\"load\":\"2 × 12 kg\",\"rest_sec\":90,\"note\":\"\"}"
+      },
+      {
+        "id": "#89",
+        "at": "+11ms",
+        "entity": "sessions",
+        "entity_id": "#12",
+        "op": "create",
+        "data": "{\"date\":\"2026-11-02\",\"week\":\"2026-11-02\",\"name\":\"Haut du corps\",\"start_time\":\"18:30\",\"duration_min\":75,\"status\":\"planned\",\"mood\":null,\"comment\":\"\",\"template_id\":\"#1\",\"custom\":0}"
+      },
+      {
+        "id": "#90",
+        "at": "+12ms",
+        "entity": "session_exercises",
+        "entity_id": "#13",
+        "op": "create",
+        "data": "{\"session_id\":\"#12\",\"exercise_id\":\"#3\",\"position\":0,\"sets\":4,\"reps\":\"8\",\"load\":\"60 kg\",\"rest_sec\":120,\"note\":\"\"}"
+      },
+      {
+        "id": "#91",
+        "at": "+13ms",
+        "entity": "session_exercises",
+        "entity_id": "#14",
+        "op": "create",
+        "data": "{\"session_id\":\"#12\",\"exercise_id\":\"#5\",\"position\":1,\"sets\":3,\"reps\":\"6-8\",\"load\":\"\",\"rest_sec\":90,\"note\":\"\"}"
+      },
+      {
+        "id": "#92",
+        "at": "+14ms",
+        "entity": "sessions",
+        "entity_id": "#15",
+        "op": "create",
+        "data": "{\"date\":\"2026-11-04\",\"week\":\"2026-11-02\",\"name\":\"Course\",\"start_time\":\"07:30\",\"duration_min\":40,\"status\":\"planned\",\"mood\":null,\"comment\":\"\",\"template_id\":\"#6\",\"custom\":0}"
+      },
+      {
+        "id": "#93",
+        "at": "+15ms",
+        "entity": "sessions",
+        "entity_id": "#16",
+        "op": "create",
+        "data": "{\"date\":\"2026-11-06\",\"week\":\"2026-11-02\",\"name\":\"Jambes\",\"start_time\":\"18:00\",\"duration_min\":60,\"status\":\"planned\",\"mood\":null,\"comment\":\"\",\"template_id\":\"#7\",\"custom\":0}"
+      },
+      {
+        "id": "#94",
+        "at": "+16ms",
+        "entity": "session_exercises",
+        "entity_id": "#17",
+        "op": "create",
+        "data": "{\"session_id\":\"#16\",\"exercise_id\":\"#9\",\"position\":0,\"sets\":5,\"reps\":\"5\",\"load\":\"80 kg\",\"rest_sec\":180,\"note\":\"\"}"
+      },
+      {
+        "id": "#95",
+        "at": "+17ms",
+        "entity": "session_exercises",
+        "entity_id": "#18",
+        "op": "create",
+        "data": "{\"session_id\":\"#16\",\"exercise_id\":\"#11\",\"position\":1,\"sets\":3,\"reps\":\"10\",\"load\":\"2 × 12 kg\",\"rest_sec\":90,\"note\":\"\"}"
+      },
+      {
+        "id": "#96",
+        "at": "+18ms",
+        "entity": "weeks",
+        "entity_id": "#97",
+        "op": "create",
+        "data": "{\"week\":\"2026-11-02\"}"
+      },
+      {
+        "id": "#98",
+        "at": "+19ms",
+        "entity": "sessions",
+        "entity_id": "#12",
+        "op": "update",
+        "data": "{\"status\":\"done\",\"mood\":4,\"comment\":\"Bonne séance ; un peu fatigué\"}"
+      },
+      {
+        "id": "#99",
+        "at": "+20ms",
+        "entity": "sessions",
+        "entity_id": "#12",
+        "op": "update",
+        "data": "{\"custom\":1}"
+      },
+      {
+        "id": "#100",
+        "at": "+21ms",
+        "entity": "session_exercises",
+        "entity_id": "#13",
+        "op": "update",
+        "data": "{\"load\":\"62,5 kg\"}"
+      },
+      {
+        "id": "#101",
+        "at": "+22ms",
+        "entity": "sessions",
+        "entity_id": "#15",
+        "op": "update",
+        "data": "{\"status\":\"cancelled\"}"
+      },
+      {
+        "id": "#102",
+        "at": "+23ms",
+        "entity": "sessions",
+        "entity_id": "#15",
+        "op": "update",
+        "data": "{\"status\":\"planned\"}"
+      },
+      {
+        "id": "#103",
+        "at": "+24ms",
+        "entity": "sessions",
+        "entity_id": "#16",
+        "op": "update",
+        "data": "{\"start_time\":\"10:00\",\"date\":\"2026-11-07\",\"custom\":1}"
+      },
+      {
+        "id": "#104",
+        "at": "+25ms",
+        "entity": "sessions",
+        "entity_id": "#19",
+        "op": "create",
+        "data": "{\"date\":\"2026-11-08\",\"week\":\"2026-11-02\",\"name\":\"Vélo \\\"long\\\"\",\"start_time\":\"09:00\",\"duration_min\":120,\"status\":\"planned\",\"mood\":null,\"comment\":\"\",\"template_id\":null,\"custom\":1}"
+      },
+      {
+        "id": "#105",
+        "at": "+26ms",
+        "entity": "sessions",
+        "entity_id": "#19",
+        "op": "delete",
+        "data": null
+      },
+      {
+        "id": "#106",
+        "at": "+27ms",
+        "entity": "sessions",
+        "entity_id": "#19",
+        "op": "restore",
+        "data": null
+      },
+      {
+        "id": "#107",
+        "at": "+28ms",
+        "entity": "exercises",
+        "entity_id": "#20",
+        "op": "create",
+        "data": "{\"name\":\"Gainage\",\"note\":\"planche\"}"
+      },
+      {
+        "id": "#108",
+        "at": "+29ms",
+        "entity": "exercises",
+        "entity_id": "#20",
+        "op": "update",
+        "data": "{\"name\":\"Gainage ventral\",\"note\":\"3 × 1 min\"}"
+      },
+      {
+        "id": "#109",
+        "at": "+30ms",
+        "entity": "exercises",
+        "entity_id": "#20",
+        "op": "delete",
+        "data": null
+      },
+      {
+        "id": "#110",
+        "at": "+31ms",
+        "entity": "exercises",
+        "entity_id": "#20",
+        "op": "restore",
+        "data": null
+      },
+      {
+        "id": "#111",
+        "at": "+32ms",
+        "entity": "template_exercises",
+        "entity_id": "#10",
+        "op": "update",
+        "data": "{\"exercise_id\":\"#9\"}"
+      },
+      {
+        "id": "#112",
+        "at": "+33ms",
+        "entity": "session_exercises",
+        "entity_id": "#18",
+        "op": "update",
+        "data": "{\"exercise_id\":\"#9\"}"
+      },
+      {
+        "id": "#113",
+        "at": "+34ms",
+        "entity": "exercises",
+        "entity_id": "#11",
+        "op": "delete",
+        "data": null
+      },
+      {
+        "id": "#114",
+        "at": "+35ms",
+        "entity": "sessions",
+        "entity_id": "#22",
+        "op": "create",
+        "data": "{\"date\":\"2026-11-09\",\"week\":\"2026-11-09\",\"name\":\"Haut du corps\",\"start_time\":\"18:30\",\"duration_min\":75,\"status\":\"planned\",\"mood\":null,\"comment\":\"\",\"template_id\":\"#1\",\"custom\":0}"
+      },
+      {
+        "id": "#115",
+        "at": "+36ms",
+        "entity": "session_exercises",
+        "entity_id": "#23",
+        "op": "create",
+        "data": "{\"session_id\":\"#22\",\"exercise_id\":\"#3\",\"position\":0,\"sets\":4,\"reps\":\"8\",\"load\":\"60 kg\",\"rest_sec\":120,\"note\":\"\"}"
+      },
+      {
+        "id": "#116",
+        "at": "+37ms",
+        "entity": "session_exercises",
+        "entity_id": "#24",
+        "op": "create",
+        "data": "{\"session_id\":\"#22\",\"exercise_id\":\"#5\",\"position\":1,\"sets\":3,\"reps\":\"6-8\",\"load\":\"\",\"rest_sec\":90,\"note\":\"\"}"
+      },
+      {
+        "id": "#117",
+        "at": "+38ms",
+        "entity": "sessions",
+        "entity_id": "#25",
+        "op": "create",
+        "data": "{\"date\":\"2026-11-11\",\"week\":\"2026-11-09\",\"name\":\"Course\",\"start_time\":\"07:30\",\"duration_min\":40,\"status\":\"planned\",\"mood\":null,\"comment\":\"\",\"template_id\":\"#6\",\"custom\":0}"
+      },
+      {
+        "id": "#118",
+        "at": "+39ms",
+        "entity": "sessions",
+        "entity_id": "#26",
+        "op": "create",
+        "data": "{\"date\":\"2026-11-13\",\"week\":\"2026-11-09\",\"name\":\"Jambes\",\"start_time\":\"18:00\",\"duration_min\":60,\"status\":\"planned\",\"mood\":null,\"comment\":\"\",\"template_id\":\"#7\",\"custom\":0}"
+      },
+      {
+        "id": "#119",
+        "at": "+40ms",
+        "entity": "session_exercises",
+        "entity_id": "#27",
+        "op": "create",
+        "data": "{\"session_id\":\"#26\",\"exercise_id\":\"#9\",\"position\":0,\"sets\":5,\"reps\":\"5\",\"load\":\"80 kg\",\"rest_sec\":180,\"note\":\"\"}"
+      },
+      {
+        "id": "#120",
+        "at": "+41ms",
+        "entity": "session_exercises",
+        "entity_id": "#28",
+        "op": "create",
+        "data": "{\"session_id\":\"#26\",\"exercise_id\":\"#9\",\"position\":1,\"sets\":3,\"reps\":\"10\",\"load\":\"2 × 12 kg\",\"rest_sec\":90,\"note\":\"\"}"
+      },
+      {
+        "id": "#121",
+        "at": "+42ms",
+        "entity": "weeks",
+        "entity_id": "#122",
+        "op": "create",
+        "data": "{\"week\":\"2026-11-09\"}"
+      },
+      {
+        "id": "#123",
+        "at": "+43ms",
+        "entity": "sessions",
+        "entity_id": "#29",
+        "op": "create",
+        "data": "{\"date\":\"2026-11-16\",\"week\":\"2026-11-16\",\"name\":\"Haut du corps\",\"start_time\":\"18:30\",\"duration_min\":75,\"status\":\"planned\",\"mood\":null,\"comment\":\"\",\"template_id\":\"#1\",\"custom\":0}"
+      },
+      {
+        "id": "#124",
+        "at": "+44ms",
+        "entity": "session_exercises",
+        "entity_id": "#30",
+        "op": "create",
+        "data": "{\"session_id\":\"#29\",\"exercise_id\":\"#3\",\"position\":0,\"sets\":4,\"reps\":\"8\",\"load\":\"60 kg\",\"rest_sec\":120,\"note\":\"\"}"
+      },
+      {
+        "id": "#125",
+        "at": "+45ms",
+        "entity": "session_exercises",
+        "entity_id": "#31",
+        "op": "create",
+        "data": "{\"session_id\":\"#29\",\"exercise_id\":\"#5\",\"position\":1,\"sets\":3,\"reps\":\"6-8\",\"load\":\"\",\"rest_sec\":90,\"note\":\"\"}"
+      },
+      {
+        "id": "#126",
+        "at": "+46ms",
+        "entity": "sessions",
+        "entity_id": "#32",
+        "op": "create",
+        "data": "{\"date\":\"2026-11-18\",\"week\":\"2026-11-16\",\"name\":\"Course\",\"start_time\":\"07:30\",\"duration_min\":40,\"status\":\"planned\",\"mood\":null,\"comment\":\"\",\"template_id\":\"#6\",\"custom\":0}"
+      },
+      {
+        "id": "#127",
+        "at": "+47ms",
+        "entity": "sessions",
+        "entity_id": "#33",
+        "op": "create",
+        "data": "{\"date\":\"2026-11-20\",\"week\":\"2026-11-16\",\"name\":\"Jambes\",\"start_time\":\"18:00\",\"duration_min\":60,\"status\":\"planned\",\"mood\":null,\"comment\":\"\",\"template_id\":\"#7\",\"custom\":0}"
+      },
+      {
+        "id": "#128",
+        "at": "+48ms",
+        "entity": "session_exercises",
+        "entity_id": "#34",
+        "op": "create",
+        "data": "{\"session_id\":\"#33\",\"exercise_id\":\"#9\",\"position\":0,\"sets\":5,\"reps\":\"5\",\"load\":\"80 kg\",\"rest_sec\":180,\"note\":\"\"}"
+      },
+      {
+        "id": "#129",
+        "at": "+49ms",
+        "entity": "session_exercises",
+        "entity_id": "#35",
+        "op": "create",
+        "data": "{\"session_id\":\"#33\",\"exercise_id\":\"#9\",\"position\":1,\"sets\":3,\"reps\":\"10\",\"load\":\"2 × 12 kg\",\"rest_sec\":90,\"note\":\"\"}"
+      },
+      {
+        "id": "#130",
+        "at": "+50ms",
+        "entity": "weeks",
+        "entity_id": "#131",
+        "op": "create",
+        "data": "{\"week\":\"2026-11-16\"}"
+      },
+      {
+        "id": "#132",
+        "at": "+51ms",
+        "entity": "sessions",
+        "entity_id": "#36",
+        "op": "create",
+        "data": "{\"date\":\"2026-11-23\",\"week\":\"2026-11-23\",\"name\":\"Haut du corps\",\"start_time\":\"18:30\",\"duration_min\":75,\"status\":\"planned\",\"mood\":null,\"comment\":\"\",\"template_id\":\"#1\",\"custom\":0}"
+      },
+      {
+        "id": "#133",
+        "at": "+52ms",
+        "entity": "session_exercises",
+        "entity_id": "#37",
+        "op": "create",
+        "data": "{\"session_id\":\"#36\",\"exercise_id\":\"#3\",\"position\":0,\"sets\":4,\"reps\":\"8\",\"load\":\"60 kg\",\"rest_sec\":120,\"note\":\"\"}"
+      },
+      {
+        "id": "#134",
+        "at": "+53ms",
+        "entity": "session_exercises",
+        "entity_id": "#38",
+        "op": "create",
+        "data": "{\"session_id\":\"#36\",\"exercise_id\":\"#5\",\"position\":1,\"sets\":3,\"reps\":\"6-8\",\"load\":\"\",\"rest_sec\":90,\"note\":\"\"}"
+      },
+      {
+        "id": "#135",
+        "at": "+54ms",
+        "entity": "sessions",
+        "entity_id": "#39",
+        "op": "create",
+        "data": "{\"date\":\"2026-11-25\",\"week\":\"2026-11-23\",\"name\":\"Course\",\"start_time\":\"07:30\",\"duration_min\":40,\"status\":\"planned\",\"mood\":null,\"comment\":\"\",\"template_id\":\"#6\",\"custom\":0}"
+      },
+      {
+        "id": "#136",
+        "at": "+55ms",
+        "entity": "sessions",
+        "entity_id": "#40",
+        "op": "create",
+        "data": "{\"date\":\"2026-11-27\",\"week\":\"2026-11-23\",\"name\":\"Jambes\",\"start_time\":\"18:00\",\"duration_min\":60,\"status\":\"planned\",\"mood\":null,\"comment\":\"\",\"template_id\":\"#7\",\"custom\":0}"
+      },
+      {
+        "id": "#137",
+        "at": "+56ms",
+        "entity": "session_exercises",
+        "entity_id": "#41",
+        "op": "create",
+        "data": "{\"session_id\":\"#40\",\"exercise_id\":\"#9\",\"position\":0,\"sets\":5,\"reps\":\"5\",\"load\":\"80 kg\",\"rest_sec\":180,\"note\":\"\"}"
+      },
+      {
+        "id": "#138",
+        "at": "+57ms",
+        "entity": "session_exercises",
+        "entity_id": "#42",
+        "op": "create",
+        "data": "{\"session_id\":\"#40\",\"exercise_id\":\"#9\",\"position\":1,\"sets\":3,\"reps\":\"10\",\"load\":\"2 × 12 kg\",\"rest_sec\":90,\"note\":\"\"}"
+      },
+      {
+        "id": "#139",
+        "at": "+58ms",
+        "entity": "weeks",
+        "entity_id": "#140",
+        "op": "create",
+        "data": "{\"week\":\"2026-11-23\"}"
+      },
+      {
+        "id": "#141",
+        "at": "+59ms",
+        "entity": "sessions",
+        "entity_id": "#43",
+        "op": "create",
+        "data": "{\"date\":\"2026-11-30\",\"week\":\"2026-11-30\",\"name\":\"Haut du corps\",\"start_time\":\"18:30\",\"duration_min\":75,\"status\":\"planned\",\"mood\":null,\"comment\":\"\",\"template_id\":\"#1\",\"custom\":0}"
+      },
+      {
+        "id": "#142",
+        "at": "+60ms",
+        "entity": "session_exercises",
+        "entity_id": "#44",
+        "op": "create",
+        "data": "{\"session_id\":\"#43\",\"exercise_id\":\"#3\",\"position\":0,\"sets\":4,\"reps\":\"8\",\"load\":\"60 kg\",\"rest_sec\":120,\"note\":\"\"}"
+      },
+      {
+        "id": "#143",
+        "at": "+61ms",
+        "entity": "session_exercises",
+        "entity_id": "#45",
+        "op": "create",
+        "data": "{\"session_id\":\"#43\",\"exercise_id\":\"#5\",\"position\":1,\"sets\":3,\"reps\":\"6-8\",\"load\":\"\",\"rest_sec\":90,\"note\":\"\"}"
+      },
+      {
+        "id": "#144",
+        "at": "+62ms",
+        "entity": "sessions",
+        "entity_id": "#46",
+        "op": "create",
+        "data": "{\"date\":\"2026-12-02\",\"week\":\"2026-11-30\",\"name\":\"Course\",\"start_time\":\"07:30\",\"duration_min\":40,\"status\":\"planned\",\"mood\":null,\"comment\":\"\",\"template_id\":\"#6\",\"custom\":0}"
+      },
+      {
+        "id": "#145",
+        "at": "+63ms",
+        "entity": "sessions",
+        "entity_id": "#47",
+        "op": "create",
+        "data": "{\"date\":\"2026-12-04\",\"week\":\"2026-11-30\",\"name\":\"Jambes\",\"start_time\":\"18:00\",\"duration_min\":60,\"status\":\"planned\",\"mood\":null,\"comment\":\"\",\"template_id\":\"#7\",\"custom\":0}"
+      },
+      {
+        "id": "#146",
+        "at": "+64ms",
+        "entity": "session_exercises",
+        "entity_id": "#48",
+        "op": "create",
+        "data": "{\"session_id\":\"#47\",\"exercise_id\":\"#9\",\"position\":0,\"sets\":5,\"reps\":\"5\",\"load\":\"80 kg\",\"rest_sec\":180,\"note\":\"\"}"
+      },
+      {
+        "id": "#147",
+        "at": "+65ms",
+        "entity": "session_exercises",
+        "entity_id": "#49",
+        "op": "create",
+        "data": "{\"session_id\":\"#47\",\"exercise_id\":\"#9\",\"position\":1,\"sets\":3,\"reps\":\"10\",\"load\":\"2 × 12 kg\",\"rest_sec\":90,\"note\":\"\"}"
+      },
+      {
+        "id": "#148",
+        "at": "+66ms",
+        "entity": "weeks",
+        "entity_id": "#149",
+        "op": "create",
+        "data": "{\"week\":\"2026-11-30\"}"
+      },
+      {
+        "id": "#150",
+        "at": "+67ms",
+        "entity": "sessions",
+        "entity_id": "#50",
+        "op": "create",
+        "data": "{\"date\":\"2026-12-07\",\"week\":\"2026-12-07\",\"name\":\"Haut du corps\",\"start_time\":\"18:30\",\"duration_min\":75,\"status\":\"planned\",\"mood\":null,\"comment\":\"\",\"template_id\":\"#1\",\"custom\":0}"
+      },
+      {
+        "id": "#151",
+        "at": "+68ms",
+        "entity": "session_exercises",
+        "entity_id": "#51",
+        "op": "create",
+        "data": "{\"session_id\":\"#50\",\"exercise_id\":\"#3\",\"position\":0,\"sets\":4,\"reps\":\"8\",\"load\":\"60 kg\",\"rest_sec\":120,\"note\":\"\"}"
+      },
+      {
+        "id": "#152",
+        "at": "+69ms",
+        "entity": "session_exercises",
+        "entity_id": "#52",
+        "op": "create",
+        "data": "{\"session_id\":\"#50\",\"exercise_id\":\"#5\",\"position\":1,\"sets\":3,\"reps\":\"6-8\",\"load\":\"\",\"rest_sec\":90,\"note\":\"\"}"
+      },
+      {
+        "id": "#153",
+        "at": "+70ms",
+        "entity": "sessions",
+        "entity_id": "#53",
+        "op": "create",
+        "data": "{\"date\":\"2026-12-09\",\"week\":\"2026-12-07\",\"name\":\"Course\",\"start_time\":\"07:30\",\"duration_min\":40,\"status\":\"planned\",\"mood\":null,\"comment\":\"\",\"template_id\":\"#6\",\"custom\":0}"
+      },
+      {
+        "id": "#154",
+        "at": "+71ms",
+        "entity": "sessions",
+        "entity_id": "#54",
+        "op": "create",
+        "data": "{\"date\":\"2026-12-11\",\"week\":\"2026-12-07\",\"name\":\"Jambes\",\"start_time\":\"18:00\",\"duration_min\":60,\"status\":\"planned\",\"mood\":null,\"comment\":\"\",\"template_id\":\"#7\",\"custom\":0}"
+      },
+      {
+        "id": "#155",
+        "at": "+72ms",
+        "entity": "session_exercises",
+        "entity_id": "#55",
+        "op": "create",
+        "data": "{\"session_id\":\"#54\",\"exercise_id\":\"#9\",\"position\":0,\"sets\":5,\"reps\":\"5\",\"load\":\"80 kg\",\"rest_sec\":180,\"note\":\"\"}"
+      },
+      {
+        "id": "#156",
+        "at": "+73ms",
+        "entity": "session_exercises",
+        "entity_id": "#56",
+        "op": "create",
+        "data": "{\"session_id\":\"#54\",\"exercise_id\":\"#9\",\"position\":1,\"sets\":3,\"reps\":\"10\",\"load\":\"2 × 12 kg\",\"rest_sec\":90,\"note\":\"\"}"
+      },
+      {
+        "id": "#157",
+        "at": "+74ms",
+        "entity": "weeks",
+        "entity_id": "#158",
+        "op": "create",
+        "data": "{\"week\":\"2026-12-07\"}"
+      },
+      {
+        "id": "#159",
+        "at": "+75ms",
+        "entity": "sessions",
+        "entity_id": "#57",
+        "op": "create",
+        "data": "{\"date\":\"2026-12-14\",\"week\":\"2026-12-14\",\"name\":\"Haut du corps\",\"start_time\":\"18:30\",\"duration_min\":75,\"status\":\"planned\",\"mood\":null,\"comment\":\"\",\"template_id\":\"#1\",\"custom\":0}"
+      },
+      {
+        "id": "#160",
+        "at": "+76ms",
+        "entity": "session_exercises",
+        "entity_id": "#58",
+        "op": "create",
+        "data": "{\"session_id\":\"#57\",\"exercise_id\":\"#3\",\"position\":0,\"sets\":4,\"reps\":\"8\",\"load\":\"60 kg\",\"rest_sec\":120,\"note\":\"\"}"
+      },
+      {
+        "id": "#161",
+        "at": "+77ms",
+        "entity": "session_exercises",
+        "entity_id": "#59",
+        "op": "create",
+        "data": "{\"session_id\":\"#57\",\"exercise_id\":\"#5\",\"position\":1,\"sets\":3,\"reps\":\"6-8\",\"load\":\"\",\"rest_sec\":90,\"note\":\"\"}"
+      },
+      {
+        "id": "#162",
+        "at": "+78ms",
+        "entity": "sessions",
+        "entity_id": "#60",
+        "op": "create",
+        "data": "{\"date\":\"2026-12-16\",\"week\":\"2026-12-14\",\"name\":\"Course\",\"start_time\":\"07:30\",\"duration_min\":40,\"status\":\"planned\",\"mood\":null,\"comment\":\"\",\"template_id\":\"#6\",\"custom\":0}"
+      },
+      {
+        "id": "#163",
+        "at": "+79ms",
+        "entity": "sessions",
+        "entity_id": "#61",
+        "op": "create",
+        "data": "{\"date\":\"2026-12-18\",\"week\":\"2026-12-14\",\"name\":\"Jambes\",\"start_time\":\"18:00\",\"duration_min\":60,\"status\":\"planned\",\"mood\":null,\"comment\":\"\",\"template_id\":\"#7\",\"custom\":0}"
+      },
+      {
+        "id": "#164",
+        "at": "+80ms",
+        "entity": "session_exercises",
+        "entity_id": "#62",
+        "op": "create",
+        "data": "{\"session_id\":\"#61\",\"exercise_id\":\"#9\",\"position\":0,\"sets\":5,\"reps\":\"5\",\"load\":\"80 kg\",\"rest_sec\":180,\"note\":\"\"}"
+      },
+      {
+        "id": "#165",
+        "at": "+81ms",
+        "entity": "session_exercises",
+        "entity_id": "#63",
+        "op": "create",
+        "data": "{\"session_id\":\"#61\",\"exercise_id\":\"#9\",\"position\":1,\"sets\":3,\"reps\":\"10\",\"load\":\"2 × 12 kg\",\"rest_sec\":90,\"note\":\"\"}"
+      },
+      {
+        "id": "#166",
+        "at": "+82ms",
+        "entity": "weeks",
+        "entity_id": "#167",
+        "op": "create",
+        "data": "{\"week\":\"2026-12-14\"}"
+      },
+      {
+        "id": "#168",
+        "at": "+83ms",
+        "entity": "sessions",
+        "entity_id": "#64",
+        "op": "create",
+        "data": "{\"date\":\"2026-12-21\",\"week\":\"2026-12-21\",\"name\":\"Haut du corps\",\"start_time\":\"18:30\",\"duration_min\":75,\"status\":\"planned\",\"mood\":null,\"comment\":\"\",\"template_id\":\"#1\",\"custom\":0}"
+      },
+      {
+        "id": "#169",
+        "at": "+84ms",
+        "entity": "session_exercises",
+        "entity_id": "#65",
+        "op": "create",
+        "data": "{\"session_id\":\"#64\",\"exercise_id\":\"#3\",\"position\":0,\"sets\":4,\"reps\":\"8\",\"load\":\"60 kg\",\"rest_sec\":120,\"note\":\"\"}"
+      },
+      {
+        "id": "#170",
+        "at": "+85ms",
+        "entity": "session_exercises",
+        "entity_id": "#66",
+        "op": "create",
+        "data": "{\"session_id\":\"#64\",\"exercise_id\":\"#5\",\"position\":1,\"sets\":3,\"reps\":\"6-8\",\"load\":\"\",\"rest_sec\":90,\"note\":\"\"}"
+      },
+      {
+        "id": "#171",
+        "at": "+86ms",
+        "entity": "sessions",
+        "entity_id": "#67",
+        "op": "create",
+        "data": "{\"date\":\"2026-12-23\",\"week\":\"2026-12-21\",\"name\":\"Course\",\"start_time\":\"07:30\",\"duration_min\":40,\"status\":\"planned\",\"mood\":null,\"comment\":\"\",\"template_id\":\"#6\",\"custom\":0}"
+      },
+      {
+        "id": "#172",
+        "at": "+87ms",
+        "entity": "sessions",
+        "entity_id": "#68",
+        "op": "create",
+        "data": "{\"date\":\"2026-12-25\",\"week\":\"2026-12-21\",\"name\":\"Jambes\",\"start_time\":\"18:00\",\"duration_min\":60,\"status\":\"planned\",\"mood\":null,\"comment\":\"\",\"template_id\":\"#7\",\"custom\":0}"
+      },
+      {
+        "id": "#173",
+        "at": "+88ms",
+        "entity": "session_exercises",
+        "entity_id": "#69",
+        "op": "create",
+        "data": "{\"session_id\":\"#68\",\"exercise_id\":\"#9\",\"position\":0,\"sets\":5,\"reps\":\"5\",\"load\":\"80 kg\",\"rest_sec\":180,\"note\":\"\"}"
+      },
+      {
+        "id": "#174",
+        "at": "+89ms",
+        "entity": "session_exercises",
+        "entity_id": "#70",
+        "op": "create",
+        "data": "{\"session_id\":\"#68\",\"exercise_id\":\"#9\",\"position\":1,\"sets\":3,\"reps\":\"10\",\"load\":\"2 × 12 kg\",\"rest_sec\":90,\"note\":\"\"}"
+      },
+      {
+        "id": "#175",
+        "at": "+90ms",
+        "entity": "weeks",
+        "entity_id": "#176",
+        "op": "create",
+        "data": "{\"week\":\"2026-12-21\"}"
+      },
+      {
+        "id": "#177",
+        "at": "+91ms",
+        "entity": "sessions",
+        "entity_id": "#71",
+        "op": "create",
+        "data": "{\"date\":\"2026-12-28\",\"week\":\"2026-12-28\",\"name\":\"Haut du corps\",\"start_time\":\"18:30\",\"duration_min\":75,\"status\":\"planned\",\"mood\":null,\"comment\":\"\",\"template_id\":\"#1\",\"custom\":0}"
+      },
+      {
+        "id": "#178",
+        "at": "+92ms",
+        "entity": "session_exercises",
+        "entity_id": "#72",
+        "op": "create",
+        "data": "{\"session_id\":\"#71\",\"exercise_id\":\"#3\",\"position\":0,\"sets\":4,\"reps\":\"8\",\"load\":\"60 kg\",\"rest_sec\":120,\"note\":\"\"}"
+      },
+      {
+        "id": "#179",
+        "at": "+93ms",
+        "entity": "session_exercises",
+        "entity_id": "#73",
+        "op": "create",
+        "data": "{\"session_id\":\"#71\",\"exercise_id\":\"#5\",\"position\":1,\"sets\":3,\"reps\":\"6-8\",\"load\":\"\",\"rest_sec\":90,\"note\":\"\"}"
+      },
+      {
+        "id": "#180",
+        "at": "+94ms",
+        "entity": "sessions",
+        "entity_id": "#74",
+        "op": "create",
+        "data": "{\"date\":\"2026-12-30\",\"week\":\"2026-12-28\",\"name\":\"Course\",\"start_time\":\"07:30\",\"duration_min\":40,\"status\":\"planned\",\"mood\":null,\"comment\":\"\",\"template_id\":\"#6\",\"custom\":0}"
+      },
+      {
+        "id": "#181",
+        "at": "+95ms",
+        "entity": "sessions",
+        "entity_id": "#75",
+        "op": "create",
+        "data": "{\"date\":\"2027-01-01\",\"week\":\"2026-12-28\",\"name\":\"Jambes\",\"start_time\":\"18:00\",\"duration_min\":60,\"status\":\"planned\",\"mood\":null,\"comment\":\"\",\"template_id\":\"#7\",\"custom\":0}"
+      },
+      {
+        "id": "#182",
+        "at": "+96ms",
+        "entity": "session_exercises",
+        "entity_id": "#76",
+        "op": "create",
+        "data": "{\"session_id\":\"#75\",\"exercise_id\":\"#9\",\"position\":0,\"sets\":5,\"reps\":\"5\",\"load\":\"80 kg\",\"rest_sec\":180,\"note\":\"\"}"
+      },
+      {
+        "id": "#183",
+        "at": "+97ms",
+        "entity": "session_exercises",
+        "entity_id": "#77",
+        "op": "create",
+        "data": "{\"session_id\":\"#75\",\"exercise_id\":\"#9\",\"position\":1,\"sets\":3,\"reps\":\"10\",\"load\":\"2 × 12 kg\",\"rest_sec\":90,\"note\":\"\"}"
+      },
+      {
+        "id": "#184",
+        "at": "+98ms",
+        "entity": "weeks",
+        "entity_id": "#185",
+        "op": "create",
+        "data": "{\"week\":\"2026-12-28\"}"
+      }
+    ],
+    "sport__exercises": [
+      {
+        "id": "#3",
+        "created_at": "+0ms",
+        "updated_at": "+0ms",
+        "deleted_at": null,
+        "name": "Développé couché",
+        "note": ""
+      },
+      {
+        "id": "#5",
+        "created_at": "+1ms",
+        "updated_at": "+1ms",
+        "deleted_at": null,
+        "name": "Tractions",
+        "note": ""
+      },
+      {
+        "id": "#9",
+        "created_at": "+6ms",
+        "updated_at": "+6ms",
+        "deleted_at": null,
+        "name": "Squat",
+        "note": ""
+      },
+      {
+        "id": "#11",
+        "created_at": "+7ms",
+        "updated_at": "+34ms",
+        "deleted_at": "+34ms",
+        "name": "Fentes",
+        "note": ""
+      },
+      {
+        "id": "#20",
+        "created_at": "+28ms",
+        "updated_at": "+31ms",
+        "deleted_at": null,
+        "name": "Gainage ventral",
+        "note": "3 × 1 min"
+      }
+    ],
+    "sport__session_exercises": [
+      {
+        "id": "#13",
+        "created_at": "+12ms",
+        "updated_at": "+21ms",
+        "deleted_at": null,
+        "session_id": "#12",
+        "exercise_id": "#3",
+        "position": 0,
+        "sets": 4,
+        "reps": "8",
+        "load": "62,5 kg",
+        "rest_sec": 120,
+        "note": ""
+      },
+      {
+        "id": "#14",
+        "created_at": "+13ms",
+        "updated_at": "+13ms",
+        "deleted_at": null,
+        "session_id": "#12",
+        "exercise_id": "#5",
+        "position": 1,
+        "sets": 3,
+        "reps": "6-8",
+        "load": "",
+        "rest_sec": 90,
+        "note": ""
+      },
+      {
+        "id": "#17",
+        "created_at": "+16ms",
+        "updated_at": "+16ms",
+        "deleted_at": null,
+        "session_id": "#16",
+        "exercise_id": "#9",
+        "position": 0,
+        "sets": 5,
+        "reps": "5",
+        "load": "80 kg",
+        "rest_sec": 180,
+        "note": ""
+      },
+      {
+        "id": "#18",
+        "created_at": "+17ms",
+        "updated_at": "+33ms",
+        "deleted_at": null,
+        "session_id": "#16",
+        "exercise_id": "#9",
+        "position": 1,
+        "sets": 3,
+        "reps": "10",
+        "load": "2 × 12 kg",
+        "rest_sec": 90,
+        "note": ""
+      },
+      {
+        "id": "#23",
+        "created_at": "+36ms",
+        "updated_at": "+36ms",
+        "deleted_at": null,
+        "session_id": "#22",
+        "exercise_id": "#3",
+        "position": 0,
+        "sets": 4,
+        "reps": "8",
+        "load": "60 kg",
+        "rest_sec": 120,
+        "note": ""
+      },
+      {
+        "id": "#24",
+        "created_at": "+37ms",
+        "updated_at": "+37ms",
+        "deleted_at": null,
+        "session_id": "#22",
+        "exercise_id": "#5",
+        "position": 1,
+        "sets": 3,
+        "reps": "6-8",
+        "load": "",
+        "rest_sec": 90,
+        "note": ""
+      },
+      {
+        "id": "#27",
+        "created_at": "+40ms",
+        "updated_at": "+40ms",
+        "deleted_at": null,
+        "session_id": "#26",
+        "exercise_id": "#9",
+        "position": 0,
+        "sets": 5,
+        "reps": "5",
+        "load": "80 kg",
+        "rest_sec": 180,
+        "note": ""
+      },
+      {
+        "id": "#28",
+        "created_at": "+41ms",
+        "updated_at": "+41ms",
+        "deleted_at": null,
+        "session_id": "#26",
+        "exercise_id": "#9",
+        "position": 1,
+        "sets": 3,
+        "reps": "10",
+        "load": "2 × 12 kg",
+        "rest_sec": 90,
+        "note": ""
+      },
+      {
+        "id": "#30",
+        "created_at": "+44ms",
+        "updated_at": "+44ms",
+        "deleted_at": null,
+        "session_id": "#29",
+        "exercise_id": "#3",
+        "position": 0,
+        "sets": 4,
+        "reps": "8",
+        "load": "60 kg",
+        "rest_sec": 120,
+        "note": ""
+      },
+      {
+        "id": "#31",
+        "created_at": "+45ms",
+        "updated_at": "+45ms",
+        "deleted_at": null,
+        "session_id": "#29",
+        "exercise_id": "#5",
+        "position": 1,
+        "sets": 3,
+        "reps": "6-8",
+        "load": "",
+        "rest_sec": 90,
+        "note": ""
+      },
+      {
+        "id": "#34",
+        "created_at": "+48ms",
+        "updated_at": "+48ms",
+        "deleted_at": null,
+        "session_id": "#33",
+        "exercise_id": "#9",
+        "position": 0,
+        "sets": 5,
+        "reps": "5",
+        "load": "80 kg",
+        "rest_sec": 180,
+        "note": ""
+      },
+      {
+        "id": "#35",
+        "created_at": "+49ms",
+        "updated_at": "+49ms",
+        "deleted_at": null,
+        "session_id": "#33",
+        "exercise_id": "#9",
+        "position": 1,
+        "sets": 3,
+        "reps": "10",
+        "load": "2 × 12 kg",
+        "rest_sec": 90,
+        "note": ""
+      },
+      {
+        "id": "#37",
+        "created_at": "+52ms",
+        "updated_at": "+52ms",
+        "deleted_at": null,
+        "session_id": "#36",
+        "exercise_id": "#3",
+        "position": 0,
+        "sets": 4,
+        "reps": "8",
+        "load": "60 kg",
+        "rest_sec": 120,
+        "note": ""
+      },
+      {
+        "id": "#38",
+        "created_at": "+53ms",
+        "updated_at": "+53ms",
+        "deleted_at": null,
+        "session_id": "#36",
+        "exercise_id": "#5",
+        "position": 1,
+        "sets": 3,
+        "reps": "6-8",
+        "load": "",
+        "rest_sec": 90,
+        "note": ""
+      },
+      {
+        "id": "#41",
+        "created_at": "+56ms",
+        "updated_at": "+56ms",
+        "deleted_at": null,
+        "session_id": "#40",
+        "exercise_id": "#9",
+        "position": 0,
+        "sets": 5,
+        "reps": "5",
+        "load": "80 kg",
+        "rest_sec": 180,
+        "note": ""
+      },
+      {
+        "id": "#42",
+        "created_at": "+57ms",
+        "updated_at": "+57ms",
+        "deleted_at": null,
+        "session_id": "#40",
+        "exercise_id": "#9",
+        "position": 1,
+        "sets": 3,
+        "reps": "10",
+        "load": "2 × 12 kg",
+        "rest_sec": 90,
+        "note": ""
+      },
+      {
+        "id": "#44",
+        "created_at": "+60ms",
+        "updated_at": "+60ms",
+        "deleted_at": null,
+        "session_id": "#43",
+        "exercise_id": "#3",
+        "position": 0,
+        "sets": 4,
+        "reps": "8",
+        "load": "60 kg",
+        "rest_sec": 120,
+        "note": ""
+      },
+      {
+        "id": "#45",
+        "created_at": "+61ms",
+        "updated_at": "+61ms",
+        "deleted_at": null,
+        "session_id": "#43",
+        "exercise_id": "#5",
+        "position": 1,
+        "sets": 3,
+        "reps": "6-8",
+        "load": "",
+        "rest_sec": 90,
+        "note": ""
+      },
+      {
+        "id": "#48",
+        "created_at": "+64ms",
+        "updated_at": "+64ms",
+        "deleted_at": null,
+        "session_id": "#47",
+        "exercise_id": "#9",
+        "position": 0,
+        "sets": 5,
+        "reps": "5",
+        "load": "80 kg",
+        "rest_sec": 180,
+        "note": ""
+      },
+      {
+        "id": "#49",
+        "created_at": "+65ms",
+        "updated_at": "+65ms",
+        "deleted_at": null,
+        "session_id": "#47",
+        "exercise_id": "#9",
+        "position": 1,
+        "sets": 3,
+        "reps": "10",
+        "load": "2 × 12 kg",
+        "rest_sec": 90,
+        "note": ""
+      },
+      {
+        "id": "#51",
+        "created_at": "+68ms",
+        "updated_at": "+68ms",
+        "deleted_at": null,
+        "session_id": "#50",
+        "exercise_id": "#3",
+        "position": 0,
+        "sets": 4,
+        "reps": "8",
+        "load": "60 kg",
+        "rest_sec": 120,
+        "note": ""
+      },
+      {
+        "id": "#52",
+        "created_at": "+69ms",
+        "updated_at": "+69ms",
+        "deleted_at": null,
+        "session_id": "#50",
+        "exercise_id": "#5",
+        "position": 1,
+        "sets": 3,
+        "reps": "6-8",
+        "load": "",
+        "rest_sec": 90,
+        "note": ""
+      },
+      {
+        "id": "#55",
+        "created_at": "+72ms",
+        "updated_at": "+72ms",
+        "deleted_at": null,
+        "session_id": "#54",
+        "exercise_id": "#9",
+        "position": 0,
+        "sets": 5,
+        "reps": "5",
+        "load": "80 kg",
+        "rest_sec": 180,
+        "note": ""
+      },
+      {
+        "id": "#56",
+        "created_at": "+73ms",
+        "updated_at": "+73ms",
+        "deleted_at": null,
+        "session_id": "#54",
+        "exercise_id": "#9",
+        "position": 1,
+        "sets": 3,
+        "reps": "10",
+        "load": "2 × 12 kg",
+        "rest_sec": 90,
+        "note": ""
+      },
+      {
+        "id": "#58",
+        "created_at": "+76ms",
+        "updated_at": "+76ms",
+        "deleted_at": null,
+        "session_id": "#57",
+        "exercise_id": "#3",
+        "position": 0,
+        "sets": 4,
+        "reps": "8",
+        "load": "60 kg",
+        "rest_sec": 120,
+        "note": ""
+      },
+      {
+        "id": "#59",
+        "created_at": "+77ms",
+        "updated_at": "+77ms",
+        "deleted_at": null,
+        "session_id": "#57",
+        "exercise_id": "#5",
+        "position": 1,
+        "sets": 3,
+        "reps": "6-8",
+        "load": "",
+        "rest_sec": 90,
+        "note": ""
+      },
+      {
+        "id": "#62",
+        "created_at": "+80ms",
+        "updated_at": "+80ms",
+        "deleted_at": null,
+        "session_id": "#61",
+        "exercise_id": "#9",
+        "position": 0,
+        "sets": 5,
+        "reps": "5",
+        "load": "80 kg",
+        "rest_sec": 180,
+        "note": ""
+      },
+      {
+        "id": "#63",
+        "created_at": "+81ms",
+        "updated_at": "+81ms",
+        "deleted_at": null,
+        "session_id": "#61",
+        "exercise_id": "#9",
+        "position": 1,
+        "sets": 3,
+        "reps": "10",
+        "load": "2 × 12 kg",
+        "rest_sec": 90,
+        "note": ""
+      },
+      {
+        "id": "#65",
+        "created_at": "+84ms",
+        "updated_at": "+84ms",
+        "deleted_at": null,
+        "session_id": "#64",
+        "exercise_id": "#3",
+        "position": 0,
+        "sets": 4,
+        "reps": "8",
+        "load": "60 kg",
+        "rest_sec": 120,
+        "note": ""
+      },
+      {
+        "id": "#66",
+        "created_at": "+85ms",
+        "updated_at": "+85ms",
+        "deleted_at": null,
+        "session_id": "#64",
+        "exercise_id": "#5",
+        "position": 1,
+        "sets": 3,
+        "reps": "6-8",
+        "load": "",
+        "rest_sec": 90,
+        "note": ""
+      },
+      {
+        "id": "#69",
+        "created_at": "+88ms",
+        "updated_at": "+88ms",
+        "deleted_at": null,
+        "session_id": "#68",
+        "exercise_id": "#9",
+        "position": 0,
+        "sets": 5,
+        "reps": "5",
+        "load": "80 kg",
+        "rest_sec": 180,
+        "note": ""
+      },
+      {
+        "id": "#70",
+        "created_at": "+89ms",
+        "updated_at": "+89ms",
+        "deleted_at": null,
+        "session_id": "#68",
+        "exercise_id": "#9",
+        "position": 1,
+        "sets": 3,
+        "reps": "10",
+        "load": "2 × 12 kg",
+        "rest_sec": 90,
+        "note": ""
+      },
+      {
+        "id": "#72",
+        "created_at": "+92ms",
+        "updated_at": "+92ms",
+        "deleted_at": null,
+        "session_id": "#71",
+        "exercise_id": "#3",
+        "position": 0,
+        "sets": 4,
+        "reps": "8",
+        "load": "60 kg",
+        "rest_sec": 120,
+        "note": ""
+      },
+      {
+        "id": "#73",
+        "created_at": "+93ms",
+        "updated_at": "+93ms",
+        "deleted_at": null,
+        "session_id": "#71",
+        "exercise_id": "#5",
+        "position": 1,
+        "sets": 3,
+        "reps": "6-8",
+        "load": "",
+        "rest_sec": 90,
+        "note": ""
+      },
+      {
+        "id": "#76",
+        "created_at": "+96ms",
+        "updated_at": "+96ms",
+        "deleted_at": null,
+        "session_id": "#75",
+        "exercise_id": "#9",
+        "position": 0,
+        "sets": 5,
+        "reps": "5",
+        "load": "80 kg",
+        "rest_sec": 180,
+        "note": ""
+      },
+      {
+        "id": "#77",
+        "created_at": "+97ms",
+        "updated_at": "+97ms",
+        "deleted_at": null,
+        "session_id": "#75",
+        "exercise_id": "#9",
+        "position": 1,
+        "sets": 3,
+        "reps": "10",
+        "load": "2 × 12 kg",
+        "rest_sec": 90,
+        "note": ""
+      }
+    ],
+    "sport__sessions": [
+      {
+        "id": "#12",
+        "created_at": "+11ms",
+        "updated_at": "+20ms",
+        "deleted_at": null,
+        "date": "2026-11-02",
+        "week": "2026-11-02",
+        "name": "Haut du corps",
+        "start_time": "18:30",
+        "duration_min": 75,
+        "status": "done",
+        "mood": 4,
+        "comment": "Bonne séance ; un peu fatigué",
+        "template_id": "#1",
+        "custom": 1,
+        "exercises": "[]"
+      },
+      {
+        "id": "#15",
+        "created_at": "+14ms",
+        "updated_at": "+23ms",
+        "deleted_at": null,
+        "date": "2026-11-04",
+        "week": "2026-11-02",
+        "name": "Course",
+        "start_time": "07:30",
+        "duration_min": 40,
+        "status": "planned",
+        "mood": null,
+        "comment": "",
+        "template_id": "#6",
+        "custom": 0,
+        "exercises": "[]"
+      },
+      {
+        "id": "#16",
+        "created_at": "+15ms",
+        "updated_at": "+24ms",
+        "deleted_at": null,
+        "date": "2026-11-07",
+        "week": "2026-11-02",
+        "name": "Jambes",
+        "start_time": "10:00",
+        "duration_min": 60,
+        "status": "planned",
+        "mood": null,
+        "comment": "",
+        "template_id": "#7",
+        "custom": 1,
+        "exercises": "[]"
+      },
+      {
+        "id": "#19",
+        "created_at": "+25ms",
+        "updated_at": "+27ms",
+        "deleted_at": null,
+        "date": "2026-11-08",
+        "week": "2026-11-02",
+        "name": "Vélo \"long\"",
+        "start_time": "09:00",
+        "duration_min": 120,
+        "status": "planned",
+        "mood": null,
+        "comment": "",
+        "template_id": null,
+        "custom": 1,
+        "exercises": "[]"
+      },
+      {
+        "id": "#22",
+        "created_at": "+35ms",
+        "updated_at": "+35ms",
+        "deleted_at": null,
+        "date": "2026-11-09",
+        "week": "2026-11-09",
+        "name": "Haut du corps",
+        "start_time": "18:30",
+        "duration_min": 75,
+        "status": "planned",
+        "mood": null,
+        "comment": "",
+        "template_id": "#1",
+        "custom": 0,
+        "exercises": "[]"
+      },
+      {
+        "id": "#25",
+        "created_at": "+38ms",
+        "updated_at": "+38ms",
+        "deleted_at": null,
+        "date": "2026-11-11",
+        "week": "2026-11-09",
+        "name": "Course",
+        "start_time": "07:30",
+        "duration_min": 40,
+        "status": "planned",
+        "mood": null,
+        "comment": "",
+        "template_id": "#6",
+        "custom": 0,
+        "exercises": "[]"
+      },
+      {
+        "id": "#26",
+        "created_at": "+39ms",
+        "updated_at": "+39ms",
+        "deleted_at": null,
+        "date": "2026-11-13",
+        "week": "2026-11-09",
+        "name": "Jambes",
+        "start_time": "18:00",
+        "duration_min": 60,
+        "status": "planned",
+        "mood": null,
+        "comment": "",
+        "template_id": "#7",
+        "custom": 0,
+        "exercises": "[]"
+      },
+      {
+        "id": "#29",
+        "created_at": "+43ms",
+        "updated_at": "+43ms",
+        "deleted_at": null,
+        "date": "2026-11-16",
+        "week": "2026-11-16",
+        "name": "Haut du corps",
+        "start_time": "18:30",
+        "duration_min": 75,
+        "status": "planned",
+        "mood": null,
+        "comment": "",
+        "template_id": "#1",
+        "custom": 0,
+        "exercises": "[]"
+      },
+      {
+        "id": "#32",
+        "created_at": "+46ms",
+        "updated_at": "+46ms",
+        "deleted_at": null,
+        "date": "2026-11-18",
+        "week": "2026-11-16",
+        "name": "Course",
+        "start_time": "07:30",
+        "duration_min": 40,
+        "status": "planned",
+        "mood": null,
+        "comment": "",
+        "template_id": "#6",
+        "custom": 0,
+        "exercises": "[]"
+      },
+      {
+        "id": "#33",
+        "created_at": "+47ms",
+        "updated_at": "+47ms",
+        "deleted_at": null,
+        "date": "2026-11-20",
+        "week": "2026-11-16",
+        "name": "Jambes",
+        "start_time": "18:00",
+        "duration_min": 60,
+        "status": "planned",
+        "mood": null,
+        "comment": "",
+        "template_id": "#7",
+        "custom": 0,
+        "exercises": "[]"
+      },
+      {
+        "id": "#36",
+        "created_at": "+51ms",
+        "updated_at": "+51ms",
+        "deleted_at": null,
+        "date": "2026-11-23",
+        "week": "2026-11-23",
+        "name": "Haut du corps",
+        "start_time": "18:30",
+        "duration_min": 75,
+        "status": "planned",
+        "mood": null,
+        "comment": "",
+        "template_id": "#1",
+        "custom": 0,
+        "exercises": "[]"
+      },
+      {
+        "id": "#39",
+        "created_at": "+54ms",
+        "updated_at": "+54ms",
+        "deleted_at": null,
+        "date": "2026-11-25",
+        "week": "2026-11-23",
+        "name": "Course",
+        "start_time": "07:30",
+        "duration_min": 40,
+        "status": "planned",
+        "mood": null,
+        "comment": "",
+        "template_id": "#6",
+        "custom": 0,
+        "exercises": "[]"
+      },
+      {
+        "id": "#40",
+        "created_at": "+55ms",
+        "updated_at": "+55ms",
+        "deleted_at": null,
+        "date": "2026-11-27",
+        "week": "2026-11-23",
+        "name": "Jambes",
+        "start_time": "18:00",
+        "duration_min": 60,
+        "status": "planned",
+        "mood": null,
+        "comment": "",
+        "template_id": "#7",
+        "custom": 0,
+        "exercises": "[]"
+      },
+      {
+        "id": "#43",
+        "created_at": "+59ms",
+        "updated_at": "+59ms",
+        "deleted_at": null,
+        "date": "2026-11-30",
+        "week": "2026-11-30",
+        "name": "Haut du corps",
+        "start_time": "18:30",
+        "duration_min": 75,
+        "status": "planned",
+        "mood": null,
+        "comment": "",
+        "template_id": "#1",
+        "custom": 0,
+        "exercises": "[]"
+      },
+      {
+        "id": "#46",
+        "created_at": "+62ms",
+        "updated_at": "+62ms",
+        "deleted_at": null,
+        "date": "2026-12-02",
+        "week": "2026-11-30",
+        "name": "Course",
+        "start_time": "07:30",
+        "duration_min": 40,
+        "status": "planned",
+        "mood": null,
+        "comment": "",
+        "template_id": "#6",
+        "custom": 0,
+        "exercises": "[]"
+      },
+      {
+        "id": "#47",
+        "created_at": "+63ms",
+        "updated_at": "+63ms",
+        "deleted_at": null,
+        "date": "2026-12-04",
+        "week": "2026-11-30",
+        "name": "Jambes",
+        "start_time": "18:00",
+        "duration_min": 60,
+        "status": "planned",
+        "mood": null,
+        "comment": "",
+        "template_id": "#7",
+        "custom": 0,
+        "exercises": "[]"
+      },
+      {
+        "id": "#50",
+        "created_at": "+67ms",
+        "updated_at": "+67ms",
+        "deleted_at": null,
+        "date": "2026-12-07",
+        "week": "2026-12-07",
+        "name": "Haut du corps",
+        "start_time": "18:30",
+        "duration_min": 75,
+        "status": "planned",
+        "mood": null,
+        "comment": "",
+        "template_id": "#1",
+        "custom": 0,
+        "exercises": "[]"
+      },
+      {
+        "id": "#53",
+        "created_at": "+70ms",
+        "updated_at": "+70ms",
+        "deleted_at": null,
+        "date": "2026-12-09",
+        "week": "2026-12-07",
+        "name": "Course",
+        "start_time": "07:30",
+        "duration_min": 40,
+        "status": "planned",
+        "mood": null,
+        "comment": "",
+        "template_id": "#6",
+        "custom": 0,
+        "exercises": "[]"
+      },
+      {
+        "id": "#54",
+        "created_at": "+71ms",
+        "updated_at": "+71ms",
+        "deleted_at": null,
+        "date": "2026-12-11",
+        "week": "2026-12-07",
+        "name": "Jambes",
+        "start_time": "18:00",
+        "duration_min": 60,
+        "status": "planned",
+        "mood": null,
+        "comment": "",
+        "template_id": "#7",
+        "custom": 0,
+        "exercises": "[]"
+      },
+      {
+        "id": "#57",
+        "created_at": "+75ms",
+        "updated_at": "+75ms",
+        "deleted_at": null,
+        "date": "2026-12-14",
+        "week": "2026-12-14",
+        "name": "Haut du corps",
+        "start_time": "18:30",
+        "duration_min": 75,
+        "status": "planned",
+        "mood": null,
+        "comment": "",
+        "template_id": "#1",
+        "custom": 0,
+        "exercises": "[]"
+      },
+      {
+        "id": "#60",
+        "created_at": "+78ms",
+        "updated_at": "+78ms",
+        "deleted_at": null,
+        "date": "2026-12-16",
+        "week": "2026-12-14",
+        "name": "Course",
+        "start_time": "07:30",
+        "duration_min": 40,
+        "status": "planned",
+        "mood": null,
+        "comment": "",
+        "template_id": "#6",
+        "custom": 0,
+        "exercises": "[]"
+      },
+      {
+        "id": "#61",
+        "created_at": "+79ms",
+        "updated_at": "+79ms",
+        "deleted_at": null,
+        "date": "2026-12-18",
+        "week": "2026-12-14",
+        "name": "Jambes",
+        "start_time": "18:00",
+        "duration_min": 60,
+        "status": "planned",
+        "mood": null,
+        "comment": "",
+        "template_id": "#7",
+        "custom": 0,
+        "exercises": "[]"
+      },
+      {
+        "id": "#64",
+        "created_at": "+83ms",
+        "updated_at": "+83ms",
+        "deleted_at": null,
+        "date": "2026-12-21",
+        "week": "2026-12-21",
+        "name": "Haut du corps",
+        "start_time": "18:30",
+        "duration_min": 75,
+        "status": "planned",
+        "mood": null,
+        "comment": "",
+        "template_id": "#1",
+        "custom": 0,
+        "exercises": "[]"
+      },
+      {
+        "id": "#67",
+        "created_at": "+86ms",
+        "updated_at": "+86ms",
+        "deleted_at": null,
+        "date": "2026-12-23",
+        "week": "2026-12-21",
+        "name": "Course",
+        "start_time": "07:30",
+        "duration_min": 40,
+        "status": "planned",
+        "mood": null,
+        "comment": "",
+        "template_id": "#6",
+        "custom": 0,
+        "exercises": "[]"
+      },
+      {
+        "id": "#68",
+        "created_at": "+87ms",
+        "updated_at": "+87ms",
+        "deleted_at": null,
+        "date": "2026-12-25",
+        "week": "2026-12-21",
+        "name": "Jambes",
+        "start_time": "18:00",
+        "duration_min": 60,
+        "status": "planned",
+        "mood": null,
+        "comment": "",
+        "template_id": "#7",
+        "custom": 0,
+        "exercises": "[]"
+      },
+      {
+        "id": "#71",
+        "created_at": "+91ms",
+        "updated_at": "+91ms",
+        "deleted_at": null,
+        "date": "2026-12-28",
+        "week": "2026-12-28",
+        "name": "Haut du corps",
+        "start_time": "18:30",
+        "duration_min": 75,
+        "status": "planned",
+        "mood": null,
+        "comment": "",
+        "template_id": "#1",
+        "custom": 0,
+        "exercises": "[]"
+      },
+      {
+        "id": "#74",
+        "created_at": "+94ms",
+        "updated_at": "+94ms",
+        "deleted_at": null,
+        "date": "2026-12-30",
+        "week": "2026-12-28",
+        "name": "Course",
+        "start_time": "07:30",
+        "duration_min": 40,
+        "status": "planned",
+        "mood": null,
+        "comment": "",
+        "template_id": "#6",
+        "custom": 0,
+        "exercises": "[]"
+      },
+      {
+        "id": "#75",
+        "created_at": "+95ms",
+        "updated_at": "+95ms",
+        "deleted_at": null,
+        "date": "2027-01-01",
+        "week": "2026-12-28",
+        "name": "Jambes",
+        "start_time": "18:00",
+        "duration_min": 60,
+        "status": "planned",
+        "mood": null,
+        "comment": "",
+        "template_id": "#7",
+        "custom": 0,
+        "exercises": "[]"
+      }
+    ],
+    "sport__template_exercises": [
+      {
+        "id": "#2",
+        "created_at": "+3ms",
+        "updated_at": "+3ms",
+        "deleted_at": null,
+        "template_id": "#1",
+        "exercise_id": "#3",
+        "position": 0,
+        "sets": 4,
+        "reps": "8",
+        "load": "60 kg",
+        "rest_sec": 120,
+        "note": ""
+      },
+      {
+        "id": "#4",
+        "created_at": "+4ms",
+        "updated_at": "+4ms",
+        "deleted_at": null,
+        "template_id": "#1",
+        "exercise_id": "#5",
+        "position": 1,
+        "sets": 3,
+        "reps": "6-8",
+        "load": "",
+        "rest_sec": 90,
+        "note": ""
+      },
+      {
+        "id": "#8",
+        "created_at": "+9ms",
+        "updated_at": "+9ms",
+        "deleted_at": null,
+        "template_id": "#7",
+        "exercise_id": "#9",
+        "position": 0,
+        "sets": 5,
+        "reps": "5",
+        "load": "80 kg",
+        "rest_sec": 180,
+        "note": ""
+      },
+      {
+        "id": "#10",
+        "created_at": "+10ms",
+        "updated_at": "+32ms",
+        "deleted_at": null,
+        "template_id": "#7",
+        "exercise_id": "#9",
+        "position": 1,
+        "sets": 3,
+        "reps": "10",
+        "load": "2 × 12 kg",
+        "rest_sec": 90,
+        "note": ""
+      }
+    ],
+    "sport__templates": [
+      {
+        "id": "#1",
+        "created_at": "+2ms",
+        "updated_at": "+2ms",
+        "deleted_at": null,
+        "weekday": 1,
+        "name": "Haut du corps",
+        "start_time": "18:30",
+        "duration_min": 75,
+        "exercises": "[]"
+      },
+      {
+        "id": "#6",
+        "created_at": "+5ms",
+        "updated_at": "+5ms",
+        "deleted_at": null,
+        "weekday": 3,
+        "name": "Course",
+        "start_time": "07:30",
+        "duration_min": 40,
+        "exercises": "[]"
+      },
+      {
+        "id": "#7",
+        "created_at": "+8ms",
+        "updated_at": "+8ms",
+        "deleted_at": null,
+        "weekday": 5,
+        "name": "Jambes",
+        "start_time": "18:00",
+        "duration_min": 60,
+        "exercises": "[]"
+      }
+    ],
+    "sport__weeks": [
+      {
+        "id": "#97",
+        "created_at": "+18ms",
+        "updated_at": "+18ms",
+        "deleted_at": null,
+        "week": "2026-11-02"
+      },
+      {
+        "id": "#122",
+        "created_at": "+42ms",
+        "updated_at": "+42ms",
+        "deleted_at": null,
+        "week": "2026-11-09"
+      },
+      {
+        "id": "#131",
+        "created_at": "+50ms",
+        "updated_at": "+50ms",
+        "deleted_at": null,
+        "week": "2026-11-16"
+      },
+      {
+        "id": "#140",
+        "created_at": "+58ms",
+        "updated_at": "+58ms",
+        "deleted_at": null,
+        "week": "2026-11-23"
+      },
+      {
+        "id": "#149",
+        "created_at": "+66ms",
+        "updated_at": "+66ms",
+        "deleted_at": null,
+        "week": "2026-11-30"
+      },
+      {
+        "id": "#158",
+        "created_at": "+74ms",
+        "updated_at": "+74ms",
+        "deleted_at": null,
+        "week": "2026-12-07"
+      },
+      {
+        "id": "#167",
+        "created_at": "+82ms",
+        "updated_at": "+82ms",
+        "deleted_at": null,
+        "week": "2026-12-14"
+      },
+      {
+        "id": "#176",
+        "created_at": "+90ms",
+        "updated_at": "+90ms",
+        "deleted_at": null,
+        "week": "2026-12-21"
+      },
+      {
+        "id": "#185",
+        "created_at": "+98ms",
+        "updated_at": "+98ms",
+        "deleted_at": null,
+        "week": "2026-12-28"
+      }
+    ]
+  }
+}
