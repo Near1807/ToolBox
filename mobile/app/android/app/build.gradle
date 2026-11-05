@@ -1,0 +1,79 @@
+apply plugin: 'com.android.application'
+
+android {
+    namespace = "be.toolbox.app"
+    compileSdk = rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "be.toolbox.app"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        // Given by the build (.github/workflows/android.yml): derived from the
+        // version of ToolBox, always increasing (README: « versionCode »).
+        versionCode((project.findProperty('toolboxVersionCode') ?: '1') as Integer)
+        versionName(project.findProperty('toolboxVersionName') ?: '0.0.0-local')
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    // Release signing: the key comes from the CI's secrets through environment
+    // variables (a temporary file, never in the repository). Without them a
+    // release build is refused (an unsigned APK cannot be installed).
+    signingConfigs {
+        release {
+            def store = System.getenv('TOOLBOX_KEYSTORE_FILE')
+            if (store) {
+                storeFile file(store)
+                storePassword System.getenv('TOOLBOX_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('TOOLBOX_KEY_ALIAS')
+                keyPassword System.getenv('TOOLBOX_KEY_PASSWORD')
+            }
+        }
+    }
+    buildTypes {
+        release {
+            if (System.getenv('TOOLBOX_KEYSTORE_FILE')) signingConfig signingConfigs.release
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}
+
+// A release build without the key is refused (an unsigned APK cannot be installed).
+gradle.taskGraph.whenReady { graph ->
+    def release = graph.allTasks.any { it.name.toLowerCase().contains('release') }
+    if (release && !System.getenv('TOOLBOX_KEYSTORE_FILE')) {
+        throw new GradleException('Signature absente : TOOLBOX_KEYSTORE_FILE (secrets de la CI) manque.')
+    }
+}

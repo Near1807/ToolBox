@@ -8,6 +8,7 @@ import globals from 'globals';
 
 const root = import.meta.dirname;
 const modulesDir = path.join(root, 'modules');
+const phoneAppDir = path.join(root, 'mobile', 'app', 'src');
 
 /**
  * Modules that only run on the PC (music, assistant). Every other module —
@@ -125,6 +126,8 @@ const moduleBoundaries = {
           message: 'Un module n’importe que @hub/sdk, jamais le code du socle.',
         });
       }
+      // The phone app assembles the modules it ships (like the PC's build discovers them).
+      if (file.startsWith(phoneAppDir + path.sep)) return;
       if (
         source.startsWith('.') &&
         path.resolve(path.dirname(file), source).startsWith(modulesDir + path.sep)
@@ -157,6 +160,8 @@ export default tseslint.config(
       // Probe app (ADR 0044, step 3a): its build and the generated Android project.
       'mobile/probe/dist/',
       'mobile/probe/android/',
+      'mobile/app/dist/',
+      'mobile/app/android/',
     ],
   },
   js.configs.recommended,
@@ -165,6 +170,17 @@ export default tseslint.config(
     // Probe app: a page and its Worker (browser), its Vite config (Node).
     files: ['mobile/probe/src/**/*.js'],
     languageOptions: { globals: { ...globals.browser, ...globals.worker } },
+  },
+  {
+    // Phone app: its page (browser) and its Worker.
+    files: ['mobile/app/src/**/*.{ts,tsx}'],
+    languageOptions: { globals: { ...globals.browser, ...globals.worker } },
+    plugins: { 'react-hooks': reactHooks },
+    rules: reactHooks.configs.recommended.rules,
+  },
+  {
+    files: ['mobile/app/*.mjs'],
+    languageOptions: { globals: globals.node },
   },
   {
     files: ['mobile/probe/*.js'],
