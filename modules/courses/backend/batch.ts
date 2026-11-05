@@ -11,7 +11,7 @@ import {
   requestBody,
   type SyncRow,
   type SyncStore,
-} from '@hub/sdk/backend';
+} from '@hub/sdk/core';
 import { planBatch, type BatchMeal } from '../shared/batch';
 import {
   addDaysTo,

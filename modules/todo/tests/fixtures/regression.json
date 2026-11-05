@@ -1,0 +1,1028 @@
+{
+  "steps": [
+    [
+      "GET /tasks",
+      {
+        "status": 200,
+        "body": {
+          "today": "2026-11-04",
+          "tasks": [],
+          "tags": [],
+          "library": true,
+          "tracks": [
+            {
+              "id": 1,
+              "title": "Nuit blanche"
+            },
+            {
+              "id": 2,
+              "title": "Aube"
+            }
+          ],
+          "timer": true
+        }
+      }
+    ],
+    [
+      "GET /today",
+      {
+        "status": 200,
+        "body": {
+          "today": "2026-11-04",
+          "open": 0,
+          "due": []
+        }
+      }
+    ],
+    [
+      "POST /tasks",
+      {
+        "status": 200,
+        "body": {
+          "id": "#1",
+          "title": "Finir le mix",
+          "tags": ["mix", "studio-session"],
+          "due": "2026-11-05",
+          "done": false,
+          "doneAt": null,
+          "createdAt": "+0ms",
+          "track": {
+            "id": 1,
+            "title": "Nuit blanche"
+          },
+          "timeSpent": 0
+        }
+      }
+    ],
+    [
+      "POST /tasks",
+      {
+        "status": 200,
+        "body": {
+          "id": "#2",
+          "title": "Mettre à jour la bio",
+          "tags": [],
+          "due": "2026-11-06",
+          "done": false,
+          "doneAt": null,
+          "createdAt": "+180000ms",
+          "track": null,
+          "timeSpent": 0
+        }
+      }
+    ],
+    [
+      "POST /tasks",
+      {
+        "status": 200,
+        "body": {
+          "id": "#3",
+          "title": "Payer la facture",
+          "tags": ["admin"],
+          "due": "2026-11-02",
+          "done": false,
+          "doneAt": null,
+          "createdAt": "+240000ms",
+          "track": null,
+          "timeSpent": 0
+        }
+      }
+    ],
+    [
+      "POST /tasks",
+      {
+        "status": 200,
+        "body": {
+          "id": "#4",
+          "title": "Sans date",
+          "tags": ["idée"],
+          "due": null,
+          "done": false,
+          "doneAt": null,
+          "createdAt": "+300000ms",
+          "track": null,
+          "timeSpent": 0
+        }
+      }
+    ],
+    [
+      "POST /tasks",
+      {
+        "status": 200,
+        "body": {
+          "id": "#5",
+          "title": "Aujourd’hui",
+          "tags": [],
+          "due": "2026-11-04",
+          "done": false,
+          "doneAt": null,
+          "createdAt": "+300001ms",
+          "track": null,
+          "timeSpent": 0
+        }
+      }
+    ],
+    [
+      "POST /tasks",
+      {
+        "status": 200,
+        "body": {
+          "id": "#6",
+          "title": "Dans trois jours",
+          "tags": [],
+          "due": "2026-11-07",
+          "done": false,
+          "doneAt": null,
+          "createdAt": "+300002ms",
+          "track": {
+            "id": 2,
+            "title": "Aube"
+          },
+          "timeSpent": 0
+        }
+      }
+    ],
+    [
+      "POST /tasks",
+      {
+        "status": 400,
+        "body": {
+          "error": "Morceau introuvable"
+        }
+      }
+    ],
+    [
+      "POST /tasks",
+      {
+        "status": 400,
+        "body": {
+          "error": "Le titre de la tâche est obligatoire"
+        }
+      }
+    ],
+    [
+      "POST /tasks",
+      {
+        "status": 400,
+        "body": {
+          "error": "Échéance pas comprise : « quand je veux » (ex. « demain », « vendredi », « le 12 novembre »)."
+        }
+      }
+    ],
+    [
+      "PATCH /tasks/#3",
+      {
+        "status": 200,
+        "body": {
+          "id": "#3",
+          "title": "Payer la facture",
+          "tags": ["admin"],
+          "due": "2026-11-02",
+          "done": true,
+          "doneAt": "+900000ms",
+          "createdAt": "+240000ms",
+          "track": null,
+          "timeSpent": 0
+        }
+      }
+    ],
+    [
+      "PATCH /tasks/#2",
+      {
+        "status": 200,
+        "body": {
+          "id": "#2",
+          "title": "Mettre à jour la bio",
+          "tags": [],
+          "due": "2026-11-06",
+          "done": true,
+          "doneAt": "+1020000ms",
+          "createdAt": "+180000ms",
+          "track": null,
+          "timeSpent": 0
+        }
+      }
+    ],
+    [
+      "PATCH /tasks/#2",
+      {
+        "status": 200,
+        "body": {
+          "id": "#2",
+          "title": "Mettre à jour la bio",
+          "tags": [],
+          "due": "2026-11-06",
+          "done": false,
+          "doneAt": null,
+          "createdAt": "+180000ms",
+          "track": null,
+          "timeSpent": 0
+        }
+      }
+    ],
+    [
+      "PATCH /tasks/#1",
+      {
+        "status": 200,
+        "body": {
+          "id": "#1",
+          "title": "Finir le mix",
+          "tags": ["mix", "urgent"],
+          "due": "2026-11-09",
+          "done": false,
+          "doneAt": null,
+          "createdAt": "+0ms",
+          "track": {
+            "id": 1,
+            "title": "Nuit blanche"
+          },
+          "timeSpent": 0
+        }
+      }
+    ],
+    [
+      "PATCH /tasks/#1",
+      {
+        "status": 200,
+        "body": {
+          "id": "#1",
+          "title": "Finir le mix de « Nuit »",
+          "tags": ["mix", "urgent"],
+          "due": "2026-11-09",
+          "done": false,
+          "doneAt": null,
+          "createdAt": "+0ms",
+          "track": {
+            "id": 2,
+            "title": "Aube"
+          },
+          "timeSpent": 0
+        }
+      }
+    ],
+    [
+      "PATCH /tasks/#2",
+      {
+        "status": 200,
+        "body": {
+          "id": "#2",
+          "title": "Mettre à jour la bio",
+          "tags": [],
+          "due": null,
+          "done": false,
+          "doneAt": null,
+          "createdAt": "+180000ms",
+          "track": null,
+          "timeSpent": 0
+        }
+      }
+    ],
+    [
+      "DELETE /tasks/#2",
+      {
+        "status": 200,
+        "body": {
+          "ok": true
+        }
+      }
+    ],
+    [
+      "POST /tasks/#2/restore",
+      {
+        "status": 200,
+        "body": {
+          "id": "#2",
+          "title": "Mettre à jour la bio",
+          "tags": [],
+          "due": null,
+          "done": false,
+          "doneAt": null,
+          "createdAt": "+180000ms",
+          "track": null,
+          "timeSpent": 0
+        }
+      }
+    ],
+    [
+      "POST /tasks/#2/restore",
+      {
+        "status": 404,
+        "body": {
+          "error": "Plus rien à restaurer pour cette tâche"
+        }
+      }
+    ],
+    [
+      "DELETE /tasks/#3",
+      {
+        "status": 200,
+        "body": {
+          "ok": true
+        }
+      }
+    ],
+    [
+      "PATCH /tasks/#7",
+      {
+        "status": 404,
+        "body": {
+          "error": "Tâche introuvable"
+        }
+      }
+    ],
+    [
+      "GET /tasks",
+      {
+        "status": 200,
+        "body": {
+          "today": "2026-11-04",
+          "tasks": [
+            {
+              "id": "#5",
+              "title": "Aujourd’hui",
+              "tags": [],
+              "due": "2026-11-04",
+              "done": false,
+              "doneAt": null,
+              "createdAt": "+300001ms",
+              "track": null,
+              "timeSpent": 0
+            },
+            {
+              "id": "#6",
+              "title": "Dans trois jours",
+              "tags": [],
+              "due": "2026-11-07",
+              "done": false,
+              "doneAt": null,
+              "createdAt": "+300002ms",
+              "track": {
+                "id": 2,
+                "title": "Aube"
+              },
+              "timeSpent": 0
+            },
+            {
+              "id": "#8",
+              "title": "Depuis une idée",
+              "tags": ["idée", "mix"],
+              "due": "2026-11-07",
+              "done": false,
+              "doneAt": null,
+              "createdAt": "+1320002ms",
+              "track": {
+                "id": 1,
+                "title": "Nuit blanche"
+              },
+              "timeSpent": 0
+            },
+            {
+              "id": "#1",
+              "title": "Finir le mix de « Nuit »",
+              "tags": ["mix", "urgent"],
+              "due": "2026-11-09",
+              "done": false,
+              "doneAt": null,
+              "createdAt": "+0ms",
+              "track": {
+                "id": 2,
+                "title": "Aube"
+              },
+              "timeSpent": 0
+            },
+            {
+              "id": "#2",
+              "title": "Mettre à jour la bio",
+              "tags": [],
+              "due": null,
+              "done": false,
+              "doneAt": null,
+              "createdAt": "+180000ms",
+              "track": null,
+              "timeSpent": 0
+            },
+            {
+              "id": "#4",
+              "title": "Sans date",
+              "tags": ["idée"],
+              "due": null,
+              "done": false,
+              "doneAt": null,
+              "createdAt": "+300000ms",
+              "track": null,
+              "timeSpent": 0
+            },
+            {
+              "id": "#9",
+              "title": "Sans morceau",
+              "tags": [],
+              "due": null,
+              "done": false,
+              "doneAt": null,
+              "createdAt": "+1320003ms",
+              "track": null,
+              "timeSpent": 0
+            }
+          ],
+          "tags": [
+            {
+              "name": "idée",
+              "count": 2
+            },
+            {
+              "name": "mix",
+              "count": 2
+            },
+            {
+              "name": "urgent",
+              "count": 1
+            }
+          ],
+          "library": true,
+          "tracks": [
+            {
+              "id": 1,
+              "title": "Nuit blanche"
+            },
+            {
+              "id": 2,
+              "title": "Aube"
+            }
+          ],
+          "timer": true
+        }
+      }
+    ],
+    [
+      "GET /today",
+      {
+        "status": 200,
+        "body": {
+          "today": "2026-11-04",
+          "open": 7,
+          "due": [
+            {
+              "id": "#5",
+              "title": "Aujourd’hui",
+              "tags": [],
+              "due": "2026-11-04",
+              "done": false,
+              "doneAt": null,
+              "createdAt": "+300001ms",
+              "track": null,
+              "timeSpent": 0
+            }
+          ]
+        }
+      }
+    ]
+  ],
+  "service": {
+    "open": [
+      {
+        "id": "#5",
+        "title": "Aujourd’hui",
+        "tags": [],
+        "due": "2026-11-04",
+        "done": false
+      },
+      {
+        "id": "#6",
+        "title": "Dans trois jours",
+        "tags": [],
+        "due": "2026-11-07",
+        "done": false
+      },
+      {
+        "id": "#1",
+        "title": "Finir le mix de « Nuit »",
+        "tags": ["mix", "urgent"],
+        "due": "2026-11-09",
+        "done": false
+      },
+      {
+        "id": "#2",
+        "title": "Mettre à jour la bio",
+        "tags": [],
+        "due": null,
+        "done": false
+      },
+      {
+        "id": "#4",
+        "title": "Sans date",
+        "tags": ["idée"],
+        "due": null,
+        "done": false
+      }
+    ],
+    "one": {
+      "id": "#1",
+      "title": "Finir le mix de « Nuit »",
+      "tags": ["mix", "urgent"],
+      "due": "2026-11-09",
+      "done": false
+    },
+    "deleted": null,
+    "missing": null,
+    "completed": {
+      "id": "#1",
+      "title": "Finir le mix de « Nuit »",
+      "tags": ["mix", "urgent"],
+      "due": "2026-11-09",
+      "done": true
+    },
+    "uncompleted": {
+      "id": "#1",
+      "title": "Finir le mix de « Nuit »",
+      "tags": ["mix", "urgent"],
+      "due": "2026-11-09",
+      "done": false
+    },
+    "created": {
+      "id": "#8",
+      "title": "Depuis une idée",
+      "tags": ["idée", "mix"],
+      "due": "2026-11-07",
+      "done": false
+    },
+    "createdNoLibrary": {
+      "id": "#9",
+      "title": "Sans morceau",
+      "tags": [],
+      "due": null,
+      "done": false
+    }
+  },
+  "assistant": {
+    "list": {
+      "status": "done",
+      "id": "todo.list-tasks",
+      "message": "7 tâches à faire : Aujourd’hui, Dans trois jours, Depuis une idée, Finir le mix de « Nuit » et Mettre à jour la bio, etc..",
+      "data": {
+        "tasks": [
+          {
+            "id": "#5",
+            "title": "Aujourd’hui",
+            "tags": [],
+            "due": "aujourd’hui",
+            "lateDays": 0,
+            "done": false,
+            "track": null
+          },
+          {
+            "id": "#6",
+            "title": "Dans trois jours",
+            "tags": [],
+            "due": "samedi 7 novembre",
+            "lateDays": 0,
+            "done": false,
+            "track": "Aube"
+          },
+          {
+            "id": "#8",
+            "title": "Depuis une idée",
+            "tags": ["idée", "mix"],
+            "due": "samedi 7 novembre",
+            "lateDays": 0,
+            "done": false,
+            "track": "Nuit blanche"
+          },
+          {
+            "id": "#1",
+            "title": "Finir le mix de « Nuit »",
+            "tags": ["mix", "urgent"],
+            "due": "lundi 9 novembre",
+            "lateDays": 0,
+            "done": false,
+            "track": "Aube"
+          },
+          {
+            "id": "#2",
+            "title": "Mettre à jour la bio",
+            "tags": [],
+            "due": null,
+            "lateDays": 0,
+            "done": false,
+            "track": null
+          },
+          {
+            "id": "#4",
+            "title": "Sans date",
+            "tags": ["idée"],
+            "due": null,
+            "lateDays": 0,
+            "done": false,
+            "track": null
+          },
+          {
+            "id": "#9",
+            "title": "Sans morceau",
+            "tags": [],
+            "due": null,
+            "lateDays": 0,
+            "done": false,
+            "track": null
+          }
+        ],
+        "count": 7,
+        "tags": ["idée", "mix", "urgent"]
+      },
+      "undoId": null,
+      "open": null
+    },
+    "today": {
+      "status": "done",
+      "id": "todo.list-tasks",
+      "message": "1 tâche pour aujourd’hui : Aujourd’hui.",
+      "data": {
+        "tasks": [
+          {
+            "id": "#5",
+            "title": "Aujourd’hui",
+            "tags": [],
+            "due": "aujourd’hui",
+            "lateDays": 0,
+            "done": false,
+            "track": null
+          }
+        ],
+        "count": 1,
+        "tags": ["idée", "mix", "urgent"]
+      },
+      "undoId": null,
+      "open": null
+    },
+    "tags": {
+      "status": "done",
+      "id": "todo.list-tags",
+      "message": "Tags : idée, mix et urgent.",
+      "data": {
+        "tags": [
+          {
+            "name": "idée",
+            "count": 2
+          },
+          {
+            "name": "mix",
+            "count": 2
+          },
+          {
+            "name": "urgent",
+            "count": 1
+          }
+        ]
+      },
+      "undoId": null,
+      "open": null
+    },
+    "done": {
+      "status": "done",
+      "id": "todo.list-tasks",
+      "message": "Aucune tâche faites.",
+      "data": {
+        "tasks": [],
+        "count": 0,
+        "tags": ["idée", "mix", "urgent"]
+      },
+      "undoId": null,
+      "open": null
+    },
+    "tag": {
+      "status": "done",
+      "id": "todo.list-tasks",
+      "message": "2 tâches en tout avec le tag mix : Depuis une idée et Finir le mix de « Nuit ».",
+      "data": {
+        "tasks": [
+          {
+            "id": "#8",
+            "title": "Depuis une idée",
+            "tags": ["idée", "mix"],
+            "due": "samedi 7 novembre",
+            "lateDays": 0,
+            "done": false,
+            "track": "Nuit blanche"
+          },
+          {
+            "id": "#1",
+            "title": "Finir le mix de « Nuit »",
+            "tags": ["mix", "urgent"],
+            "due": "lundi 9 novembre",
+            "lateDays": 0,
+            "done": false,
+            "track": "Aube"
+          }
+        ],
+        "count": 2,
+        "tags": ["idée", "mix", "urgent"]
+      },
+      "undoId": null,
+      "open": null
+    },
+    "add": {
+      "status": "forbidden",
+      "id": "todo.add-task",
+      "message": "Je n’ai pas le droit de le faire : « L’assistant peut ajouter et cocher des tâches » est désactivé dans les droits de l’assistant.",
+      "right": {
+        "id": "todo.edit-tasks",
+        "label": "L’assistant peut ajouter et cocher des tâches"
+      }
+    }
+  },
+  "calendar": {
+    "sources": ["todo", "timer"],
+    "events": [
+      {
+        "id": "#5",
+        "title": "Aujourd’hui",
+        "start": "2026-11-04",
+        "durationMin": 0,
+        "open": "/m/todo",
+        "status": "à faire",
+        "moduleId": "todo"
+      },
+      {
+        "id": "#6",
+        "title": "Dans trois jours",
+        "start": "2026-11-07",
+        "durationMin": 0,
+        "open": "/m/todo",
+        "status": "à faire",
+        "moduleId": "todo"
+      },
+      {
+        "id": "#8",
+        "title": "Depuis une idée",
+        "start": "2026-11-07",
+        "durationMin": 0,
+        "open": "/m/todo",
+        "status": "à faire",
+        "moduleId": "todo"
+      },
+      {
+        "id": "#1",
+        "title": "Finir le mix de « Nuit »",
+        "start": "2026-11-09",
+        "durationMin": 0,
+        "open": "/m/todo",
+        "status": "à faire",
+        "moduleId": "todo"
+      }
+    ]
+  },
+  "tables": {
+    "todo__changes": [
+      {
+        "id": "#10",
+        "at": "+0ms",
+        "entity": "tasks",
+        "entity_id": "#1",
+        "op": "create",
+        "data": "{\"title\":\"Finir le mix\",\"tags\":\"[\\\"mix\\\",\\\"studio-session\\\"]\",\"due_date\":\"2026-11-05\",\"done_at\":null,\"subject\":\"music-library:track:1\",\"legacy_id\":null}"
+      },
+      {
+        "id": "#11",
+        "at": "+180000ms",
+        "entity": "tasks",
+        "entity_id": "#2",
+        "op": "create",
+        "data": "{\"title\":\"Mettre à jour la bio\",\"tags\":\"[]\",\"due_date\":\"2026-11-06\",\"done_at\":null,\"subject\":null,\"legacy_id\":null}"
+      },
+      {
+        "id": "#12",
+        "at": "+240000ms",
+        "entity": "tasks",
+        "entity_id": "#3",
+        "op": "create",
+        "data": "{\"title\":\"Payer la facture\",\"tags\":\"[\\\"admin\\\"]\",\"due_date\":\"2026-11-02\",\"done_at\":null,\"subject\":null,\"legacy_id\":null}"
+      },
+      {
+        "id": "#13",
+        "at": "+300000ms",
+        "entity": "tasks",
+        "entity_id": "#4",
+        "op": "create",
+        "data": "{\"title\":\"Sans date\",\"tags\":\"[\\\"idée\\\"]\",\"due_date\":null,\"done_at\":null,\"subject\":null,\"legacy_id\":null}"
+      },
+      {
+        "id": "#14",
+        "at": "+300001ms",
+        "entity": "tasks",
+        "entity_id": "#5",
+        "op": "create",
+        "data": "{\"title\":\"Aujourd’hui\",\"tags\":\"[]\",\"due_date\":\"2026-11-04\",\"done_at\":null,\"subject\":null,\"legacy_id\":null}"
+      },
+      {
+        "id": "#15",
+        "at": "+300002ms",
+        "entity": "tasks",
+        "entity_id": "#6",
+        "op": "create",
+        "data": "{\"title\":\"Dans trois jours\",\"tags\":\"[]\",\"due_date\":\"2026-11-07\",\"done_at\":null,\"subject\":\"music-library:track:2\",\"legacy_id\":null}"
+      },
+      {
+        "id": "#16",
+        "at": "+900000ms",
+        "entity": "tasks",
+        "entity_id": "#3",
+        "op": "update",
+        "data": "{\"done_at\":\"+900000ms\"}"
+      },
+      {
+        "id": "#17",
+        "at": "+1020000ms",
+        "entity": "tasks",
+        "entity_id": "#2",
+        "op": "update",
+        "data": "{\"done_at\":\"+1020000ms\"}"
+      },
+      {
+        "id": "#18",
+        "at": "+1020001ms",
+        "entity": "tasks",
+        "entity_id": "#2",
+        "op": "update",
+        "data": "{\"done_at\":null}"
+      },
+      {
+        "id": "#19",
+        "at": "+1020002ms",
+        "entity": "tasks",
+        "entity_id": "#1",
+        "op": "update",
+        "data": "{\"tags\":\"[\\\"mix\\\",\\\"urgent\\\"]\",\"due_date\":\"2026-11-09\"}"
+      },
+      {
+        "id": "#20",
+        "at": "+1020003ms",
+        "entity": "tasks",
+        "entity_id": "#1",
+        "op": "update",
+        "data": "{\"title\":\"Finir le mix de « Nuit »\",\"subject\":\"music-library:track:2\"}"
+      },
+      {
+        "id": "#21",
+        "at": "+1020004ms",
+        "entity": "tasks",
+        "entity_id": "#2",
+        "op": "update",
+        "data": "{\"due_date\":null}"
+      },
+      {
+        "id": "#22",
+        "at": "+1020005ms",
+        "entity": "tasks",
+        "entity_id": "#2",
+        "op": "delete",
+        "data": null
+      },
+      {
+        "id": "#23",
+        "at": "+1020006ms",
+        "entity": "tasks",
+        "entity_id": "#2",
+        "op": "restore",
+        "data": null
+      },
+      {
+        "id": "#24",
+        "at": "+1020007ms",
+        "entity": "tasks",
+        "entity_id": "#3",
+        "op": "delete",
+        "data": null
+      },
+      {
+        "id": "#25",
+        "at": "+1320000ms",
+        "entity": "tasks",
+        "entity_id": "#1",
+        "op": "update",
+        "data": "{\"done_at\":\"+1320000ms\"}"
+      },
+      {
+        "id": "#26",
+        "at": "+1320001ms",
+        "entity": "tasks",
+        "entity_id": "#1",
+        "op": "update",
+        "data": "{\"done_at\":null}"
+      },
+      {
+        "id": "#27",
+        "at": "+1320002ms",
+        "entity": "tasks",
+        "entity_id": "#8",
+        "op": "create",
+        "data": "{\"title\":\"Depuis une idée\",\"tags\":\"[\\\"idée\\\",\\\"mix\\\"]\",\"due_date\":\"2026-11-07\",\"done_at\":null,\"subject\":\"music-library:track:1\",\"legacy_id\":null}"
+      },
+      {
+        "id": "#28",
+        "at": "+1320003ms",
+        "entity": "tasks",
+        "entity_id": "#9",
+        "op": "create",
+        "data": "{\"title\":\"Sans morceau\",\"tags\":\"[]\",\"due_date\":null,\"done_at\":null,\"subject\":null,\"legacy_id\":null}"
+      }
+    ],
+    "todo__legacy_ids": [],
+    "todo__tasks": [
+      {
+        "id": "#1",
+        "created_at": "+0ms",
+        "updated_at": "+1320001ms",
+        "deleted_at": null,
+        "title": "Finir le mix de « Nuit »",
+        "tags": "[\"mix\",\"urgent\"]",
+        "due_date": "2026-11-09",
+        "done_at": null,
+        "subject": "music-library:track:2",
+        "legacy_id": null
+      },
+      {
+        "id": "#2",
+        "created_at": "+180000ms",
+        "updated_at": "+1020006ms",
+        "deleted_at": null,
+        "title": "Mettre à jour la bio",
+        "tags": "[]",
+        "due_date": null,
+        "done_at": null,
+        "subject": null,
+        "legacy_id": null
+      },
+      {
+        "id": "#3",
+        "created_at": "+240000ms",
+        "updated_at": "+1020007ms",
+        "deleted_at": "+1020007ms",
+        "title": "Payer la facture",
+        "tags": "[\"admin\"]",
+        "due_date": "2026-11-02",
+        "done_at": "+900000ms",
+        "subject": null,
+        "legacy_id": null
+      },
+      {
+        "id": "#4",
+        "created_at": "+300000ms",
+        "updated_at": "+300000ms",
+        "deleted_at": null,
+        "title": "Sans date",
+        "tags": "[\"idée\"]",
+        "due_date": null,
+        "done_at": null,
+        "subject": null,
+        "legacy_id": null
+      },
+      {
+        "id": "#5",
+        "created_at": "+300001ms",
+        "updated_at": "+300001ms",
+        "deleted_at": null,
+        "title": "Aujourd’hui",
+        "tags": "[]",
+        "due_date": "2026-11-04",
+        "done_at": null,
+        "subject": null,
+        "legacy_id": null
+      },
+      {
+        "id": "#6",
+        "created_at": "+300002ms",
+        "updated_at": "+300002ms",
+        "deleted_at": null,
+        "title": "Dans trois jours",
+        "tags": "[]",
+        "due_date": "2026-11-07",
+        "done_at": null,
+        "subject": "music-library:track:2",
+        "legacy_id": null
+      },
+      {
+        "id": "#8",
+        "created_at": "+1320002ms",
+        "updated_at": "+1320002ms",
+        "deleted_at": null,
+        "title": "Depuis une idée",
+        "tags": "[\"idée\",\"mix\"]",
+        "due_date": "2026-11-07",
+        "done_at": null,
+        "subject": "music-library:track:1",
+        "legacy_id": null
+      },
+      {
+        "id": "#9",
+        "created_at": "+1320003ms",
+        "updated_at": "+1320003ms",
+        "deleted_at": null,
+        "title": "Sans morceau",
+        "tags": "[]",
+        "due_date": null,
+        "done_at": null,
+        "subject": null,
+        "legacy_id": null
+      }
+    ],
+    "todo__tasks_v1": []
+  }
+}

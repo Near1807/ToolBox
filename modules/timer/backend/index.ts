@@ -20,7 +20,7 @@ import {
   SYNC_COLUMNS,
   SyncStore,
   uuidParam,
-} from '@hub/sdk/backend';
+} from '@hub/sdk/core';
 import type { TodoService } from '../../todo/contract';
 import type { TimerService } from '../contract';
 import {

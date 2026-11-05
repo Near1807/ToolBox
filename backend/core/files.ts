@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { ModuleFiles } from '../../packages/sdk/backend';
 import type { HostAdapter } from './host';
@@ -64,6 +64,22 @@ export function createModuleFiles(options: {
       if (inside === path.resolve(dataDir))
         throw new Error('Refus : le dossier du module lui-même');
       if (existsSync(inside)) await options.host.trashItem(inside);
+    },
+    readFile: (target) => readFileSync(target),
+    fileSize: (target) => {
+      try {
+        return statSync(target).size;
+      } catch {
+        return null;
+      }
+    },
+    writeFile: (target, data) => {
+      const inside = safeJoin(dataDir, path.relative(dataDir, path.resolve(target)));
+      mkdirSync(path.dirname(inside), { recursive: true });
+      writeFileSync(inside, data);
+    },
+    removeFile: (target) => {
+      unlinkSync(safeJoin(dataDir, path.relative(dataDir, path.resolve(target))));
     },
     open: (target) => options.host.openPath(target),
     reveal: (target) => options.host.showItemInFolder(target),

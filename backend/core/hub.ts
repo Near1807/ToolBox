@@ -24,6 +24,7 @@ import { DatabaseHandle } from './database';
 import { EventBus } from './events';
 import { getFfmpegPath, getFfprobePath } from './ffmpeg-binaries';
 import { createModuleFiles } from './files';
+import { normaliseImage } from './images';
 import type { HostAdapter } from './host';
 import { HotkeyManager } from './hotkeys';
 import { JobManager } from './jobs';
@@ -493,6 +494,7 @@ export class Hub {
         },
         setOverlay: (visible) => this.setOverlay(id, visible),
       },
+      images: { normalise: normaliseImage },
       binaries: {
         get ffmpeg() {
           return getFfmpegPath();

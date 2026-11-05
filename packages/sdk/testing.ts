@@ -1,12 +1,13 @@
 // Test helpers for modules and for the core: spin up a real hub (database,
 // migrations, ctx services, HTTP routes) in a temporary folder.
 // Only for tests — never import this from module runtime code.
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import Database from 'better-sqlite3';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { BackendModule, MigrationDatabase } from './backend';
-import { legacyUuid } from './sync';
+import { legacyUuid } from '../../backend/core/legacy-id';
 import { createNullHost, type HostAdapter } from '../../backend/core/host';
 import type { OAuthProvider } from '../../backend/core/accounts';
 import type { DiscoveredModule, Hub } from '../../backend/core/hub';
@@ -133,3 +134,58 @@ export async function createTestHub(options: {
     },
   };
 }
+
+/**
+ * Non-regression references (a module's answers written once by the code of
+ * a known version, then compared): the same shape whatever the random ids
+ * and the time zone. UUIDs become `#1`, `#2`… in order of appearance; UTC
+ * timestamps (`…Z`) become milliseconds from `origin` (`+0ms`, `+1500000ms`), so a
+ * frozen clock (`vi.useFakeTimers({ toFake: ['Date'], now })`) gives the
+ * same reference on every machine. Local dates (`YYYY-MM-DD`) are kept.
+ */
+export function referenceShape(value: unknown, origin: number): unknown {
+  const ids = new Map<string, string>();
+  const text = JSON.stringify(value)
+    .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, (id) => {
+      if (!ids.has(id)) ids.set(id, `#${ids.size + 1}`);
+      return ids.get(id)!;
+    })
+    .replace(
+      /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z/g,
+      (iso) => `+${Date.parse(iso) - origin}ms`,
+    );
+  return JSON.parse(text) as unknown;
+}
+
+/**
+ * The reference stored in `file` (JSON). With `TOOLBOX_WRITE_REFERENCE=1`
+ * (only on purpose, with the code of the reference version) `value` is
+ * written there first.
+ */
+export function readReference(file: string, value: unknown): unknown {
+  if (process.env.TOOLBOX_WRITE_REFERENCE === '1') {
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`);
+  }
+  return JSON.parse(readFileSync(file, 'utf8')) as unknown;
+}
+
+/** Every row of a module's tables (`<prefix>__*`), in insertion order: what the module stored. */
+export function dumpTables(dataDir: string, prefix: string): Record<string, unknown[]> {
+  const db = new Database(path.join(dataDir, 'hub.db'), { readonly: true });
+  try {
+    const tables = (
+      db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").all() as {
+        name: string;
+      }[]
+    ).filter((t) => t.name.startsWith(`${prefix}__`));
+    return Object.fromEntries(
+      tables.map((t) => [t.name, db.prepare(`SELECT * FROM "${t.name}" ORDER BY rowid`).all()]),
+    );
+  } finally {
+    db.close();
+  }
+}
+
+/** The PC implementation of `ctx.images.normalise` (tests of a module's image options). */
+export { normaliseImage } from '../../backend/core/images';

@@ -23,7 +23,7 @@ import {
   SYNC_COLUMNS,
   syncStamp,
   SyncStore,
-} from '@hub/sdk/backend';
+} from '@hub/sdk/core';
 import { addDays, localToday, mondayOf, weekdayOf } from '../shared/dates';
 import {
   addUp,
@@ -57,14 +57,7 @@ import {
   type ExchangePrep,
   type ExchangeRecipe,
 } from '../shared/exchange';
-import { mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
-import {
-  fromDataUrl,
-  MAX_INPUT_BYTES,
-  normaliseImage,
-  toDataUrl,
-  type StoredImage,
-} from './images';
+import { fromDataUrl, MAX_INPUT_BYTES, RECIPE_IMAGE, toDataUrl, type StoredImage } from './images';
 import { createBatch } from './batch';
 import {
   expandRecipe,
@@ -501,9 +494,8 @@ export default defineBackendModule({
     };
     /** A new image for a meal: the file first, then its row; the old one goes to the Recycle Bin. */
     const setImage = async (mealId: string, image: StoredImage) => {
-      mkdirSync(ctx.files.dataPath('images'), { recursive: true });
       const file = `${newId()}.jpg`;
-      writeFileSync(imagePath(file), image.data);
+      ctx.files.writeFile(imagePath(file), image.data);
       const old = imageRows().get(mealId);
       try {
         ctx.db.transaction(() => {
@@ -518,7 +510,7 @@ export default defineBackendModule({
           });
         });
       } catch (err) {
-        unlinkSync(imagePath(file));
+        ctx.files.removeFile(imagePath(file));
         throw err;
       }
       if (old) await ctx.files.trash(imagePath(old.file));
@@ -1403,21 +1395,17 @@ export default defineBackendModule({
         const id = (request.params as { id: string }).id;
         mealOf(id);
         const body = requestBody(request);
-        let input: Buffer | null = null;
+        let input: Uint8Array | null = null;
         if (typeof body.path === 'string' && body.path) {
-          let size: number;
-          try {
-            size = statSync(body.path).size;
-          } catch {
-            throw new HttpError(400, 'Fichier introuvable');
-          }
+          const size = ctx.files.fileSize(body.path);
+          if (size === null) throw new HttpError(400, 'Fichier introuvable');
           if (size > MAX_INPUT_BYTES) throw new HttpError(400, 'Image trop lourde (20 Mo au plus)');
-          input = readFileSync(body.path);
+          input = ctx.files.readFile(body.path);
         } else if (typeof body.data === 'string') input = fromDataUrl(body.data);
         if (!input) throw new HttpError(400, 'Aucune image');
         let image: StoredImage;
         try {
-          image = await normaliseImage(input);
+          image = await ctx.images.normalise(input, RECIPE_IMAGE);
         } catch (err) {
           throw new HttpError(400, (err as Error).message);
         }
@@ -1652,7 +1640,7 @@ export default defineBackendModule({
         const row = images.get(mealId);
         if (!row) return null;
         try {
-          return toDataUrl(readFileSync(imagePath(row.file)));
+          return toDataUrl(ctx.files.readFile(imagePath(row.file)));
         } catch {
           return null; // File gone: exported without its image.
         }
@@ -1738,7 +1726,10 @@ export default defineBackendModule({
         for (const r of parsed.recipes) {
           if (!r.image) continue;
           try {
-            images.set(fold(r.name), await normaliseImage(fromDataUrl(r.image) ?? Buffer.alloc(0)));
+            images.set(
+              fold(r.name),
+              await ctx.images.normalise(fromDataUrl(r.image) ?? new Uint8Array(0), RECIPE_IMAGE),
+            );
           } catch (err) {
             imageWarnings.push(`${r.name} : ${(err as Error).message}`);
           }
