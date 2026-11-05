@@ -94,6 +94,13 @@ Thomas veut une version Android de ToolBox pour les modules hors musique : Cours
 
 Cœur partagé sur le PC, sans changement de comportement : `@hub/sdk/core` (portable) et `@hub/sdk/backend` (PC), `ctx.images` et les fichiers par `ctx.files`, `crypto.randomUUID`, client d'API à transport injectable, règle ESLint. Détail : `docs/rapports/2026-11-05-v0.29.1.md`.
 
+## Étape 3a faite (v0.29.2)
+
+- **Appli d'essai** `mobile/probe/` (`be.toolbox.probe`, distincte de la future appli) : SQLite WebAssembly + VFS opfs-sahpool dans un Worker, sous Capacitor 8, sans aucun repli. Elle compte ses lancements et mesure 1 000 écritures / lectures. Le protocole d'essai sur le S21 est dans `docs/rapports/2026-11-05-v0.29.2.md`. **L'étape 3b n'est lancée que si l'essai réussit.**
+- **APK d'essai** : `.github/workflows/android-probe.yml`. Les versionCode 1 et 2 sont construits dans le même run (même clé de debug), pour que la mise à jour s'installe par-dessus.
+- **Clé de signature** : `.github/workflows/android-keystore.yml`, lancé une seule fois par Thomas. Le dépôt étant public, la clé sort dans une archive 7-Zip chiffrée (phrase dans le secret `KEYSTORE_EXPORT_PASSPHRASE`), gardée 1 jour ; elle n'est jamais écrite dans le journal.
+- **Modules portables par défaut** : tout module hors musique et assistant suit la règle ESLint (imports et globaux de Node).
+
 ## Conséquences
 
 - Le PC ne change pas de comportement. Chaque étape le prouve par des références écrites avant modification, la suite complète et la CI Windows.
