@@ -1,7 +1,6 @@
 {
   "direct": {
     "png 3000×2000": {
-      "input": "9f4b144db1db91c9752a1549dbc09dd14a9446081fb14afee303d3a828d21fa2",
       "width": 1200,
       "height": 800,
       "bytes": 16692,
@@ -10,7 +9,6 @@
       "md5": "87bf62cec7c7b1769c348c5894e43ed7"
     },
     "png 600×800 transparent": {
-      "input": "9051692e99b2eda22b254286fd72f13b69429cbd1f612c8fe61374d0d618a975",
       "width": 600,
       "height": 800,
       "bytes": 11204,
@@ -19,7 +17,6 @@
       "md5": "f73b4a8383885b8e24d8e0e436014d62"
     },
     "jpeg 1600×1200": {
-      "input": "7ff7bf583f1de8d2662ef8dbccfa0096c7a79c6dc8705ebe96d3ec2c1efcd7bb",
       "width": 1200,
       "height": 900,
       "bytes": 19876,
@@ -28,7 +25,6 @@
       "md5": "7d9b2afaa94441d07da2aafb33c9fea7"
     },
     "webp 1300×500 transparent": {
-      "input": "8690bd8b3bcedcc9a64b7b3cadd7e4c7ff59970370a08993431020a5fd8727a7",
       "width": 1200,
       "height": 462,
       "bytes": 12401,
@@ -37,7 +33,6 @@
       "md5": "09a539fbd6f4473c3961775fab294a2c"
     },
     "png 1×1": {
-      "input": "1f3e155ab495294a8e01ec8ae53d147f21c9544e903508bce11f55f6a227e18e",
       "width": 1,
       "height": 1,
       "bytes": 761,
@@ -46,7 +41,6 @@
       "md5": "407807e7db4ba3342fc265d3a75e0307"
     },
     "png 1200×1201": {
-      "input": "a8253e4be8eaf8c1366e9ef0bc68737726d07b9cb204e8ad2f673417ff4cf6b8",
       "width": 1199,
       "height": 1200,
       "bytes": 23307,
@@ -55,15 +49,12 @@
       "md5": "a812dad087da0b94fb4cb54b428bd126"
     },
     "empty": {
-      "input": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "error": "Image vide"
     },
     "text": {
-      "input": "2cb4b1431b84ec15d35ed83bb927e27e8967d75f4bcd9cc4b25c8d879ae23e18",
       "error": "Image illisible (JPEG, PNG ou WebP attendu)"
     },
     "too heavy": {
-      "input": "c443bedc371a412937057335440b956ef28441394e67a3743cf66cc7072d8573",
       "error": "Image trop lourde (20 Mo au plus)"
     }
   },

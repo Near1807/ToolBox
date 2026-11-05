@@ -70,8 +70,9 @@ describe('non-regression of the recipe images (reference: v0.29.0)', () => {
     for (const [name, input] of inputs) {
       try {
         const img = await normaliseImage(input);
+        // The inputs are drawn here: their PNG bytes may differ between systems (the
+        // encoder), never what the module stores from them.
         direct[name] = {
-          input: hash('sha256', input),
           width: img.width,
           height: img.height,
           bytes: img.data.length,
@@ -80,7 +81,7 @@ describe('non-regression of the recipe images (reference: v0.29.0)', () => {
           md5: hash('md5', img.data),
         };
       } catch (err) {
-        direct[name] = { input: hash('sha256', input), error: (err as Error).message };
+        direct[name] = { error: (err as Error).message };
       }
     }
 
