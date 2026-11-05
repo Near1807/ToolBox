@@ -23,6 +23,11 @@ export function createModuleFiles(options: {
 }): ModuleFiles {
   const dataDir = path.join(options.modulesDataDir, options.moduleId);
   mkdirSync(dataDir, { recursive: true });
+  const outputDir = () => {
+    const dir = path.join(options.getOutputRoot(), options.moduleId);
+    mkdirSync(dir, { recursive: true });
+    return dir;
+  };
   return {
     assetsDir: options.assetsDir,
     assetPath: (...segments) => safeJoin(options.assetsDir, ...segments),
@@ -37,11 +42,8 @@ export function createModuleFiles(options: {
     },
     dataDir,
     dataPath: (...segments) => safeJoin(dataDir, ...segments),
-    outputDir: () => {
-      const dir = path.join(options.getOutputRoot(), options.moduleId);
-      mkdirSync(dir, { recursive: true });
-      return dir;
-    },
+    outputDir,
+    outputPath: (...segments) => safeJoin(outputDir(), ...segments),
     saveAs: async ({ title, defaultName, filters, data }) => {
       // Characters Windows refuses in a file name (control characters included).
       const safeName = [...defaultName]
@@ -74,7 +76,11 @@ export function createModuleFiles(options: {
       }
     },
     writeFile: (target, data) => {
-      const inside = safeJoin(dataDir, path.relative(dataDir, path.resolve(target)));
+      // A file of the module's data, or a generated file of its output folder.
+      const root = path.resolve(target).startsWith(path.resolve(outputDir()) + path.sep)
+        ? outputDir()
+        : dataDir;
+      const inside = safeJoin(root, path.relative(root, path.resolve(target)));
       mkdirSync(path.dirname(inside), { recursive: true });
       writeFileSync(inside, data);
     },

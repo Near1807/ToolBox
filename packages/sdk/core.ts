@@ -173,6 +173,8 @@ export interface ModuleFiles {
   dataPath(...segments: string[]): string;
   /** Output folder for user-facing files: <output root>/<id>/ (created on demand). */
   outputDir(): string;
+  /** Path inside outputDir() (for a generated file); throws if it escapes the folder. */
+  outputPath(...segments: string[]): string;
   /** Opens a file or folder with the OS (Explorer, default app). */
   open(path: string): Promise<void>;
   /** Shows a file selected in the OS file explorer. */
@@ -215,8 +217,9 @@ export interface ModuleFiles {
   /** Size of a file in bytes, or null when there is none (or it cannot be read). */
   fileSize(path: string): number | null;
   /**
-   * Writes a file of the module's data folder (dataDir), its folder created
-   * first. Refuses any path outside dataDir.
+   * Writes a file of the module's data folder (dataDir) or of its output
+   * folder (outputDir(), a generated file to register in ctx.outputs), its
+   * folder created first. Refuses any other path.
    */
   writeFile(path: string, data: Uint8Array | string): void;
   /**

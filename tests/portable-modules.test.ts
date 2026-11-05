@@ -1,18 +1,19 @@
-// The modules that also run on the phone (ADR 0044) import nothing of the PC:
-// the ESLint rule fails on a forbidden import in their code, never in their
-// tests nor in the other modules.
+// Portable modules (ADR 0044: the five of the phone, the template, any new
+// one) import nothing of the PC and use no Node global: ESLint fails on a
+// forbidden import or global in their code, never in their tests nor in the
+// PC-only modules (music, assistant).
 import path from 'node:path';
 import { ESLint } from 'eslint';
 import { describe, expect, it } from 'vitest';
 
 const root = path.resolve(import.meta.dirname, '..');
 const eslint = new ESLint({ cwd: root });
-const errorsOf = async (file: string, code: string) => {
+const errorsOf = async (file: string, code: string, rule = 'toolbox/module-boundaries') => {
   const [result] = await eslint.lintText(code, { filePath: path.join(root, file) });
-  return result!.messages
-    .filter((m) => m.ruleId === 'toolbox/module-boundaries')
-    .map((m) => m.message);
+  return result!.messages.filter((m) => m.ruleId === rule).map((m) => m.message);
 };
+const globalsOf = (file: string, code: string) => errorsOf(file, code, 'no-restricted-globals');
+const PORTABLE = ['courses', 'sport', 'todo', 'timer', 'ideas', '_template', 'nouveau-module'];
 
 describe('portable modules (ESLint)', () => {
   const forbidden = [
@@ -27,7 +28,7 @@ describe('portable modules (ESLint)', () => {
     "export { HttpError } from '@hub/sdk/backend';",
     "const m = await import('node:crypto');",
   ];
-  for (const folder of ['courses', 'sport', 'todo', 'timer', 'ideas'])
+  for (const folder of PORTABLE)
     it(`${folder}: a forbidden import fails`, async () => {
       for (const code of forbidden) {
         const errors = await errorsOf(`modules/${folder}/backend/x.ts`, `${code}\nexport {};\n`);
@@ -56,5 +57,35 @@ describe('portable modules (ESLint)', () => {
     expect(await errorsOf('modules/todo/tests/x.test.ts', code)).toEqual([]);
     expect(await errorsOf('modules/music-library/backend/x.ts', code)).toEqual([]);
     expect(await errorsOf('modules/assistant/backend/x.ts', code)).toEqual([]);
+  });
+
+  const nodeGlobals = [
+    'export const a = Buffer.from("x");',
+    'export const a = process.env.HOME;',
+    'export const a = global;',
+    'export const a = __dirname;',
+    'export const a = __filename;',
+    'export const a = require("x");',
+  ];
+  for (const folder of PORTABLE)
+    it(`${folder}: a Node global fails`, async () => {
+      for (const code of nodeGlobals) {
+        const errors = await globalsOf(`modules/${folder}/backend/x.ts`, `${code}\n`);
+        expect(errors, code).toHaveLength(1);
+        expect(errors[0]).toMatch(/global de Node/);
+      }
+    });
+
+  it('Node globals: allowed in tests and in the PC-only modules; Web globals allowed', async () => {
+    const code = 'export const a = Buffer.from(process.env.HOME ?? "");\n';
+    expect(await globalsOf('modules/todo/tests/x.test.ts', code)).toEqual([]);
+    expect(await globalsOf('modules/music-library/backend/x.ts', code)).toEqual([]);
+    expect(await globalsOf('modules/assistant/backend/x.ts', code)).toEqual([]);
+    expect(
+      await globalsOf(
+        'modules/todo/backend/x.ts',
+        'export const a = [crypto.randomUUID(), btoa("x"), new TextEncoder()];\n',
+      ),
+    ).toEqual([]);
   });
 });

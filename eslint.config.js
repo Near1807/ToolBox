@@ -10,12 +10,27 @@ const root = import.meta.dirname;
 const modulesDir = path.join(root, 'modules');
 
 /**
- * The modules that also run on the phone (ADR 0044): their code (tests
- * aside) imports nothing of the PC — no Node built-in, no Electron, no
- * Fastify, no native package, not the PC part of the SDK (`@hub/sdk/core`
- * instead of `@hub/sdk/backend`).
+ * Modules that only run on the PC (music, assistant). Every other module —
+ * the five of the phone (Courses, Sport, To-do, Timer, Boîte à idées), the
+ * template and any new one — is PORTABLE by default (ADR 0044): its code
+ * (tests aside) imports nothing of the PC — no Node built-in, no Electron,
+ * no Fastify, no native package, not the PC part of the SDK
+ * (`@hub/sdk/core` instead of `@hub/sdk/backend`) — and uses no Node global.
  */
-export const PORTABLE_MODULES = ['courses', 'sport', 'todo', 'timer', 'ideas'];
+export const PC_ONLY_MODULES = [
+  'assistant',
+  'custom-reels',
+  'instagram-video',
+  'master-analysis',
+  'music-library',
+  'release-planner',
+  'video-engine',
+  'youtube-stats',
+  'youtube-video',
+];
+const isPortableModule = (folder) => Boolean(folder) && !PC_ONLY_MODULES.includes(folder);
+/** Node globals a portable module never uses (they do not exist in the phone's Worker). */
+const NODE_GLOBALS = ['Buffer', 'process', 'global', '__dirname', '__filename', 'require'];
 const PC_ONLY_PACKAGES = [
   'electron',
   'fastify',
@@ -45,8 +60,8 @@ export function pcOnlyImport(source) {
  *   the hub core, never `electron`, never another module — except `import type`
  *   from another module's contract.ts;
  * - @hub/sdk/testing only from tests;
- * - the modules that also run on the phone (PORTABLE_MODULES) import nothing
- *   of the PC (pcOnlyImport);
+ * - a portable module (every one but PC_ONLY_MODULES) imports nothing of the
+ *   PC (pcOnlyImport);
  * - the hub core never imports a module.
  */
 const moduleBoundaries = {
@@ -56,7 +71,7 @@ const moduleBoundaries = {
     const inModules = file.startsWith(modulesDir + path.sep);
     const ownFolder = inModules ? path.relative(modulesDir, file).split(path.sep)[0] : null;
     const isTest = /[\\/]tests[\\/]|\.test\.tsx?$/.test(file);
-    const portable = inModules && !isTest && PORTABLE_MODULES.includes(ownFolder);
+    const portable = inModules && !isTest && isPortableModule(ownFolder);
 
     function check(node, source, isTypeOnly) {
       if (typeof source !== 'string') return;
@@ -144,6 +159,24 @@ export default tseslint.config(
     files: ['**/*.{ts,tsx}'],
     plugins: { toolbox: { rules: { 'module-boundaries': moduleBoundaries } } },
     rules: { 'toolbox/module-boundaries': 'error' },
+  },
+  {
+    // Portable modules (ADR 0044): no Node global (tests aside).
+    files: ['modules/**/*.{ts,tsx}'],
+    ignores: [
+      'modules/**/tests/**',
+      '**/*.test.{ts,tsx}',
+      ...PC_ONLY_MODULES.map((m) => `modules/${m}/**`),
+    ],
+    rules: {
+      'no-restricted-globals': [
+        'error',
+        ...NODE_GLOBALS.map((name) => ({
+          name,
+          message: `« ${name} » est un global de Node : ce module tourne aussi sur le téléphone (ADR 0044), il passe par ctx ou @hub/sdk/core.`,
+        })),
+      ],
+    },
   },
   {
     rules: {
