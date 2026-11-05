@@ -38,6 +38,8 @@ flowchart LR
 
 Le socle (`electron/`, `backend/`, `frontend/`, `packages/sdk/`) est **générique** : il ne connaît aucun module en particulier. Une règle ESLint interdit au socle d'importer un module, et aux modules d'importer autre chose que le SDK.
 
+Le SDK serveur a une **partie portable** (`@hub/sdk/core` : le contrat, sans Node, Electron ni Fastify) et une **partie PC** (`@hub/sdk/backend` = `core` + types Fastify). Les modules qui tourneront aussi sur le téléphone (Courses, Sport, To-do, Timer, Boîte à idées) n'importent que `core` (règle ESLint) ; ce qui touche au système (fichiers, réencodage des images, Recycle Bin) passe par `ctx`, implémenté sur le PC par le socle (`backend/core/files.ts`, `backend/core/images.ts`). Côté pages, le client d'API choisit son transport (`httpTransport` sur le PC). ADR 0044.
+
 ## Le socle backend
 
 | Fichier                                    | Rôle                                                                                               |

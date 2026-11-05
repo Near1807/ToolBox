@@ -1,6 +1,6 @@
 # 0044 — Version mobile et synchro LAN
 
-- Statut : **proposé** (pas encore accepté)
+- Statut : **accepté** (05/11/2026, réponses de Thomas aux questions ouvertes et test Wi-Fi)
 - Date : 2026-11-05
 - Étude : `docs/rapports/2026-11-05-etude-mobile.md`
 
@@ -66,22 +66,40 @@ Thomas veut une version Android de ToolBox pour les modules hors musique : Cours
    - 4 : autres modules ;
    - 5 : synchro LAN.
 
-   Un **test Wi-Fi** est à faire avant l'étape 2.
+   Test Wi-Fi fait le 05/11 (voir plus haut).
+
+## Décisions validées par Thomas (05/11/2026)
+
+- **Code serveur** : celui des 5 modules (Courses, Sport, To-do, Timer, Idées) tourne **tel quel** sur le téléphone, dans un Worker.
+  - Un « hôte téléphone » le sert et fournit le même `ctx`.
+  - Aucune réécriture en asynchrone. Le découpage service / transport reste une option pour plus tard.
+- **Base du téléphone** : `@sqlite.org/sqlite-wasm` (OPFS) dans le Worker.
+- **Réglages** :
+  - les réglages métier sont synchronisés (objectifs, créneaux, moments de cuisine, préréglages du Timer) ;
+  - les réglages d'affichage restent locaux.
+- **Images des recettes** : envoyées au téléphone par empreinte, réduites.
+- **Même nom créé des deux côtés** :
+  - **jamais de fusion automatique** ;
+  - il va dans « Conflits », avec un bouton « Fusionner » (la fusion d'ingrédients existante).
+- **Timer lancé sur les deux appareils** : le plus récent gagne, l'autre s'arrête avec un message.
+- **Import JSON** : réservé au PC.
+- **Clé de signature de l'APK** :
+  - créée une seule fois par un workflow manuel ;
+  - gardée en secret GitHub ;
+  - **et** copiée par Thomas hors de GitHub.
+- **ADR** : elles restent dans `docs/decisions/`.
+- **Test Wi-Fi (05/11)** : le téléphone joint directement le PC. Le mDNS n'a pas été vérifié ; le repli est l'adresse du QR code.
+
+## Étape 2 faite (v0.29.1)
+
+Cœur partagé sur le PC, sans changement de comportement : `@hub/sdk/core` (portable) et `@hub/sdk/backend` (PC), `ctx.images` et les fichiers par `ctx.files`, `crypto.randomUUID`, client d'API à transport injectable, règle ESLint. Détail : `docs/rapports/2026-11-05-v0.29.1.md`.
 
 ## Conséquences
 
 - Le PC ne change pas de comportement. Chaque étape le prouve par des références écrites avant modification, la suite complète et la CI Windows.
 - Le même SQL et les mêmes migrations servent sur les deux appareils, ce qui facilite la synchro et la vérification de version.
-- **Inconnues à lever** :
-  - persistance OPFS dans le WebView Android ;
-  - repérage du PC sur un Wi-Fi isolé (kot) ;
-  - règles de fusion des noms uniques ;
-  - réglages synchronisés ou non ;
-  - images ;
-  - clé de signature.
+- **Inconnues encore à lever** :
+  - persistance OPFS dans le WebView Android (essai sur le S21, étape 3) ;
+  - repérage mDNS du PC (non vérifié ; repli : l'adresse du QR code).
 
   Voir la section « Questions ouvertes » de l'étude.
-
-## Pour accepter cette ADR
-
-Il faut les réponses de Thomas aux questions ouvertes 1, 3, 6 et 8 de l'étude, et le résultat du test Wi-Fi.

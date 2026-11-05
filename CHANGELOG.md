@@ -4,6 +4,22 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.29.1] — 2026-11-05
+
+Session « Version téléphone, étape 2 : cœur partagé sur le PC ». **Réorganisation interne, aucun changement visible** : mêmes écrans, mêmes résultats, mêmes fichiers, mêmes données, aucune migration.
+
+### Modifié (interne)
+
+- SDK serveur en deux parties : `@hub/sdk/core` (portable : contrat, routes, `HttpError`, `SyncStore`…) et `@hub/sdk/backend` (PC : `core` + types Fastify). Courses, Sport, To-do, Timer et Boîte à idées n'importent plus que `core` ; une règle ESLint le garantit.
+- Images des recettes : le réencodage passe par le socle (`ctx.images.normalise`, même code, même JPEG, même empreinte) ; fichiers par `ctx.files` (`readFile`, `fileSize`, `writeFile`, `removeFile`).
+- Identifiants : `crypto.randomUUID` global au lieu de `node:crypto`.
+- Client d'API des pages : transport injectable (`ApiTransport`), HTTP par défaut à l'identique (jeton, erreurs, tickets SSE).
+- ADR 0044 acceptée, avec les décisions validées.
+
+### Ajouté (tests)
+
+- Références de non-régression écrites par la v0.29.0 : Sport, To-do, Timer, Boîte à idées (toutes les routes, services, assistant, calendrier, lignes stockées, sur une horloge figée) et images des recettes (tailles, sha256, octets JPEG).
+
 ## [0.29.0] — 2026-11-02
 
 Session « Courses, batch en deux temps : éléments de base + doubles doses ».

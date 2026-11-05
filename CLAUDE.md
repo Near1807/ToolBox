@@ -64,7 +64,7 @@ electron/        process principal : fenêtre (plein écran, barre sombre), fen�
 backend/         server.ts (Fastify) · core/ (hub.ts = chargeur de modules et ctx, migrations, sauvegardes,
                  réglages, tâches, planificateur, événements, services, fichiers générés, comptes, notifications, journaux) · routes/core.ts (/api/core/*)
 frontend/src/    shell React : modules/ (découverte, hôte des pages), shell/ (barre latérale à catégories, accueil, fichiers générés, tâches, journaux, réglages), themes/ (un fichier par thème), styles.css
-packages/sdk/    @hub/sdk : backend.ts, frontend.tsx, components.tsx (composants partagés), manifest.ts, testing.ts — seul import autorisé aux modules
+packages/sdk/    @hub/sdk : core.ts (contrat portable), backend.ts (core + Fastify, PC), frontend.tsx (client d'API à transport injectable), components.tsx (composants partagés), manifest.ts, testing.ts — seul import autorisé aux modules
 modules/         un dossier par module ; _template/ = module modèle (exemple, chargé à la demande)
 scripts/         dev, build (esbuild + découverte des modules), smoke test, vérification native, captures du guide intégré
 tests/           tests Vitest du socle
@@ -89,6 +89,7 @@ site/            site public statique (accueil + confidentialité, exigés par G
 - `dependencies` = uniquement ce que le process principal charge à l'exécution sans le bundler (natif, binaires, Fastify). Tout ce qui est bundlé (React, zod, yazl…) va en `devDependencies`.
 - Tout appel API passe par `/api/...` avec l'en-tête `x-toolbox-token`. Les routes SSE (EventSource) utilisent un ticket à usage unique (`POST /api/core/stream-tickets`, puis `?ticket=`) et déclarent `streamTicket: true`.
 - Le backend n'importe jamais `electron` : il passe par `HostAdapter`.
+- **Modules du téléphone** (Courses, Sport, To-do, Timer, Boîte à idées, ADR 0044) : leur code n'importe que `@hub/sdk/core`, jamais Node, Electron, Fastify ni un natif ; fichiers et images par `ctx.files` / `ctx.images`, identifiants par `newId()`. ESLint le vérifie. Les modules de musique et l'assistant ne sont pas concernés. `docs/MODULES.md` §4.
 - Données utilisateur uniquement sous `userData`, jamais dans le dossier d'installation.
 - **Tout fichier généré passe par `ctx.outputs` et est supprimable depuis l'interface** (Corbeille, sélection multiple, « Fichier introuvable »). `docs/MODULES.md` §5.13.
 - **Tout est lié à un projet** : `subject` est obligatoire dans `ctx.outputs.register` ; en Musique, c'est le morceau source (`music-library:track:<id>`). La page du morceau est la vue projet (état généré / planifié / programmé / publié, case « Inclure dans la sortie » lue par le Planning). Éléments sans projet : section « Sans projet » de la Bibliothèque (rattacher ou supprimer) ; tout module qui enregistre des fichiers déclare `ctx.outputs.onReattach` pour déplacer ses propres lignes. ADR 0022, 0025.

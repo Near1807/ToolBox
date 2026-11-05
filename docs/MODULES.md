@@ -90,6 +90,13 @@ Le manifest est validé au démarrage (`backend/core/modules/manifest.ts`) : un 
 
 ## 4. Backend : `backend/index.ts`
 
+Le SDK serveur a deux parties (ADR 0044) :
+
+- **`@hub/sdk/core`, la partie portable** : tout le contrat (`ctx`, routes, `HttpError`, `SyncStore`, aides de l'assistant…) sans import de Node, d'Electron ni de Fastify. Les modules qui tourneront aussi sur le téléphone (**Courses, Sport, To-do, Timer, Boîte à idées**) n'importent que celle-là : **ESLint refuse** dans leur code (hors tests) `node:*` et les modules de Node, `electron`, `fastify`, `better-sqlite3`, `@napi-rs/*`, les natifs du PC et `@hub/sdk/backend` / `testing`. Ce dont ils ont besoin du système passe par `ctx` (`ctx.files.readFile`, `ctx.images.normalise`…), et un identifiant se crée avec `newId()` (Web Crypto).
+- **`@hub/sdk/backend`, la partie PC** : `core` plus les types de Fastify (`FastifyRequest`, `FastifyReply`). Les modules de musique et l'assistant peuvent la garder.
+
+Un handler de route ne lit que `request.params`, `request.query` et `request.body` (types `RouteRequest` / `RouteReply` de `core`).
+
 ```ts
 import { defineBackendModule, HttpError } from '@hub/sdk/backend';
 
@@ -143,9 +150,15 @@ Une seule base `hub.db`, partagée. Tables, index, vues et triggers d'un module 
 | `mediaUrlIfExists(path)`                        | Comme `mediaUrl`, mais `null` si le chemin est vide, si le fichier n'existe plus ou s'il est sorti des dossiers autorisés : pour les DTO, l'interface affiche alors « Fichier introuvable »                                                                                                                                                                                                                                                                                                      |
 | `saveAs({ title, defaultName, filters, data })` | **Export demandé par l'utilisateur** : ouvre « Enregistrer sous » (dossier de sortie proposé), écrit `data` (texte ou octets) à l'endroit choisi et renvoie le chemin, `null` si l'utilisateur annule (ou hors de l'app de bureau). Le système demande avant de remplacer un fichier existant. Ce fichier appartient à l'utilisateur : il **n'est pas** enregistré dans `ctx.outputs` (exception à §5.13 : ni projet ni Corbeille). Toujours montrer le chemin renvoyé (ou « annulé ») à l'écran |
 | `trash(path)`                                   | Envoie à la **Corbeille** un fichier du dossier de données du module (refus de tout chemin hors de ce dossier, et du dossier lui-même ; rien si le fichier n'existe plus). Pour des **données de l'utilisateur** remplacées ou retirées (ex. l'image d'une recette des Courses), jamais pour un fichier généré (`ctx.outputs.delete`)                                                                                                                                                            |
+| `readFile(path)` / `fileSize(path)`             | Contenu entier d'un fichier (un fichier du module, ou un chemin choisi par l'utilisateur dans un sélecteur) / sa taille en octets, `null` s'il n'existe pas. Synchrones. Pour les modules portables, à la place de `node:fs`                                                                                                                                                                                                                                                                     |
+| `writeFile(path, data)` / `removeFile(path)`    | Écrit un fichier du dossier de données du module (dossier parent créé) / le supprime pour de bon, seulement pour défaire une écriture qui a échoué (une suppression demandée par l'utilisateur passe par `trash`). Refus de tout chemin hors de `dataDir`                                                                                                                                                                                                                                        |
 | `assetsDir` / `assetPath(...)`                  | Fichiers en lecture seule livrés avec le module : `modules/<id>/assets/` (polices, images…). Copiés au build et extraits de l'archive asar, donc lisibles par FFmpeg                                                                                                                                                                                                                                                                                                                             |
 
 Les fichiers importés par l'utilisateur sont **copiés** dans `dataDir` (jamais de lien vers leur emplacement d'origine).
+
+### 5.2 bis `ctx.images` — images données par l'utilisateur
+
+`ctx.images.normalise(octets, { maxSide, quality, maxBytes, background })` décode une image (JPEG, PNG, WebP…) et la réencode en JPEG (côté le plus long ≤ `maxSide`, jamais agrandie ; `background` sous la transparence) ; renvoie `{ data, width, height, sha256 }` ou lève un message en français (« Image vide », « Image trop lourde (20 Mo au plus) », « Image illisible (JPEG, PNG ou WebP attendu) »). Sur le PC : `@napi-rs/canvas` (code identique à l'ancien des Courses, même JPEG, même empreinte, `tests/image-regression.test.ts` des Courses). Pour les octets en base64 : `bytesToBase64` / `base64ToBytes` de `@hub/sdk/core`.
 
 ### 5.3 `ctx.settings` — réglages
 
@@ -170,7 +183,7 @@ Tous acceptent `label` (obligatoire), `description` et `hidden` (`true` : absent
 - Erreur prévue : `throw new HttpError(404, 'Morceau introuvable')` → réponse `{ "error": "Morceau introuvable" }`.
 - Aides du SDK pour les routes : `idParam(request.params)` (le `:id`, entier positif, sinon 400 « Identifiant invalide ») et `requestBody(request)` (le corps JSON, `{}` s'il n'y en a pas ; les champs restent à vérifier).
 - Toute autre exception → 500 avec un message clair, consignée dans les journaux du module. Le hub continue.
-- Options : `streamTicket: true` pour une route SSE lue par `EventSource` (voir `openEventStream()` dans `@hub/sdk/backend` et [ARCHITECTURE.md](ARCHITECTURE.md#flux-sse-et-tickets-à-usage-unique)), `bodyLimit` (octets, défaut 1 Mo).
+- Options : `streamTicket: true` pour une route SSE lue par `EventSource` (voir `openEventStream()` dans `@hub/sdk/core` et [ARCHITECTURE.md](ARCHITECTURE.md#flux-sse-et-tickets-à-usage-unique)), `bodyLimit` (octets, défaut 1 Mo).
 - La sécurité (jeton de session, Host, Origin) est appliquée par le socle à toutes les routes.
 
 ### 5.5 `ctx.jobs` — tâches longues
@@ -454,7 +467,7 @@ Une future version Android se synchronisera avec le PC sur le réseau local. Tou
 - **suppression logique** : `deleted_at` (« tombstone »), jamais d'effacement silencieux ; les listes ignorent les lignes supprimées, « Annuler » efface le `deleted_at` ;
 - **journal des modifications** : table `<module>__changes` (`id`, `at`, `entity`, `entity_id`, `op` = create / update / delete / restore, `data` JSON des champs écrits).
 
-Le SDK le fait pour toi (`@hub/sdk/backend`) : `SYNC_COLUMNS` en tête de chaque `CREATE TABLE`, `changesTableSql('<module>__changes')` dans la première migration, et `SyncStore` (`create`, `update`, `remove`, `restore`, `get`, `changesSince`) qui écrit la ligne et son journal dans la même transaction. Les tables de liaison (ex. ingrédients d'un repas) suivent la même règle.
+Le SDK le fait pour toi (`@hub/sdk/core`, aussi réexporté par `@hub/sdk/backend`) : `SYNC_COLUMNS` en tête de chaque `CREATE TABLE`, `changesTableSql('<module>__changes')` dans la première migration, et `SyncStore` (`create`, `update`, `remove`, `restore`, `get`, `changesSince`) qui écrit la ligne et son journal dans la même transaction. Les tables de liaison (ex. ingrédients d'un repas) suivent la même règle.
 
 **Granularité** : une valeur qu'on modifie seule a sa propre ligne (une ligne d'exercice, une valeur nutritionnelle, un prix), pas un bloc JSON dans la ligne de son parent : deux appareils qui changent deux valeurs différentes ne s'écrasent pas. `SyncStore.update` ne reçoit que les champs qui changent (le journal ne garde que ceux-là). Restent en JSON ce qui ne change qu'en bloc (une liste de tags, l'instantané figé d'une liste de courses fermée).
 
@@ -505,6 +518,7 @@ export default defineFrontendModule({
 - CSS propre à un module : un fichier importé depuis `frontend/`, classes préfixées par les initiales du module (ex. `ml-` pour music-library).
 - Fichiers générés : `outputs` (client des routes `/api/core/outputs`), `confirmDelete`, `useSelection`, et les composants `SelectionBar`, `MissingFile`, `OutputList` (voir §5.13).
 - Outils du SDK : `useModule`, `useApi`, `useJobs`, `api`, `apiFetch`, `openEventStream`, `getFilePath`, `startFileDrag`, `pickFiles`, `pickFolder`, `copyText`, `formatDuration`, `formatBytes`, `errorMessage`, `ApiError`, `dateInputValue` (composants), les fonctions de textes (`fillTemplate`, `toTemplate`, `parseTags`, `formatTags`, aussi dans `@hub/sdk/texts`), et les composants `Page`, `Card`, `Button`, `EmptyState`, `ErrorMessage`, `ProgressBar`, `ErrorBoundary`.
+- **Transport** : `api`, `apiFetch`, `useApi` et `openEventStream` passent par un `ApiTransport`. Sur le PC c'est `httpTransport` (HTTP vers le serveur local, jeton de session, SSE avec ticket à usage unique) ; la version téléphone le remplacera au démarrage par `setApiTransport` (messages vers son Worker), **mêmes chemins, même contrat**. Une page n'appelle jamais `fetch` ni `EventSource` elle-même.
 
 ### 7.1 Composants partagés (obligatoires)
 
@@ -565,6 +579,8 @@ await hub.close();
 ```
 
 Pour un module qui consomme un service, fournir un faux module fournisseur dans `modules: [...]`.
+
+**Références de non-régression** (avant de réorganiser un module sans changer son comportement) : un parcours réaliste par l'API sur une horloge figée (`vi.useFakeTimers({ toFake: ['Date'], now })`), puis `referenceShape(valeur, origine)` (UUID → `#1`, `#2`… ; heures UTC → millisecondes depuis l'origine : même résultat sur toute machine et tout fuseau), `readReference(fichier, valeur)` (écrit la référence avec `TOOLBOX_WRITE_REFERENCE=1`, seulement exprès) et `dumpTables(dataDir, préfixe)` (toutes les lignes du module). Jamais deux modifications au même instant figé quand un tri en dépend (l'ordre retomberait sur les UUID). Exemples : `modules/{sport,todo,timer,ideas}/tests/regression.test.ts`.
 
 Deux niveaux : `npm test` (rapide, par défaut, pendant le travail) et `npm run test:full` (tout, dont les rendus complets ; toujours exécuté par la CI Windows). Un test qui fait un rendu complet (vidéo, pack, Reel en taille réelle), et ceux qui utilisent ses fichiers, ne tournent que dans la suite complète : `describe.runIf(fullRenderTests)` / `it.runIf(fullRenderTests)` (`fullRenderTests` de `@hub/sdk/testing`). Les aperçus et petits rendus restent dans les tests rapides.
 
