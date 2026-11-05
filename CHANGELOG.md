@@ -4,6 +4,32 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.30.0] — 2026-11-05
+
+Session « Version téléphone, étape 3b : la vraie appli Android + To-do ». **Aucun changement visible dans l'app PC.**
+
+### Ajouté
+
+- **ToolBox sur Android** (`mobile/app/`, `be.toolbox.app`) :
+  - Accueil, To-do et Réglages, navigation en bas ;
+  - les écrans To-do du PC avec une mise en page mobile ;
+  - les thèmes ;
+  - un démarrage à vide.
+- **Hôte téléphone** (`packages/phone/`) : le code serveur des modules tourne tel quel dans un Worker. Il s'appuie sur :
+  - une base SQLite WebAssembly sur OPFS ;
+  - un mini routeur aux réponses de Fastify ;
+  - un transport Worker pour le client d'API.
+- **Filet de sauvegarde du téléphone** :
+  - une copie par jour, 7 gardées ;
+  - restauration proposée quand la base est vide, jamais automatique ;
+  - dans Réglages : date de la dernière copie et « Restaurer une copie ».
+- **APK release signé** par la CI (`.github/workflows/android.yml`), versionCode dérivé de la version.
+
+### Modifié (interne)
+
+- Exécuteur de migrations, validation des réglages et format des identifiants hérités en parties portables, sans changement pour le PC.
+- La référence de la To-do est rejouée sur le téléphone (sqlite-wasm) : mêmes réponses, mêmes lignes.
+
 ## [0.29.2] — 2026-11-05
 
 Session « Version téléphone, étape 3a : appli d'essai OPFS + chaîne Android ». **Aucun changement visible dans l'app PC.**

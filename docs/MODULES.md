@@ -102,6 +102,14 @@ Le SDK serveur a deux parties (ADR 0044) :
 
 Un handler de route ne lit que `request.params`, `request.query` et `request.body` (types `RouteRequest` / `RouteReply` de `core`).
 
+**Sur le téléphone** (`packages/phone/`, ADR 0044), le code serveur du module tourne tel quel dans un Worker, avec le même `ctx` :
+
+- **fournis** : `db` (sqlite-wasm, interface de better-sqlite3), `routes` (mêmes réponses que Fastify), `settings`, `services`, `calendar`, `logger`, `onShutdown` ;
+- **sans effet** : `assistant` (`define` est accepté et ignoré) ;
+- **pas encore fournis** : `files`, `images`, `notifications`, `outputs`, `jobs`, `scheduler`, `events`, `ui`, `hotkeys`, `accounts`, `binaries`, `db.backup`. Ils lèvent l'erreur explicite « … n'est pas disponible sur le téléphone » (jamais un faux succès). Un module qui en a besoin au démarrage ne se charge pas, et les autres continuent.
+
+La preuve qu'un module se comporte pareil : rejouer sa référence de non-régression sur l'hôte téléphone (`PhoneHub`, `openWasmDatabase`, `phoneRequest`, `dumpWasmTables` de `@hub/sdk/testing`). Exemple : `modules/todo/tests/regression-phone.test.ts`.
+
 ```ts
 import { defineBackendModule, HttpError } from '@hub/sdk/backend';
 
