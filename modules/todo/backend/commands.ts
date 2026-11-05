@@ -8,7 +8,7 @@ import {
   normaliseUtterance,
   stripCommand,
   type AssistantParams,
-} from '@hub/sdk/backend';
+} from '@hub/sdk/core';
 import { parseDue } from '../dates';
 
 export const ADD_EXAMPLES = [

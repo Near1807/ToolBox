@@ -1,6 +1,6 @@
 import type { Migration, MigrationDatabase } from '../../packages/sdk/backend';
 import { randomUUID } from 'node:crypto';
-import { legacyUuid } from '../../packages/sdk/sync';
+import { legacyUuid } from './legacy-id';
 import type { SqliteDatabase } from './database';
 
 const MIGRATIONS_TABLE = 'core__migrations';

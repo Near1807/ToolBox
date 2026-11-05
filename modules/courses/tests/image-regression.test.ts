@@ -19,14 +19,17 @@ import {
   dumpTables,
   loadModuleFolder,
   readReference,
+  normaliseImage as normaliseWith,
   referenceShape,
   type TestHub,
 } from '@hub/sdk/testing';
-import { normaliseImage } from '../backend/images';
+import { RECIPE_IMAGE } from '../backend/images';
 import type { StateDto } from '../shared/types';
 
 const API = '/api/modules/courses';
 const REFERENCE = path.join(__dirname, 'fixtures', 'images.json');
+/** A recipe image as the module stores it (`ctx.images.normalise` with its options). */
+const normaliseImage = (input: Uint8Array) => normaliseWith(input, RECIPE_IMAGE);
 const hash = (algo: 'sha256' | 'md5', data: Uint8Array) =>
   createHash(algo).update(data).digest('hex');
 

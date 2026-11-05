@@ -15,7 +15,7 @@ import {
   SYNC_COLUMNS,
   SyncStore,
   uuidParam,
-} from '@hub/sdk/backend';
+} from '@hub/sdk/core';
 import type { MusicLibraryService } from '../../music-library/contract';
 import type { TimerService } from '../../timer/contract';
 import type { TodoService, TodoTask } from '../contract';

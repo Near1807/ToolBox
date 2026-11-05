@@ -1,7 +1,7 @@
 // Standardised commands of the Boîte à idées (MODULES.md §5.15): example
 // phrases and the parameters taken from what was said by code (no generative
 // AI). Pure functions, tested in tests/commands.test.ts.
-import { extractTags, stripCommand, type AssistantParams } from '@hub/sdk/backend';
+import { extractTags, stripCommand, type AssistantParams } from '@hub/sdk/core';
 
 export const ADD_EXAMPLES = [
   'idée : un break avec des cordes',

@@ -3,8 +3,8 @@
 // network). Each item has a global UUID (never an auto-increment), its
 // creation and last-change dates, a deletion is a tombstone (`deleted_at`),
 // and every change is written to the module's journal (`<module>__changes`).
-import { createHash, randomUUID } from 'node:crypto';
-import type { ModuleDatabase } from './backend';
+// Portable (no Node import): it runs wherever the modules run (ADR 0044).
+import type { ModuleDatabase } from './core';
 
 /** Columns of a synchronisable table (to put first in its CREATE TABLE). */
 export const SYNC_COLUMNS =
@@ -23,23 +23,9 @@ export function changesTableSql(table: string): string {
   CREATE INDEX ${table}_at ON ${table} (at);`;
 }
 
+/** A random UUID (v4), by the Web Crypto API (Node, Electron, browsers, Workers). */
 export function newId(): string {
-  return randomUUID();
-}
-
-/**
- * The UUID given to a row that had a number before (« Prêt pour la synchro »
- * migration of an existing module): always the same for the same installation,
- * kind and number, so that each module computes the new id of a row it
- * references (a task of the To-do in a Timer session) without reading the
- * other module's tables. `seed` is the installation's id (`core__meta`),
- * `kind` names the table, e.g. « todo:task ». Format of a UUID version 8
- * (RFC 9562: built by the application), never equal to a random v4 one.
- */
-export function legacyUuid(seed: string, kind: string, oldId: number): string {
-  const hex = createHash('sha256').update(`${seed}|${kind}|${oldId}`).digest('hex').slice(0, 32);
-  const variant = ((parseInt(hex[16]!, 16) & 0x3) | 0x8).toString(16);
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-8${hex.slice(13, 16)}-${variant}${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+  return globalThis.crypto.randomUUID();
 }
 
 let lastStamp = 0;

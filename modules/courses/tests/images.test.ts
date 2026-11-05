@@ -2,7 +2,10 @@
 // transparency) and data URLs read back strictly.
 import { createCanvas } from '@napi-rs/canvas';
 import { describe, expect, it } from 'vitest';
-import { fromDataUrl, normaliseImage, toDataUrl } from '../backend/images';
+import { normaliseImage as normaliseWith } from '@hub/sdk/testing';
+import { fromDataUrl, RECIPE_IMAGE, toDataUrl } from '../backend/images';
+
+const normaliseImage = (input: Uint8Array) => normaliseWith(input, RECIPE_IMAGE);
 
 const png = (w: number, h: number) => {
   const c = createCanvas(w, h);
@@ -14,7 +17,7 @@ describe('recipe images', () => {
   it('resizes the longest side to 1200 px and stores JPEG', async () => {
     const img = await normaliseImage(png(1000, 3000));
     expect([img.width, img.height]).toEqual([400, 1200]);
-    expect(img.data.subarray(0, 3).toString('hex')).toBe('ffd8ff');
+    expect(Buffer.from(img.data.subarray(0, 3)).toString('hex')).toBe('ffd8ff');
     expect(img.sha256).toMatch(/^[0-9a-f]{64}$/);
   });
   it('keeps a small image at its size', async () => {

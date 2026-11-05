@@ -6,7 +6,7 @@ import {
   normaliseUtterance,
   stripCommand,
   type AssistantParams,
-} from '@hub/sdk/backend';
+} from '@hub/sdk/core';
 
 export const START_EXAMPLES = [
   'lance un timer de 27 minutes',

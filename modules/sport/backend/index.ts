@@ -18,7 +18,7 @@ import {
   newId,
   syncStamp,
   SyncStore,
-} from '@hub/sdk/backend';
+} from '@hub/sdk/core';
 import {
   addDays,
   completeWeekStreak,

@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { BackendModule, MigrationDatabase } from './backend';
-import { legacyUuid } from './sync';
+import { legacyUuid } from '../../backend/core/legacy-id';
 import { createNullHost, type HostAdapter } from '../../backend/core/host';
 import type { OAuthProvider } from '../../backend/core/accounts';
 import type { DiscoveredModule, Hub } from '../../backend/core/hub';
@@ -186,3 +186,6 @@ export function dumpTables(dataDir: string, prefix: string): Record<string, unkn
     db.close();
   }
 }
+
+/** The PC implementation of `ctx.images.normalise` (tests of a module's image options). */
+export { normaliseImage } from '../../backend/core/images';

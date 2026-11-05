@@ -1,6 +1,6 @@
 // Standardised commands of Sport (MODULES.md §5.15): example phrases and the
 // parameters taken by code (no generative AI). Tested in tests/commands.test.ts.
-import { normaliseUtterance, stripCommand, type AssistantParams } from '@hub/sdk/backend';
+import { normaliseUtterance, stripCommand, type AssistantParams } from '@hub/sdk/core';
 
 export const TODAY_EXAMPLES = [
   'c’est quoi ma séance aujourd’hui',

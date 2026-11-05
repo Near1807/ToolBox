@@ -1,6 +1,6 @@
 // Standardised commands of Courses (MODULES.md §5.15): example phrases and the
 // parameters taken by code (no generative AI). Tested in tests/commands.test.ts.
-import { normaliseUtterance, stripCommand, type AssistantParams } from '@hub/sdk/backend';
+import { normaliseUtterance, stripCommand, type AssistantParams } from '@hub/sdk/core';
 
 export const WHAT_EXAMPLES = [
   'qu’est-ce que je mange ce soir',
