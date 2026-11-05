@@ -1,0 +1,103 @@
+# Probe app for the phone version (ADR 0044, step 3a): SQLite WebAssembly +
+# OPFS (opfs-sahpool) under Capacitor, to test on Thomas's Galaxy S21.
+# Builds DEBUG APKs (application id be.toolbox.probe, distinct from the future
+# real app). Both versionCodes are built in the SAME run: they are signed with
+# the same debug key, so version 2 installs over version 1 (update test).
+# Never part of the Windows .exe.
+name: Android probe (essai OPFS)
+
+on:
+  # Manual run (available once this file is on the default branch).
+  workflow_dispatch:
+    inputs:
+      versionCode:
+        description: 'versionCode à construire (1 et 2 : même run, même clé, pour tester la mise à jour)'
+        type: choice
+        options: ['1 et 2', '1', '2']
+        default: '1 et 2'
+  # On hub-v1, whenever the probe app or this workflow changes.
+  push:
+    branches: ['hub-v1']
+    paths:
+      - 'mobile/probe/**'
+      - '.github/workflows/android-probe.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-probe-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: mobile/probe
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/probe/package-lock.json
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install dependencies (pinned versions)
+        run: npm ci
+
+      - name: Build the APK(s)
+        env:
+          CHOICE: ${{ inputs.versionCode || '1 et 2' }}
+        run: |
+          case "$CHOICE" in
+            1) CODES="1" ;;
+            2) CODES="2" ;;
+            *) CODES="1 2" ;;
+          esac
+          mkdir -p out
+          for CODE in $CODES; do
+            echo "::group::versionCode $CODE"
+            VITE_PROBE_VERSION_CODE="$CODE" VITE_PROBE_VERSION_NAME="1.0.$CODE" npm run build
+            npx cap sync android
+            (cd android && ./gradlew assembleDebug -PprobeVersionCode="$CODE" --no-daemon --stacktrace)
+            cp android/app/build/outputs/apk/debug/app-debug.apk "out/toolbox-essai-opfs-v$CODE.apk"
+            echo "::endgroup::"
+          done
+
+      - name: Check the APKs (package, versionCode, signature)
+        run: |
+          AAPT=$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)aapt
+          APKSIGNER=$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)apksigner
+          for APK in out/*.apk; do
+            echo "== $APK ($(du -h "$APK" | cut -f1))"
+            "$AAPT" dump badging "$APK" | grep -E "^package:|sdkVersion|targetSdkVersion"
+            "$APKSIGNER" verify --print-certs "$APK" | grep -E "SHA-256 digest"
+          done
+
+      - name: Upload version 1
+        if: hashFiles('mobile/probe/out/toolbox-essai-opfs-v1.apk') != ''
+        uses: actions/upload-artifact@v5
+        with:
+          name: toolbox-essai-opfs-v1-apk
+          path: mobile/probe/out/toolbox-essai-opfs-v1.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload version 2
+        if: hashFiles('mobile/probe/out/toolbox-essai-opfs-v2.apk') != ''
+        uses: actions/upload-artifact@v5
+        with:
+          name: toolbox-essai-opfs-v2-apk
+          path: mobile/probe/out/toolbox-essai-opfs-v2.apk
+          if-no-files-found: error
+          retention-days: 30
