@@ -13,7 +13,7 @@ import {
   type ErrorInfo,
   type ReactNode,
 } from 'react';
-import type { JobInfo, OutputRecord } from './backend';
+import type { JobInfo, OutputRecord } from './core';
 import { Icon } from './icons';
 import type { ModuleManifest } from './manifest';
 
@@ -198,16 +198,86 @@ export class ApiError extends Error {
 }
 
 /**
- * Calls the local backend (same origin). Adds the session token; JSON bodies
- * must be passed already stringified. Throws ApiError with the server's French
- * message on failure.
+ * How the pages reach the module code: the same paths and the same contract
+ * whatever the transport. On the PC (default) it is HTTP to the local server
+ * (session token, SSE with single-use tickets); the phone version will give
+ * one that talks to its Worker (ADR 0044). Pages never see the difference.
+ */
+export interface ApiTransport {
+  /** One request on an API path (`/api/...`); answers like fetch. */
+  request(path: string, init: RequestInit): Promise<Response>;
+  /** An event stream (route declared with `streamTicket: true`); returns a function that closes it. */
+  openEventStream(path: string, handlers: Record<string, (data: unknown) => void>): () => void;
+}
+
+/** The PC's transport: HTTP to the local backend (same origin), with the session token. */
+export const httpTransport: ApiTransport = {
+  request: (path, init) => {
+    const headers = new Headers(init.headers);
+    if (window.toolbox?.token) headers.set('x-toolbox-token', window.toolbox.token);
+    return fetch(path, { ...init, headers });
+  },
+  /**
+   * EventSource cannot send the token header, so each connection first
+   * obtains a single-use ticket; on error the stream reconnects with a fresh
+   * ticket.
+   */
+  openEventStream: (path, handlers) => {
+    let source: EventSource | null = null;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let closed = false;
+
+    const connect = async () => {
+      try {
+        const { ticket } = await api.post<{ ticket: string }>('/api/core/stream-tickets');
+        if (closed) return;
+        const separator = path.includes('?') ? '&' : '?';
+        source = new EventSource(`${path}${separator}ticket=${encodeURIComponent(ticket)}`);
+        for (const [event, handler] of Object.entries(handlers)) {
+          source.addEventListener(event, (message) =>
+            handler(JSON.parse((message as MessageEvent<string>).data)),
+          );
+        }
+        source.onerror = () => {
+          // The ticket is spent: never let EventSource retry by itself.
+          source?.close();
+          scheduleRetry();
+        };
+      } catch {
+        scheduleRetry();
+      }
+    };
+    const scheduleRetry = () => {
+      if (closed) return;
+      retryTimer = setTimeout(() => void connect(), 2000);
+    };
+
+    void connect();
+    return () => {
+      closed = true;
+      if (retryTimer) clearTimeout(retryTimer);
+      source?.close();
+    };
+  },
+};
+
+let transport: ApiTransport = httpTransport;
+
+/** Replaces the transport (once, at start-up, before any page): the phone's Worker. */
+export function setApiTransport(next: ApiTransport): void {
+  transport = next;
+}
+
+/**
+ * Calls the module code through the transport (on the PC: the local backend).
+ * JSON bodies must be passed already stringified. Throws ApiError with the
+ * server's French message on failure.
  */
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
-  if (window.toolbox?.token) headers.set('x-toolbox-token', window.toolbox.token);
   if (typeof init.body === 'string') headers.set('content-type', 'application/json');
 
-  const response = await fetch(path, { ...init, headers });
+  const response = await transport.request(path, { ...init, headers });
   if (!response.ok) {
     let message = `Erreur ${response.status}`;
     try {
@@ -239,50 +309,14 @@ export function errorMessage(error: unknown): string {
 }
 
 /**
- * Opens an SSE stream on a route declared with `streamTicket: true`.
- * EventSource cannot send the token header, so each connection first obtains a
- * single-use ticket; on error the stream reconnects with a fresh ticket.
- * Returns a function that closes the stream.
+ * Opens an event stream on a route declared with `streamTicket: true` (on the
+ * PC: SSE, see httpTransport). Returns a function that closes the stream.
  */
 export function openEventStream(
   path: string,
   handlers: Record<string, (data: unknown) => void>,
 ): () => void {
-  let source: EventSource | null = null;
-  let retryTimer: ReturnType<typeof setTimeout> | null = null;
-  let closed = false;
-
-  const connect = async () => {
-    try {
-      const { ticket } = await api.post<{ ticket: string }>('/api/core/stream-tickets');
-      if (closed) return;
-      const separator = path.includes('?') ? '&' : '?';
-      source = new EventSource(`${path}${separator}ticket=${encodeURIComponent(ticket)}`);
-      for (const [event, handler] of Object.entries(handlers)) {
-        source.addEventListener(event, (message) =>
-          handler(JSON.parse((message as MessageEvent<string>).data)),
-        );
-      }
-      source.onerror = () => {
-        // The ticket is spent: never let EventSource retry by itself.
-        source?.close();
-        scheduleRetry();
-      };
-    } catch {
-      scheduleRetry();
-    }
-  };
-  const scheduleRetry = () => {
-    if (closed) return;
-    retryTimer = setTimeout(() => void connect(), 2000);
-  };
-
-  void connect();
-  return () => {
-    closed = true;
-    if (retryTimer) clearTimeout(retryTimer);
-    source?.close();
-  };
+  return transport.openEventStream(path, handlers);
 }
 
 // ---------------------------------------------------------------------------
