@@ -1,0 +1,188 @@
+/* The phone's shell (ADR 0044): one column, navigation at the bottom,
+   comfortable touch targets (44 px at least). Theme tokens only, like the PC:
+   the theme files of frontend/src/themes give every colour. */
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  font-size: 16px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.m-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.m-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-top: env(safe-area-inset-top);
+}
+
+.m-loading {
+  padding: 40px 16px;
+  text-align: center;
+}
+
+.m-banner {
+  margin: 12px 16px 0;
+}
+
+/* Pages: full width, the PC's large margins reduced. */
+.m-content .page {
+  max-width: none;
+  padding: 16px 16px 24px;
+}
+
+.m-content .page__header {
+  margin-bottom: 14px;
+}
+
+.m-content .page__header h1 {
+  font-size: 1.4rem;
+}
+
+.m-content .card {
+  padding: 14px 14px;
+  border-radius: var(--radius);
+}
+
+/* Touch targets: nothing smaller than 44 px to tap. */
+.m-content .button,
+.m-content .input,
+.m-content select.input {
+  min-height: 44px;
+  font-size: 1rem;
+}
+
+.m-content .icon-button {
+  width: 44px;
+  height: 44px;
+}
+
+/* The bottom navigation. */
+.m-nav {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border-top: 1px solid var(--border);
+  background: var(--surface-solid);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.m-nav__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 56px;
+  color: var(--text-3);
+  text-decoration: none;
+  font-size: 0.75rem;
+}
+
+.m-nav__item svg {
+  width: 22px;
+  height: 22px;
+}
+
+.m-nav__item.active {
+  color: var(--accent);
+}
+
+.m-home__copy {
+  margin: 4px 2px 0;
+}
+
+.m-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.m-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.m-list__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.m-themes {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.m-theme {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+}
+
+.m-theme--active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.m-theme__swatch {
+  display: inline-flex;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+}
+
+.m-theme__swatch span {
+  width: 14px;
+  height: 22px;
+}
+
+.m-about {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 12px;
+  margin: 0;
+}
+
+.m-about dt {
+  color: var(--text-3);
+}
+
+.m-about dd {
+  margin: 0;
+  word-break: break-word;
+}
+
+/* « Annuler » after an action: the whole width, above the navigation bar. */
+.m-shell .ui-undo {
+  left: 12px;
+  right: 12px;
+  bottom: calc(68px + env(safe-area-inset-bottom));
+  transform: none;
+  max-width: none;
+}

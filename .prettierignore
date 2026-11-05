@@ -5,3 +5,5 @@ package-lock.json
 CHANGELOG.md
 mobile/probe/android/
 mobile/probe/package-lock.json
+mobile/app/android/
+mobile/app/package-lock.json

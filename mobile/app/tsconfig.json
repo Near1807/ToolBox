@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM", "DOM.Iterable", "WebWorker"],
+    "types": ["vite/client"],
+    "paths": {
+      "@hub/sdk/*": ["../../packages/sdk/*"]
+    }
+  },
+  "include": ["src", "../../frontend/src/vite-env.d.ts"]
+}

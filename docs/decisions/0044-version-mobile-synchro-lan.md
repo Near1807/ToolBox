@@ -101,12 +101,37 @@ Cœur partagé sur le PC, sans changement de comportement : `@hub/sdk/core` (por
 - **Clé de signature** : `.github/workflows/android-keystore.yml`, lancé une seule fois par Thomas. Le dépôt étant public, la clé sort dans une archive 7-Zip chiffrée (phrase dans le secret `KEYSTORE_EXPORT_PASSPHRASE`), gardée 1 jour ; elle n'est jamais écrite dans le journal.
 - **Modules portables par défaut** : tout module hors musique et assistant suit la règle ESLint (imports et globaux de Node).
 
+## Résultat de l'essai OPFS sur le S21 (05/11/2026) : réussi
+
+- **Contexte** : Android 15, WebView Chrome 156, sqlite-wasm 3.54.1, VFS opfs-sahpool persistante, `createSyncAccessHandle` utilisable.
+- **Résultat** : données intactes après fermetures, arrêt forcé, cache vidé et mise à jour de l'APK (v1 → v2) ; 3 000 lignes, et le compteur de lancements n'est jamais revenu à zéro.
+- **Réserve** : `storage.persist()` = non. Android ne garantit pas la conservation si le téléphone manque de place, d'où le **filet de sauvegarde obligatoire** de l'étape 3b.
+
+## Étape 3b faite (v0.30.0)
+
+- **Appli** `mobile/app/`, identifiant **`be.toolbox.app`**, nom affiché « ToolBox ».
+  - **Cet identifiant ne changera plus jamais** : Android reconnaît les mises à jour à l'identifiant et à la clé de signature.
+  - Coquille mobile (Accueil, To-do, Réglages), écrans des modules du PC avec une mise en page mobile en fichiers CSS ajoutés.
+- **Hôte téléphone** `packages/phone/` :
+  - même `ctx` que le socle ; ce qui n'est pas encore fourni lève « non disponible sur le téléphone » ; assistant sans effet ;
+  - mini routeur aux réponses de Fastify ;
+  - base sqlite-wasm à l'interface de better-sqlite3 ;
+  - transport Worker pour le client d'API.
+- **Code du socle rendu portable, sans changement pour le PC** : exécuteur de migrations, validation des réglages, format des identifiants hérités. Une installation neuve convertit les 2 préréglages livrés du Timer avec `legacyId` : le téléphone a donc un sha256 synchrone en JavaScript, égal à celui de Node.
+- **Preuve** : la référence de la To-do, rejouée sur sqlite-wasm et l'hôte téléphone, donne les mêmes réponses et les mêmes lignes que sur le PC.
+- **Filet de sauvegarde** :
+  - une copie par jour, à l'ouverture, dans `Directory.Data` ;
+  - 7 copies gardées, jamais celle d'une base vide ;
+  - restauration proposée, jamais automatique.
+- **Sauvegarde Android vers le cloud désactivée** (`allowBackup="false"`) : rien ne part en ligne sans Thomas.
+- **APK release signé** : `.github/workflows/android.yml`.
+  - `versionCode = majeure × 1 000 000 + mineure × 100 + correctif`.
+  - Le workflow s'arrête si un secret manque.
+
 ## Conséquences
 
 - Le PC ne change pas de comportement. Chaque étape le prouve par des références écrites avant modification, la suite complète et la CI Windows.
 - Le même SQL et les mêmes migrations servent sur les deux appareils, ce qui facilite la synchro et la vérification de version.
-- **Inconnues encore à lever** :
-  - persistance OPFS dans le WebView Android (essai sur le S21, étape 3) ;
-  - repérage mDNS du PC (non vérifié ; repli : l'adresse du QR code).
+- **Inconnue encore à lever** : repérage mDNS du PC (non vérifié ; repli : l'adresse du QR code).
 
   Voir la section « Questions ouvertes » de l'étude.

@@ -1,0 +1,165 @@
+# The phone app (be.toolbox.app, ADR 0044): a RELEASE APK signed with the
+# app's key (secrets ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD,
+# ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD), checked (package, versionCode,
+# SDK, certificate fingerprint) and published as an artifact.
+# The key is written to a temporary file of the runner, never to the log,
+# and deleted at the end. Never part of the Windows .exe.
+name: Android (ToolBox)
+
+on:
+  # Manual run (available once this file is on the default branch).
+  workflow_dispatch:
+  # On hub-v1, whenever what runs on the phone changes.
+  push:
+    branches: ['hub-v1']
+    paths:
+      - 'mobile/app/**'
+      - 'modules/courses/**'
+      - 'modules/sport/**'
+      - 'modules/todo/**'
+      - 'modules/timer/**'
+      - 'modules/ideas/**'
+      - 'packages/sdk/**'
+      - 'packages/phone/**'
+      - 'frontend/src/themes/**'
+      - 'frontend/src/styles.css'
+      - 'backend/core/migrations-core.ts'
+      - 'backend/core/core-migrations.ts'
+      - 'backend/core/settings-validation.ts'
+      - 'backend/core/legacy-id-core.ts'
+      - 'backend/core/services.ts'
+      - 'backend/core/calendar.ts'
+      - 'backend/core/modules/dependencies.ts'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/android.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check the signing secrets
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          missing=""
+          [ -n "$KEYSTORE" ] || missing="$missing ANDROID_KEYSTORE_BASE64"
+          [ -n "$STORE_PASSWORD" ] || missing="$missing ANDROID_KEYSTORE_PASSWORD"
+          [ -n "$KEY_ALIAS" ] || missing="$missing ANDROID_KEY_ALIAS"
+          [ -n "$KEY_PASSWORD" ] || missing="$missing ANDROID_KEY_PASSWORD"
+          if [ -n "$missing" ]; then
+            echo "::error::Secret(s) manquant(s) :$missing. Settings > Secrets and variables > Actions (voir le rapport v0.29.2, « La clé de signature »)."
+            exit 1
+          fi
+          echo "Les 4 secrets de signature sont présents."
+
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            mobile/app/package-lock.json
+
+      # React, Vite, the SDK's dependencies and sqlite-wasm come from the root;
+      # no install scripts (no Electron, no FFmpeg: the phone does not use them).
+      - name: Install dependencies (pinned versions)
+        run: |
+          npm ci --ignore-scripts
+          npm ci --prefix mobile/app
+
+      - name: Version and versionCode
+        id: version
+        run: |
+          node -e '
+            const v = require("./package.json").version;
+            const [major, minor, patch] = v.split(/[.-]/).map(Number);
+            if (!(minor < 10000 && patch < 100)) throw new Error("versionCode : mineure < 10000 et correctif < 100");
+            const code = major * 1000000 + minor * 100 + patch;
+            console.log(`name=${v}`);
+            console.log(`code=${code}`);
+          ' >> "$GITHUB_OUTPUT"
+          cat "$GITHUB_OUTPUT"
+
+      - name: Typecheck and build the app's page
+        working-directory: mobile/app
+        run: |
+          npm run typecheck
+          npm run build
+          npx cap sync android
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: android-actions/setup-android@v3
+        with:
+          # The default (« tools platform-tools ») asks for « tools », which no
+          # longer exists; the SDK platforms and build tools are fetched by Gradle.
+          packages: platform-tools
+
+      - name: Build the signed release APK
+        working-directory: mobile/app/android
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          TOOLBOX_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          TOOLBOX_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          umask 077
+          export TOOLBOX_KEYSTORE_FILE="$RUNNER_TEMP/toolbox-release.jks"
+          printf '%s' "$KEYSTORE" | base64 -d > "$TOOLBOX_KEYSTORE_FILE"
+          # The key was made as PKCS12 (android-keystore.yml): ONE password for the
+          # store and the key. The store's is used for both (no value is printed).
+          if [ "$KEY_PASSWORD" != "$TOOLBOX_KEYSTORE_PASSWORD" ]; then
+            echo "::warning::ANDROID_KEY_PASSWORD diffère de ANDROID_KEYSTORE_PASSWORD. La clé (PKCS12) n'a qu'un mot de passe : celui du magasin est utilisé. Remets dans ANDROID_KEY_PASSWORD le même mot de passe (LISEZ-MOI.txt)."
+          fi
+          export TOOLBOX_KEY_PASSWORD="$TOOLBOX_KEYSTORE_PASSWORD"
+          ./gradlew assembleRelease --no-daemon --stacktrace \
+            -PtoolboxVersionCode=${{ steps.version.outputs.code }} \
+            -PtoolboxVersionName=${{ steps.version.outputs.name }}
+
+      - name: Check the APK (package, versionCode, SDK, certificate)
+        working-directory: mobile/app
+        run: |
+          TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          echo "== $APK ($(du -h "$APK" | cut -f1))"
+          BADGING=$("$TOOLS"aapt dump badging "$APK")
+          echo "$BADGING" | grep -E "^package:|sdkVersion|targetSdkVersion|application-label:"
+          echo "$BADGING" | grep -q "package: name='be.toolbox.app' versionCode='${{ steps.version.outputs.code }}'" \
+            || { echo "::error::Paquet ou versionCode inattendu"; exit 1; }
+          "$TOOLS"apksigner verify --print-certs "$APK" > certs.txt
+          DIGEST=$(grep -m1 "SHA-256 digest" certs.txt | sed 's/.*: //')
+          [ -n "$DIGEST" ] || { echo "::error::APK non signé"; exit 1; }
+          COLONS=$(echo "$DIGEST" | tr 'a-f' 'A-F' | sed 's/../&:/g; s/:$//')
+          echo "Empreinte SHA-256 du certificat (à comparer avec LISEZ-MOI.txt) :"
+          echo "  $COLONS"
+          mkdir -p out
+          cp "$APK" "out/ToolBox-${{ steps.version.outputs.name }}.apk"
+
+      - name: Upload the APK
+        uses: actions/upload-artifact@v5
+        with:
+          name: ToolBox-android-${{ steps.version.outputs.name }}
+          path: mobile/app/out/ToolBox-${{ steps.version.outputs.name }}.apk
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Delete the key file
+        if: always()
+        run: rm -f "$RUNNER_TEMP/toolbox-release.jks"

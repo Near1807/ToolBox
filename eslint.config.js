@@ -8,6 +8,7 @@ import globals from 'globals';
 
 const root = import.meta.dirname;
 const modulesDir = path.join(root, 'modules');
+const phoneAppDir = path.join(root, 'mobile', 'app', 'src');
 
 /**
  * Modules that only run on the PC (music, assistant). Every other module —
@@ -29,6 +30,20 @@ export const PC_ONLY_MODULES = [
   'youtube-video',
 ];
 const isPortableModule = (folder) => Boolean(folder) && !PC_ONLY_MODULES.includes(folder);
+/** Code of the core that the phone's Worker runs too (packages/phone and what it reuses). */
+export const PHONE_SHARED_FILES = [
+  'packages/phone/**/*.ts',
+  'packages/sdk/core.ts',
+  'packages/sdk/sync.ts',
+  'packages/sdk/manifest.ts',
+  'backend/core/migrations-core.ts',
+  'backend/core/core-migrations.ts',
+  'backend/core/settings-validation.ts',
+  'backend/core/legacy-id-core.ts',
+  'backend/core/services.ts',
+  'backend/core/calendar.ts',
+  'backend/core/modules/dependencies.ts',
+];
 /** Node globals a portable module never uses (they do not exist in the phone's Worker). */
 const NODE_GLOBALS = ['Buffer', 'process', 'global', '__dirname', '__filename', 'require'];
 const PC_ONLY_PACKAGES = [
@@ -111,6 +126,8 @@ const moduleBoundaries = {
           message: 'Un module n’importe que @hub/sdk, jamais le code du socle.',
         });
       }
+      // The phone app assembles the modules it ships (like the PC's build discovers them).
+      if (file.startsWith(phoneAppDir + path.sep)) return;
       if (
         source.startsWith('.') &&
         path.resolve(path.dirname(file), source).startsWith(modulesDir + path.sep)
@@ -143,6 +160,8 @@ export default tseslint.config(
       // Probe app (ADR 0044, step 3a): its build and the generated Android project.
       'mobile/probe/dist/',
       'mobile/probe/android/',
+      'mobile/app/dist/',
+      'mobile/app/android/',
     ],
   },
   js.configs.recommended,
@@ -151,6 +170,17 @@ export default tseslint.config(
     // Probe app: a page and its Worker (browser), its Vite config (Node).
     files: ['mobile/probe/src/**/*.js'],
     languageOptions: { globals: { ...globals.browser, ...globals.worker } },
+  },
+  {
+    // Phone app: its page (browser) and its Worker.
+    files: ['mobile/app/src/**/*.{ts,tsx}'],
+    languageOptions: { globals: { ...globals.browser, ...globals.worker } },
+    plugins: { 'react-hooks': reactHooks },
+    rules: reactHooks.configs.recommended.rules,
+  },
+  {
+    files: ['mobile/app/*.mjs'],
+    languageOptions: { globals: globals.node },
   },
   {
     files: ['mobile/probe/*.js'],
@@ -193,6 +223,38 @@ export default tseslint.config(
         ...NODE_GLOBALS.map((name) => ({
           name,
           message: `« ${name} » est un global de Node : ce module tourne aussi sur le téléphone (ADR 0044), il passe par ctx ou @hub/sdk/core.`,
+        })),
+      ],
+    },
+  },
+  {
+    // Code that runs in the phone's Worker (ADR 0044): the phone host and the
+    // portable parts of the core it reuses. No Node import, no Node global.
+    files: PHONE_SHARED_FILES,
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                'node:*',
+                ...builtinModules,
+                'electron',
+                'fastify',
+                'better-sqlite3',
+                '@napi-rs/*',
+              ],
+              message: 'Ce code tourne aussi sur le téléphone (ADR 0044) : aucun import du PC.',
+            },
+          ],
+        },
+      ],
+      'no-restricted-globals': [
+        'error',
+        ...NODE_GLOBALS.map((name) => ({
+          name,
+          message: `« ${name} » est un global de Node : ce code tourne aussi sur le téléphone (ADR 0044).`,
         })),
       ],
     },

@@ -3,6 +3,9 @@ import type { SettingField, SettingValue } from '../../packages/sdk/manifest';
 import type { DatabaseHandle } from './database';
 import type { EventBus } from './events';
 import type { HostAdapter } from './host';
+import { SettingsValidationError, validateSettingValue as validate } from './settings-validation';
+
+export { SettingsValidationError };
 
 export const SETTINGS_CHANGED_EVENT = 'core:settings.changed';
 
@@ -17,10 +20,6 @@ export interface SettingsSection {
   scope: string;
   title: string;
   fields: SettingsSectionField[];
-}
-
-export class SettingsValidationError extends Error {
-  readonly statusCode = 400;
 }
 
 interface Row {
@@ -143,39 +142,5 @@ export class SettingsStore {
 
 /** Returns the normalized value, or null to reset to the default. Throws if invalid. */
 export function validateSettingValue(field: SettingField, value: SettingValue): SettingValue {
-  if (value === null || value === undefined) return null;
-  const invalid = (reason: string) => new SettingsValidationError(`« ${field.label} » : ${reason}`);
-
-  switch (field.type) {
-    case 'string':
-    case 'text':
-    case 'secret':
-      if (typeof value !== 'string') throw invalid('texte attendu');
-      if (value.length > 10_000) throw invalid('texte trop long');
-      return field.type === 'secret' && value === '' ? null : value;
-    case 'number':
-      if (typeof value !== 'number' || !Number.isFinite(value)) throw invalid('nombre attendu');
-      if (field.min !== undefined && value < field.min) throw invalid(`minimum ${field.min}`);
-      if (field.max !== undefined && value > field.max) throw invalid(`maximum ${field.max}`);
-      return value;
-    case 'boolean':
-      if (typeof value !== 'boolean') throw invalid('oui/non attendu');
-      return value;
-    case 'select':
-      if (typeof value !== 'string' || !field.options.some((o) => o.value === value)) {
-        throw invalid('choix invalide');
-      }
-      return value;
-    case 'folder':
-      if (typeof value !== 'string' || !path.isAbsolute(value)) throw invalid('dossier invalide');
-      return value;
-    case 'weekdays': {
-      if (typeof value !== 'string' || !/^([1-7](,[1-7])*)?$/.test(value)) {
-        throw invalid('jours invalides');
-      }
-      const days = [...new Set(value.split(',').filter(Boolean).map(Number))].sort();
-      if (days.length === 0) throw invalid('au moins un jour');
-      return days.join(',');
-    }
-  }
+  return validate(field, value, path.isAbsolute);
 }

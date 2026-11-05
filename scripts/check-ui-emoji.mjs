@@ -7,7 +7,12 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 const root = path.resolve(import.meta.dirname, '..');
-const roots = [path.join(root, 'frontend/src'), path.join(root, 'packages/sdk')];
+const roots = [
+  path.join(root, 'frontend/src'),
+  path.join(root, 'packages/sdk'),
+  // The phone app's shell (ADR 0044).
+  path.join(root, 'mobile/app/src'),
+];
 const modules = readdirSync(path.join(root, 'modules')).filter((name) =>
   statSync(path.join(root, 'modules', name)).isDirectory(),
 );

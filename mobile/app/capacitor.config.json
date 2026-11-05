@@ -1,0 +1,9 @@
+{
+  "appId": "be.toolbox.app",
+  "appName": "ToolBox",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": false,
+    "webContentsDebuggingEnabled": false
+  }
+}
