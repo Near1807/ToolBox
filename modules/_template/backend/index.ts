@@ -1,9 +1,9 @@
 // Backend of the template module. Copy the whole folder to create a new module
 // (see docs/AJOUTER-UN-MODULE.md). Everything a module needs comes from `ctx`;
-// a module never imports another module or the hub core.
-import { writeFileSync } from 'node:fs';
-import path from 'node:path';
-import { defineBackendModule, HttpError, stripCommand } from '@hub/sdk/backend';
+// a module never imports another module or the hub core. Portable by default
+// (ADR 0044): only @hub/sdk/core, no Node import, files through ctx.files, so
+// that a module copied from here can also run on the phone.
+import { defineBackendModule, HttpError, stripCommand } from '@hub/sdk/core';
 
 interface NoteRow {
   id: number;
@@ -67,8 +67,8 @@ export default defineBackendModule({
       const note = ctx.db.prepare(`SELECT * FROM ${notes} WHERE id = ?`).get(Number(id)) as
         NoteRow | undefined;
       if (!note) throw new HttpError(404, 'Note introuvable');
-      const file = path.join(ctx.files.outputDir(), `Note ${note.id}.txt`);
-      writeFileSync(file, `${note.text}\n`);
+      const file = ctx.files.outputPath(`Note ${note.id}.txt`);
+      ctx.files.writeFile(file, `${note.text}\n`);
       // `subject`: the project the file belongs to (mandatory). Here the note itself;
       // in the Music section it is the track: `music-library:track:<id>`.
       return ctx.outputs.register({

@@ -67,7 +67,7 @@ Proposé par l'audit v0.19.0 (à décider, une session chacun ; détail dans `do
 
 ## Plus tard (hors V1, la structure doit le permettre)
 
-- **Version Android synchronisée** avec le PC sur le réseau local (ADR 0044, acceptée) : étapes 1 (étude) et 2 (cœur partagé, v0.29.1) faites ; restent 3 (coquille Android + To-do, essai OPFS sur le S21), 4 (autres modules), 5 (synchro LAN).
+- **Version Android synchronisée** avec le PC sur le réseau local (ADR 0044, acceptée) : étapes 1 (étude), 2 (cœur partagé, v0.29.1) et 3a (appli d'essai OPFS et chaîne Android, v0.29.2) faites ; **en attente : l'essai sur le S21** ; restent 3b (coquille Android + To-do, seulement si l'essai réussit), 4 (autres modules), 5 (synchro LAN).
 - **Calendrier général** : interroge toutes les sources `ctx.calendar` (`GET /api/core/calendar`, MODULES.md §5.17). Déjà branchés : Sport, Courses. À brancher : Planning de sortie, To-do (échéances), Timer (sessions).
 - **Sport** : tags par séance, statistiques par type de séance et par exercice.
 - **Courses** : arrondi « à l'achat » (paquets), prix des extras, assistant sur la nutrition et le coût.

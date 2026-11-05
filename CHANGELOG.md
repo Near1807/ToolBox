@@ -4,6 +4,20 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.29.2] — 2026-11-05
+
+Session « Version téléphone, étape 3a : appli d'essai OPFS + chaîne Android ». **Aucun changement visible dans l'app PC.**
+
+### Modifié (interne)
+
+- Les modules sont **portables par défaut** : le modèle `_template` n'importe plus que `@hub/sdk/core` ; ESLint refuse aussi les globaux de Node (`Buffer`, `process`, `global`, `__dirname`, `__filename`, `require`) dans tout module hors musique et assistant (`PC_ONLY_MODULES`).
+- `ctx.files.outputPath(...)` ; `ctx.files.writeFile` accepte aussi le dossier de sortie du module.
+
+### Ajouté (hors de l'app PC)
+
+- `mobile/probe/` : appli d'essai Android (`be.toolbox.probe`) qui vérifie que SQLite WebAssembly + OPFS (VFS opfs-sahpool) garde les données dans le WebView de Capacitor 8.
+- `.github/workflows/android-probe.yml` (APK d'essai, versionCode 1 et 2) et `android-keystore.yml` (clé de signature de la future appli, archive chiffrée, à lancer une seule fois par Thomas).
+
 ## [0.29.1] — 2026-11-05
 
 Session « Version téléphone, étape 2 : cœur partagé sur le PC ». **Réorganisation interne, aucun changement visible** : mêmes écrans, mêmes résultats, mêmes fichiers, mêmes données, aucune migration.

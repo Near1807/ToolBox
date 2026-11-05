@@ -3,3 +3,5 @@ dist/
 node_modules/
 package-lock.json
 CHANGELOG.md
+mobile/probe/android/
+mobile/probe/package-lock.json

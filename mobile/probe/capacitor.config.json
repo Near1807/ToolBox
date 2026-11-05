@@ -1,0 +1,9 @@
+{
+  "appId": "be.toolbox.probe",
+  "appName": "ToolBox essai",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": false,
+    "webContentsDebuggingEnabled": false
+  }
+}

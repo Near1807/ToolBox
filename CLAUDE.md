@@ -69,6 +69,7 @@ modules/         un dossier par module ; _template/ = module modèle (exemple, c
 scripts/         dev, build (esbuild + découverte des modules), smoke test, vérification native, captures du guide intégré
 tests/           tests Vitest du socle
 docs/            ARCHITECTURE, MODULES (contrat), AJOUTER-UN-MODULE, DIRECTION-ARTISTIQUE (visuels générés), THEMES (interface), ROADMAP, WINDOWS, decisions/ (ADR), rapports/ (rapport de fin de session)
+mobile/probe/    appli d'essai Android (SQLite WebAssembly + OPFS sous Capacitor, ADR 0044 étape 3a) : projet à part, jamais dans le .exe ; APK par .github/workflows/android-probe.yml
 site/            site public statique (accueil + confidentialité, exigés par Google OAuth), publié par GitHub Pages depuis hub-v1
 ```
 
@@ -89,7 +90,7 @@ site/            site public statique (accueil + confidentialité, exigés par G
 - `dependencies` = uniquement ce que le process principal charge à l'exécution sans le bundler (natif, binaires, Fastify). Tout ce qui est bundlé (React, zod, yazl…) va en `devDependencies`.
 - Tout appel API passe par `/api/...` avec l'en-tête `x-toolbox-token`. Les routes SSE (EventSource) utilisent un ticket à usage unique (`POST /api/core/stream-tickets`, puis `?ticket=`) et déclarent `streamTicket: true`.
 - Le backend n'importe jamais `electron` : il passe par `HostAdapter`.
-- **Modules du téléphone** (Courses, Sport, To-do, Timer, Boîte à idées, ADR 0044) : leur code n'importe que `@hub/sdk/core`, jamais Node, Electron, Fastify ni un natif ; fichiers et images par `ctx.files` / `ctx.images`, identifiants par `newId()`. ESLint le vérifie. Les modules de musique et l'assistant ne sont pas concernés. `docs/MODULES.md` §4.
+- **Modules du téléphone** (Courses, Sport, To-do, Timer, Boîte à idées, ADR 0044) et **tout nouveau module** (portable par défaut, comme `_template`) : leur code n’importe que `@hub/sdk/core`, jamais Node, Electron, Fastify ni un natif, et n’utilise aucun global de Node (`Buffer`, `process`…) ; fichiers et images par `ctx.files` / `ctx.images`, identifiants par `newId()`. ESLint le vérifie. Seuls les modules de musique et l’assistant (`PC_ONLY_MODULES`) ne sont pas concernés. `docs/MODULES.md` §4.
 - Données utilisateur uniquement sous `userData`, jamais dans le dossier d'installation.
 - **Tout fichier généré passe par `ctx.outputs` et est supprimable depuis l'interface** (Corbeille, sélection multiple, « Fichier introuvable »). `docs/MODULES.md` §5.13.
 - **Tout est lié à un projet** : `subject` est obligatoire dans `ctx.outputs.register` ; en Musique, c'est le morceau source (`music-library:track:<id>`). La page du morceau est la vue projet (état généré / planifié / programmé / publié, case « Inclure dans la sortie » lue par le Planning). Éléments sans projet : section « Sans projet » de la Bibliothèque (rattacher ou supprimer) ; tout module qui enregistre des fichiers déclare `ctx.outputs.onReattach` pour déplacer ses propres lignes. ADR 0022, 0025.
