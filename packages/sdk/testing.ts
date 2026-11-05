@@ -189,3 +189,12 @@ export function dumpTables(dataDir: string, prefix: string): Record<string, unkn
 
 /** The PC implementation of `ctx.images.normalise` (tests of a module's image options). */
 export { normaliseImage } from '../../backend/core/images';
+
+/** The phone's stack under Node (sqlite-wasm, phone host): see ./testing-phone.ts. */
+export {
+  dumpWasmTables,
+  openWasmDatabase,
+  phoneRequest,
+  PhoneHub,
+  UnavailableOnPhoneError,
+} from './testing-phone';

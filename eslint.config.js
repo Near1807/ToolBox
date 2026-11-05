@@ -29,6 +29,20 @@ export const PC_ONLY_MODULES = [
   'youtube-video',
 ];
 const isPortableModule = (folder) => Boolean(folder) && !PC_ONLY_MODULES.includes(folder);
+/** Code of the core that the phone's Worker runs too (packages/phone and what it reuses). */
+export const PHONE_SHARED_FILES = [
+  'packages/phone/**/*.ts',
+  'packages/sdk/core.ts',
+  'packages/sdk/sync.ts',
+  'packages/sdk/manifest.ts',
+  'backend/core/migrations-core.ts',
+  'backend/core/core-migrations.ts',
+  'backend/core/settings-validation.ts',
+  'backend/core/legacy-id-core.ts',
+  'backend/core/services.ts',
+  'backend/core/calendar.ts',
+  'backend/core/modules/dependencies.ts',
+];
 /** Node globals a portable module never uses (they do not exist in the phone's Worker). */
 const NODE_GLOBALS = ['Buffer', 'process', 'global', '__dirname', '__filename', 'require'];
 const PC_ONLY_PACKAGES = [
@@ -193,6 +207,38 @@ export default tseslint.config(
         ...NODE_GLOBALS.map((name) => ({
           name,
           message: `« ${name} » est un global de Node : ce module tourne aussi sur le téléphone (ADR 0044), il passe par ctx ou @hub/sdk/core.`,
+        })),
+      ],
+    },
+  },
+  {
+    // Code that runs in the phone's Worker (ADR 0044): the phone host and the
+    // portable parts of the core it reuses. No Node import, no Node global.
+    files: PHONE_SHARED_FILES,
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                'node:*',
+                ...builtinModules,
+                'electron',
+                'fastify',
+                'better-sqlite3',
+                '@napi-rs/*',
+              ],
+              message: 'Ce code tourne aussi sur le téléphone (ADR 0044) : aucun import du PC.',
+            },
+          ],
+        },
+      ],
+      'no-restricted-globals': [
+        'error',
+        ...NODE_GLOBALS.map((name) => ({
+          name,
+          message: `« ${name} » est un global de Node : ce code tourne aussi sur le téléphone (ADR 0044).`,
         })),
       ],
     },

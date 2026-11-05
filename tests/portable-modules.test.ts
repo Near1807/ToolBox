@@ -88,4 +88,17 @@ describe('portable modules (ESLint)', () => {
       ),
     ).toEqual([]);
   });
+
+  it('the code the phone shares with the PC: no Node import, no Node global', async () => {
+    for (const file of ['packages/phone/x.ts', 'backend/core/migrations-core.ts']) {
+      const [result] = await eslint.lintText(
+        "import { readFileSync } from 'node:fs';\nexport const a = [readFileSync, Buffer];\n",
+        { filePath: path.join(root, file) },
+      );
+      expect(result!.messages.map((m) => m.ruleId).sort(), file).toEqual([
+        'no-restricted-globals',
+        'no-restricted-imports',
+      ]);
+    }
+  });
 });

@@ -2,6 +2,7 @@
 // existing modules on Thomas's PC; a new installation, like the phone's, has
 // no numbered row to convert).
 import { createHash } from 'node:crypto';
+import { legacyKey, legacyUuidFromHash } from './legacy-id-core';
 
 /**
  * The UUID given to a row that had a number before (« Prêt pour la synchro »
@@ -13,7 +14,9 @@ import { createHash } from 'node:crypto';
  * (RFC 9562: built by the application), never equal to a random v4 one.
  */
 export function legacyUuid(seed: string, kind: string, oldId: number): string {
-  const hex = createHash('sha256').update(`${seed}|${kind}|${oldId}`).digest('hex').slice(0, 32);
-  const variant = ((parseInt(hex[16]!, 16) & 0x3) | 0x8).toString(16);
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-8${hex.slice(13, 16)}-${variant}${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+  return legacyUuidFromHash(
+    createHash('sha256')
+      .update(legacyKey(seed, kind, oldId))
+      .digest('hex'),
+  );
 }
