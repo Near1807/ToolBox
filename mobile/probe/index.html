@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>ToolBox essai</title>
+  </head>
+  <body>
+    <main>
+      <h1>ToolBox — appli d’essai</h1>
+      <p class="lead">
+        Vérifie que les données restent sur le téléphone (SQLite + OPFS). Aucune donnée personnelle
+        : seulement des lignes d’essai.
+      </p>
+      <p id="status" class="status">Ouverture de la base…</p>
+      <section class="big">
+        <span class="label">Lancements enregistrés</span>
+        <span id="launches" class="value">—</span>
+      </section>
+      <div class="buttons">
+        <button id="write" type="button" disabled>Écrire 1 000 lignes</button>
+        <button id="read" type="button" disabled>Tout relire</button>
+        <button id="copy" type="button" class="primary">Copier le rapport</button>
+      </div>
+      <p id="copied" class="hint" aria-live="polite"></p>
+      <textarea id="report" rows="12" readonly hidden></textarea>
+      <table id="details"></table>
+    </main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

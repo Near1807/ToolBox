@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">ToolBox essai</string>
+    <string name="title_activity_main">ToolBox essai</string>
+    <string name="package_name">be.toolbox.probe</string>
+    <string name="custom_url_scheme">be.toolbox.probe</string>
+</resources>

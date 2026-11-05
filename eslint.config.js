@@ -134,9 +134,28 @@ const moduleBoundaries = {
 };
 
 export default tseslint.config(
-  { ignores: ['build/', 'dist/', 'node_modules/', 'coverage/'] },
+  {
+    ignores: [
+      'build/',
+      'dist/',
+      'node_modules/',
+      'coverage/',
+      // Probe app (ADR 0044, step 3a): its build and the generated Android project.
+      'mobile/probe/dist/',
+      'mobile/probe/android/',
+    ],
+  },
   js.configs.recommended,
   ...tseslint.configs.recommended,
+  {
+    // Probe app: a page and its Worker (browser), its Vite config (Node).
+    files: ['mobile/probe/src/**/*.js'],
+    languageOptions: { globals: { ...globals.browser, ...globals.worker } },
+  },
+  {
+    files: ['mobile/probe/*.js'],
+    languageOptions: { globals: globals.node },
+  },
   {
     files: ['scripts/**/*.mjs', '*.js'],
     languageOptions: { globals: globals.node },

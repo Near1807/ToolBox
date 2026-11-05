@@ -1,0 +1,21 @@
+{
+  "name": "toolbox-probe",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Appli d'essai Android : SQLite WebAssembly + OPFS (opfs-sahpool) dans un Worker, sous Capacitor (ADR 0044, étape 3a). Pas livrée dans l'app PC.",
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "preview": "vite preview --port 4173 --strictPort"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.5.3",
+    "@capacitor/app": "8.1.2",
+    "@capacitor/core": "8.5.3",
+    "@sqlite.org/sqlite-wasm": "3.54.1-build1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.3",
+    "vite": "8.3.4"
+  }
+}
