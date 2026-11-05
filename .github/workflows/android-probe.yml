@@ -51,6 +51,10 @@ jobs:
           java-version: 21
 
       - uses: android-actions/setup-android@v3
+        with:
+          # The default (« tools platform-tools ») asks for « tools », which no
+          # longer exists; the SDK platforms and build tools are fetched by Gradle.
+          packages: platform-tools
 
       - name: Install dependencies (pinned versions)
         run: npm ci
