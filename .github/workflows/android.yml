@@ -118,11 +118,17 @@ jobs:
           KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           TOOLBOX_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           TOOLBOX_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          TOOLBOX_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           umask 077
           export TOOLBOX_KEYSTORE_FILE="$RUNNER_TEMP/toolbox-release.jks"
           printf '%s' "$KEYSTORE" | base64 -d > "$TOOLBOX_KEYSTORE_FILE"
+          # The key was made as PKCS12 (android-keystore.yml): ONE password for the
+          # store and the key. The store's is used for both (no value is printed).
+          if [ "$KEY_PASSWORD" != "$TOOLBOX_KEYSTORE_PASSWORD" ]; then
+            echo "::warning::ANDROID_KEY_PASSWORD diffère de ANDROID_KEYSTORE_PASSWORD. La clé (PKCS12) n'a qu'un mot de passe : celui du magasin est utilisé. Remets dans ANDROID_KEY_PASSWORD le même mot de passe (LISEZ-MOI.txt)."
+          fi
+          export TOOLBOX_KEY_PASSWORD="$TOOLBOX_KEYSTORE_PASSWORD"
           ./gradlew assembleRelease --no-daemon --stacktrace \
             -PtoolboxVersionCode=${{ steps.version.outputs.code }} \
             -PtoolboxVersionName=${{ steps.version.outputs.name }}
