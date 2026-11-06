@@ -4,6 +4,9 @@
 // bottom bar, or behind « Plus ».
 import type { ComponentType } from 'react';
 import type { FrontendModule, ModuleManifest } from '@hub/sdk/frontend';
+import coursesFrontend from '../../../modules/courses/frontend/index';
+import coursesManifest from '../../../modules/courses/module.json';
+import '../../../modules/courses/frontend/courses.mobile.css';
 import ideasFrontend from '../../../modules/ideas/frontend/index';
 import ideasManifest from '../../../modules/ideas/module.json';
 import '../../../modules/ideas/frontend/ideas.mobile.css';
@@ -28,6 +31,7 @@ export interface PageModule {
 
 /** In the order of the bottom bar: Courses, To-do, Sport; then Boîte à idées, Timer behind « Plus ». */
 export const PAGE_MODULES: PageModule[] = [
+  { manifest: coursesManifest as ModuleManifest, frontend: coursesFrontend, place: 'bar' },
   { manifest: todoManifest as ModuleManifest, frontend: todoFrontend, place: 'bar' },
   { manifest: sportManifest as ModuleManifest, frontend: sportFrontend, place: 'bar' },
   { manifest: ideasManifest as ModuleManifest, frontend: ideasFrontend, place: 'more' },

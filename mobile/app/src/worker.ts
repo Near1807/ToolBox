@@ -16,6 +16,8 @@ import {
 } from '../../../packages/phone/transport';
 import { countBase, needsCopyBeforeMigration } from '../../../packages/phone/backup';
 import { SERVER_MODULES } from './server-modules';
+import { normaliseImageWeb } from '../../../packages/phone/images';
+import { OpfsFileStore } from './opfs-files';
 
 /** The base: one file in the pool of the app (its name never changes). */
 const POOL = 'toolbox';
@@ -68,12 +70,21 @@ const HOST = {
   notify: () => undefined,
   // Without effect: no floating window on the phone.
   setOverlay: () => undefined,
+  // The modules' data folders, in OPFS (loaded at start).
+  files: new OpfsFileStore(),
+  // Recipe pictures: decoded and re-encoded by the browser (OffscreenCanvas).
+  normaliseImage: normaliseImageWeb,
 };
+let filesLoaded = false;
 
 /** Open event streams (by the page's number): their close functions. */
 const streams = new Map<number, () => void>();
 
 async function runHub(o: Open): Promise<void> {
+  if (!filesLoaded) {
+    await HOST.files.load();
+    filesLoaded = true;
+  }
   o.hub = await PhoneHub.start({ db: o.db, modules: SERVER_MODULES, host: HOST });
   o.pending = [];
 }
@@ -90,7 +101,12 @@ async function answer(call: WorkerCall): Promise<unknown> {
   switch (call.kind) {
     case 'request':
       if (!open.hub) throw new Error('La mise à jour des données attend sa copie de sauvegarde.');
-      return open.hub.handle(call.request);
+      {
+        const answer = await open.hub.handle(call.request);
+        // An answered change is on disk: its files too (pictures).
+        await HOST.files.flush();
+        return answer;
+      }
     case 'status':
       return {
         absent: open.absent,

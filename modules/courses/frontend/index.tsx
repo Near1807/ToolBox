@@ -23,6 +23,7 @@ import {
   UndoToast,
   useApi,
   useModule,
+  onPhone,
 } from '@hub/sdk/frontend';
 import { addDays, daysBetween, mondayOf, WEEKDAYS, weekdayOf } from '../shared/dates';
 import { fold, UNITS } from '../shared/quantities';
@@ -306,7 +307,7 @@ function PlanSlot(props: {
   );
   const names = new Map(props.state.meals.map((m) => [m.id, m.name]));
   return (
-    <td className="cs-slot">
+    <td className="cs-slot" data-label={props.moment.name}>
       {entries.map((p) => (
         <span key={p.id} className="cs-entry">
           <button
@@ -782,6 +783,8 @@ function MealImageField(props: {
 }) {
   const module = useModule();
   const input = useRef<HTMLInputElement>(null);
+  // The phone's camera (the gallery is the other button).
+  const camera = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
   const [busy, setBusy] = useState(false);
   const pendingUrl = useMemo(
@@ -817,12 +820,26 @@ function MealImageField(props: {
       </span>
       <span className="cs-image-field__actions">
         <span className="small muted">
-          {busy ? 'Image en cours…' : 'Glisse une image ici (JPEG, PNG, WebP), ou :'}
+          {busy
+            ? 'Image en cours…'
+            : onPhone()
+              ? 'Une photo de la galerie ou prise maintenant :'
+              : 'Glisse une image ici (JPEG, PNG, WebP), ou :'}
         </span>
         <span className="ui-actions">
           <Button small variant="secondary" disabled={busy} onClick={() => input.current?.click()}>
             {shown ? 'Remplacer l’image…' : 'Choisir une image…'}
           </Button>
+          {onPhone() && (
+            <Button
+              small
+              variant="secondary"
+              disabled={busy}
+              onClick={() => camera.current?.click()}
+            >
+              Prendre une photo…
+            </Button>
+          )}
           {props.pending && (
             <Button small variant="secondary" onClick={() => props.onPending(null)}>
               Retirer
@@ -835,7 +852,7 @@ function MealImageField(props: {
               disabled={busy}
               onClick={() =>
                 window.confirm(
-                  `Retirer l’image de « ${props.meal!.name} » ?\n\nLe fichier part dans la Corbeille.`,
+                  `Retirer l’image de « ${props.meal!.name} » ?\n\n${onPhone() ? 'Elle est supprimée du téléphone.' : 'Le fichier part dans la Corbeille.'}`,
                 ) && void props.run(() => module.api.delete(`/meals/${props.meal!.id}/image`))
               }
             >
@@ -844,7 +861,8 @@ function MealImageField(props: {
           )}
         </span>
         <span className="small muted">
-          Copiée dans ToolBox et réduite (1 200 px, JPEG) : le fichier d’origine ne bouge pas.
+          Copiée dans ToolBox et réduite (1 200 px, JPEG) : {onPhone() ? 'la photo' : 'le fichier'}{' '}
+          d’origine ne bouge pas.
         </span>
       </span>
       <input
@@ -857,6 +875,19 @@ function MealImageField(props: {
           e.target.value = '';
         }}
       />
+      {onPhone() && (
+        <input
+          ref={camera}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="cs-file"
+          onChange={(e) => {
+            take(e.target.files?.[0]);
+            e.target.value = '';
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -2316,246 +2347,258 @@ function Exchange(props: { run: Run }) {
   );
   return (
     <>
-      <Card title="Importer des ingrédients et des recettes (JSON)">
-        <p className="small muted">
-          Rien n’est écrit avant « Importer » : d’abord un aperçu. Les éléments déjà là ne sont
-          changés que si tu les coches. Une sauvegarde de la base est faite juste avant.
-        </p>
-        <div className="cs-row">
-          <label className="button button--secondary button--small">
-            Choisir un fichier…
-            <input
-              type="file"
-              accept=".json,application/json"
-              className="cs-file"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-                setFileName(file.name);
-                void file.text().then((t) => {
-                  setText(t);
-                  look(t);
-                });
-                e.target.value = '';
-              }}
-            />
-          </label>
-          {fileName && <span className="small muted">{fileName}</span>}
-          <Button small variant="secondary" onClick={() => setShowHelp(!showHelp)}>
-            {showHelp ? 'Masquer le format' : 'Format du fichier (aide)'}
-          </Button>
-          <Button
-            small
-            variant="secondary"
-            onClick={() =>
-              void props.run(async () => {
-                const r = await module.api.post<{ path?: string }>('/example-json');
-                setNotice(r.path ? `Exemple enregistré : ${r.path}` : 'Enregistrement annulé.');
-              })
-            }
-          >
-            Télécharger l’exemple…
-          </Button>
-        </div>
-        <textarea
-          className="input"
-          rows={4}
-          value={text}
-          placeholder="…ou colle ici le contenu JSON"
-          aria-label="Contenu JSON"
-          onChange={(e) => {
-            setText(e.target.value);
-            setPreview(null);
-          }}
-        />
-        <div className="ui-actions">
-          <Button small variant="secondary" disabled={!text.trim()} onClick={() => look(text)}>
-            Voir l’aperçu
-          </Button>
-        </div>
-        {notice && <p className="small">{notice}</p>}
-        {preview && (
-          <div className="cs-preview">
-            <p className="small">
-              <strong>Aperçu</strong> · ingrédients : {count('new')} à ajouter, {count('same')} déjà
-              là (identiques), {count('differs')} à fusionner · recettes : {recipes('new')} à
-              ajouter, {recipes('same')} identiques, {recipes('differs')} différentes ·{' '}
-              {preview.preparations.length > 0 &&
-                `préparations : ${preps('new')} à ajouter, ${preps('same')} identiques, ${preps('differs')} à fusionner · `}
-              {preview.errors.length} erreur{preview.errors.length > 1 ? 's' : ''}
+      {onPhone() ? (
+        <Card title="Importer">
+          <p>
+            L’import d’un fichier JSON se fait sur le PC (il y fait d’abord une sauvegarde de la
+            base). Sur le téléphone, tu peux exporter.
+          </p>
+        </Card>
+      ) : (
+        <>
+          <Card title="Importer des ingrédients et des recettes (JSON)">
+            <p className="small muted">
+              Rien n’est écrit avant « Importer » : d’abord un aperçu. Les éléments déjà là ne sont
+              changés que si tu les coches. Une sauvegarde de la base est faite juste avant.
             </p>
-            {preview.errors.length > 0 && (
-              <ul className="cs-errors small">
-                {preview.errors.map((e, i) => (
-                  <li key={i}>
-                    {e.line !== null ? `Ligne ${e.line} — ` : ''}
-                    {e.where} : {e.message} <span className="muted">(ignoré)</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {preview.warnings.length > 0 && (
-              <ul className="cs-warnings small">
-                {preview.warnings.map((e, k) => (
-                  <li key={k}>
-                    {e.line !== null ? `Ligne ${e.line} — ` : ''}
-                    {e.where} : {e.message}
-                  </li>
-                ))}
-              </ul>
-            )}
-            {count('differs') > 0 && (
-              <fieldset className="cs-choices">
-                <legend className="small">
-                  Ingrédients déjà là avec d’autres valeurs : cocher pour remplacer par celles du
-                  fichier (sinon gardés tels quels)
-                </legend>
-                {preview.ingredients
-                  .filter((i) => i.status === 'differs')
-                  .map((i) => (
-                    <label key={i.name} className="small">
-                      <input
-                        type="checkbox"
-                        checked={overwrite.has(i.name)}
-                        onChange={() => toggle(overwrite, setOverwrite, i.name)}
-                      />{' '}
-                      <strong>{i.name}</strong>{' '}
-                      <span className="muted">({i.changes.join(' ; ')})</span>
-                    </label>
-                  ))}
-              </fieldset>
-            )}
-            {preps('differs') > 0 && (
-              <fieldset className="cs-choices">
-                <legend className="small">
-                  Préparations déjà là, différentes : cocher pour remplacer par celles du fichier
-                </legend>
-                {preview.preparations
-                  .filter((r) => r.status === 'differs')
-                  .map((r) => (
-                    <label key={r.name} className="small">
-                      <input
-                        type="checkbox"
-                        checked={overwritePreps.has(r.name)}
-                        onChange={() => toggle(overwritePreps, setOverwritePreps, r.name)}
-                      />{' '}
-                      <strong>{r.name}</strong>{' '}
-                      <span className="muted">({r.changes.join(' ; ')})</span>
-                      {r.usedBy.length > 0 && (
-                        <span className="cs-batch-warning">
-                          {' '}
-                          — utilisée par {r.usedBy.join(', ')} : leurs apports et listes de courses
-                          vont changer
-                        </span>
-                      )}
-                    </label>
-                  ))}
-              </fieldset>
-            )}
-            {recipes('differs') > 0 && (
-              <fieldset className="cs-choices">
-                <legend className="small">
-                  Recettes déjà là, différentes : cocher pour remplacer
-                </legend>
-                {preview.recipes
-                  .filter((r) => r.status === 'differs')
-                  .map((r) => (
-                    <label key={r.name} className="small">
-                      <input
-                        type="checkbox"
-                        checked={replace.has(r.name)}
-                        onChange={() => toggle(replace, setReplace, r.name)}
-                      />{' '}
-                      <strong>{r.name}</strong>{' '}
-                      <span className="muted">({r.changes.join(' ; ')})</span>
-                    </label>
-                  ))}
-              </fieldset>
-            )}
-            {preview.toCreate.length > 0 && (
-              <fieldset className="cs-choices">
-                <legend className="small">
-                  Ingrédients des recettes absents du catalogue : à créer ? (décoché = la recette
-                  qui l’utilise n’est pas importée)
-                </legend>
-                {preview.toCreate.map((c) => (
-                  <label key={c.name} className="small">
-                    <input
-                      type="checkbox"
-                      checked={create.has(c.name)}
-                      onChange={() => toggle(create, setCreate, c.name)}
-                    />{' '}
-                    {c.name} <span className="muted">({c.unit})</span>
-                  </label>
-                ))}
-              </fieldset>
-            )}
-            {skipped.length > 0 && (
-              <p className="small muted">
-                Non importées : {skipped.map((r) => r.name).join(', ')}.
-              </p>
-            )}
-            <div className="ui-actions">
-              <Button
-                disabled={
-                  count('new') +
-                    count('differs') +
-                    recipes('new') +
-                    recipes('differs') +
-                    preps('new') +
-                    preps('differs') ===
-                  0
-                }
-                onClick={() => {
-                  const changes = overwrite.size + replace.size + overwritePreps.size;
-                  const affected = [
-                    ...new Set(
-                      preview.preparations
-                        .filter((r) => overwritePreps.has(r.name))
-                        .flatMap((r) => r.usedBy),
-                    ),
-                  ];
-                  if (
-                    changes > 0 &&
-                    !window.confirm(
-                      `Remplacer ${changes} élément${changes > 1 ? 's' : ''} déjà là par les valeurs du fichier ?${affected.length ? `\n\nPréparations utilisées : les apports et listes de courses de ${affected.join(', ')} vont changer.` : ''}\n\nUne sauvegarde de la base est faite avant.`,
-                    )
-                  )
-                    return;
-                  void props.run(async () => {
-                    const r = await module.api.post<{
-                      ingredientsAdded: number;
-                      ingredientsUpdated: number;
-                      ingredientsCreated: number;
-                      recipesAdded: number;
-                      recipesReplaced: number;
-                      recipesSkipped: string[];
-                      prepsAdded: number;
-                      prepsReplaced: number;
-                      prepsSkipped: string[];
-                      backup: string;
-                      imagesAdded: number;
-                      imageWarnings: string[];
-                    }>('/import/apply', {
-                      text,
-                      overwrite: [...overwrite],
-                      replaceRecipes: [...replace],
-                      overwritePreps: [...overwritePreps],
-                      create: [...create],
+            <div className="cs-row">
+              <label className="button button--secondary button--small">
+                Choisir un fichier…
+                <input
+                  type="file"
+                  accept=".json,application/json"
+                  className="cs-file"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setFileName(file.name);
+                    void file.text().then((t) => {
+                      setText(t);
+                      look(t);
                     });
-                    setPreview(null);
-                    setNotice(
-                      `Importé : ${r.ingredientsAdded + r.ingredientsCreated} ingrédient(s) ajouté(s), ${r.ingredientsUpdated} remplacé(s), ${r.recipesAdded} recette(s) ajoutée(s), ${r.recipesReplaced} remplacée(s), ${r.prepsAdded} préparation(s) ajoutée(s), ${r.prepsReplaced} remplacée(s)${r.prepsSkipped.length ? `, préparations non importées : ${r.prepsSkipped.join(', ')}` : ''}${r.recipesSkipped.length ? `, non importées : ${r.recipesSkipped.join(', ')}` : ''}. ${r.imagesAdded ? ` ${r.imagesAdded} image(s).` : ''}${r.imageWarnings.length ? ` Images ignorées : ${r.imageWarnings.join(' ; ')}.` : ''} Sauvegarde avant import : ${r.backup}.`,
-                    );
-                  });
-                }}
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+              {fileName && <span className="small muted">{fileName}</span>}
+              <Button small variant="secondary" onClick={() => setShowHelp(!showHelp)}>
+                {showHelp ? 'Masquer le format' : 'Format du fichier (aide)'}
+              </Button>
+              <Button
+                small
+                variant="secondary"
+                onClick={() =>
+                  void props.run(async () => {
+                    const r = await module.api.post<{ path?: string }>('/example-json');
+                    setNotice(r.path ? `Exemple enregistré : ${r.path}` : 'Enregistrement annulé.');
+                  })
+                }
               >
-                Importer
+                Télécharger l’exemple…
               </Button>
             </div>
-          </div>
-        )}
-      </Card>
+            <textarea
+              className="input"
+              rows={4}
+              value={text}
+              placeholder="…ou colle ici le contenu JSON"
+              aria-label="Contenu JSON"
+              onChange={(e) => {
+                setText(e.target.value);
+                setPreview(null);
+              }}
+            />
+            <div className="ui-actions">
+              <Button small variant="secondary" disabled={!text.trim()} onClick={() => look(text)}>
+                Voir l’aperçu
+              </Button>
+            </div>
+            {notice && <p className="small">{notice}</p>}
+            {preview && (
+              <div className="cs-preview">
+                <p className="small">
+                  <strong>Aperçu</strong> · ingrédients : {count('new')} à ajouter, {count('same')}{' '}
+                  déjà là (identiques), {count('differs')} à fusionner · recettes : {recipes('new')}{' '}
+                  à ajouter, {recipes('same')} identiques, {recipes('differs')} différentes ·{' '}
+                  {preview.preparations.length > 0 &&
+                    `préparations : ${preps('new')} à ajouter, ${preps('same')} identiques, ${preps('differs')} à fusionner · `}
+                  {preview.errors.length} erreur{preview.errors.length > 1 ? 's' : ''}
+                </p>
+                {preview.errors.length > 0 && (
+                  <ul className="cs-errors small">
+                    {preview.errors.map((e, i) => (
+                      <li key={i}>
+                        {e.line !== null ? `Ligne ${e.line} — ` : ''}
+                        {e.where} : {e.message} <span className="muted">(ignoré)</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {preview.warnings.length > 0 && (
+                  <ul className="cs-warnings small">
+                    {preview.warnings.map((e, k) => (
+                      <li key={k}>
+                        {e.line !== null ? `Ligne ${e.line} — ` : ''}
+                        {e.where} : {e.message}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {count('differs') > 0 && (
+                  <fieldset className="cs-choices">
+                    <legend className="small">
+                      Ingrédients déjà là avec d’autres valeurs : cocher pour remplacer par celles
+                      du fichier (sinon gardés tels quels)
+                    </legend>
+                    {preview.ingredients
+                      .filter((i) => i.status === 'differs')
+                      .map((i) => (
+                        <label key={i.name} className="small">
+                          <input
+                            type="checkbox"
+                            checked={overwrite.has(i.name)}
+                            onChange={() => toggle(overwrite, setOverwrite, i.name)}
+                          />{' '}
+                          <strong>{i.name}</strong>{' '}
+                          <span className="muted">({i.changes.join(' ; ')})</span>
+                        </label>
+                      ))}
+                  </fieldset>
+                )}
+                {preps('differs') > 0 && (
+                  <fieldset className="cs-choices">
+                    <legend className="small">
+                      Préparations déjà là, différentes : cocher pour remplacer par celles du
+                      fichier
+                    </legend>
+                    {preview.preparations
+                      .filter((r) => r.status === 'differs')
+                      .map((r) => (
+                        <label key={r.name} className="small">
+                          <input
+                            type="checkbox"
+                            checked={overwritePreps.has(r.name)}
+                            onChange={() => toggle(overwritePreps, setOverwritePreps, r.name)}
+                          />{' '}
+                          <strong>{r.name}</strong>{' '}
+                          <span className="muted">({r.changes.join(' ; ')})</span>
+                          {r.usedBy.length > 0 && (
+                            <span className="cs-batch-warning">
+                              {' '}
+                              — utilisée par {r.usedBy.join(', ')} : leurs apports et listes de
+                              courses vont changer
+                            </span>
+                          )}
+                        </label>
+                      ))}
+                  </fieldset>
+                )}
+                {recipes('differs') > 0 && (
+                  <fieldset className="cs-choices">
+                    <legend className="small">
+                      Recettes déjà là, différentes : cocher pour remplacer
+                    </legend>
+                    {preview.recipes
+                      .filter((r) => r.status === 'differs')
+                      .map((r) => (
+                        <label key={r.name} className="small">
+                          <input
+                            type="checkbox"
+                            checked={replace.has(r.name)}
+                            onChange={() => toggle(replace, setReplace, r.name)}
+                          />{' '}
+                          <strong>{r.name}</strong>{' '}
+                          <span className="muted">({r.changes.join(' ; ')})</span>
+                        </label>
+                      ))}
+                  </fieldset>
+                )}
+                {preview.toCreate.length > 0 && (
+                  <fieldset className="cs-choices">
+                    <legend className="small">
+                      Ingrédients des recettes absents du catalogue : à créer ? (décoché = la
+                      recette qui l’utilise n’est pas importée)
+                    </legend>
+                    {preview.toCreate.map((c) => (
+                      <label key={c.name} className="small">
+                        <input
+                          type="checkbox"
+                          checked={create.has(c.name)}
+                          onChange={() => toggle(create, setCreate, c.name)}
+                        />{' '}
+                        {c.name} <span className="muted">({c.unit})</span>
+                      </label>
+                    ))}
+                  </fieldset>
+                )}
+                {skipped.length > 0 && (
+                  <p className="small muted">
+                    Non importées : {skipped.map((r) => r.name).join(', ')}.
+                  </p>
+                )}
+                <div className="ui-actions">
+                  <Button
+                    disabled={
+                      count('new') +
+                        count('differs') +
+                        recipes('new') +
+                        recipes('differs') +
+                        preps('new') +
+                        preps('differs') ===
+                      0
+                    }
+                    onClick={() => {
+                      const changes = overwrite.size + replace.size + overwritePreps.size;
+                      const affected = [
+                        ...new Set(
+                          preview.preparations
+                            .filter((r) => overwritePreps.has(r.name))
+                            .flatMap((r) => r.usedBy),
+                        ),
+                      ];
+                      if (
+                        changes > 0 &&
+                        !window.confirm(
+                          `Remplacer ${changes} élément${changes > 1 ? 's' : ''} déjà là par les valeurs du fichier ?${affected.length ? `\n\nPréparations utilisées : les apports et listes de courses de ${affected.join(', ')} vont changer.` : ''}\n\nUne sauvegarde de la base est faite avant.`,
+                        )
+                      )
+                        return;
+                      void props.run(async () => {
+                        const r = await module.api.post<{
+                          ingredientsAdded: number;
+                          ingredientsUpdated: number;
+                          ingredientsCreated: number;
+                          recipesAdded: number;
+                          recipesReplaced: number;
+                          recipesSkipped: string[];
+                          prepsAdded: number;
+                          prepsReplaced: number;
+                          prepsSkipped: string[];
+                          backup: string;
+                          imagesAdded: number;
+                          imageWarnings: string[];
+                        }>('/import/apply', {
+                          text,
+                          overwrite: [...overwrite],
+                          replaceRecipes: [...replace],
+                          overwritePreps: [...overwritePreps],
+                          create: [...create],
+                        });
+                        setPreview(null);
+                        setNotice(
+                          `Importé : ${r.ingredientsAdded + r.ingredientsCreated} ingrédient(s) ajouté(s), ${r.ingredientsUpdated} remplacé(s), ${r.recipesAdded} recette(s) ajoutée(s), ${r.recipesReplaced} remplacée(s), ${r.prepsAdded} préparation(s) ajoutée(s), ${r.prepsReplaced} remplacée(s)${r.prepsSkipped.length ? `, préparations non importées : ${r.prepsSkipped.join(', ')}` : ''}${r.recipesSkipped.length ? `, non importées : ${r.recipesSkipped.join(', ')}` : ''}. ${r.imagesAdded ? ` ${r.imagesAdded} image(s).` : ''}${r.imageWarnings.length ? ` Images ignorées : ${r.imageWarnings.join(' ; ')}.` : ''} Sauvegarde avant import : ${r.backup}.`,
+                        );
+                      });
+                    }}
+                  >
+                    Importer
+                  </Button>
+                </div>
+              </div>
+            )}
+          </Card>
+        </>
+      )}
       <Card title="Exporter">
         <p className="small muted">
           Tous les ingrédients (avec poids d’une pièce, nutrition, prix) et toutes les recettes,
@@ -2666,7 +2709,7 @@ function CoursesPage() {
             aria-selected={tab === id}
             onClick={() => setParams({ tab: id })}
           >
-            {label}
+            {id === 'exchange' && onPhone() ? 'Exporter' : label}
           </button>
         ))}
       </nav>

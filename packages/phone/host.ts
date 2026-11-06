@@ -18,6 +18,8 @@ import {
   type ModuleSettings,
   type SettingField,
   type SettingValue,
+  type ImageOptions,
+  type StoredImage,
 } from '../sdk/core';
 import { CalendarRegistry } from '../../backend/core/calendar';
 import { coreMigrations } from '../../backend/core/core-migrations';
@@ -40,39 +42,10 @@ import { legacyKey, legacyUuidFromHash } from '../../backend/core/legacy-id-core
 import type { SqlDatabase } from './database';
 import { sha256Hex } from './sha256';
 import { PhoneRouter, type PhoneRequest, type PhoneResponse } from './router';
+import { phoneFiles, type FileStore } from './files';
+import { partly, unavailable, UnavailableOnPhoneError } from './unavailable';
 
-/** A capability of `ctx` the phone does not provide (yet). */
-export class UnavailableOnPhoneError extends Error {
-  constructor(what: string) {
-    super(`« ${what} » n’est pas disponible sur le téléphone.`);
-    this.name = 'UnavailableOnPhoneError';
-  }
-}
-
-/** Every member of this part of `ctx` throws the explicit error when used. */
-export function unavailable<T extends object>(name: string): T {
-  return new Proxy({} as T, {
-    get(_target, prop) {
-      // Not a member: what JavaScript itself asks (await, inspection).
-      if (typeof prop === 'symbol' || prop === 'then') return undefined;
-      throw new UnavailableOnPhoneError(`ctx.${name}.${prop}`);
-    },
-  });
-}
-
-/**
- * Like `unavailable`, but the members given are provided: the others throw
- * the explicit error (e.g. ctx.files with only saveAs on the phone).
- */
-export function partly<T extends object>(name: string, provided: Partial<T>): T {
-  return new Proxy(provided as T, {
-    get(target, prop) {
-      if (typeof prop === 'symbol' || prop === 'then') return undefined;
-      if (prop in target) return (target as Record<string, unknown>)[prop];
-      throw new UnavailableOnPhoneError(`ctx.${name}.${prop}`);
-    },
-  });
-}
+export { partly, unavailable, UnavailableOnPhoneError } from './unavailable';
 
 /**
  * What the phone provides through the PAGE (Android, via the Capacitor
@@ -97,6 +70,16 @@ export interface PhoneHostServices {
   notify?: (notification: { title: string; body: string; path?: string }) => void;
   /** ctx.ui.setOverlay. Absent: without effect (no floating window on the phone). */
   setOverlay?: (visible: boolean) => void;
+  /** The modules' data folders (OPFS in the app). Absent: ctx.files' data part unavailable. */
+  files?: FileStore;
+  /**
+   * ctx.db.backup. NOT given by the app: what needs it (the Courses' JSON
+   * import, « avant import ») stays on the PC. Only the tests give it, to
+   * replay a reference that builds its base through that import.
+   */
+  backupDb?: (reason: string) => string;
+  /** ctx.images.normalise (OffscreenCanvas in the app's Worker). Absent: unavailable. */
+  normaliseImage?: (input: Uint8Array, options: ImageOptions) => Promise<StoredImage>;
 }
 
 /** A module as the app bundles it: its manifest and its server code. */
@@ -416,8 +399,10 @@ export class PhoneHub {
         return this.options.db.prepare(sql);
       },
       transaction: (fn) => this.options.db.transaction(fn)(),
-      backup: () => {
-        throw new UnavailableOnPhoneError('ctx.db.backup');
+      backup: (reason) => {
+        const backup = this.options.host?.backupDb;
+        if (!backup) throw new UnavailableOnPhoneError('ctx.db.backup');
+        return backup(reason);
       },
     };
     // Without effect on the phone: actions are declared and ignored.
@@ -432,7 +417,7 @@ export class PhoneHub {
       id,
       manifest,
       db,
-      files: this.filesFor(),
+      files: phoneFiles(id, this.options.host?.files, this.saveAs()),
       outputs: unavailable('outputs'),
       settings: this.settings.forModule(id, (off) => disposers.push(off)),
       routes: routes.api,
@@ -449,7 +434,10 @@ export class PhoneHub {
       ui: partly<ModuleContext['ui']>('ui', {
         setOverlay: (visible) => this.setOverlay(id, visible),
       }),
-      images: unavailable('images'),
+      images: partly<ModuleContext['images']>(
+        'images',
+        this.options.host?.normaliseImage ? { normalise: this.options.host.normaliseImage } : {},
+      ),
       calendar: this.calendar.forModule(id, (off) => disposers.push(off)),
       binaries: unavailable('binaries'),
       logger,
@@ -489,15 +477,12 @@ export class PhoneHub {
     if (before !== after) this.options.host?.setOverlay?.(after);
   }
 
-  /** ctx.files on the phone: « Enregistrer sous » = Android's share sheet; the rest not yet. */
-  private filesFor(): ModuleContext['files'] {
-    const host = this.options.host;
-    const provided: Partial<ModuleContext['files']> = {};
-    if (host?.saveAs) {
-      const saveAs = host.saveAs;
-      provided.saveAs = (o) => saveAs({ title: o.title, defaultName: o.defaultName, data: o.data });
-    }
-    return partly('files', provided);
+  /** ctx.files.saveAs on the phone: Android's share sheet, through the page. */
+  private saveAs(): ModuleContext['files']['saveAs'] | undefined {
+    const saveAs = this.options.host?.saveAs;
+    return saveAs
+      ? (o) => saveAs({ title: o.title, defaultName: o.defaultName, data: o.data })
+      : undefined;
   }
 
   /** State of every module (loaded, failed…), in loading order. */

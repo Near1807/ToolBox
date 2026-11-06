@@ -199,4 +199,5 @@ export {
   UnavailableOnPhoneError,
   WorkerClient,
   workerTransport,
+  MemoryFileStore,
 } from './testing-phone';

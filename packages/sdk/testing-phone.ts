@@ -59,3 +59,4 @@ export async function phoneRequest<T>(
 
 export { PhoneHub, UnavailableOnPhoneError } from '../phone/host';
 export { WorkerClient, workerTransport } from '../phone/transport';
+export { MemoryFileStore } from '../phone/files';
