@@ -235,3 +235,24 @@ body {
   transform: none;
   max-width: none;
 }
+
+/* A warning card (phone notes: permissions, alarms). */
+.m-warning {
+  border-color: var(--warning);
+}
+
+.m-steps {
+  margin: 8px 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 8px;
+}
+
+/* Phone notes above a module's page (Timer: notifications, alarms, guide). */
+.m-timer-notes {
+  padding: 16px 16px 0;
+}
+
+.m-timer-notes:empty {
+  display: none;
+}

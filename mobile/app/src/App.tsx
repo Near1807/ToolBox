@@ -28,6 +28,29 @@ import {
 } from './backup';
 import { PAGE_MODULES, type PageModule } from './page-modules';
 import { SettingsPage } from './SettingsPage';
+import { startTimerNotifications } from './timer-notices';
+
+/** The modules' Background components (the Timer's sound), mounted once for the whole app. */
+function Backgrounds(props: { loaded: Set<string> }) {
+  return (
+    <>
+      {PAGE_MODULES.filter((m) => m.frontend.Background && props.loaded.has(m.manifest.id)).map(
+        ({ manifest, frontend }) => {
+          const Background = frontend.Background!;
+          return (
+            <ModuleProvider key={manifest.id} manifest={manifest}>
+              <ErrorBoundary label={manifest.name}>
+                <Background />
+              </ErrorBoundary>
+            </ModuleProvider>
+          );
+        },
+      )}
+    </>
+  );
+}
+
+let timerNotificationsStarted = false;
 
 const MORE_PATHS = [
   '/settings',
@@ -47,10 +70,11 @@ export interface Shell {
 
 /** The pages of one module under /m/<id>/*, isolated in an error boundary (like the PC). */
 function ModuleRoutes(props: { module: PageModule }) {
-  const { manifest, frontend } = props.module;
+  const { manifest, frontend, extra: Extra } = props.module;
   return (
     <ModuleProvider manifest={manifest}>
       <ErrorBoundary label={manifest.name}>
+        {Extra && <Extra />}
         <Routes>
           {(frontend.pages ?? []).map(({ path, component: Component }) => (
             <Route
@@ -240,6 +264,13 @@ export function App(props: { client: WorkerClient }) {
           status = await client.call<BaseStatus>({ kind: 'status' });
         }
         setBase(status);
+        if (
+          !timerNotificationsStarted &&
+          status.modules.some((m) => m.id === 'timer' && m.status === 'loaded')
+        ) {
+          timerNotificationsStarted = true;
+          startTimerNotifications();
+        }
         const offered = await offerAtOpening(status);
         if (offered) setOffer(offered);
         else
@@ -298,11 +329,13 @@ export function App(props: { client: WorkerClient }) {
     );
 
   const shell: Shell = { client, base, copies, refresh, restore };
+  const loaded = new Set(base.modules.filter((m) => m.status === 'loaded').map((m) => m.id));
   // « Plus » stays lit on the pages it leads to (Boîte à idées, Timer, Réglages).
   const moreClass = ({ isActive }: { isActive: boolean }) =>
     `m-nav__item${isActive || MORE_PATHS.some((p) => location.pathname.startsWith(p)) ? ' active' : ''}`;
   return (
     <div className="m-shell">
+      <Backgrounds loaded={loaded} />
       <main className="m-content">
         {copyError && <p className="error m-banner">{copyError}</p>}
         <Routes>

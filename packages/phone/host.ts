@@ -89,6 +89,14 @@ export interface PhoneHostServices {
     defaultName: string;
     data: string | Uint8Array;
   }) => Promise<string | null>;
+  /**
+   * ctx.notifications.notify. Absent: without effect. In the app it is
+   * without effect too: the Timer's notifications are SCHEDULED in advance
+   * by the page (the Worker sleeps in the background), with the same texts.
+   */
+  notify?: (notification: { title: string; body: string; path?: string }) => void;
+  /** ctx.ui.setOverlay. Absent: without effect (no floating window on the phone). */
+  setOverlay?: (visible: boolean) => void;
 }
 
 /** A module as the app bundles it: its manifest and its server code. */
@@ -433,10 +441,14 @@ export class PhoneHub {
       events: unavailable('events'),
       services: this.services.forModule(manifest, pendingServices),
       accounts: unavailable('accounts'),
-      notifications: unavailable('notifications'),
+      notifications: partly<ModuleContext['notifications']>('notifications', {
+        notify: (n) => this.options.host?.notify?.(n),
+      }),
       assistant,
       hotkeys: unavailable('hotkeys'),
-      ui: unavailable('ui'),
+      ui: partly<ModuleContext['ui']>('ui', {
+        setOverlay: (visible) => this.setOverlay(id, visible),
+      }),
       images: unavailable('images'),
       calendar: this.calendar.forModule(id, (off) => disposers.push(off)),
       binaries: unavailable('binaries'),
@@ -467,6 +479,16 @@ export class PhoneHub {
     }
   }
 
+  /** Like the PC's hub: the window is asked for while one module wants it (changes only). */
+  private readonly overlayRequests = new Set<string>();
+  private setOverlay(moduleId: string, visible: boolean) {
+    const before = this.overlayRequests.size > 0;
+    if (visible) this.overlayRequests.add(moduleId);
+    else this.overlayRequests.delete(moduleId);
+    const after = this.overlayRequests.size > 0;
+    if (before !== after) this.options.host?.setOverlay?.(after);
+  }
+
   /** ctx.files on the phone: « Enregistrer sous » = Android's share sheet; the rest not yet. */
   private filesFor(): ModuleContext['files'] {
     const host = this.options.host;
@@ -485,6 +507,11 @@ export class PhoneHub {
 
   handle(request: PhoneRequest): Promise<PhoneResponse> {
     return this.router.handle(request);
+  }
+
+  /** An event stream of a module (route declared with `streamTicket: true`): see PhoneRouter.openStream. */
+  openStream(url: string, onEvent: (event: string, data: unknown) => void): (() => void) | null {
+    return this.router.openStream(url, onEvent);
   }
 
   async close(): Promise<void> {

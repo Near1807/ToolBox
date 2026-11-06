@@ -63,7 +63,15 @@ const page = new PageLink(self as unknown as ConstructorParameters<typeof PageLi
 const HOST = {
   saveAs: (o: { title: string; defaultName: string; data: string | Uint8Array }) =>
     page.call<string | null>({ kind: 'saveAs', ...o }),
+  // Without effect: the Timer's notifications are scheduled in advance by the
+  // page (timer-phone.ts), the Worker may sleep when a phase ends.
+  notify: () => undefined,
+  // Without effect: no floating window on the phone.
+  setOverlay: () => undefined,
 };
+
+/** Open event streams (by the page's number): their close functions. */
+const streams = new Map<number, () => void>();
 
 async function runHub(o: Open): Promise<void> {
   o.hub = await PhoneHub.start({ db: o.db, modules: SERVER_MODULES, host: HOST });
@@ -95,12 +103,27 @@ async function answer(call: WorkerCall): Promise<unknown> {
     case 'snapshot':
       // Between two calls no transaction is open: the file is consistent.
       return { bytes: open.pool.exportFile(FILE), ...countBase(open.db) };
+    case 'stream-open': {
+      if (!open.hub) throw new Error('La base du téléphone n’est pas prête.');
+      const close = open.hub.openStream(call.url, (event, data) =>
+        self.postMessage({ stream: { id: call.stream, event, data } }),
+      );
+      if (!close) throw new Error(`Flux introuvable : ${call.url}`);
+      streams.set(call.stream, close);
+      return { ok: true };
+    }
+    case 'stream-close':
+      streams.get(call.stream)?.();
+      streams.delete(call.stream);
+      return { ok: true };
     case 'migrate':
       // After the copy « avant-migration » (the page took it), or nothing pending.
       if (!open.hub) await runHub(open);
       return { ok: true };
     case 'restore': {
       // Only after the user's confirmation on the page (never automatic).
+      for (const close of streams.values()) close();
+      streams.clear();
       await open.hub?.close();
       open.raw.close();
       open = null;

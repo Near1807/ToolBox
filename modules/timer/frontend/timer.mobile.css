@@ -1,0 +1,16 @@
+/* Timer on the phone (ADR 0044): the same screens as the PC, a layout for a
+   narrow touch screen. Loaded by the phone app only (mobile/app), never by
+   the PC. Layout only, colours from the theme tokens. */
+
+/* The session's buttons: big, side by side, one hand. */
+.tm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tm-actions .button {
+  flex: 1 1 30%;
+  min-height: 52px;
+  font-size: 1rem;
+}

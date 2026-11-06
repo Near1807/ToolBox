@@ -13,6 +13,19 @@ import {
 import { applyTheme, cachedTheme, THEMES } from '../../../frontend/src/themes';
 import { describeCounts, KEEP_COPIES, type BackupCopy } from '../../../packages/phone/backup';
 import { dateFr, type Shell } from './App';
+import { PHONE_HIDDEN_SETTINGS, PHONE_SETTING_LABELS } from './page-modules';
+import { SamsungGuide } from './TimerPhone';
+
+/** A section as the phone shows it: without what means nothing here, with the phone's words. */
+const forPhone = (section: SettingsSectionData): SettingsSectionData => ({
+  ...section,
+  fields: section.fields
+    .filter((f) => !PHONE_HIDDEN_SETTINGS[section.scope]?.includes(f.field.key))
+    .map((f) => {
+      const label = PHONE_SETTING_LABELS[`${section.scope}.${f.field.key}`];
+      return label ? { ...f, field: { ...f.field, label } } : f;
+    }),
+});
 
 const REASONS: Record<BackupCopy['reason'], string> = {
   quotidienne: '',
@@ -34,9 +47,10 @@ export function SettingsPage(props: { shell: Shell }) {
   const wantedRef = useRef<HTMLDivElement>(null);
 
   const loadSections = () =>
-    api
-      .get<SettingsSectionData[]>('/api/core/settings')
-      .then(setSections, (e: unknown) => setError(errorMessage(e)));
+    api.get<SettingsSectionData[]>('/api/core/settings').then(
+      (all) => setSections(all.map(forPhone).filter((section) => section.fields.length > 0)),
+      (e: unknown) => setError(errorMessage(e)),
+    );
   useEffect(() => {
     void loadSections();
   }, []);
@@ -84,6 +98,12 @@ export function SettingsPage(props: { shell: Shell }) {
           </Card>
         </div>
       ))}
+
+      {shell.base.modules.some((m) => m.id === 'timer' && m.status === 'loaded') && (
+        <Card title="Timer en arrière-plan (Samsung)">
+          <SamsungGuide />
+        </Card>
+      )}
 
       <Card title="Copies de sauvegarde">
         <p>

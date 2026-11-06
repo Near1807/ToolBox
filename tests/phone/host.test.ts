@@ -31,6 +31,7 @@ describe('phone host', () => {
       ['images', 'normalise'],
       ['notifications', 'notify'],
       ['ui', 'setOverlay'],
+      ['ui', 'open'],
       ['jobs', 'define'],
       ['outputs', 'register'],
       ['events', 'emit'],
@@ -47,8 +48,10 @@ describe('phone host', () => {
       '« ctx.files.readFile » n’est pas disponible sur le téléphone.',
       '« ctx.files.dataDir » n’est pas disponible sur le téléphone.',
       '« ctx.images.normalise » n’est pas disponible sur le téléphone.',
-      '« ctx.notifications.notify » n’est pas disponible sur le téléphone.',
-      '« ctx.ui.setOverlay » n’est pas disponible sur le téléphone.',
+      // Without effect (the Timer's notifications are scheduled by the page; no floating window).
+      'notifications.notify: no error',
+      'ui.setOverlay: no error',
+      '« ctx.ui.open » n’est pas disponible sur le téléphone.',
       '« ctx.jobs.define » n’est pas disponible sur le téléphone.',
       '« ctx.outputs.register » n’est pas disponible sur le téléphone.',
       '« ctx.events.emit » n’est pas disponible sur le téléphone.',
@@ -59,6 +62,8 @@ describe('phone host', () => {
     // The assistant: define() is accepted and does nothing; anything else is refused.
     expect(() => ctx.assistant!.define!({ name: 'a' })).not.toThrow();
     expect(() => ctx.assistant!.run).toThrow(UnavailableOnPhoneError);
+    expect(() => ctx.notifications!.notify!({ title: 't', body: 'b' })).not.toThrow();
+    expect(() => ctx.ui!.setOverlay!(true)).not.toThrow();
     await hub.close();
   });
 

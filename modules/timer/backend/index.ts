@@ -23,6 +23,7 @@ import {
 } from '@hub/sdk/core';
 import type { TodoService } from '../../todo/contract';
 import type { TimerService } from '../contract';
+import { endNotice, phaseNotice } from '../shared/notices';
 import {
   buildPlan,
   duration,
@@ -357,12 +358,8 @@ export default defineBackendModule({
         const late = (elapsed - state.elapsed) * 1000 > LATE_NOTIFY_MS;
         if (!late || announceLate) {
           announce(null);
-          notify(
-            'Session terminée',
-            row.task_title
-              ? `« ${row.task_title} » : ${duration(workSeconds(phases))} de travail. Tâche terminée ?`
-              : `${duration(workSeconds(phases))} de travail.`,
-          );
+          const notice = endNotice(phases, row.task_title);
+          notify(notice.title, notice.body);
         }
         publish();
         return;
@@ -372,15 +369,8 @@ export default defineBackendModule({
         const lateMs = (elapsed - (phaseEnd(phases, state.index - 1) || 0)) * 1000;
         if (lateMs <= LATE_NOTIFY_MS || announceLate) {
           announce(state.phase!.kind, state.phase!.seconds);
-          const work = phases.slice(0, state.index + 1).filter((p) => p.kind === 'work').length;
-          notify(
-            state.phase!.kind === 'work'
-              ? `Au travail — ${duration(state.phase!.seconds)}`
-              : `${PHASE_LABELS[state.phase!.kind]} — ${duration(state.phase!.seconds)}`,
-            state.phase!.kind === 'work'
-              ? `Période ${work} sur ${workCount(phases)}${row.task_title ? ` · ${row.task_title}` : ''}`
-              : `Période ${work} sur ${workCount(phases)} terminée.`,
-          );
+          const notice = phaseNotice(phases, state.index, row.task_title);
+          notify(notice.title, notice.body);
         }
         publish();
       }

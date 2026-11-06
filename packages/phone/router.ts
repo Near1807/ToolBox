@@ -114,6 +114,58 @@ export class PhoneRouter {
     });
   }
 
+  /**
+   * An event stream (a GET route that answers with `openEventStream`): the
+   * handler runs with a reply whose writes are read back as events
+   * (« event: x / data: {...} ») and given to `onEvent`. Returns the
+   * function that closes it (the module's onClose handlers run), or null
+   * when no route matches. No ticket on the phone: nothing leaves the app.
+   */
+  openStream(url: string, onEvent: (event: string, data: unknown) => void): (() => void) | null {
+    const q = url.indexOf('?');
+    const path = q < 0 ? url : url.slice(0, q);
+    const found = this.match('GET', path);
+    if (!found) return null;
+    const closers: (() => void)[] = [];
+    let buffer = '';
+    const write = (chunk: unknown) => {
+      buffer += String(chunk);
+      let end: number;
+      while ((end = buffer.indexOf('\n\n')) >= 0) {
+        const block = buffer.slice(0, end);
+        buffer = buffer.slice(end + 2);
+        let event = 'message';
+        const data: string[] = [];
+        for (const line of block.split('\n')) {
+          if (line.startsWith('event: ')) event = line.slice(7);
+          else if (line.startsWith('data: ')) data.push(line.slice(6));
+        }
+        if (data.length) onEvent(event, JSON.parse(data.join('\n')));
+      }
+      return true;
+    };
+    const req: RouteRequest = {
+      params: found.params,
+      query: parseQuery(q < 0 ? '' : url.slice(q + 1)),
+      body: undefined,
+      raw: {
+        on: (event, handler) => {
+          if (event === 'close') closers.push(handler);
+        },
+      },
+    };
+    const reply: RouteReply = {
+      hijack: () => undefined,
+      raw: { writeHead: () => undefined, write, end: () => undefined },
+    };
+    void Promise.resolve(found.route.handler(req, reply)).catch((error: unknown) =>
+      found.route.logger.error('Erreur sur un flux d’événements', error),
+    );
+    return () => {
+      for (const close of closers.splice(0)) close();
+    };
+  }
+
   /** A route of the core (GET only): `/api/core/calendar`. */
   coreGet(path: string, handler: (query: Record<string, unknown>) => Promise<PhoneResponse>) {
     this.core.set(path, handler);

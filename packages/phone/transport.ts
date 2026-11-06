@@ -11,7 +11,14 @@ export type WorkerCall =
   | { kind: 'status' }
   | { kind: 'snapshot' }
   | { kind: 'migrate' }
+  | { kind: 'stream-open'; stream: number; url: string }
+  | { kind: 'stream-close'; stream: number }
   | { kind: 'restore'; bytes: Uint8Array };
+
+/** Worker → page: an event of an open stream (the Timer's phases…). */
+export interface StreamEnvelope {
+  stream: { id: number; event: string; data: unknown };
+}
 
 export interface WorkerEnvelope {
   id: number;
@@ -87,9 +94,13 @@ export class WorkerClient {
 
   constructor(private readonly port: MessagePort) {
     port.addEventListener('message', (event) => {
-      const data = event.data as WorkerReply | HostEnvelope;
+      const data = event.data as WorkerReply | HostEnvelope | StreamEnvelope;
       if ('host' in data) {
         void this.serve(data.host.id, data.host.call);
+        return;
+      }
+      if ('stream' in data) {
+        this.streams.get(data.stream.id)?.[data.stream.event]?.(data.stream.data);
         return;
       }
       const reply = data;
@@ -110,6 +121,19 @@ export class WorkerClient {
   }
 
   private host: ((call: HostCall) => Promise<unknown>) | null = null;
+  private nextStream = 1;
+  private readonly streams = new Map<number, Record<string, (data: unknown) => void>>();
+
+  /** Opens a module's event stream in the Worker; returns the function that closes it. */
+  openStream(url: string, handlers: Record<string, (data: unknown) => void>): () => void {
+    const stream = this.nextStream++;
+    this.streams.set(stream, handlers);
+    this.call({ kind: 'stream-open', stream, url }).catch(() => this.streams.delete(stream));
+    return () => {
+      if (!this.streams.delete(stream)) return;
+      void this.call({ kind: 'stream-close', stream }).catch(() => undefined);
+    };
+  }
 
   /** The page answers the Worker's host calls with this (once, at start-up). */
   serveHost(handler: (call: HostCall) => Promise<unknown>): void {
@@ -149,9 +173,7 @@ export function workerTransport(client: WorkerClient): ApiTransport {
         headers: { 'content-type': 'application/json; charset=utf-8' },
       });
     },
-    openEventStream: () => {
-      // Not on the phone yet: said clearly, never a stream that stays silent.
-      throw new Error('Les flux d’événements ne sont pas disponibles sur le téléphone.');
-    },
+    // The module's stream runs in the Worker; its events come back as messages.
+    openEventStream: (path, handlers) => client.openStream(path, handlers),
   };
 }
