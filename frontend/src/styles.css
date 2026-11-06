@@ -2059,3 +2059,32 @@ input[type='range'] {
 .page__settings-link {
   text-decoration: none;
 }
+
+/* Réglages › Synchro avec le téléphone */
+.sync-pairing {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  align-items: flex-start;
+  margin-top: 14px;
+}
+
+.sync-qr {
+  width: 220px;
+  height: 220px;
+  padding: 6px;
+  border-radius: var(--radius);
+  background: var(--text);
+  color: var(--bg);
+}
+
+.sync-code {
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  word-break: break-all;
+  user-select: all;
+}
+
+.sync-conflict {
+  align-items: flex-start;
+}

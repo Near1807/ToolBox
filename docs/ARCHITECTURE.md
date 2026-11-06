@@ -147,6 +147,14 @@ Une API sur `localhost` est joignable par tout process local et par toute page w
 2. **`Origin` et `Sec-Fetch-Site`** : une requête portant une origine étrangère ou marquée `cross-site` est refusée (protection CSRF). Les origines autorisées sont celle du backend, plus celle de Vite en dev.
 3. **Jeton de session** : chaque route `/api/*` (sauf `/api/health`) exige l'en-tête `x-toolbox-token`. Le jeton est aléatoire (32 octets), régénéré à chaque lancement, et transmis à l'interface par le preload (`window.toolbox.token`). En dev navigateur, c'est le proxy Vite qui l'ajoute (`scripts/dev.mjs` le génère et le partage avec Electron).
 
+### Synchro avec le téléphone (réseau local, ADR 0044)
+
+- **Écouteur HTTPS séparé, désactivé par défaut** (`backend/core/sync/server.ts`) : le PC n'ouvre aucun port tant que Thomas n'a pas activé la synchro dans Réglages (confirmation qui explique le pare-feu Windows). Port fixe, 47400 par défaut. Il ne sert que les routes `/sync/*` (aucune route du socle ni des modules).
+- **Certificat auto-signé** ECDSA P-256 fait une fois et gardé dans `core__meta` (clé privée chiffrée par `safeStorage` quand c'est possible). Le téléphone l'épingle : il ne parle qu'au certificat dont l'empreinte est dans le QR code (greffon Android `PinnedHttp`).
+- **Appairage** : code à usage unique (10 minutes, 5 essais) échangé contre un jeton par appareil ; le PC n'en garde que le SHA-256 (`core__sync_peers`). « Oublier cet appareil » le révoque tout de suite.
+- **Chaque échange** : jeton, puis versions de base (le PC est le maître : différentes → refus, rien n'est appliqué), puis le moteur (`backend/core/sync/engine.ts`, une transaction). Sauvegarde de `hub.db` avant la première synchro.
+- Les routes de l'interface (`/api/core/sync/*`) restent derrière le jeton de session, comme le reste du socle.
+
 ### Flux SSE et tickets à usage unique
 
 `EventSource` (Server-Sent Events, utilisé pour la progression des tâches) **ne peut pas envoyer d'en-têtes personnalisés**. Le jeton ne passe donc pas tel quel :

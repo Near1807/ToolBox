@@ -15,6 +15,7 @@ import {
   SYNC_COLUMNS,
   SyncStore,
   uuidParam,
+  syncJournalSql,
 } from '@hub/sdk/core';
 import type { MusicLibraryService } from '../../music-library/contract';
 import type { TodoService } from '../../todo/contract';
@@ -109,7 +110,14 @@ export default defineBackendModule({
       description: 'ready for sync: UUIDs, dates, tombstones, journal (old tables kept)',
       up: (db) => migrateToSync(db),
     },
+    {
+      version: 3,
+      description:
+        'synchronisation (ADR 0044): HLC, origin and order of the journal, clock of each field',
+      up: syncJournalSql('ideas__'),
+    },
   ],
+  sync: {},
 
   register(ctx: ModuleContext) {
     const ideas = ctx.db.table('ideas');

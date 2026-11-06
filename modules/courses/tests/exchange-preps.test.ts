@@ -8,7 +8,13 @@ import { mkdtempSync, readFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { createTestHost, createTestHub, loadModuleFolder, type TestHub } from '@hub/sdk/testing';
+import {
+  createTestHost,
+  createTestHub,
+  loadModuleFolder,
+  type TestHub,
+  withoutSyncBookkeeping,
+} from '@hub/sdk/testing';
 import type { Preview } from '../shared/exchange';
 import type { StateDto } from '../shared/types';
 
@@ -98,9 +104,14 @@ describe('import / export with preparations', () => {
       db
         .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'courses__%'")
         .all() as { name: string }[]
-    ).map((t) => t.name);
-    const out = Object.fromEntries(
-      tables.map((t) => [t, db.prepare(`SELECT * FROM ${t} ORDER BY id`).all()]),
+    )
+      .map((t) => t.name)
+      // The synchronisation's bookkeeping (v0.32.0) is not the module's data.
+      .filter((t) => !t.endsWith('__field_clock'));
+    const out = withoutSyncBookkeeping(
+      Object.fromEntries(
+        tables.map((t) => [t, db.prepare(`SELECT * FROM ${t} ORDER BY id`).all()]),
+      ),
     );
     db.close();
     return out;

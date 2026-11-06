@@ -6,7 +6,14 @@
  * A setting declared by a module; the Settings page renders a form from it.
  * `hidden: true` keeps it off the Settings page (the module edits it on its own page).
  */
-export type SettingField = SettingFieldBase & { hidden?: boolean };
+export type SettingField = SettingFieldBase & {
+  hidden?: boolean;
+  /**
+   * A setting of the data (an objective, a cooking moment…), synchronised
+   * between the PC and the phone (ADR 0044). Display settings stay local.
+   */
+  sync?: boolean;
+};
 
 type SettingFieldBase =
   | {

@@ -3,6 +3,7 @@
 // without its OPFS storage), the phone host, its tables and its requests.
 // Only for tests.
 import sqlite3InitModule from '@sqlite.org/sqlite-wasm';
+import { withoutSyncBookkeeping } from './testing-sync';
 import { wrapWasmDatabase, type SqlDatabase, type WasmDb } from '../phone/database';
 
 let sqlite3: Awaited<ReturnType<typeof sqlite3InitModule>> | null = null;
@@ -23,8 +24,10 @@ export function dumpWasmTables(db: SqlDatabase, prefix: string): Record<string, 
       name: string;
     }[]
   ).filter((t) => t.name.startsWith(`${prefix}__`));
-  return Object.fromEntries(
-    tables.map((t) => [t.name, db.prepare(`SELECT * FROM "${t.name}" ORDER BY rowid`).all()]),
+  return withoutSyncBookkeeping(
+    Object.fromEntries(
+      tables.map((t) => [t.name, db.prepare(`SELECT * FROM "${t.name}" ORDER BY rowid`).all()]),
+    ),
   );
 }
 

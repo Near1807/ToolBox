@@ -22,6 +22,7 @@ export {
   SYNC_COLUMNS,
   SyncStore,
   syncStamp,
+  syncJournalSql,
   type SyncOp,
   type SyncRow,
 } from './sync';
@@ -48,6 +49,59 @@ export interface BackendModule {
   migrations?: Migration[];
   /** Declares routes, jobs, scheduled tasks, services and event listeners. */
   register(ctx: ModuleContext): void | Promise<void>;
+  /**
+   * The module's data is synchronised between the PC and the phone (ADR
+   * 0044, MODULES.md §6 bis): all its tables with SYNC_COLUMNS (except the
+   * journal, `*_v1` and `legacy_ids`). Only the portable modules.
+   */
+  sync?: ModuleSync;
+}
+
+/** What a synchronised module tells the engine (MODULES.md §6 bis). */
+export interface ModuleSync {
+  /**
+   * Names that should not exist twice (ingredient, exercise…): two rows of
+   * the same name created on two devices are NEVER merged alone; they are
+   * listed in « Conflits », with « Fusionner » when `merge` is given (the
+   * module's own merge route, called with the row to drop and the one to keep).
+   */
+  names?: {
+    table: string;
+    column: string;
+    label: string;
+    merge?: { route: string; body(from: string, into: string): unknown };
+  }[];
+  /**
+   * Two rows met on a unique key of `table` (the base cannot hold both):
+   * `kept` stays, `dropped` is gone. Called on the PC (it always receives the
+   * phone's changes first; what it decides goes back in the same exchange),
+   * at the end of the batch, inside its transaction, for what goes with
+   * them (e.g. the sessions of a week generated twice).
+   */
+  onDuplicate?(event: SyncDuplicate, tools: SyncTools): void;
+}
+
+export interface SyncDuplicate {
+  table: string;
+  kept: string;
+  dropped: string;
+  /** The unique key's values (e.g. { week: '2026-11-09' }). */
+  key: Record<string, unknown>;
+  /** Device that created the dropped row. */
+  droppedDevice: string;
+}
+
+/** What `onDuplicate` may do: read, and tombstone rows (journaled like SyncStore.remove). */
+export interface SyncTools {
+  db: ModuleDatabase;
+  /** The device that created a row (its first journal entry), or null. */
+  creator(table: string, id: string): string | null;
+  /** How many journal entries the row has (1: created, never changed since). */
+  changes(table: string, id: string): number;
+  /** A tombstone, journaled, as if the user had deleted it. */
+  remove(table: string, id: string): void;
+  /** Lists it in « Conflits » (nothing is decided by it). */
+  conflict(c: { table: string; id: string; label: string; detail: string }): void;
 }
 
 /** Identity helper giving type inference to `backend/index.ts`. */
@@ -164,6 +218,19 @@ export interface ModuleDatabase {
    * user's request. Returns the backup's file name.
    */
   backup(reason: string): string;
+  /**
+   * The synchronisation's clock (ADR 0044), given by the hub to the modules
+   * that declare `sync` (SyncStore writes it in the journal). Absent elsewhere.
+   */
+  readonly syncClock?: SyncClock;
+}
+
+/** Hybrid logical clock of this device (backend/core/sync/hlc.ts). */
+export interface SyncClock {
+  /** This device's id. */
+  readonly device: string;
+  /** A new HLC for a local change. */
+  next(): string;
 }
 
 export interface ModuleFiles {

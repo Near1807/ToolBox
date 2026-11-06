@@ -104,4 +104,70 @@ export const coreMigrations: Migration[] = [
       );
     `,
   },
+  {
+    version: 6,
+    description:
+      'synchronisation PC <-> phone (ADR 0044): paired devices, cursors, conflicts, journal of the synchronised settings',
+    up: `
+      CREATE TABLE core__sync_peers (
+        device_id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        role TEXT NOT NULL,
+        url TEXT,
+        pin TEXT,
+        token TEXT,
+        token_hash TEXT,
+        created_at TEXT NOT NULL,
+        first_sync_at TEXT,
+        last_sync_at TEXT,
+        revoked_at TEXT
+      );
+      CREATE TABLE core__sync_cursors (
+        peer TEXT NOT NULL,
+        scope TEXT NOT NULL,
+        sent_seq INTEGER NOT NULL DEFAULT 0,
+        received_seq INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (peer, scope)
+      );
+      CREATE TABLE core__sync_conflicts (
+        id TEXT PRIMARY KEY,
+        created_at TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        scope TEXT NOT NULL,
+        entity TEXT NOT NULL,
+        row_id TEXT NOT NULL,
+        other_id TEXT,
+        field TEXT,
+        label TEXT NOT NULL,
+        kept TEXT,
+        discarded TEXT,
+        kept_device TEXT,
+        discarded_device TEXT,
+        kept_hlc TEXT,
+        discarded_hlc TEXT,
+        resolved_at TEXT,
+        resolution TEXT
+      );
+      CREATE TABLE core__changes (
+        id TEXT PRIMARY KEY,
+        at TEXT NOT NULL,
+        entity TEXT NOT NULL,
+        entity_id TEXT NOT NULL,
+        op TEXT NOT NULL,
+        data TEXT,
+        hlc TEXT,
+        origin TEXT,
+        seq INTEGER
+      );
+      CREATE INDEX core__changes_seq ON core__changes (seq);
+      CREATE TABLE core__field_clock (
+        entity TEXT NOT NULL,
+        row_id TEXT NOT NULL,
+        field TEXT NOT NULL,
+        hlc TEXT NOT NULL,
+        seq INTEGER NOT NULL,
+        PRIMARY KEY (entity, row_id, field)
+      );
+    `,
+  },
 ];

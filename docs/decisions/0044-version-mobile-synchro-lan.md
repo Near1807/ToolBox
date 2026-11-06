@@ -139,6 +139,16 @@ Cœur partagé sur le PC, sans changement de comportement : `@hub/sdk/core` (por
 - **Import JSON des Courses réservé au PC** (il fait une sauvegarde `ctx.db.backup` que le téléphone n'a pas).
 - **Réglages des modules** sur le téléphone : mêmes routes et même formulaire que le PC, sans ce qui n'y a pas de sens (fenêtre flottante du Timer).
 
+## Étape 5a faite (v0.32.0) : moteur de synchro, appairage, synchro à la main
+
+- **Socle** (migrations, ajouts seulement) : appareils appairés, curseurs par appareil et par module, conflits, journal des réglages synchronisés (`core__changes`). Chaque module synchronisé reçoit une migration `syncJournalSql` : horloge hybride (HLC), origine et numéro d'ordre dans son journal, horloge par champ (`<module>__field_clock`).
+- **Moteur portable** (`backend/core/sync/`) : lots depuis un curseur, application champ par champ (la HLC la plus récente gagne), idempotente, tout ou rien ; conflits gardés dans `core__sync_conflicts` ; suppression d'un côté et modification de l'autre : la ligne reste supprimée avec les modifications, listée ; noms en double jamais fusionnés seuls (« Fusionner » par la fusion du module quand elle existe : ingrédients, exercices) ; clé unique en double (une semaine du Sport, le nom d'un tag) : celle du PC reste, l'autre prend son id et ses valeurs, listée.
+- **Règle de Thomas (06/11/2026)** : semaine du Sport remplie sur les deux appareils → celle du PC est gardée ; les séances générées par l'autre appareil et jamais touchées passent en suppression logique ; celles qu'il a modifiées restent et sont listées.
+- **Réglages** : `sync: true` dans le manifest pour les réglages de données (les 7 réglages des Courses : objectifs, batch). Les réglages d'affichage restent locaux (thème, guide vu, son et volume du Timer, carte d'accueil des Idées…).
+- **Réseau** : écouteur HTTPS du PC désactivé par défaut ; certificat épinglé par le QR code ; jeton par appareil ; versions comparées à chaque échange.
+- **Première synchro** : aperçu par module, puis « Partir des données du PC » (les 5 modules du téléphone remplacés) ou « Fusionner » ; copie « avant-synchro » du téléphone et sauvegarde du PC avant.
+- **Pas dans 5a** (étape 5b) : repérage mDNS, WebSocket et synchro automatique, photos des recettes, Timer lancé sur les deux appareils.
+
 ## Conséquences
 
 - Le PC ne change pas de comportement. Chaque étape le prouve par des références écrites avant modification, la suite complète et la CI Windows.

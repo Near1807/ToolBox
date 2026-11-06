@@ -34,11 +34,24 @@ export class SettingsStore {
     { title: string; fields: SettingField[]; hidden: boolean }
   >();
 
+  /** A synchronised setting changed here (journaled by the synchronisation, ADR 0044). */
+  onSynced: ((scope: string, key: string, value: SettingValue) => void) | null = null;
+
   constructor(
     private readonly handle: DatabaseHandle,
     private readonly host: HostAdapter,
     private readonly bus: EventBus,
   ) {}
+
+  /** The synchronised keys of each scope (`sync: true` in the manifest). */
+  syncedKeys(): Record<string, string[]> {
+    const out: Record<string, string[]> = {};
+    for (const [scope, section] of this.sections) {
+      const keys = section.fields.filter((f) => f.sync).map((f) => f.key);
+      if (keys.length) out[scope] = keys;
+    }
+    return out;
+  }
 
   /** A hidden section is not listed on the Settings page (e.g. interface preferences). */
   register(
@@ -76,7 +89,7 @@ export class SettingsStore {
     return JSON.parse(row.value) as SettingValue;
   }
 
-  set(scope: string, key: string, value: SettingValue): void {
+  set(scope: string, key: string, value: SettingValue, fromSync = false): void {
     const field = this.field(scope, key);
     const normalized = validateSettingValue(field, value);
     const now = new Date().toISOString();
@@ -95,6 +108,7 @@ export class SettingsStore {
     } else {
       this.upsert(scope, key, JSON.stringify(normalized), 0, now);
     }
+    if (field.sync && !fromSync) this.onSynced?.(scope, key, normalized);
     this.bus.emit(SETTINGS_CHANGED_EVENT, { scope, key });
   }
 

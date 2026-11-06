@@ -171,6 +171,9 @@ export function readReference(file: string, value: unknown): unknown {
 }
 
 /** Every row of a module's tables (`<prefix>__*`), in insertion order: what the module stored. */
+export { withoutSyncBookkeeping } from './testing-sync';
+import { withoutSyncBookkeeping } from './testing-sync';
+
 export function dumpTables(dataDir: string, prefix: string): Record<string, unknown[]> {
   const db = new Database(path.join(dataDir, 'hub.db'), { readonly: true });
   try {
@@ -179,8 +182,10 @@ export function dumpTables(dataDir: string, prefix: string): Record<string, unkn
         name: string;
       }[]
     ).filter((t) => t.name.startsWith(`${prefix}__`));
-    return Object.fromEntries(
-      tables.map((t) => [t.name, db.prepare(`SELECT * FROM "${t.name}" ORDER BY rowid`).all()]),
+    return withoutSyncBookkeeping(
+      Object.fromEntries(
+        tables.map((t) => [t.name, db.prepare(`SELECT * FROM "${t.name}" ORDER BY rowid`).all()]),
+      ),
     );
   } finally {
     db.close();

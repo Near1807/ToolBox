@@ -18,6 +18,7 @@ import {
   useApi,
   useModule,
   Icon,
+  onPhone,
 } from '@hub/sdk/frontend';
 import {
   cleanTags,
@@ -624,7 +625,10 @@ function IdeasPage() {
               {!archived &&
                 !q &&
                 !tags.length &&
-                'Note la première ci-dessus, ou dis « idée : … » à l’assistant.'}
+                // No assistant on the phone (ADR 0044): the hint stops at the field.
+                (onPhone()
+                  ? 'Note la première ci-dessus.'
+                  : 'Note la première ci-dessus, ou dis « idée : … » à l’assistant.')}
             </EmptyState>
           ) : (
             <>

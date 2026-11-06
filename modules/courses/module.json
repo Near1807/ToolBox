@@ -15,7 +15,8 @@
       "min": 0,
       "max": 1000,
       "step": 1,
-      "default": 0
+      "default": 0,
+      "sync": true
     },
     {
       "key": "goalKcalPerDay",
@@ -25,7 +26,8 @@
       "min": 0,
       "max": 20000,
       "step": 10,
-      "default": 0
+      "default": 0,
+      "sync": true
     },
     {
       "key": "goalBudgetPerWeek",
@@ -35,7 +37,8 @@
       "min": 0,
       "max": 100000,
       "step": 1,
-      "default": 0
+      "default": 0,
+      "sync": true
     },
     {
       "key": "batchDaysBefore",
@@ -45,7 +48,8 @@
       "min": 0,
       "max": 7,
       "step": 1,
-      "default": 0
+      "default": 0,
+      "sync": true
     },
     {
       "key": "batchGridModel",
@@ -53,21 +57,24 @@
       "label": "Batch cooking : créneaux de cuisine habituels",
       "description": "Modèle de la grille (jour de la semaine × moment), modifié par « Retenir comme habituels » dans l'onglet Batch.",
       "hidden": true,
-      "default": "{}"
+      "default": "{}",
+      "sync": true
     },
     {
       "key": "batchCookMoments",
       "type": "text",
       "label": "Moments où je cuisine mes repas (batch, doubles doses)",
       "hidden": true,
-      "default": ""
+      "default": "",
+      "sync": true
     },
     {
       "key": "batchLastElements",
       "type": "text",
       "label": "Éléments du dernier plan de batch validé",
       "hidden": true,
-      "default": "[]"
+      "default": "[]",
+      "sync": true
     }
   ]
 }

@@ -16,6 +16,7 @@ import {
 } from '../../../packages/phone/transport';
 import { countBase, needsCopyBeforeMigration } from '../../../packages/phone/backup';
 import { SERVER_MODULES } from './server-modules';
+import { syncWorkerCall } from '../../../packages/phone/sync-client';
 import { normaliseImageWeb } from '../../../packages/phone/images';
 import { OpfsFileStore } from './opfs-files';
 
@@ -132,6 +133,9 @@ async function answer(call: WorkerCall): Promise<unknown> {
       streams.get(call.stream)?.();
       streams.delete(call.stream);
       return { ok: true };
+    case 'sync':
+      if (!open.hub) throw new Error('La base du téléphone n’est pas prête.');
+      return syncWorkerCall(open.hub, call.call);
     case 'migrate':
       // After the copy « avant-migration » (the page took it), or nothing pending.
       if (!open.hub) await runHub(open);
