@@ -20,6 +20,8 @@ import { AssistantRegistry, rightKey } from './assistant';
 import { registerCoreActions } from './assistant-core';
 import { createAutomaticBackup, restoreBackup } from './backups';
 import { coreMigrations } from './core-migrations';
+import { randomUUID } from 'node:crypto';
+import { SyncEngine } from './sync/engine';
 import { DatabaseHandle } from './database';
 import { EventBus } from './events';
 import { getFfmpegPath, getFfprobePath } from './ffmpeg-binaries';
@@ -129,6 +131,8 @@ export class Hub {
   readonly logger: ModuleLogger;
   readonly bus = new EventBus();
   readonly services = new ServiceRegistry();
+  /** The synchronisation with the phone (ADR 0044), created once the core is migrated. */
+  sync!: SyncEngine;
   readonly settings: SettingsStore;
   readonly jobs: JobManager;
   readonly scheduler: Scheduler;
@@ -196,6 +200,17 @@ export class Hub {
     ensureMigrationsTable(this.handle.db);
     const coreFailure = this.migrateScope(CORE_SCOPE, coreMigrations);
     if (coreFailure) throw new Error(coreFailure);
+    this.sync = new SyncEngine({
+      db: this.handle.db,
+      role: 'pc',
+      randomId: () => randomUUID(),
+    });
+    this.sync.setSettings({
+      keys: () => this.settings.syncedKeys(),
+      read: (scope, key) => this.settings.get(scope, key),
+      write: (scope, key, value) => this.settings.set(scope, key, value, true),
+    });
+    this.settings.onSynced = (scope, key, value) => this.sync.logSetting(scope, key, value);
 
     this.settings.register(CORE_SCOPE, 'Général', [
       {
@@ -436,6 +451,7 @@ export class Hub {
         return this.handle.db.prepare(sql);
       },
       transaction: (fn) => this.handle.db.transaction(fn)(),
+      syncClock: record.backend?.sync ? this.sync.clock : undefined,
       backup: (reason) => {
         const file = createAutomaticBackup(
           this.handle.db,
@@ -514,6 +530,7 @@ export class Hub {
         throw new Error(`service(s) déclaré(s) mais non fourni(s) : ${missing.join(', ')}`);
       }
       this.services.commit(id, pendingServices);
+      if (record.backend?.sync) this.sync.addModule({ id, sync: record.backend.sync, db });
       record.routes = routeList;
       record.status = 'loaded';
       record.error = undefined;

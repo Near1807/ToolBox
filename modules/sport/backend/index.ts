@@ -18,6 +18,7 @@ import {
   newId,
   syncStamp,
   SyncStore,
+  syncJournalSql,
 } from '@hub/sdk/core';
 import {
   addDays,
@@ -186,7 +187,77 @@ export default defineBackendModule({
         }
       },
     },
+    {
+      version: 4,
+      description:
+        'synchronisation (ADR 0044): HLC, origin and order of the journal, clock of each field',
+      up: syncJournalSql('sport__'),
+    },
   ],
+  sync: {
+    names: [
+      {
+        table: 'exercises',
+        column: 'name',
+        label: 'Exercice',
+        merge: { route: '/exercises/merge', body: (from, into) => ({ from, into }) },
+      },
+    ],
+    /**
+     * The same week filled from the template on two devices before they
+     * synchronised (Thomas's rule, v0.32.0): the PC's week is kept; the
+     * sessions the other device generated for it and never touched (still
+     * « prévue », no mood, no comment, lines unchanged) are tombstoned
+     * (restorable); those it changed stay and are listed in « Conflits ».
+     */
+    onDuplicate(event, tools) {
+      if (event.table !== 'weeks') return;
+      const sessions = tools.db.table('sessions');
+      const lines = tools.db.table('session_exercises');
+      const rows = tools.db
+        .prepare(
+          `SELECT id, name, date, status, mood, comment, custom, template_id FROM ${sessions} WHERE week = ? AND deleted_at IS NULL`,
+        )
+        .all(String(event.key.week)) as {
+        id: string;
+        name: string;
+        date: string;
+        status: string;
+        mood: number | null;
+        comment: string;
+        custom: number;
+        template_id: string | null;
+      }[];
+      for (const r of rows) {
+        if (tools.creator('sessions', r.id) !== event.droppedDevice) continue;
+        if (r.template_id === null || r.custom) continue;
+        const own = tools.db.prepare(`SELECT id FROM ${lines} WHERE session_id = ?`).all(r.id) as {
+          id: string;
+        }[];
+        const untouched =
+          r.status === 'planned' &&
+          r.mood === null &&
+          r.comment === '' &&
+          tools.changes('sessions', r.id) === 1 &&
+          own.every(
+            (l) =>
+              tools.changes('session_exercises', l.id) === 1 &&
+              tools.creator('session_exercises', l.id) === event.droppedDevice,
+          );
+        if (untouched) {
+          for (const l of own) tools.remove('session_exercises', l.id);
+          tools.remove('sessions', r.id);
+        } else
+          tools.conflict({
+            table: 'sessions',
+            id: r.id,
+            label: `Séance « ${r.name} » du ${r.date}`,
+            detail:
+              'Semaine remplie sur les deux appareils : celle du PC est gardée, cette séance de l’autre appareil a été modifiée, elle reste (supprime-la si elle est en double).',
+          });
+      }
+    },
+  },
 
   register(ctx: ModuleContext) {
     const store = new SyncStore(ctx.db);

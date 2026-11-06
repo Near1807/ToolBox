@@ -23,6 +23,29 @@ export function changesTableSql(table: string): string {
   CREATE INDEX ${table}_at ON ${table} (at);`;
 }
 
+/**
+ * The synchronisation's columns of a journal (ADR 0044), added by a module
+ * migration of each synchronised module: the HLC of the change, the device
+ * it came from (`origin`, null: this device), a local order number (`seq`),
+ * and the HLC of the last change of each field (`<module>__field_clock`).
+ * The older entries get their order from the table's own order.
+ */
+export function syncJournalSql(prefix: string): string {
+  return `ALTER TABLE ${prefix}changes ADD COLUMN hlc TEXT;
+  ALTER TABLE ${prefix}changes ADD COLUMN origin TEXT;
+  ALTER TABLE ${prefix}changes ADD COLUMN seq INTEGER;
+  UPDATE ${prefix}changes SET seq = rowid;
+  CREATE INDEX ${prefix}changes_seq ON ${prefix}changes (seq);
+  CREATE TABLE ${prefix}field_clock (
+    entity TEXT NOT NULL,
+    row_id TEXT NOT NULL,
+    field TEXT NOT NULL,
+    hlc TEXT NOT NULL,
+    seq INTEGER NOT NULL,
+    PRIMARY KEY (entity, row_id, field)
+  );`;
+}
+
 /** A random UUID (v4), by the Web Crypto API (Node, Electron, browsers, Workers). */
 export function newId(): string {
   return globalThis.crypto.randomUUID();
@@ -52,17 +75,55 @@ export interface SyncRow {
  */
 export class SyncStore {
   private readonly journal: string;
+  private synced: boolean | null = null;
 
   constructor(private readonly db: ModuleDatabase) {
     this.journal = db.table('changes');
   }
 
+  /** The journal has the synchronisation's columns, and the hub gives a clock. */
+  private isSynced(): boolean {
+    if (this.synced === null) {
+      const columns = this.db.syncClock
+        ? (this.db.prepare(`PRAGMA table_info(${this.journal})`).all() as { name: string }[])
+        : [];
+      this.synced = columns.some((c) => c.name === 'hlc');
+    }
+    return this.synced;
+  }
+
   private log(entity: string, entityId: string, op: SyncOp, data: unknown, at: string): void {
+    const json = data === undefined ? null : JSON.stringify(data);
+    if (!this.isSynced()) {
+      this.db
+        .prepare(
+          `INSERT INTO ${this.journal} (id, at, entity, entity_id, op, data) VALUES (?, ?, ?, ?, ?, ?)`,
+        )
+        .run(newId(), at, entity, entityId, op, json);
+      return;
+    }
+    const hlc = this.db.syncClock!.next();
+    const seq =
+      (
+        this.db.prepare(`SELECT COALESCE(MAX(seq), 0) AS n FROM ${this.journal}`).get() as {
+          n: number;
+        }
+      ).n + 1;
     this.db
       .prepare(
-        `INSERT INTO ${this.journal} (id, at, entity, entity_id, op, data) VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO ${this.journal} (id, at, entity, entity_id, op, data, hlc, origin, seq) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?)`,
       )
-      .run(newId(), at, entity, entityId, op, data === undefined ? null : JSON.stringify(data));
+      .run(newId(), at, entity, entityId, op, json, hlc, seq);
+    // The clock of each field it changed (« the most recent wins, field by field »).
+    const fields =
+      op === 'create' || op === 'update'
+        ? Object.keys(data as Record<string, unknown>).concat(op === 'create' ? ['deleted_at'] : [])
+        : ['deleted_at'];
+    const clock = this.db.prepare(
+      `INSERT INTO ${this.db.table('field_clock')} (entity, row_id, field, hlc, seq) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT (entity, row_id, field) DO UPDATE SET hlc = excluded.hlc, seq = excluded.seq`,
+    );
+    for (const field of fields) clock.run(entity, entityId, field, hlc, seq);
   }
 
   get<T extends SyncRow>(table: string, id: string, withDeleted = false): T | null {

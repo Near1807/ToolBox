@@ -43,6 +43,9 @@ export const PHONE_SHARED_FILES = [
   'backend/core/services.ts',
   'backend/core/calendar.ts',
   'backend/core/modules/dependencies.ts',
+  'backend/core/sync/engine.ts',
+  'backend/core/sync/hlc.ts',
+  'backend/core/sync/protocol.ts',
 ];
 /** Node globals a portable module never uses (they do not exist in the phone's Worker). */
 const NODE_GLOBALS = ['Buffer', 'process', 'global', '__dirname', '__filename', 'require'];

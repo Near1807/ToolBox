@@ -23,6 +23,7 @@ import {
   SYNC_COLUMNS,
   syncStamp,
   SyncStore,
+  syncJournalSql,
 } from '@hub/sdk/core';
 import { addDays, localToday, mondayOf, weekdayOf } from '../shared/dates';
 import {
@@ -353,7 +354,26 @@ export default defineBackendModule({
       // A column added only: every existing session stays a session (kind empty).
       up: `ALTER TABLE courses__batch_sessions ADD COLUMN kind TEXT;`,
     },
+    {
+      version: 7,
+      description:
+        'synchronisation (ADR 0044): HLC, origin and order of the journal, clock of each field',
+      up: syncJournalSql('courses__'),
+    },
   ],
+  sync: {
+    names: [
+      {
+        table: 'ingredients',
+        column: 'name',
+        label: 'Ingrédient',
+        merge: { route: '/ingredients/merge', body: (from, into) => ({ from, into }) },
+      },
+      { table: 'preps', column: 'name', label: 'Préparation' },
+      { table: 'meals', column: 'name', label: 'Repas' },
+      { table: 'moments', column: 'name', label: 'Moment' },
+    ],
+  },
 
   register(ctx: ModuleContext) {
     const store = new SyncStore(ctx.db);

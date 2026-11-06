@@ -43,6 +43,7 @@ import type { SqlDatabase } from './database';
 import { sha256Hex } from './sha256';
 import { PhoneRouter, type PhoneRequest, type PhoneResponse } from './router';
 import { phoneFiles, type FileStore } from './files';
+import { SyncEngine } from '../../backend/core/sync/engine';
 import { partly, unavailable, UnavailableOnPhoneError } from './unavailable';
 
 export { partly, unavailable, UnavailableOnPhoneError } from './unavailable';
@@ -109,8 +110,20 @@ class PhoneSettings {
   private readonly fields = new Map<string, SettingField[]>();
   private readonly titles = new Map<string, string>();
   private readonly listeners = new Set<(scope: string, key: string) => void>();
+  /** A synchronised setting changed here (journaled by the synchronisation). */
+  onSynced: ((scope: string, key: string, value: SettingValue) => void) | null = null;
 
   constructor(private readonly db: SqlDatabase) {}
+
+  /** The synchronised keys of each scope (`sync: true`). */
+  syncedKeys(): Record<string, string[]> {
+    const out: Record<string, string[]> = {};
+    for (const [scope, fields] of this.fields) {
+      const keys = fields.filter((f) => f.sync).map((f) => f.key);
+      if (keys.length) out[scope] = keys;
+    }
+    return out;
+  }
 
   register(scope: string, fields: SettingField[], title = scope) {
     this.fields.set(scope, fields);
@@ -169,7 +182,7 @@ class PhoneSettings {
     return JSON.parse(row.value) as SettingValue;
   }
 
-  set(scope: string, key: string, value: SettingValue): void {
+  set(scope: string, key: string, value: SettingValue, fromSync = false): void {
     const field = this.field(scope, key);
     if (field.type === 'secret') throw new UnavailableOnPhoneError('réglage chiffré (secret)');
     const normalized = validateSettingValue(field, value, () => {
@@ -186,6 +199,7 @@ class PhoneSettings {
         )
         .run(scope, key, JSON.stringify(normalized), new Date().toISOString());
     }
+    if (field.sync && !fromSync) this.onSynced?.(scope, key, normalized);
     for (const listener of this.listeners) listener(scope, key);
   }
 
@@ -222,6 +236,8 @@ export interface PhoneHubOptions {
 
 export class PhoneHub {
   readonly router = new PhoneRouter();
+  /** The synchronisation's engine (ADR 0044), created once the core is migrated. */
+  sync!: SyncEngine;
   readonly services = new ServiceRegistry();
   readonly calendar = new CalendarRegistry();
   readonly settings: PhoneSettings;
@@ -340,6 +356,13 @@ export class PhoneHub {
     ensureMigrationsTable(db);
     const coreFailure = this.migrate('core', coreMigrations);
     if (coreFailure) throw new Error(coreFailure);
+    this.sync = new SyncEngine({ db, role: 'phone', randomId: PHONE_RUNTIME.randomId });
+    this.sync.setSettings({
+      keys: () => this.settings.syncedKeys(),
+      read: (scope, key) => this.settings.get(scope, key),
+      write: (scope, key, value) => this.settings.set(scope, key, value, true),
+    });
+    this.settings.onSynced = (scope, key, value) => this.sync.logSetting(scope, key, value);
 
     const byId = new Map(modules.map((m) => [m.manifest.id, m]));
     const unavailableIds = new Map<string, string>();
@@ -399,6 +422,7 @@ export class PhoneHub {
         return this.options.db.prepare(sql);
       },
       transaction: (fn) => this.options.db.transaction(fn)(),
+      syncClock: module.backend?.sync ? this.sync.clock : undefined,
       backup: (reason) => {
         const backup = this.options.host?.backupDb;
         if (!backup) throw new UnavailableOnPhoneError('ctx.db.backup');
@@ -449,6 +473,7 @@ export class PhoneHub {
       if (missing.length > 0)
         throw new Error(`service(s) déclaré(s) mais non fourni(s) : ${missing.join(', ')}`);
       this.services.commit(id, pendingServices);
+      if (module.backend?.sync) this.sync.addModule({ id, sync: module.backend.sync, db });
       routes.mount();
       this.shutdown.push(...shutdown);
       this.states.set(id, { id, status: 'loaded' });

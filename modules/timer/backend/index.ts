@@ -20,6 +20,7 @@ import {
   SYNC_COLUMNS,
   SyncStore,
   uuidParam,
+  syncJournalSql,
 } from '@hub/sdk/core';
 import type { TodoService } from '../../todo/contract';
 import type { TimerService } from '../contract';
@@ -178,7 +179,16 @@ export default defineBackendModule({
       description: 'ready for sync: UUIDs, dates, tombstones, journal (old tables kept)',
       up: (db) => migrateToSync(db),
     },
+    {
+      version: 3,
+      description:
+        'synchronisation (ADR 0044): HLC, origin and order of the journal, clock of each field',
+      up: syncJournalSql('timer__'),
+    },
   ],
+  sync: {
+    names: [{ table: 'presets', column: 'name', label: 'Préréglage du Timer' }],
+  },
 
   register(ctx: ModuleContext) {
     const sessions = ctx.db.table('sessions');

@@ -21,6 +21,7 @@ const base = {
   label: z.string().min(1),
   description: z.string().optional(),
   hidden: z.boolean().optional(),
+  sync: z.boolean().optional(),
 };
 
 const settingField = z.discriminatedUnion('type', [
