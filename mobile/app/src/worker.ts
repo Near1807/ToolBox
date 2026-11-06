@@ -8,7 +8,12 @@
 import sqlite3InitModule from '@sqlite.org/sqlite-wasm';
 import { wrapWasmDatabase, type SqlDatabase, type WasmDb } from '../../../packages/phone/database';
 import { PhoneHub } from '../../../packages/phone/host';
-import type { WorkerCall, WorkerEnvelope, WorkerReply } from '../../../packages/phone/transport';
+import {
+  PageLink,
+  type WorkerCall,
+  type WorkerEnvelope,
+  type WorkerReply,
+} from '../../../packages/phone/transport';
 import { countBase, needsCopyBeforeMigration } from '../../../packages/phone/backup';
 import { SERVER_MODULES } from './server-modules';
 
@@ -53,8 +58,15 @@ async function start(): Promise<void> {
     await runHub(open);
 }
 
+/** What only the page can do (Android's share sheet…), asked through the reverse way. */
+const page = new PageLink(self as unknown as ConstructorParameters<typeof PageLink>[0]);
+const HOST = {
+  saveAs: (o: { title: string; defaultName: string; data: string | Uint8Array }) =>
+    page.call<string | null>({ kind: 'saveAs', ...o }),
+};
+
 async function runHub(o: Open): Promise<void> {
-  o.hub = await PhoneHub.start({ db: o.db, modules: SERVER_MODULES });
+  o.hub = await PhoneHub.start({ db: o.db, modules: SERVER_MODULES, host: HOST });
   o.pending = [];
 }
 
@@ -100,6 +112,7 @@ async function answer(call: WorkerCall): Promise<unknown> {
 }
 
 self.addEventListener('message', (event: MessageEvent<WorkerEnvelope>) => {
+  if (!('call' in event.data)) return; // An answer of the page (PageLink).
   const { id, call } = event.data;
   answer(call).then(
     (result) => self.postMessage({ id, ok: true, result } satisfies WorkerReply),

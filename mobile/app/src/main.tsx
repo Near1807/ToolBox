@@ -12,6 +12,7 @@ import '../../../frontend/src/styles.css';
 import { applyTheme, cachedTheme, installThemes } from '../../../frontend/src/themes';
 import { WorkerClient, workerTransport } from '../../../packages/phone/transport';
 import { App } from './App';
+import { pageHost } from './page-host';
 import './mobile.css';
 
 installThemes();
@@ -19,6 +20,7 @@ applyTheme(cachedTheme());
 
 const worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
 const client = new WorkerClient(worker);
+client.serveHost(pageHost);
 setApiTransport(workerTransport(client));
 
 const root = document.getElementById('root');

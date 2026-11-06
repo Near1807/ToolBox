@@ -1,0 +1,22 @@
+/* Boîte à idées on the phone (ADR 0044): the same screens as the PC, a
+   layout for a narrow touch screen. Loaded by the phone app only
+   (mobile/app), never by the PC. Layout only, colours from the theme tokens. */
+
+/* An idea's buttons: a grid of big targets (no hover on a phone). */
+.ib-idea .ui-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.ib-idea .ui-actions .button {
+  min-height: 46px;
+  white-space: normal;
+}
+
+/* Fields on the whole width. */
+.m-content .ib-idea textarea.input,
+.m-content .ib-idea .input {
+  width: 100%;
+  font-size: 1rem;
+}

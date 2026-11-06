@@ -104,11 +104,12 @@ Un handler de route ne lit que `request.params`, `request.query` et `request.bod
 
 **Sur le téléphone** (`packages/phone/`, ADR 0044), le code serveur du module tourne tel quel dans un Worker, avec le même `ctx` :
 
-- **fournis** : `db` (sqlite-wasm, interface de better-sqlite3), `routes` (mêmes réponses que Fastify), `settings`, `services`, `calendar`, `logger`, `onShutdown` ;
+- **fournis** : `db` (sqlite-wasm, interface de better-sqlite3), `routes` (mêmes réponses que Fastify), `settings` (et les routes de réglages du PC : l'engrenage d'un module ouvre sa section dans Réglages), `services`, `calendar`, `logger`, `onShutdown` ;
+- **par la page (Android)** : `files.saveAs` = la feuille de partage d'Android (le fichier est écrit dans le cache de l'appli, l'utilisateur choisit où l'envoyer ; fermer la feuille = « annulé », `null`). Le Worker le demande à la page par le canal inverse (`HostCall`, `packages/phone/transport.ts`) ;
 - **sans effet** : `assistant` (`define` est accepté et ignoré) ;
-- **pas encore fournis** : `files`, `images`, `notifications`, `outputs`, `jobs`, `scheduler`, `events`, `ui`, `hotkeys`, `accounts`, `binaries`, `db.backup`. Ils lèvent l'erreur explicite « … n'est pas disponible sur le téléphone » (jamais un faux succès). Un module qui en a besoin au démarrage ne se charge pas, et les autres continuent.
+- **pas encore fournis** : le reste de `files`, `images`, `notifications`, `outputs`, `jobs`, `scheduler`, `events`, `ui`, `hotkeys`, `accounts`, `binaries`, `db.backup`. Ils lèvent l'erreur explicite « … n'est pas disponible sur le téléphone » (jamais un faux succès). Un module qui en a besoin au démarrage ne se charge pas, et les autres continuent.
 
-La preuve qu'un module se comporte pareil : rejouer sa référence de non-régression sur l'hôte téléphone (`PhoneHub`, `openWasmDatabase`, `phoneRequest`, `dumpWasmTables` de `@hub/sdk/testing`). Exemple : `modules/todo/tests/regression-phone.test.ts`.
+La preuve qu'un module se comporte pareil : rejouer sa référence de non-régression sur l'hôte téléphone (`PhoneHub`, `openWasmDatabase`, `phoneRequest`, `dumpWasmTables` de `@hub/sdk/testing`). Exemples : `modules/{todo,ideas,sport}/tests/regression-phone.test.ts` (le scénario est partagé avec le PC dans `tests/scenario.ts`).
 
 ```ts
 import { defineBackendModule, HttpError } from '@hub/sdk/backend';

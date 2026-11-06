@@ -98,6 +98,22 @@ export class PhoneRouter {
     return { api, mount: () => this.routes.push(...collected) };
   }
 
+  /**
+   * A route of the core with the modules' parsing and errors (body, params,
+   * HttpError → { error }): e.g. PUT `/api/core/settings/:scope`.
+   */
+  coreRoute(method: Method, path: string, handler: RouteHandler, logger: ModuleLogger) {
+    this.routes.push({
+      method,
+      segments: path.split('/').slice(1),
+      handler,
+      options: {},
+      moduleId: 'core',
+      moduleName: 'ToolBox',
+      logger,
+    });
+  }
+
   /** A route of the core (GET only): `/api/core/calendar`. */
   coreGet(path: string, handler: (query: Record<string, unknown>) => Promise<PhoneResponse>) {
     this.core.set(path, handler);

@@ -1,9 +1,15 @@
-// Réglages of the phone app: the theme (display: kept on this phone), the
-// safety copies (date of the last one, « Restaurer une copie » with a
-// confirmation) and what the app runs on.
-import { useEffect, useState } from 'react';
+// Réglages of the phone app: the modules' settings (the PC's form, same
+// routes; a module's gear opens its section: #/settings?s=<id>), the theme
+// (display: kept on this phone), the safety copies (date of the last one,
+// « Restaurer une copie » with a confirmation) and what the app runs on.
+import { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router';
 import { App as CapacitorApp } from '@capacitor/app';
-import { Button, Card, Page, errorMessage } from '@hub/sdk/frontend';
+import { Button, Card, Page, api, errorMessage } from '@hub/sdk/frontend';
+import {
+  SettingsForm,
+  type SettingsSectionData,
+} from '../../../frontend/src/shell/settings/SettingsForm';
 import { applyTheme, cachedTheme, THEMES } from '../../../frontend/src/themes';
 import { describeCounts, KEEP_COPIES, type BackupCopy } from '../../../packages/phone/backup';
 import { dateFr, type Shell } from './App';
@@ -22,6 +28,21 @@ export function SettingsPage(props: { shell: Shell }) {
   const [error, setError] = useState<string | null>(null);
   const [build, setBuild] = useState<string | null>(null);
   const last = shell.copies[0];
+  const [sections, setSections] = useState<SettingsSectionData[] | null>(null);
+  const [params] = useSearchParams();
+  const wanted = params.get('s');
+  const wantedRef = useRef<HTMLDivElement>(null);
+
+  const loadSections = () =>
+    api
+      .get<SettingsSectionData[]>('/api/core/settings')
+      .then(setSections, (e: unknown) => setError(errorMessage(e)));
+  useEffect(() => {
+    void loadSections();
+  }, []);
+  useEffect(() => {
+    if (sections && wanted) wantedRef.current?.scrollIntoView({ block: 'start' });
+  }, [sections, wanted]);
 
   useEffect(() => {
     CapacitorApp.getInfo().then(
@@ -48,6 +69,22 @@ export function SettingsPage(props: { shell: Shell }) {
 
   return (
     <Page title="Réglages">
+      {sections?.map((section) => (
+        <div
+          key={section.scope}
+          ref={section.scope === wanted ? wantedRef : undefined}
+          className="m-settings-section"
+        >
+          <Card title={section.title}>
+            <SettingsForm
+              key={JSON.stringify(section.fields.map((f) => f.value))}
+              section={section}
+              onSaved={() => void loadSections()}
+            />
+          </Card>
+        </div>
+      ))}
+
       <Card title="Copies de sauvegarde">
         <p>
           Dernière copie :{' '}

@@ -6,17 +6,18 @@
 // throws an explicit « non disponible sur le téléphone » error — never a
 // silent fake success. The assistant is without effect (ADR 0044).
 // Portable: no Node import.
-import type {
-  BackendModule,
-  Migration,
-  ModuleAssistant,
-  ModuleContext,
-  ModuleDatabase,
-  ModuleLogger,
-  ModuleManifest,
-  ModuleSettings,
-  SettingField,
-  SettingValue,
+import {
+  HttpError,
+  type BackendModule,
+  type Migration,
+  type ModuleAssistant,
+  type ModuleContext,
+  type ModuleDatabase,
+  type ModuleLogger,
+  type ModuleManifest,
+  type ModuleSettings,
+  type SettingField,
+  type SettingValue,
 } from '../sdk/core';
 import { CalendarRegistry } from '../../backend/core/calendar';
 import { coreMigrations } from '../../backend/core/core-migrations';
@@ -59,6 +60,37 @@ export function unavailable<T extends object>(name: string): T {
   });
 }
 
+/**
+ * Like `unavailable`, but the members given are provided: the others throw
+ * the explicit error (e.g. ctx.files with only saveAs on the phone).
+ */
+export function partly<T extends object>(name: string, provided: Partial<T>): T {
+  return new Proxy(provided as T, {
+    get(target, prop) {
+      if (typeof prop === 'symbol' || prop === 'then') return undefined;
+      if (prop in target) return (target as Record<string, unknown>)[prop];
+      throw new UnavailableOnPhoneError(`ctx.${name}.${prop}`);
+    },
+  });
+}
+
+/**
+ * What the phone provides through the PAGE (Android, via the Capacitor
+ * plugins): given by the app's Worker, which forwards to the page. Absent in
+ * the tests that do not need it (the members then stay unavailable).
+ */
+export interface PhoneHostServices {
+  /**
+   * ctx.files.saveAs: the file goes to Android's share sheet, the user
+   * chooses where it goes. The file's name, or null when the user cancelled.
+   */
+  saveAs?: (options: {
+    title: string;
+    defaultName: string;
+    data: string | Uint8Array;
+  }) => Promise<string | null>;
+}
+
 /** A module as the app bundles it: its manifest and its server code. */
 export interface PhoneModule {
   manifest: ModuleManifest;
@@ -84,12 +116,49 @@ const PHONE_RUNTIME: MigrationRuntime = {
 /** The settings of the modules, in the same table as the PC (core__settings). */
 class PhoneSettings {
   private readonly fields = new Map<string, SettingField[]>();
+  private readonly titles = new Map<string, string>();
   private readonly listeners = new Set<(scope: string, key: string) => void>();
 
   constructor(private readonly db: SqlDatabase) {}
 
-  register(scope: string, fields: SettingField[]) {
+  register(scope: string, fields: SettingField[], title = scope) {
     this.fields.set(scope, fields);
+    this.titles.set(scope, title);
+  }
+
+  /** Like the PC's GET /api/core/settings: the sections with fields, their values. */
+  describe() {
+    return [...this.fields.entries()]
+      .filter(([, fields]) => fields.some((f) => !f.hidden))
+      .map(([scope, fields]) => ({
+        scope,
+        title: this.titles.get(scope) ?? scope,
+        fields: fields
+          .filter((field) => !field.hidden)
+          .map((field) => {
+            const row = this.db
+              .prepare('SELECT value FROM core__settings WHERE scope = ? AND key = ?')
+              .get(scope, field.key) as { value: string | null } | undefined;
+            if (field.type === 'secret') return { field, value: null, isSet: Boolean(row?.value) };
+            return { field, value: this.get(scope, field.key), isSet: row !== undefined };
+          }),
+      }));
+  }
+
+  /** Like the PC's PUT /api/core/settings/:scope: every value validated first, then all saved (or none). */
+  update(scope: string, values: Record<string, unknown>): void {
+    if (!this.fields.has(scope)) throw new SettingsValidationError(`Section inconnue « ${scope} »`);
+    const entries = Object.entries(values).map(([key, value]) => {
+      const field = this.field(scope, key);
+      if (field.type === 'secret') throw new UnavailableOnPhoneError('réglage chiffré (secret)');
+      validateSettingValue(field, value as SettingValue, () => {
+        throw new UnavailableOnPhoneError('réglage de dossier');
+      });
+      return [key, value as SettingValue] as const;
+    });
+    this.db.transaction(() => {
+      for (const [key, value] of entries) this.set(scope, key, value);
+    })();
   }
 
   private field(scope: string, key: string): SettingField {
@@ -149,6 +218,8 @@ class PhoneSettings {
 export interface PhoneHubOptions {
   db: SqlDatabase;
   modules: PhoneModule[];
+  /** What the page provides (share sheet…); absent: those parts stay unavailable. */
+  host?: PhoneHostServices;
   /** Where the modules' logs go (default: the console). */
   log?: (
     level: 'debug' | 'info' | 'warn' | 'error',
@@ -219,9 +290,33 @@ export class PhoneHub {
     return pending;
   }
 
+  /** The settings routes of the PC (the same form on the phone's Réglages). */
+  private settingsRoutes() {
+    this.router.coreRoute('GET', '/api/core/settings', () => this.settings.describe(), this.logger);
+    this.router.coreRoute(
+      'PUT',
+      '/api/core/settings/:scope',
+      (request) => {
+        try {
+          this.settings.update(
+            (request.params as { scope: string }).scope,
+            (request.body ?? {}) as Record<string, unknown>,
+          );
+        } catch (error) {
+          if (error instanceof SettingsValidationError || error instanceof UnavailableOnPhoneError)
+            throw new HttpError(400, error.message);
+          throw error;
+        }
+        return { ok: true };
+      },
+      this.logger,
+    );
+  }
+
   /** Migrates the core and the modules, then registers the modules (providers first). */
   static async start(options: PhoneHubOptions): Promise<PhoneHub> {
     const hub = new PhoneHub(options);
+    hub.settingsRoutes();
     await hub.load();
     return hub;
   }
@@ -303,7 +398,7 @@ export class PhoneHub {
     const pendingServices = new Map<string, object>();
     const routes = this.router.forModule(id, manifest.name, logger);
     const shutdown: (() => void | Promise<void>)[] = [];
-    this.settings.register(id, manifest.settings ?? []);
+    this.settings.register(id, manifest.settings ?? [], manifest.name);
 
     const db: ModuleDatabase = {
       prefix: tablePrefix(id),
@@ -329,7 +424,7 @@ export class PhoneHub {
       id,
       manifest,
       db,
-      files: unavailable('files'),
+      files: this.filesFor(),
       outputs: unavailable('outputs'),
       settings: this.settings.forModule(id, (off) => disposers.push(off)),
       routes: routes.api,
@@ -370,6 +465,17 @@ export class PhoneHub {
       logger.error(`Erreur au démarrage du module : ${message}`, error);
       return false;
     }
+  }
+
+  /** ctx.files on the phone: « Enregistrer sous » = Android's share sheet; the rest not yet. */
+  private filesFor(): ModuleContext['files'] {
+    const host = this.options.host;
+    const provided: Partial<ModuleContext['files']> = {};
+    if (host?.saveAs) {
+      const saveAs = host.saveAs;
+      provided.saveAs = (o) => saveAs({ title: o.title, defaultName: o.defaultName, data: o.data });
+    }
+    return partly('files', provided);
   }
 
   /** State of every module (loaded, failed…), in loading order. */

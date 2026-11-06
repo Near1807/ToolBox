@@ -1,0 +1,206 @@
+/* Sport on the phone (ADR 0044): the same screens as the PC, a layout for a
+   narrow touch screen, used standing at the gym with one hand. Loaded by the
+   phone app only (mobile/app), never by the PC. Layout only, colours from the
+   theme tokens. */
+
+/* Summary: four small tiles, two by two. */
+.sp-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.sp-summary > div {
+  min-width: 0;
+  padding: 10px 12px;
+}
+
+.sp-summary__value {
+  font-size: 1.25rem;
+}
+
+/* Tabs: one line, scrolled sideways if needed, big enough to tap. */
+.sp-tabs {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.sp-tabs button {
+  flex: 1 0 auto;
+  min-height: 46px;
+  white-space: nowrap;
+  padding: 8px 12px;
+}
+
+/* Week navigation: the two arrows on one line, the title above. */
+.sp-nav {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.sp-nav > strong {
+  grid-column: 1 / -1;
+  grid-row: 1;
+}
+
+/* The week: one column, an empty day takes one line. */
+.sp-week {
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.sp-day {
+  min-height: 0;
+}
+
+.sp-day__add {
+  min-height: 44px;
+}
+
+/* A session: a big card to tap. */
+.sp-session {
+  min-height: 64px;
+  padding: 12px 14px;
+}
+
+.sp-session__name {
+  font-size: 1.05rem;
+}
+
+/* The open session: big targets, one hand. */
+.sp-editor {
+  gap: 14px;
+}
+
+.sp-exercises {
+  gap: 8px;
+  font-size: 1.05rem;
+  line-height: 1.35;
+}
+
+.sp-editor .ui-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.sp-editor .ui-actions .button {
+  min-height: 52px;
+  font-size: 1rem;
+  white-space: normal;
+}
+
+.sp-editor__exercises > .button {
+  width: 100%;
+  min-height: 48px;
+  white-space: normal;
+}
+
+.sp-moods {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+
+.sp-mood {
+  width: auto;
+  height: 56px;
+}
+
+.sp-editor textarea.input {
+  min-height: 96px;
+  font-size: 1rem;
+}
+
+.sp-editor .sp-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.sp-editor .sp-row > label {
+  display: grid;
+  gap: 4px;
+}
+
+.sp-editor .sp-row > label:last-child,
+.sp-editor .sp-row > .button {
+  grid-column: 1 / -1;
+}
+
+.sp-row label .input {
+  width: 100%;
+}
+
+/* An exercise being edited: a small card instead of a wide row
+   (number, name / sets, reps / load, rest / note / tools). */
+.sp-line {
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.sp-line > span.num,
+.sp-line__name,
+.sp-line__note,
+.sp-line__new {
+  grid-column: 1 / -1;
+}
+
+.sp-line > .input--tiny,
+.sp-line > .input--short {
+  width: 100%;
+}
+
+/* « × » between sets and reps: not needed when stacked. */
+.sp-line > span.small.muted:not(.num):not(.sp-line__new) {
+  display: none;
+}
+
+.sp-line__tools {
+  grid-column: 1 / -1;
+  justify-content: flex-end;
+}
+
+.sp-link {
+  min-height: 40px;
+}
+
+/* Semaine type: the day above its sessions. */
+.sp-template__day {
+  grid-template-columns: 1fr;
+  gap: 6px;
+}
+
+.sp-template__item > .sp-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.sp-template__item > .sp-row > .input:first-child {
+  grid-column: 1 / -1;
+}
+
+.sp-template__item > .sp-row .input {
+  width: 100%;
+}
+
+/* Month: smaller cells. */
+.sp-month__day {
+  min-height: 44px;
+  padding: 4px;
+}
+
+/* Exercises library: name on its line, the buttons under it. */
+.sp-library > li {
+  flex-wrap: wrap;
+}
+
+.sp-library__tools {
+  margin-left: 0;
+  width: 100%;
+}

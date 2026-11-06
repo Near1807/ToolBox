@@ -22,43 +22,7 @@ import {
   referenceShape,
   type TestHub,
 } from '@hub/sdk/testing';
-
-const MODULES = path.resolve(__dirname, '..', '..');
-const API = '/api/modules/ideas';
-const REFERENCE = path.join(__dirname, 'fixtures', 'regression.json');
-const NOW = new Date(2026, 10, 4, 10, 0, 0);
-
-/** A music library with two tracks (only what the Boîte à idées uses). */
-function fakeLibrary() {
-  const tracks = [
-    { id: 1, title: 'Nuit blanche' },
-    { id: 2, title: 'Aube' },
-  ];
-  return {
-    folder: 'music-library',
-    manifest: {
-      id: 'music-library',
-      name: 'Bibliothèque',
-      description: 'fake',
-      version: '1.0.0',
-      section: 'Musique',
-      icon: 'music',
-      provides: { services: ['musicLibrary'] },
-    },
-    backend: {
-      register: (ctx: { services: { provide: (n: string, s: object) => void } }) =>
-        ctx.services.provide('musicLibrary', {
-          listTracks: () => tracks,
-          getTrack: (id: number) => tracks.find((t) => t.id === id) ?? null,
-          trackIdOf: (subject: string) => {
-            const m = /^music-library:track:(\d+)$/.exec(subject);
-            return m ? Number(m[1]) : null;
-          },
-          registerTrackInfo: () => () => {},
-        }),
-    },
-  };
-}
+import { fakeLibrary, MODULES, NOW, REFERENCE, runScenario } from './scenario';
 
 describe('non-regression of the Boîte à idées (reference: v0.29.0)', () => {
   let hub: TestHub;
@@ -89,88 +53,10 @@ describe('non-regression of the Boîte à idées (reference: v0.29.0)', () => {
         )),
       ],
     });
-    const steps: [string, unknown][] = [];
-    const call = async <T>(method: string, url: string, body?: unknown) => {
-      const r = await hub.request<T>(method, `${API}${url}`, body);
-      // The export's path is in a temporary folder: only its name is compared.
-      const answer = r.body as { path?: unknown } | null;
-      const shown =
-        answer && typeof answer.path === 'string'
-          ? { ...answer, path: path.basename(answer.path) }
-          : answer;
-      steps.push([`${method} ${url}`, { status: r.status, body: shown }]);
-      return r.body;
-    };
-    const idea = async (body: object) => {
-      later(7);
-      return call<{ id: string }>('POST', '/ideas', body);
-    };
-
-    await call('GET', '/ideas');
-    await call('GET', '/home');
-    const cordes = await idea({
-      title: 'Un break avec des cordes',
-      body: 'Pizzicati sur le 2e couplet.\nEssayer en ré mineur.',
-      tags: ['#Arrangement', 'cordes'],
-      trackId: 1,
+    const steps = await runScenario({
+      request: (method, url, body) => hub.request(method, url, body),
+      later,
     });
-    const pochette = await idea({ title: 'Pochette en noir et blanc', tags: ['visuel'] });
-    const live = await idea({
-      title: 'Version live acoustique',
-      body: 'Guitare + voix, « une prise »',
-      tags: ['arrangement', 'live'],
-    });
-    const clip = await idea({
-      title: 'Clip tourné à l’Été',
-      body: 'Plage, 16 mm',
-      tags: ['visuel'],
-    });
-    const vieux = await idea({ title: 'Vieux projet', tags: ['archives'] });
-    await idea({ title: '' }); // refused
-    await idea({ title: 'Morceau absent', trackId: 99 }); // refused
-    // Edits: text, tags, track; archived and back; deleted and restored.
-    later(30);
-    await call('PATCH', `/ideas/${pochette.id}`, {
-      body: 'Photo argentique',
-      tags: ['visuel', 'photo'],
-    });
-    later(1); // never two edits at the same instant (the order of « modifiée » would be the ids')
-    await call('PATCH', `/ideas/${live.id}`, { trackId: 2 });
-    later(5);
-    await call('PATCH', `/ideas/${vieux.id}`, { archived: true });
-    await call('PATCH', `/ideas/${clip.id}`, { archived: true });
-    later(5);
-    await call('PATCH', `/ideas/${clip.id}`, { archived: false });
-    await call('DELETE', `/ideas/${live.id}`);
-    await call('POST', `/ideas/${live.id}/restore`);
-    await call('POST', `/ideas/${live.id}/restore`);
-    // Tags: coloured, renamed, merged into another, refused.
-    await call('PUT', '/tags/visuel', { color: 3 });
-    await call('PUT', '/tags/cordes', { name: 'Orchestre' });
-    await call('PUT', `/tags/${encodeURIComponent('photo')}`, { name: 'visuel' });
-    await call('PUT', '/tags/inconnu', { color: 1 });
-    await call('PUT', '/tags/live', { color: 12 });
-    // « Transformer en tâche », twice.
-    later(2);
-    await call('POST', `/ideas/${cordes.id}/to-task`);
-    await call('POST', `/ideas/${cordes.id}/to-task`);
-    // Reads: search without accents, tags, sorts, archives; at random; home.
-    later(60);
-    await call('GET', '/ideas');
-    await call('GET', '/ideas?q=ete');
-    await call('GET', '/ideas?q=CORDES');
-    await call('GET', '/ideas?tags=visuel');
-    await call('GET', '/ideas?tags=arrangement,live&sort=old');
-    await call('GET', '/ideas?sort=modified');
-    await call('GET', '/ideas?archived=1');
-    await call('GET', '/random');
-    await call('GET', '/random?tags=visuel');
-    await call('GET', '/random?tags=rien');
-    await call('GET', '/home');
-    await hub.request('GET', '/api/modules/todo/tasks').then((r) => steps.push(['todo', r.body]));
-    // Export (with and without the archives), its contents.
-    await call('POST', '/export', {});
-    await call('POST', '/export', { archives: true });
     for (const [i, s] of saves.entries())
       s.data = readFileSync(path.join(out, `export-${i + 1}`), 'utf8');
     const assistant = {

@@ -44,6 +44,12 @@ body {
   margin-bottom: 14px;
 }
 
+.m-content .page__header {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+
 .m-content .page__header h1 {
   font-size: 1.4rem;
 }

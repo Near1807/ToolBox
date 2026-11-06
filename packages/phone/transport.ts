@@ -20,6 +20,57 @@ export interface WorkerEnvelope {
 export type WorkerReply =
   { id: number; ok: true; result: unknown } | { id: number; ok: false; error: string };
 
+/**
+ * What the Worker asks of the PAGE (the reverse way): what only the page can
+ * do, through Android (the Capacitor plugins live in the page). Answered by
+ * the page's `PageHost` (mobile/app/src/page-host.ts).
+ */
+export type HostCall = {
+  kind: 'saveAs';
+  title: string;
+  defaultName: string;
+  data: string | Uint8Array;
+};
+
+/** Worker → page: a host call. */
+export interface HostEnvelope {
+  host: { id: number; call: HostCall };
+}
+/** Page → Worker: its answer. */
+export interface HostReply {
+  hostReply: { id: number; ok: true; result: unknown } | { id: number; ok: false; error: string };
+}
+
+/** The Worker's side of the reverse way: calls answered by the page. */
+export class PageLink {
+  private nextId = 1;
+  private readonly pending = new Map<
+    number,
+    { resolve: (v: unknown) => void; reject: (e: Error) => void }
+  >();
+
+  constructor(private readonly port: MessagePort) {
+    port.addEventListener('message', (event) => {
+      const data = event.data as Partial<HostReply>;
+      if (!data.hostReply) return;
+      const reply = data.hostReply;
+      const waiting = this.pending.get(reply.id);
+      if (!waiting) return;
+      this.pending.delete(reply.id);
+      if (reply.ok) waiting.resolve(reply.result);
+      else waiting.reject(new Error(reply.error));
+    });
+  }
+
+  call<T>(call: HostCall): Promise<T> {
+    const id = this.nextId++;
+    return new Promise<T>((resolve, reject) => {
+      this.pending.set(id, { resolve: resolve as (v: unknown) => void, reject });
+      this.port.postMessage({ host: { id, call } } satisfies HostEnvelope);
+    });
+  }
+}
+
 /** Something that carries messages both ways (a Worker, or a test double). */
 export interface MessagePort {
   postMessage(message: unknown, transfer?: Transferable[]): void;
@@ -36,7 +87,12 @@ export class WorkerClient {
 
   constructor(private readonly port: MessagePort) {
     port.addEventListener('message', (event) => {
-      const reply = event.data as WorkerReply;
+      const data = event.data as WorkerReply | HostEnvelope;
+      if ('host' in data) {
+        void this.serve(data.host.id, data.host.call);
+        return;
+      }
+      const reply = data;
       const waiting = this.pending.get(reply.id);
       if (!waiting) return;
       this.pending.delete(reply.id);
@@ -51,6 +107,24 @@ export class WorkerClient {
       this.pending.set(id, { resolve: resolve as (v: unknown) => void, reject });
       this.port.postMessage({ id, call } satisfies WorkerEnvelope);
     });
+  }
+
+  private host: ((call: HostCall) => Promise<unknown>) | null = null;
+
+  /** The page answers the Worker's host calls with this (once, at start-up). */
+  serveHost(handler: (call: HostCall) => Promise<unknown>): void {
+    this.host = handler;
+  }
+
+  private async serve(id: number, call: HostCall) {
+    let reply: HostReply['hostReply'];
+    try {
+      if (!this.host) throw new Error('La page ne répond pas aux demandes du Worker.');
+      reply = { id, ok: true, result: await this.host(call) };
+    } catch (error) {
+      reply = { id, ok: false, error: error instanceof Error ? error.message : String(error) };
+    }
+    this.port.postMessage({ hostReply: reply } satisfies HostReply);
   }
 }
 
