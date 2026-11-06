@@ -22,7 +22,7 @@ export interface BackupCopy {
   /** Version of the app that took it. */
   appVersion: string;
   /** Why it was taken. */
-  reason: 'quotidienne' | 'avant-restauration' | 'avant-migration';
+  reason: 'quotidienne' | 'avant-restauration' | 'avant-migration' | 'avant-synchro';
   /**
    * Elements per module in it (key: COUNTED[].key), e.g. { tasks: 12, ideas: 3 }.
    * Absent on the copies of 0.30.0 (they only have `tasks`).

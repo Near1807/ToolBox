@@ -16,6 +16,7 @@ import { useModules } from '../../modules/ModulesContext';
 import { formatDateTime, formatSize } from '../format';
 import { useNavigation } from '../NavigationContext';
 import { AppearanceCard } from './AppearanceCard';
+import { SyncCard } from './SyncCard';
 import { SettingsForm, type SettingsSectionData } from './SettingsForm';
 
 const STATUS_LABELS = {
@@ -523,6 +524,14 @@ export function SettingsPage() {
       ],
     },
     {
+      id: 'sync',
+      title: 'Synchro avec le téléphone',
+      group: GENERAL_GROUP,
+      entries: [
+        { key: 'sync', label: 'Synchro avec le téléphone', description: 'appairage, conflits' },
+      ],
+    },
+    {
       id: 'modules',
       title: 'Modules',
       group: GENERAL_GROUP,
@@ -650,6 +659,7 @@ export function SettingsPage() {
           {current.id === 'accounts' && (
             <AccountsCard section={accountSection} onSaved={settings.reload} />
           )}
+          {current.id === 'sync' && <SyncCard />}
           {current.id === 'modules' && <ModulesCard />}
           {current.id === 'backups' && <BackupsCard />}
           {current.id === 'about' && <AboutCard />}

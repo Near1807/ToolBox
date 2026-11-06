@@ -28,6 +28,7 @@ import {
 } from './backup';
 import { PAGE_MODULES, type PageModule } from './page-modules';
 import { SettingsPage } from './SettingsPage';
+import { ConflictsPage, SyncNowButton, SyncPage, useSyncState } from './SyncPage';
 import { startTimerNotifications } from './timer-notices';
 
 /** The modules' Background components (the Timer's sound), mounted once for the whole app. */
@@ -54,6 +55,7 @@ let timerNotificationsStarted = false;
 
 const MORE_PATHS = [
   '/settings',
+  '/sync',
   ...PAGE_MODULES.filter((m) => m.place === 'more').map((m) => `/m/${m.manifest.id}`),
 ];
 
@@ -131,10 +133,27 @@ function HomePage(props: { shell: Shell }) {
           </Card>
         );
       })}
+      <HomeSync shell={props.shell} />
       <p className="small muted m-home__copy">
         Dernière copie de sauvegarde : {last ? dateFr(last.createdAt) : 'aucune pour l’instant'}
       </p>
     </Page>
+  );
+}
+
+/** Accueil: « Synchroniser » once paired with the PC (by hand, ADR 0044). */
+function HomeSync(props: { shell: Shell }) {
+  const { state, reload } = useSyncState(props.shell.client);
+  if (!state?.peer?.first_sync_at) return null;
+  return (
+    <Card title="Synchro avec le PC">
+      <p className="small muted">
+        Dernière synchro :{' '}
+        {state.peer.last_sync_at ? dateFr(state.peer.last_sync_at) : 'pas encore'}
+        {state.conflicts ? ` · ${state.conflicts} conflit(s)` : ''}
+      </p>
+      <SyncNowButton client={props.shell.client} onDone={() => void reload()} />
+    </Card>
   );
 }
 
@@ -349,6 +368,8 @@ export function App(props: { client: WorkerClient }) {
           ))}
           <Route path="more" element={<MorePage />} />
           <Route path="settings" element={<SettingsPage shell={shell} />} />
+          <Route path="sync" element={<SyncPage shell={shell} />} />
+          <Route path="sync/conflicts" element={<ConflictsPage shell={shell} />} />
           <Route path="*" element={<HomePage shell={shell} />} />
         </Routes>
       </main>

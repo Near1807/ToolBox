@@ -3,7 +3,7 @@
 // (display: kept on this phone), the safety copies (date of the last one,
 // « Restaurer une copie » with a confirmation) and what the app runs on.
 import { useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { App as CapacitorApp } from '@capacitor/app';
 import { Button, Card, Page, api, errorMessage } from '@hub/sdk/frontend';
 import {
@@ -31,6 +31,7 @@ const REASONS: Record<BackupCopy['reason'], string> = {
   quotidienne: '',
   'avant-restauration': ' · avant une restauration',
   'avant-migration': ' · avant une mise à jour des données',
+  'avant-synchro': ' · avant la première synchro',
 };
 
 export function SettingsPage(props: { shell: Shell }) {
@@ -104,6 +105,16 @@ export function SettingsPage(props: { shell: Shell }) {
           <SamsungGuide />
         </Card>
       )}
+
+      <Card title="Synchro avec le PC">
+        <p className="small">
+          Échanger les données des 5 modules avec ToolBox sur le PC, sur le même Wi-Fi, sans
+          Internet. Rien ne part sans ton geste.
+        </p>
+        <Link to="/sync" className="button button--secondary">
+          Ouvrir la synchro
+        </Link>
+      </Card>
 
       <Card title="Copies de sauvegarde">
         <p>
