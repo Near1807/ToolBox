@@ -245,6 +245,11 @@ export class PhoneHub {
   private readonly shutdown: (() => void | Promise<void>)[] = [];
   private readonly logger: ModuleLogger;
 
+  /** The base (the synchronisation's Worker steps read it). */
+  get db(): SqlDatabase {
+    return this.options.db;
+  }
+
   private constructor(private readonly options: PhoneHubOptions) {
     this.settings = new PhoneSettings(options.db);
     this.logger = this.loggerFor('core');

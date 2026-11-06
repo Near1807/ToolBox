@@ -7,6 +7,8 @@ import type { HostAdapter } from './core/host';
 import { MEDIA_PREFIX } from './core/media';
 import { registerSecurity, StreamTicketStore } from './core/security';
 import { registerCoreRoutes } from './routes/core';
+import { registerSyncRoutes } from './routes/sync';
+import { SyncServer } from './core/sync/server';
 
 export type { SystemInfo } from './routes/core';
 
@@ -84,6 +86,9 @@ export async function buildServer(options: ServerOptions): Promise<BuiltServer> 
 
   app.get('/api/health', async () => ({ status: 'ok' }));
   registerCoreRoutes(app, hub, options.appVersion);
+  // The synchronisation with the phone: off until Thomas turns it on (ADR 0044).
+  const sync = new SyncServer(hub, options.appVersion);
+  registerSyncRoutes(app, hub, sync, options.token);
   hub.mountRoutes(app);
 
   // Serves the UI (production) and provides reply.sendFile() for media files.
@@ -103,9 +108,13 @@ export async function buildServer(options: ServerOptions): Promise<BuiltServer> 
     },
   );
 
-  app.addHook('onClose', async () => hub.stop());
+  app.addHook('onClose', async () => {
+    await sync.stop();
+    await hub.stop();
+  });
   await app.ready();
   hub.start();
+  void sync.start();
 
   return { app, hub, setPort: (value) => (port = value) };
 }

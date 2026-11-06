@@ -4,6 +4,7 @@
 // the PC, the screens do not change. Portable: no Node import.
 import type { ApiTransport } from '../sdk/frontend';
 import type { PhoneRequest, PhoneResponse } from './router';
+import type { SyncWorkerCall } from './sync-client';
 
 /** A message from the page to the Worker. */
 export type WorkerCall =
@@ -13,7 +14,8 @@ export type WorkerCall =
   | { kind: 'migrate' }
   | { kind: 'stream-open'; stream: number; url: string }
   | { kind: 'stream-close'; stream: number }
-  | { kind: 'restore'; bytes: Uint8Array };
+  | { kind: 'restore'; bytes: Uint8Array }
+  | { kind: 'sync'; call: SyncWorkerCall };
 
 /** Worker → page: an event of an open stream (the Timer's phases…). */
 export interface StreamEnvelope {
