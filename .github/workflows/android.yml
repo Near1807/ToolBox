@@ -23,6 +23,7 @@ on:
       - 'packages/phone/**'
       - 'frontend/src/themes/**'
       - 'frontend/src/styles.css'
+      - 'frontend/src/shell/settings/SettingsForm.tsx'
       - 'backend/core/migrations-core.ts'
       - 'backend/core/core-migrations.ts'
       - 'backend/core/settings-validation.ts'

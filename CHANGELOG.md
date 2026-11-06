@@ -4,6 +4,25 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.31.0] — 2026-11-06
+
+Session « Version téléphone, étape 4 : Idées, Sport, Timer et Courses sur le téléphone ». **Côté PC, rien ne change à l'écran ni dans les données** (références des 5 modules vertes).
+
+### Ajouté (téléphone)
+
+- **Boîte à idées et Sport** : « Transformer en tâche », exports Markdown / CSV par la feuille de partage d'Android ; séance du jour à gros boutons, amenée à l'écran.
+- **Timer** : suivi des phases en direct, son dans l'appli ouverte, notifications des fins de phase programmées à l'avance (annulées à la pause et à l'arrêt), permission demandée avec une phrase, alarmes exactes vérifiées, guide Samsung.
+- **Courses** : images de recette (galerie ou photo, réduites dans le téléphone), exports JSON et Markdown par partage, liste de courses pour le magasin, planning en cartes ; import JSON réservé au PC.
+- **Navigation** : Accueil, Courses, To-do, Sport, Plus (Boîte à idées, Timer, Réglages) ; Accueil = une carte par module.
+- **Réglages des modules** sur le téléphone ; guide Samsung du Timer.
+- **Filet de sauvegarde** : copie « avant-migration » avant toute migration d'une base non vide ; fiches avec les éléments par module.
+
+### Modifié
+
+- To-do : sur le téléphone seulement, le champ « Nouvelle tâche » ne prend plus le focus à l'ouverture (`onPhone()` du SDK, toujours faux sur le PC).
+- Timer : textes des notifications regroupés dans `shared/notices.ts` (mêmes textes, référence verte).
+- Références de non-régression d'Idées, Sport, Timer et Courses découpées en scénarios partagés PC / téléphone.
+
 ## [0.30.0] — 2026-11-05
 
 Session « Version téléphone, étape 3b : la vraie appli Android + To-do ». **Aucun changement visible dans l'app PC.**

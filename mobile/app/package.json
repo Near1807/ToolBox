@@ -1,7 +1,7 @@
 {
   "name": "toolbox-app",
   "private": true,
-  "version": "0.30.0",
+  "version": "0.31.0",
   "description": "ToolBox sur Android (be.toolbox.app) : coquille Capacitor, hôte téléphone dans un Worker, SQLite WebAssembly + OPFS (ADR 0044). React, Vite et le SDK viennent de la racine du dépôt.",
   "type": "module",
   "scripts": {
