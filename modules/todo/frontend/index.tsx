@@ -15,6 +15,7 @@ import {
   useApi,
   useModule,
   Icon,
+  onPhone,
 } from '@hub/sdk/frontend';
 import {
   daysBetween,
@@ -57,7 +58,7 @@ function DueBadge(props: { task: TaskDto; today: string }) {
 }
 
 /** « finir le mix #mix vendredi » + Entrée. */
-function QuickAdd(props: { data: TasksResponse; onAdded: (task: TaskDto) => void }) {
+export function QuickAdd(props: { data: TasksResponse; onAdded: (task: TaskDto) => void }) {
   const module = useModule();
   const [text, setText] = useState('');
   const [ignoreDate, setIgnoreDate] = useState(false);
@@ -117,7 +118,8 @@ function QuickAdd(props: { data: TasksResponse; onAdded: (task: TaskDto) => void
           ref={input}
           className="input td-add__input"
           value={text}
-          autoFocus
+          // On the phone, no keyboard over the list on arrival (ADR 0044).
+          autoFocus={!onPhone()}
           placeholder="finir le mix #mix vendredi — puis Entrée"
           aria-label="Nouvelle tâche"
           onChange={(e) => {

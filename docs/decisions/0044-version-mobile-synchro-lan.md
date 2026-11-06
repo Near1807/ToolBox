@@ -128,6 +128,17 @@ Cœur partagé sur le PC, sans changement de comportement : `@hub/sdk/core` (por
   - `versionCode = majeure × 1 000 000 + mineure × 100 + correctif`.
   - Le workflow s'arrête si un secret manque.
 
+## Étape 4 faite (v0.31.0)
+
+- **Les cinq modules sur le téléphone** : To-do, Boîte à idées, Sport, Timer, Courses. Chaque référence de non-régression est rejouée sur sqlite-wasm et l'hôte téléphone avec un scénario partagé avec le PC (`modules/<id>/tests/scenario.ts`) : mêmes réponses, mêmes lignes. Seule la lecture par l'assistant est exclue (sans effet sur le téléphone).
+- **Copie « avant-migration »** : le Worker ne migre pas une base non vide tant que la page n'a pas fait cette copie (comptée dans les 7).
+- **Canal inverse Worker → page** (`HostCall`) pour ce que seuls les greffons Android savent faire : `ctx.files.saveAs` = feuille de partage.
+- **Flux d'événements** servis par le Worker : la page du Timer suit les phases comme sur le PC.
+- **Notifications du Timer programmées à l'avance** par la page (le Worker dort en arrière-plan) au démarrage, à la reprise et à « +5 min », annulées à la pause et à l'arrêt ; mêmes textes que le serveur (`modules/timer/shared/notices.ts`). `ctx.notifications.notify` et `ctx.ui.setOverlay` sont sans effet sur le téléphone.
+- **Fichiers** : dossier de données des modules dans OPFS, en mémoire et écrit au fil de l'eau ; pas de Corbeille (`trash` supprime). **Images** : `OffscreenCanvas`, mêmes règles que le PC, octets JPEG différents.
+- **Import JSON des Courses réservé au PC** (il fait une sauvegarde `ctx.db.backup` que le téléphone n'a pas).
+- **Réglages des modules** sur le téléphone : mêmes routes et même formulaire que le PC, sans ce qui n'y a pas de sens (fenêtre flottante du Timer).
+
 ## Conséquences
 
 - Le PC ne change pas de comportement. Chaque étape le prouve par des références écrites avant modification, la suite complète et la CI Windows.

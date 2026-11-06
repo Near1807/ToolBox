@@ -1,12 +1,37 @@
-// Réglages of the phone app: the theme (display: kept on this phone), the
-// safety copies (date of the last one, « Restaurer une copie » with a
-// confirmation) and what the app runs on.
-import { useEffect, useState } from 'react';
+// Réglages of the phone app: the modules' settings (the PC's form, same
+// routes; a module's gear opens its section: #/settings?s=<id>), the theme
+// (display: kept on this phone), the safety copies (date of the last one,
+// « Restaurer une copie » with a confirmation) and what the app runs on.
+import { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router';
 import { App as CapacitorApp } from '@capacitor/app';
-import { Button, Card, Page, errorMessage } from '@hub/sdk/frontend';
+import { Button, Card, Page, api, errorMessage } from '@hub/sdk/frontend';
+import {
+  SettingsForm,
+  type SettingsSectionData,
+} from '../../../frontend/src/shell/settings/SettingsForm';
 import { applyTheme, cachedTheme, THEMES } from '../../../frontend/src/themes';
-import { KEEP_COPIES, type BackupCopy } from '../../../packages/phone/backup';
+import { describeCounts, KEEP_COPIES, type BackupCopy } from '../../../packages/phone/backup';
 import { dateFr, type Shell } from './App';
+import { PHONE_HIDDEN_SETTINGS, PHONE_SETTING_LABELS } from './page-modules';
+import { SamsungGuide } from './TimerPhone';
+
+/** A section as the phone shows it: without what means nothing here, with the phone's words. */
+const forPhone = (section: SettingsSectionData): SettingsSectionData => ({
+  ...section,
+  fields: section.fields
+    .filter((f) => !PHONE_HIDDEN_SETTINGS[section.scope]?.includes(f.field.key))
+    .map((f) => {
+      const label = PHONE_SETTING_LABELS[`${section.scope}.${f.field.key}`];
+      return label ? { ...f, field: { ...f.field, label } } : f;
+    }),
+});
+
+const REASONS: Record<BackupCopy['reason'], string> = {
+  quotidienne: '',
+  'avant-restauration': ' · avant une restauration',
+  'avant-migration': ' · avant une mise à jour des données',
+};
 
 export function SettingsPage(props: { shell: Shell }) {
   const { shell } = props;
@@ -16,6 +41,22 @@ export function SettingsPage(props: { shell: Shell }) {
   const [error, setError] = useState<string | null>(null);
   const [build, setBuild] = useState<string | null>(null);
   const last = shell.copies[0];
+  const [sections, setSections] = useState<SettingsSectionData[] | null>(null);
+  const [params] = useSearchParams();
+  const wanted = params.get('s');
+  const wantedRef = useRef<HTMLDivElement>(null);
+
+  const loadSections = () =>
+    api.get<SettingsSectionData[]>('/api/core/settings').then(
+      (all) => setSections(all.map(forPhone).filter((section) => section.fields.length > 0)),
+      (e: unknown) => setError(errorMessage(e)),
+    );
+  useEffect(() => {
+    void loadSections();
+  }, []);
+  useEffect(() => {
+    if (sections && wanted) wantedRef.current?.scrollIntoView({ block: 'start' });
+  }, [sections, wanted]);
 
   useEffect(() => {
     CapacitorApp.getInfo().then(
@@ -27,8 +68,8 @@ export function SettingsPage(props: { shell: Shell }) {
   const restore = async (copy: BackupCopy) => {
     const replace = shell.base.rows > 0;
     const question = replace
-      ? `Remplacer les données actuelles du téléphone par la copie du ${dateFr(copy.createdAt)} (${copy.tasks} tâche(s)) ?\n\nUne copie des données actuelles est faite avant.`
-      : `Restaurer la copie du ${dateFr(copy.createdAt)} (${copy.tasks} tâche(s)) ?`;
+      ? `Remplacer les données actuelles du téléphone par la copie du ${dateFr(copy.createdAt)} (${describeCounts(copy)}) ?\n\nUne copie des données actuelles est faite avant.`
+      : `Restaurer la copie du ${dateFr(copy.createdAt)} (${describeCounts(copy)}) ?`;
     if (!window.confirm(question)) return;
     setBusy(true);
     setError(null);
@@ -42,6 +83,28 @@ export function SettingsPage(props: { shell: Shell }) {
 
   return (
     <Page title="Réglages">
+      {sections?.map((section) => (
+        <div
+          key={section.scope}
+          ref={section.scope === wanted ? wantedRef : undefined}
+          className="m-settings-section"
+        >
+          <Card title={section.title}>
+            <SettingsForm
+              key={JSON.stringify(section.fields.map((f) => f.value))}
+              section={section}
+              onSaved={() => void loadSections()}
+            />
+          </Card>
+        </div>
+      ))}
+
+      {shell.base.modules.some((m) => m.id === 'timer' && m.status === 'loaded') && (
+        <Card title="Timer en arrière-plan (Samsung)">
+          <SamsungGuide />
+        </Card>
+      )}
+
       <Card title="Copies de sauvegarde">
         <p>
           Dernière copie :{' '}
@@ -49,7 +112,8 @@ export function SettingsPage(props: { shell: Shell }) {
         </p>
         <p className="small muted">
           Une copie par jour, à l’ouverture de l’appli, dans le stockage propre de ToolBox (jamais
-          vidé par Android). Les {KEEP_COPIES} plus récentes sont gardées.
+          vidé par Android), et une juste avant chaque mise à jour qui modifie la structure des
+          données. Les {KEEP_COPIES} plus récentes sont gardées.
         </p>
         {error && <p className="error">{error}</p>}
         {!choosing ? (
@@ -67,9 +131,8 @@ export function SettingsPage(props: { shell: Shell }) {
                 <div>
                   <strong>{dateFr(copy.createdAt)}</strong>
                   <div className="small muted">
-                    {copy.tasks} tâche(s)
-                    {copy.reason === 'avant-restauration' ? ' · avant une restauration' : ''} ·
-                    version {copy.appVersion}
+                    {describeCounts(copy)}
+                    {REASONS[copy.reason]} · version {copy.appVersion}
                   </div>
                 </div>
                 <Button variant="secondary" disabled={busy} onClick={() => void restore(copy)}>

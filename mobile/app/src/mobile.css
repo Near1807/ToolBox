@@ -44,6 +44,12 @@ body {
   margin-bottom: 14px;
 }
 
+.m-content .page__header {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+
 .m-content .page__header h1 {
   font-size: 1.4rem;
 }
@@ -69,7 +75,8 @@ body {
 /* The bottom navigation. */
 .m-nav {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
   border-top: 1px solid var(--border);
   background: var(--surface-solid);
   padding-bottom: env(safe-area-inset-bottom);
@@ -93,6 +100,48 @@ body {
 }
 
 .m-nav__item.active {
+  color: var(--accent);
+}
+
+.m-home__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.m-home__title svg {
+  width: 18px;
+  height: 18px;
+  color: var(--accent);
+}
+
+/* « Plus »: big rows, one per page. */
+.m-more {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.m-more__item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 60px;
+  padding: 0 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 1.05rem;
+  text-decoration: none;
+}
+
+.m-more__item svg {
+  width: 22px;
+  height: 22px;
   color: var(--accent);
 }
 
@@ -185,4 +234,25 @@ body {
   bottom: calc(68px + env(safe-area-inset-bottom));
   transform: none;
   max-width: none;
+}
+
+/* A warning card (phone notes: permissions, alarms). */
+.m-warning {
+  border-color: var(--warning);
+}
+
+.m-steps {
+  margin: 8px 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 8px;
+}
+
+/* Phone notes above a module's page (Timer: notifications, alarms, guide). */
+.m-timer-notes {
+  padding: 16px 16px 0;
+}
+
+.m-timer-notes:empty {
+  display: none;
 }

@@ -104,11 +104,15 @@ Un handler de route ne lit que `request.params`, `request.query` et `request.bod
 
 **Sur le téléphone** (`packages/phone/`, ADR 0044), le code serveur du module tourne tel quel dans un Worker, avec le même `ctx` :
 
-- **fournis** : `db` (sqlite-wasm, interface de better-sqlite3), `routes` (mêmes réponses que Fastify), `settings`, `services`, `calendar`, `logger`, `onShutdown` ;
-- **sans effet** : `assistant` (`define` est accepté et ignoré) ;
-- **pas encore fournis** : `files`, `images`, `notifications`, `outputs`, `jobs`, `scheduler`, `events`, `ui`, `hotkeys`, `accounts`, `binaries`, `db.backup`. Ils lèvent l'erreur explicite « … n'est pas disponible sur le téléphone » (jamais un faux succès). Un module qui en a besoin au démarrage ne se charge pas, et les autres continuent.
+- **fournis** : `db` (sqlite-wasm, interface de better-sqlite3), `routes` (mêmes réponses que Fastify), `settings` (et les routes de réglages du PC : l'engrenage d'un module ouvre sa section dans Réglages), `services`, `calendar`, `logger`, `onShutdown` ;
+- **par la page (Android)** : `files.saveAs` = la feuille de partage d'Android (le fichier est écrit dans le cache de l'appli, l'utilisateur choisit où l'envoyer ; fermer la feuille = « annulé », `null`). Le Worker le demande à la page par le canal inverse (`HostCall`, `packages/phone/transport.ts`) ;
+- **flux d'événements** (`openEventStream`, routes `streamTicket: true`) : servis par le Worker, les événements arrivent à la page comme les SSE du PC (sans ticket : rien ne sort de l'appli) ;
+- **sans effet** : `assistant` (`define` est accepté et ignoré), `ui.setOverlay` (pas de fenêtre flottante), `notifications.notify` (le Worker peut dormir en arrière-plan : les notifications du Timer sont **programmées à l'avance** par la page, mêmes textes, `modules/timer/shared/notices.ts`) ;
+- **fichiers** (`files.dataDir`, `dataPath`, `readFile`, `fileSize`, `writeFile`, `removeFile`, `trash`, `mediaUrl(IfExists)`) : le dossier de données du module est dans OPFS (`files/modules/<id>/`), chargé en mémoire au démarrage et écrit au fil de l'eau ; le Worker attend l'écriture avant de répondre. Pas de Corbeille sur un téléphone : `trash` supprime le fichier (la ligne du module reste en suppression logique). Les images s'affichent par une URL `blob:`. **Les copies de sauvegarde ne contiennent que la base**, pas ces fichiers ;
+- **images** (`images.normalise`) : décodage et ré-encodage par le navigateur (`createImageBitmap`, `OffscreenCanvas`) avec les mêmes règles que le PC (taille, qualité, poids, fond blanc, messages) ; les octets JPEG peuvent différer de ceux du PC ;
+- **pas encore fournis** : `files.outputDir`, `open`, `reveal`, `assetsDir`, le reste de `ui`, `outputs`, `jobs`, `scheduler`, `events`, `hotkeys`, `accounts`, `binaries`, `db.backup`. Ils lèvent l'erreur explicite « … n'est pas disponible sur le téléphone » (jamais un faux succès). Un module qui en a besoin au démarrage ne se charge pas, et les autres continuent.
 
-La preuve qu'un module se comporte pareil : rejouer sa référence de non-régression sur l'hôte téléphone (`PhoneHub`, `openWasmDatabase`, `phoneRequest`, `dumpWasmTables` de `@hub/sdk/testing`). Exemple : `modules/todo/tests/regression-phone.test.ts`.
+La preuve qu'un module se comporte pareil : rejouer sa référence de non-régression sur l'hôte téléphone (`PhoneHub`, `openWasmDatabase`, `phoneRequest`, `dumpWasmTables` de `@hub/sdk/testing`). Exemples : `modules/{todo,ideas,sport,timer,courses}/tests/regression-phone.test.ts` et `modules/courses/tests/image-regression-phone.test.ts` (le scénario est partagé avec le PC dans `tests/scenario.ts`).
 
 ```ts
 import { defineBackendModule, HttpError } from '@hub/sdk/backend';
@@ -531,7 +535,7 @@ export default defineFrontendModule({
 - CSS propre à un module : un fichier importé depuis `frontend/`, classes préfixées par les initiales du module (ex. `ml-` pour music-library).
 - Fichiers générés : `outputs` (client des routes `/api/core/outputs`), `confirmDelete`, `useSelection`, et les composants `SelectionBar`, `MissingFile`, `OutputList` (voir §5.13).
 - Outils du SDK : `useModule`, `useApi`, `useJobs`, `api`, `apiFetch`, `openEventStream`, `getFilePath`, `startFileDrag`, `pickFiles`, `pickFolder`, `copyText`, `formatDuration`, `formatBytes`, `errorMessage`, `ApiError`, `dateInputValue` (composants), les fonctions de textes (`fillTemplate`, `toTemplate`, `parseTags`, `formatTags`, aussi dans `@hub/sdk/texts`), et les composants `Page`, `Card`, `Button`, `EmptyState`, `ErrorMessage`, `ProgressBar`, `ErrorBoundary`.
-- **Transport** : `api`, `apiFetch`, `useApi` et `openEventStream` passent par un `ApiTransport`. Sur le PC c'est `httpTransport` (HTTP vers le serveur local, jeton de session, SSE avec ticket à usage unique) ; la version téléphone le remplacera au démarrage par `setApiTransport` (messages vers son Worker), **mêmes chemins, même contrat**. Une page n'appelle jamais `fetch` ni `EventSource` elle-même.
+- **Transport** : `api`, `apiFetch`, `useApi` et `openEventStream` passent par un `ApiTransport`. Sur le PC c'est `httpTransport` (HTTP vers le serveur local, jeton de session, SSE avec ticket à usage unique) ; la version téléphone le remplacera au démarrage par `setApiTransport` (messages vers son Worker), **mêmes chemins, même contrat**. Une page n'appelle jamais `fetch` ni `EventSource` elle-même. `onPhone()` dit si la page tourne dans l'appli du téléphone (toujours `false` sur le PC) : seulement pour les rares comportements d'écran qui doivent y différer (ex. : pas de clavier ouvert à l'arrivée sur la To-do), jamais pour changer une donnée.
 
 ### 7.1 Composants partagés (obligatoires)
 

@@ -204,6 +204,8 @@ export class ApiError extends Error {
  * one that talks to its Worker (ADR 0044). Pages never see the difference.
  */
 export interface ApiTransport {
+  /** Where the pages run: absent on the PC; 'phone' for the phone app (ADR 0044). */
+  device?: 'phone';
   /** One request on an API path (`/api/...`); answers like fetch. */
   request(path: string, init: RequestInit): Promise<Response>;
   /** An event stream (route declared with `streamTicket: true`); returns a function that closes it. */
@@ -266,6 +268,15 @@ let transport: ApiTransport = httpTransport;
 /** Replaces the transport (once, at start-up, before any page): the phone's Worker. */
 export function setApiTransport(next: ApiTransport): void {
   transport = next;
+}
+
+/**
+ * True inside the phone app only (its transport says so). For the few
+ * screen behaviours that must differ there (e.g. no keyboard opened on
+ * arrival); always false on the PC.
+ */
+export function onPhone(): boolean {
+  return transport.device === 'phone';
 }
 
 /**

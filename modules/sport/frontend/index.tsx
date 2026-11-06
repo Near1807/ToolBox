@@ -3,7 +3,7 @@
 // duration, day, exercises), sessions added by hand (deletable), the
 // exercise library, the summary, export. A click on a session (week, month,
 // home card) shows its exercises. Home card: today's sessions.
-import { useState, type DragEvent } from 'react';
+import { useEffect, useState, type DragEvent } from 'react';
 import { useSearchParams } from 'react-router';
 import {
   Button,
@@ -17,6 +17,7 @@ import {
   useApi,
   useModule,
   Icon,
+  onPhone,
 } from '@hub/sdk/frontend';
 import {
   formatLine,
@@ -1020,6 +1021,14 @@ function SportPage() {
     });
   };
   const session = w?.days.flatMap((d) => d.sessions).find((s) => s.id === selected) ?? null;
+  // On the phone the open session is under the week: brought into view (the PC shows both).
+  useEffect(() => {
+    if (selected && onPhone())
+      document
+        .querySelector('.sp-editor')
+        ?.closest('.card')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [selected]);
 
   return (
     <Page
