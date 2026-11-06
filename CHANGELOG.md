@@ -4,6 +4,21 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.32.0] — 2026-11-06
+
+Session « Version téléphone, étape 5a : moteur de synchro PC ↔ téléphone ». **Sans appairage, le PC se comporte comme avant** (aucun port ouvert, références des 5 modules identiques).
+
+### Ajouté
+
+- **Synchro avec le téléphone** (Réglages › Synchro avec le téléphone, désactivée par défaut) : écouteur HTTPS sur le réseau local, QR code d'appairage, appareils appairés et « Oublier cet appareil », conflits.
+- **Téléphone** : Réglages › Synchro avec le PC (appairage par photo du QR code ou code tapé, première synchro avec aperçu, « Partir des données du PC » ou « Fusionner », « Synchroniser » aussi sur l'Accueil, Conflits).
+- Moteur d'échange : horloge hybride, champ par champ, conflits gardés, noms en double jamais fusionnés seuls, tout ou rien.
+
+### Modifié
+
+- Migrations : socle v6, une migration par module synchronisé (colonnes ajoutées au journal, horloge par champ).
+- Boîte à idées vide sur le téléphone : plus de renvoi vers l'assistant.
+
 ## [0.31.0] — 2026-11-06
 
 Session « Version téléphone, étape 4 : Idées, Sport, Timer et Courses sur le téléphone ». **Côté PC, rien ne change à l'écran ni dans les données** (références des 5 modules vertes).

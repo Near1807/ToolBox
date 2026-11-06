@@ -279,7 +279,12 @@ export function SyncPage(props: { shell: Shell }) {
 
   if (!state) return <Page title="Synchro avec le PC">{null}</Page>;
   return (
-    <Page title="Synchro avec le PC">
+    <Page
+      title="Synchro avec le PC"
+      subtitle={
+        <span className="badge badge--warning">Expérimental : pas encore validé à l’usage</span>
+      }
+    >
       {!state.peer ? (
         <PairCard client={shell.client} onPaired={() => void reload()} />
       ) : (
