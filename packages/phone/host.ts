@@ -478,7 +478,8 @@ export class PhoneHub {
       if (missing.length > 0)
         throw new Error(`service(s) déclaré(s) mais non fourni(s) : ${missing.join(', ')}`);
       this.services.commit(id, pendingServices);
-      if (module.backend?.sync) this.sync.addModule({ id, sync: module.backend.sync, db });
+      if (module.backend?.sync)
+        this.sync.addModule({ id, sync: module.backend.sync, db, files: ctx.files });
       routes.mount();
       this.shutdown.push(...shutdown);
       this.states.set(id, { id, status: 'loaded' });

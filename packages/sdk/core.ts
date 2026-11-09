@@ -79,6 +79,15 @@ export interface ModuleSync {
    * them (e.g. the sessions of a week generated twice).
    */
   onDuplicate?(event: SyncDuplicate, tools: SyncTools): void;
+  /**
+   * Tables whose rows name a file of the module's data folder (a recipe
+   * picture…): the file travels after the data, once per fingerprint, in
+   * both directions; a missing file never stops the data and arrives at the
+   * next synchronisation. `column` holds the file name (in `folder`),
+   * `sha256` its fingerprint (hex). A row's file is never deleted by a
+   * synchronisation: a deleted row keeps its file (restorable).
+   */
+  files?: { table: string; folder: string; column: string; sha256: string }[];
 }
 
 export interface SyncDuplicate {

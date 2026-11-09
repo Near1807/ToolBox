@@ -11,6 +11,7 @@ import type { ConflictRow, Preview } from '../../../backend/core/sync/engine';
 import type { ExchangeResult } from '../../../backend/core/sync/protocol';
 import {
   PhoneSync,
+  type FilesResult,
   type KnownAddress,
   type SyncState,
   type SyncWorkerCall,
@@ -40,9 +41,23 @@ export const MODULE_NAMES: Record<string, string> = {
   core: 'Réglages',
 };
 
-export function resultText(r: ExchangeResult): string {
-  const n = (x: number, one: string, many: string) => `${x} ${x === 1 ? one : many}`;
-  return `${n(r.received, 'reçu', 'reçus')}, ${n(r.sent, 'envoyé', 'envoyés')}, ${n(r.conflicts, 'conflit', 'conflits')}`;
+const plural = (x: number, one: string, many: string) => `${x} ${x === 1 ? one : many}`;
+
+/** « 1 photo reçue · 1 en attente (prochaine synchro) », or '' when no picture moved. */
+export function filesText(f: FilesResult | undefined): string {
+  if (!f) return '';
+  const parts = [
+    f.received ? plural(f.received, 'photo reçue', 'photos reçues') : '',
+    f.sent ? plural(f.sent, 'photo envoyée', 'photos envoyées') : '',
+    f.pending
+      ? `${plural(f.pending, 'photo en attente', 'photos en attente')} (prochaine synchro)`
+      : '',
+  ].filter(Boolean);
+  return parts.length ? ` · ${parts.join(', ')}` : '';
+}
+
+export function resultText(r: ExchangeResult & { files?: FilesResult }): string {
+  return `${plural(r.received, 'reçu', 'reçus')}, ${plural(r.sent, 'envoyé', 'envoyés')}, ${plural(r.conflicts, 'conflit', 'conflits')}${filesText(r.files)}`;
 }
 
 /** The state of the synchronisation (paired PC, last time, conflicts). */
@@ -293,7 +308,7 @@ function FirstSyncCard(props: { shell: Shell; onDone: () => void }) {
       });
       await shell.refresh();
       window.alert(
-        `Première synchro faite${r.conflicts ? ` (${r.conflicts} élément(s) dans « Conflits »)` : ''}.`,
+        `Première synchro faite${r.conflicts ? ` (${r.conflicts} élément(s) dans « Conflits »)` : ''}${filesText(r.files)}.`,
       );
       props.onDone();
     });

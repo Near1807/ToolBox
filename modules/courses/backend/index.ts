@@ -362,6 +362,8 @@ export default defineBackendModule({
     },
   ],
   sync: {
+    // Recipe pictures: the file travels after the rows (by fingerprint).
+    files: [{ table: 'meal_images', folder: 'images', column: 'file', sha256: 'sha256' }],
     names: [
       {
         table: 'ingredients',

@@ -530,7 +530,8 @@ export class Hub {
         throw new Error(`service(s) déclaré(s) mais non fourni(s) : ${missing.join(', ')}`);
       }
       this.services.commit(id, pendingServices);
-      if (record.backend?.sync) this.sync.addModule({ id, sync: record.backend.sync, db });
+      if (record.backend?.sync)
+        this.sync.addModule({ id, sync: record.backend.sync, db, files: ctx.files });
       record.routes = routeList;
       record.status = 'loaded';
       record.error = undefined;

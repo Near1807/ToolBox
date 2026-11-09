@@ -21,6 +21,7 @@ import { createAutomaticBackup } from '../backups';
 import { SyncError } from './engine';
 import { encodeAddress, encodePairing, pinOf } from './pairing-code';
 import { mdnsAnnouncer, type Announcer } from './announce';
+import { SyncFiles, type FileChunk, type FileRef } from './files';
 import {
   serveExchange,
   serveFirst,
@@ -84,6 +85,7 @@ export class SyncServer {
   /** Stops the mDNS announcement (null: nothing announced). */
   private unannounce: (() => Promise<void>) | null = null;
   private announceError: string | null = null;
+  private filesCache: SyncFiles | null = null;
 
   constructor(
     private readonly hub: Hub,
@@ -430,6 +432,36 @@ export class SyncServer {
       if (body.mode !== 'preview') touch(peer, true);
       this.refusal = null;
       return result;
+    });
+
+    // The files named by the rows (recipe pictures): after the data, by pieces.
+    const files = () => (this.filesCache ??= new SyncFiles(engine()));
+    const firstDone = (peer: string) => {
+      const row = this.hub.handle.db
+        .prepare('SELECT first_sync_at FROM core__sync_peers WHERE device_id = ?')
+        .get(peer) as { first_sync_at: string | null };
+      if (!row.first_sync_at)
+        throw new SyncError('Fais d’abord la première synchro (avec son aperçu).');
+    };
+    app.post('/sync/files/missing', async (request) => {
+      firstDone(auth(request));
+      return { files: files().missing() };
+    });
+    app.post<{ Body: { ref: FileRef; offset: number } }>('/sync/files/get', async (request) => {
+      firstDone(auth(request));
+      try {
+        return files().read(request.body.ref, request.body.offset);
+      } catch (error) {
+        throw new SyncError((error as Error).message);
+      }
+    });
+    app.post<{ Body: { ref: FileRef; chunk: FileChunk } }>('/sync/files/put', async (request) => {
+      firstDone(auth(request));
+      try {
+        return { done: await files().receive(request.body.ref, request.body.chunk) };
+      } catch (error) {
+        throw new SyncError((error as Error).message);
+      }
     });
 
     app.post<{ Body: ExchangeRequest }>('/sync/exchange', async (request) => {

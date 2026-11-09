@@ -17,6 +17,7 @@ import {
   type ExchangeResult,
   type FirstResponse,
 } from '../../backend/core/sync/protocol';
+import { FILE_CHUNK, SyncFiles, type FileChunk, type FileRef } from '../../backend/core/sync/files';
 import type { PhoneHub } from './host';
 
 export interface PcPeer {
@@ -64,9 +65,14 @@ export type SyncWorkerCall =
       upTo: Record<string, number>;
       response: FirstResponse;
     }
+  | { op: 'filesMissing' }
+  | { op: 'fileRead'; ref: FileRef; offset: number }
+  | { op: 'fileWrite'; ref: FileRef; chunk: FileChunk }
   | { op: 'conflicts' }
   | { op: 'dismiss'; id: string }
   | { op: 'merge'; id: string };
+
+const phoneFiles = new WeakMap<PhoneHub, SyncFiles>();
 
 /** In the Worker: one step of the synchronisation on the phone's base. */
 export async function syncWorkerCall(hub: PhoneHub, call: SyncWorkerCall): Promise<unknown> {
@@ -177,6 +183,21 @@ export async function syncWorkerCall(hub: PhoneHub, call: SyncWorkerCall): Promi
       ).run(now(), now());
       return result;
     }
+    case 'filesMissing': {
+      let files = phoneFiles.get(hub);
+      if (!files) phoneFiles.set(hub, (files = new SyncFiles(engine)));
+      return files.missing();
+    }
+    case 'fileRead': {
+      let files = phoneFiles.get(hub);
+      if (!files) phoneFiles.set(hub, (files = new SyncFiles(engine)));
+      return files.read(call.ref, call.offset);
+    }
+    case 'fileWrite': {
+      let files = phoneFiles.get(hub);
+      if (!files) phoneFiles.set(hub, (files = new SyncFiles(engine)));
+      return files.receive(call.ref, call.chunk);
+    }
     case 'conflicts':
       return engine
         .conflicts(true)
@@ -253,6 +274,13 @@ export function offlineMessage(tried: string[], wrongCertificate: string[]): str
 }
 
 const isPinError = (message: string) => /certificat|pin|empreinte/i.test(message);
+
+/** The files of a synchronisation: sent to the PC, received, waiting for the next one. */
+export interface FilesResult {
+  sent: number;
+  received: number;
+  pending: number;
+}
 
 interface HelloAnswer {
   versions: Record<string, number>;
@@ -470,7 +498,7 @@ export class PhoneSync {
   async first(
     mode: 'merge' | 'replace',
     copyFirst: () => Promise<void>,
-  ): Promise<{ conflicts: number }> {
+  ): Promise<{ conflicts: number; files: FilesResult }> {
     await this.hello();
     await copyFirst();
     const versions = await this.worker<Record<string, number>>({ op: 'versions' });
@@ -482,16 +510,86 @@ export class PhoneSync {
       upTo: snapshot.upTo,
       response,
     });
-    return { conflicts: result.conflicts.length + response.conflicts.length };
+    const files = await this.files();
+    return { conflicts: result.conflicts.length + response.conflicts.length, files };
   }
 
-  /** « Synchroniser » : both ways. */
-  async now(): Promise<ExchangeResult> {
+  /**
+   * The files named by the rows (recipe pictures), after the data: what the
+   * PC lacks goes up, what the phone lacks comes down, by pieces, once per
+   * fingerprint. Never an error: a file that does not pass waits for the
+   * next synchronisation (counted in `pending`).
+   */
+  async files(): Promise<FilesResult> {
+    const result: FilesResult = { sent: 0, received: 0, pending: 0 };
+    let theirs: FileRef[];
+    let mine: FileRef[] = [];
+    try {
+      mine = await this.worker<FileRef[]>({ op: 'filesMissing' });
+      theirs = (await this.post<{ files: FileRef[] }>('/sync/files/missing', {})).files;
+    } catch {
+      result.pending = mine.length;
+      return result;
+    }
+    // Missing on both devices: nothing to send either way.
+    const lackedHere = new Set(mine.map((r) => r.sha256));
+    const lackedThere = new Set(theirs.map((r) => r.sha256));
+    theirs = theirs.filter((r) => !lackedHere.has(r.sha256));
+    // Not here, not on the PC either (moved, lost): it waits too, it may come back.
+    result.pending += mine.filter((r) => lackedThere.has(r.sha256)).length;
+    mine = mine.filter((r) => !lackedThere.has(r.sha256));
+    let offline = false;
+    for (const ref of theirs) {
+      if (offline) {
+        result.pending++;
+        continue;
+      }
+      try {
+        let offset = 0;
+        for (;;) {
+          const chunk = await this.worker<FileChunk>({ op: 'fileRead', ref, offset });
+          const { done } = await this.post<{ done: boolean }>('/sync/files/put', { ref, chunk });
+          if (done) break;
+          offset += FILE_CHUNK;
+          if (offset >= chunk.total) throw new Error('incomplet');
+        }
+        result.sent++;
+      } catch (error) {
+        // Not on this phone either, or the network: it waits for next time.
+        if (error instanceof SyncFailure && error.kind === 'offline') offline = true;
+        result.pending++;
+      }
+    }
+    for (const ref of mine) {
+      if (offline) {
+        result.pending++;
+        continue;
+      }
+      try {
+        let offset = 0;
+        for (;;) {
+          const chunk = await this.post<FileChunk>('/sync/files/get', { ref, offset });
+          if (await this.worker<boolean>({ op: 'fileWrite', ref, chunk })) break;
+          offset += FILE_CHUNK;
+          if (offset >= chunk.total) throw new Error('incomplet');
+        }
+        result.received++;
+      } catch (error) {
+        if (error instanceof SyncFailure && error.kind === 'offline') offline = true;
+        result.pending++;
+      }
+    }
+    return result;
+  }
+
+  /** « Synchroniser » : both ways, the data then the files. */
+  async now(): Promise<ExchangeResult & { files: FilesResult }> {
     const { firstDone } = await this.hello();
     if (!firstDone)
       throw new SyncFailure('Fais d’abord la première synchro (avec son aperçu).', 'other');
     const request = await this.worker({ op: 'begin' });
     const response = await this.post<ExchangeResponse>('/sync/exchange', request);
-    return this.worker<ExchangeResult>({ op: 'finish', response });
+    const result = await this.worker<ExchangeResult>({ op: 'finish', response });
+    return { ...result, files: await this.files() };
   }
 }

@@ -22,6 +22,7 @@
 // Portable: no Node import (it also runs in the phone's Worker).
 import type {
   ModuleDatabase,
+  ModuleFiles,
   ModuleSync,
   SettingValue,
   SyncDuplicate,
@@ -49,6 +50,21 @@ export interface SyncedModule {
   sync: ModuleSync;
   /** Its ctx.db (prefixed, with the clock): for onDuplicate's tools. */
   db: ModuleDatabase;
+  /** Its ctx.files: for the files named by its rows (`sync.files`). */
+  files?: ModuleFiles;
+}
+
+/** A table whose rows name a file, with what reads and writes it. */
+export interface FileTable {
+  scope: string;
+  /** Full table name (prefixed). */
+  table: string;
+  /** The table's name in the module (as declared). */
+  entity: string;
+  folder: string;
+  column: string;
+  sha256: string;
+  files: ModuleFiles;
 }
 
 /** The settings that are synchronised (`sync: true` in the manifest). */
@@ -202,6 +218,29 @@ export class SyncEngine {
   /** A synchronised module registered (its tables exist: migrated). */
   addModule(module: SyncedModule) {
     this.modules.set(module.id, module);
+  }
+
+  /** The tables whose rows name a file (modules that declare `sync.files` and have ctx.files). */
+  fileTables(): FileTable[] {
+    const out: FileTable[] = [];
+    for (const m of this.modules.values())
+      for (const f of m.sync.files ?? [])
+        if (m.files)
+          out.push({
+            scope: m.id,
+            table: `${prefixOf(m.id)}${f.table}`,
+            entity: f.table,
+            folder: f.folder,
+            column: f.column,
+            sha256: f.sha256,
+            files: m.files,
+          });
+    return out;
+  }
+
+  /** Reads rows of the base (the files' rows; nothing is written through it). */
+  query<T>(sql: string, ...params: unknown[]): T[] {
+    return this.db.prepare(sql).all(...params) as T[];
   }
 
   /** The synchronised settings (given by the host once its settings exist). */
