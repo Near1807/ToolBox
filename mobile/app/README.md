@@ -1,6 +1,6 @@
 # ToolBox sur Android (`mobile/app/`)
 
-Étapes 3b et 4 de la version téléphone (ADR 0044). La vraie appli : **ToolBox**, identifiant **`be.toolbox.app`**.
+Étapes 3b, 4, 5a et 5b de la version téléphone (ADR 0044). La vraie appli : **ToolBox**, identifiant **`be.toolbox.app`**.
 
 > **Cet identifiant ne change plus jamais.** Android reconnaît une mise à jour à son identifiant et à sa clé de signature. Les changer obligerait à désinstaller l'appli, et donc à perdre ses données.
 
@@ -16,6 +16,8 @@
 - **Écrans des modules** (To-do, Courses, Sport, Boîte à idées, Timer) : ceux du PC. Une mise en page mobile est ajoutée par des fichiers CSS à part (`modules/<id>/frontend/<id>.mobile.css`, `src/mobile.css`), chargés seulement par l'appli. Les rares écarts de comportement passent par `onPhone()` du SDK (toujours faux sur le PC) : pas de clavier à l'arrivée sur la To-do, séance ouverte amenée à l'écran (Sport), import JSON remplacé par une phrase et « Prendre une photo… » (Courses).
 - **Ce que seule la page peut faire** (`src/page-host.ts`, canal inverse Worker → page) : « Enregistrer sous » = feuille de partage d'Android (greffons Filesystem + Share).
 - **Timer** (`src/timer-notices.ts`, `src/TimerPhone.tsx`) : notifications des fins de phase **programmées à l'avance** (greffon Local Notifications, alarmes exactes si permises), permission demandée avec une phrase, alarmes exactes vérifiées à chaque ouverture, guide Samsung.
+- **Synchro avec le PC** (`src/SyncPage.tsx`, `src/phone-sync.ts`, logique dans `packages/phone/sync-client.ts`) : appairage, première synchro, synchro à la main, Conflits ; le PC retrouvé sur tout réseau (adresses connues, greffon `PcFinder` = NSD, « Nouvelle adresse du PC ») ; photos des recettes ; **synchro automatique** (`src/auto.ts`, `packages/phone/auto-sync.ts`, désactivée par défaut) avec le canal direct (greffon `LiveChannel`, OkHttp). Toutes les requêtes vers le PC passent par un certificat épinglé (`PinnedHttp`).
+- **Notification permanente du Timer** (`src/timer-ongoing.ts`, greffon `TimerOngoing` + `TimerOngoingReceiver`) : volet et écran de verrouillage, compte à rebours natif, phases enchaînées par AlarmManager, reconstruite après redémarrage ; réglage dans Réglages (activé par défaut).
 - **Fichiers des modules** (`src/opfs-files.ts`) : images des recettes dans OPFS (`files/`), hors des copies de sauvegarde.
 - **Worker** (`src/worker.ts`) :
   - SQLite WebAssembly sur OPFS (VFS `opfs-sahpool`, pool `toolbox`, fichier `/toolbox.sqlite3`) ;

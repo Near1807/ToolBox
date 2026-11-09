@@ -181,16 +181,7 @@ export function SyncCard() {
   if (!s) return <Card title="Synchro avec le téléphone">{status.error ?? 'Chargement…'}</Card>;
   return (
     <>
-      <Card
-        title={
-          <>
-            Synchro avec le téléphone{' '}
-            <span className="badge badge--warning" title="Pas encore validé à l’usage">
-              Expérimental
-            </span>
-          </>
-        }
-      >
+      <Card title="Synchro avec le téléphone">
         <p>
           Échange les données de Courses, To-do, Sport, Boîte à idées et Timer avec l’appli ToolBox
           du téléphone, sur ton Wi-Fi, sans Internet ni cloud. La musique ne quitte jamais le PC.

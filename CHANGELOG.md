@@ -4,6 +4,24 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.33.0] — 2026-11-09
+
+Session « Version téléphone, étape 5b ». **Synchro non activée : le PC se comporte comme avant** (aucun port ouvert, rien d'annoncé, références des 5 modules identiques).
+
+### Ajouté
+
+- **Le téléphone retrouve le PC sur n'importe quel réseau** : il garde toutes les adresses où il l'a joint (et celles que le PC lui envoie), le cherche sur le Wi-Fi (annonce mDNS du PC seulement quand la synchro est activée, Expérimental), et « QR de l'adresse » / « Nouvelle adresse du PC » en secours, sans réappairer ni refaire de première synchro.
+- **Photos des recettes** synchronisées dans les deux sens (une fois par empreinte, par morceaux ; une photo manquante ne bloque jamais les données).
+- **Timer sur les deux appareils** : une session lancée sur l'un apparaît sur l'autre ; un seul timer à la fois (le plus récemment lancé gagne, l'autre est arrêté, listé dans « Conflits », et l'appareil concerné le dit).
+- **Synchro automatique** sur le téléphone (désactivée par défaut, Expérimental) : à l'ouverture, au retour sur l'appli, après les modifications, et en direct depuis le PC (WebSocket) tant que l'appli est ouverte.
+- **Notification permanente du Timer** sur le téléphone (volet et écran de verrouillage, compte à rebours de la phase, boutons ; Expérimental, activée par défaut).
+
+### Modifié
+
+- Migration du socle v7 (adresses connues du PC, sur le téléphone).
+- Contrat de module : `sync.files` (fichiers nommés par les lignes) et `syncClock.onReceived` (prévenu après une synchro).
+- « Expérimental » retiré de l'appairage, de la première synchro, de la synchro à la main et des Conflits (validés à l'usage).
+
 ## [0.32.0] — 2026-11-06
 
 Session « Version téléphone, étape 5a : moteur de synchro PC ↔ téléphone ». **Sans appairage, le PC se comporte comme avant** (aucun port ouvert, références des 5 modules identiques).
