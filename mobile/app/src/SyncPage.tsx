@@ -11,12 +11,14 @@ import type { ConflictRow, Preview } from '../../../backend/core/sync/engine';
 import type { ExchangeResult } from '../../../backend/core/sync/protocol';
 import {
   PhoneSync,
+  type KnownAddress,
   type SyncState,
   type SyncWorkerCall,
 } from '../../../packages/phone/sync-client';
 import type { WorkerClient } from '../../../packages/phone/transport';
 import { dateFr, type Shell } from './App';
 import { takeCopy } from './backup';
+import { findPc } from './pc-finder';
 import { pinnedHttp } from './pinned-http';
 import { readQrFromPhoto } from './qr-photo';
 
@@ -25,6 +27,7 @@ export function phoneSync(client: WorkerClient): PhoneSync {
   return new PhoneSync(
     <T,>(call: SyncWorkerCall) => client.call<T>({ kind: 'sync', call }),
     pinnedHttp,
+    findPc,
   );
 }
 
@@ -88,11 +91,77 @@ export function SyncNowButton(props: { client: WorkerClient; onDone?: () => void
   );
 }
 
-function PairCard(props: { client: WorkerClient; onPaired: () => void }) {
+/** A ToolBox code: photo of its QR code (camera or gallery), or typed by hand. */
+function CodeEntry(props: {
+  busy: boolean;
+  photoLabel: string;
+  typeLabel: string;
+  placeholder: string;
+  button: string;
+  onCode: (code: string) => void;
+  onError: (message: string) => void;
+}) {
   const [code, setCode] = useState('');
+  const [reading, setReading] = useState(false);
+  const photo = useRef<HTMLInputElement>(null);
+  const busy = props.busy || reading;
+  return (
+    <>
+      <div className="m-actions">
+        <Button disabled={busy} onClick={() => photo.current?.click()}>
+          {props.photoLabel}
+        </Button>
+      </div>
+      <input
+        ref={photo}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="m-hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          if (!file) return;
+          setReading(true);
+          readQrFromPhoto(file)
+            .then(
+              (text) =>
+                text
+                  ? props.onCode(text)
+                  : props.onError(
+                      'QR code introuvable sur la photo : rapproche-toi de l’écran, ou tape le code.',
+                    ),
+              () => props.onError('Photo illisible.'),
+            )
+            .finally(() => setReading(false));
+        }}
+      />
+      <p className="small muted">{props.typeLabel}</p>
+      <textarea
+        className="input m-code"
+        rows={3}
+        value={code}
+        placeholder={props.placeholder}
+        aria-label={props.typeLabel}
+        autoCapitalize="characters"
+        onChange={(e) => setCode(e.target.value)}
+      />
+      <div className="m-actions">
+        <Button
+          variant="secondary"
+          disabled={busy || !code.trim()}
+          onClick={() => props.onCode(code)}
+        >
+          {props.button}
+        </Button>
+      </div>
+    </>
+  );
+}
+
+function PairCard(props: { client: WorkerClient; onPaired: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const photo = useRef<HTMLInputElement>(null);
   const pair = (value: string) => {
     setBusy(true);
     setError(null);
@@ -107,59 +176,94 @@ function PairCard(props: { client: WorkerClient; onPaired: () => void }) {
         Sur le PC : <strong>Réglages › Synchro avec le téléphone</strong> › active la synchro, puis
         « Appairer un téléphone ». Un QR code s’affiche.
       </p>
-      <div className="m-actions">
-        <Button disabled={busy} onClick={() => photo.current?.click()}>
-          Photographier le QR code
-        </Button>
-      </div>
-      <input
-        ref={photo}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        className="m-hidden"
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          e.target.value = '';
-          if (!file) return;
-          setBusy(true);
-          readQrFromPhoto(file).then(
-            (text) => {
-              if (text) pair(text);
-              else {
-                setBusy(false);
-                setError(
-                  'QR code introuvable sur la photo : rapproche-toi de l’écran, ou tape le code.',
-                );
-              }
-            },
-            () => {
-              setBusy(false);
-              setError('Photo illisible.');
-            },
-          );
-        }}
-      />
-      <p className="small muted">Ou tape le code affiché sous le QR code (TBX1-…) :</p>
-      <textarea
-        className="input m-code"
-        rows={3}
-        value={code}
+      <CodeEntry
+        busy={busy}
+        photoLabel="Photographier le QR code"
+        typeLabel="Ou tape le code affiché sous le QR code (TBX1-…) :"
         placeholder="TBX1-XXXX-XXXX-…"
-        aria-label="Code d’appairage"
-        autoCapitalize="characters"
-        onChange={(e) => setCode(e.target.value)}
+        button="Appairer avec ce code"
+        onCode={pair}
+        onError={setError}
       />
-      <div className="m-actions">
-        <Button variant="secondary" disabled={busy || !code.trim()} onClick={() => pair(code)}>
-          Appairer avec ce code
-        </Button>
-      </div>
       {busy && <p className="small muted">Connexion au PC…</p>}
       {error && <p className="error">{error}</p>}
       <p className="small muted">
         Le téléphone ne parle qu’au PC dont le certificat correspond au code : jamais à un autre
         appareil du réseau. Rien ne passe par Internet.
+      </p>
+    </Card>
+  );
+}
+
+/**
+ * « Nouvelle adresse du PC » : the PC is on another network and none of the
+ * known addresses answers. The code of « QR de l'adresse » (no token) gives
+ * its address; its fingerprint must be the one of the paired PC. No new
+ * pairing, no new first synchronisation.
+ */
+function NewAddressCard(props: { client: WorkerClient; onDone: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(null);
+  const [known, setKnown] = useState<KnownAddress[]>([]);
+  useEffect(() => {
+    props.client
+      .call<KnownAddress[]>({ kind: 'sync', call: { op: 'addresses' } })
+      .then(setKnown, () => setKnown([]));
+  }, [props.client, done]);
+  const use = (value: string) => {
+    setBusy(true);
+    setError(null);
+    setDone(null);
+    phoneSync(props.client)
+      .newAddress(value)
+      .then(
+        (url) => {
+          setDone(`PC retrouvé à ${url.replace(/^https:\/\//, '')}. Tu peux synchroniser.`);
+          setOpen(false);
+          props.onDone();
+        },
+        (e: unknown) => setError(errorMessage(e)),
+      )
+      .finally(() => setBusy(false));
+  };
+  return (
+    <Card title="Le PC sur un autre réseau">
+      <p className="small">
+        À chaque synchro, le téléphone essaie toutes les adresses où il a déjà trouvé le PC (maison,
+        kot…), puis le cherche sur le Wi-Fi{' '}
+        <span className="badge badge--warning">Expérimental</span>. Si rien ne répond : sur le PC,{' '}
+        <strong>Réglages › Synchro avec le téléphone › QR de l’adresse</strong>, puis ici.
+      </p>
+      {known.length > 0 && (
+        <p className="small muted">
+          Adresses connues : {known.map((a) => a.url.replace(/^https:\/\//, '')).join(', ')}
+        </p>
+      )}
+      {!open ? (
+        <div className="m-actions">
+          <Button variant="secondary" onClick={() => setOpen(true)}>
+            Nouvelle adresse du PC
+          </Button>
+        </div>
+      ) : (
+        <CodeEntry
+          busy={busy}
+          photoLabel="Photographier le QR de l’adresse"
+          typeLabel="Ou tape le code affiché sous ce QR code (TBXA-…) :"
+          placeholder="TBXA-XXXX-XXXX-…"
+          button="Utiliser cette adresse"
+          onCode={use}
+          onError={setError}
+        />
+      )}
+      {busy && <p className="small muted">Connexion au PC…</p>}
+      {done && <p className="small">{done}</p>}
+      {error && <p className="error">{error}</p>}
+      <p className="small muted">
+        Sans réappairer ni refaire de première synchro : le téléphone vérifie que c’est bien ton PC
+        (même certificat).
       </p>
     </Card>
   );
@@ -306,6 +410,7 @@ export function SyncPage(props: { shell: Shell }) {
             {error && <p className="error">{error}</p>}
           </Card>
           {first === true && <FirstSyncCard shell={shell} onDone={() => void reload()} />}
+          <NewAddressCard client={shell.client} onDone={() => void reload()} />
           <Card title="Conflits">
             <p>
               {state.conflicts === 0

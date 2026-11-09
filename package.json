@@ -56,6 +56,7 @@
     "@types/yauzl": "^2.10.3",
     "@types/yazl": "^3.3.1",
     "@vitejs/plugin-react": "^6.1.2",
+    "bonjour-service": "1.4.4",
     "electron": "^44.10.0",
     "electron-builder": "^26.18.0",
     "esbuild": "^0.28.2",

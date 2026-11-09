@@ -65,6 +65,7 @@ public class PinnedHttpPlugin extends Plugin {
         final String body = call.getString("body", "");
         final String pin = call.getString("pin", "");
         final String token = call.getString("token", "");
+        final int connectTimeout = Math.max(1000, Math.min(15000, call.getInt("connectTimeout", 8000)));
         if (url == null || !url.startsWith("https://") || pin.length() != 32) {
             call.reject("Requête de synchro invalide");
             return;
@@ -77,7 +78,7 @@ public class PinnedHttpPlugin extends Plugin {
                 connection = (HttpsURLConnection) new URL(url).openConnection();
                 connection.setSSLSocketFactory(context.getSocketFactory());
                 connection.setHostnameVerifier((host, session) -> true);
-                connection.setConnectTimeout(8000);
+                connection.setConnectTimeout(connectTimeout);
                 connection.setReadTimeout(120000);
                 connection.setRequestMethod("POST");
                 connection.setDoOutput(true);

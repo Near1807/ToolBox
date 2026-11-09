@@ -19,7 +19,8 @@ import selfsigned from 'selfsigned';
 import type { Hub } from '../hub';
 import { createAutomaticBackup } from '../backups';
 import { SyncError } from './engine';
-import { encodePairing, pinOf } from './pairing-code';
+import { encodeAddress, encodePairing, pinOf } from './pairing-code';
+import { mdnsAnnouncer, type Announcer } from './announce';
 import {
   serveExchange,
   serveFirst,
@@ -53,6 +54,10 @@ export interface SyncStatus {
   refusal: string | null;
   conflicts: number;
   error: string | null;
+  /** Announced on the local network (mDNS), so the phone finds the PC on any Wi-Fi. */
+  announced: boolean;
+  /** Why the announcement failed (the rest works without it), or null. */
+  announceError: string | null;
 }
 
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
@@ -76,13 +81,23 @@ export class SyncServer {
   private pairing: { token: string; expires: number; tries: number } | null = null;
   private refusal: string | null = null;
   private error: string | null = null;
+  /** Stops the mDNS announcement (null: nothing announced). */
+  private unannounce: (() => Promise<void>) | null = null;
+  private announceError: string | null = null;
 
   constructor(
     private readonly hub: Hub,
     private readonly appVersion: string,
     /** The PC's local addresses (the tests give 127.0.0.1). */
     private readonly addresses: () => string[] = localAddresses,
+    /** The announcement on the local network (mDNS; the tests give their own). */
+    private readonly announcer: Announcer | null = mdnsAnnouncer,
   ) {}
+
+  /** Whether the PC is announced on the local network right now (mDNS). */
+  get announced(): boolean {
+    return this.unannounce !== null;
+  }
 
   private meta(key: string): string | null {
     const row = this.hub.handle.db
@@ -159,6 +174,8 @@ export class SyncServer {
       refusal: this.refusal,
       conflicts: this.hub.sync.conflicts().length,
       error: this.error,
+      announced: this.announced,
+      announceError: this.announceError,
     };
   }
 
@@ -191,6 +208,7 @@ export class SyncServer {
       await app.listen({ host: '0.0.0.0', port: this.port });
       this.app = app;
       this.hub.logger.info(`Synchro : écoute sur le réseau local, port ${this.port}`);
+      this.announce();
     } catch (error) {
       this.error =
         (error as NodeJS.ErrnoException).code === 'EADDRINUSE'
@@ -200,11 +218,58 @@ export class SyncServer {
     }
   }
 
+  /** Announces the PC on the local network (only while listening). Never blocks the listener. */
+  private announce() {
+    if (!this.announcer || this.unannounce) return;
+    this.announceError = null;
+    try {
+      this.unannounce = this.announcer({
+        port: this.port,
+        id: this.hub.sync.device,
+        onError: (error) => {
+          this.announceError = `Annonce sur le réseau impossible : ${error.message}`;
+          this.hub.logger.warn(`Synchro : ${this.announceError}`);
+        },
+      });
+    } catch (error) {
+      this.announceError = `Annonce sur le réseau impossible : ${(error as Error).message}`;
+      this.hub.logger.warn(`Synchro : ${this.announceError}`);
+    }
+  }
+
   async stop(): Promise<void> {
     const app = this.app;
     this.app = null;
     this.pairing = null;
+    const unannounce = this.unannounce;
+    this.unannounce = null;
+    if (unannounce) await unannounce().catch(() => undefined);
     if (app) await app.close();
+  }
+
+  /** The PC's addresses for the phone (https://ip:port), best first. */
+  urls(): string[] {
+    return this.addresses().map((a) => `https://${a}:${this.port}`);
+  }
+
+  /**
+   * « QR de l'adresse » : the address on the network the PC is on now, its
+   * port and its certificate's fingerprint, WITHOUT any token. For a phone
+   * already paired, on another Wi-Fi: no new pairing, no new first sync.
+   */
+  addressCode(address?: string): { code: string; address: string } {
+    if (!this.listening)
+      throw new SyncError('Active d’abord la synchro (l’écoute du réseau local).');
+    const addresses = this.addresses();
+    const host = address && addresses.includes(address) ? address : addresses[0];
+    if (!host)
+      throw new SyncError(
+        'Aucun réseau local trouvé : le PC est-il connecté au Wi-Fi ou au câble ?',
+      );
+    return {
+      code: encodeAddress({ host, port: this.port, pin: pinOf(this.fingerprint()!) }),
+      address: host,
+    };
   }
 
   /** A new single-use code for « Appairer un téléphone » (the address chosen among the PC's). */
@@ -323,6 +388,7 @@ export class SyncServer {
           token,
           pc: engine().device,
           name: 'PC',
+          addresses: this.urls(),
           versions: engine().versions(),
           app: this.appVersion,
         };
@@ -339,6 +405,9 @@ export class SyncServer {
         versions: engine().versions(),
         app: this.appVersion,
         firstDone: Boolean(row.first_sync_at),
+        // The PC's addresses on the network it is on now: the phone keeps them
+        // (home, other Wi-Fi…) to find the PC again elsewhere.
+        addresses: this.urls(),
       };
     });
 

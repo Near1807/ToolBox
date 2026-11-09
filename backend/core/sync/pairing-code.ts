@@ -98,3 +98,56 @@ export function decodePairing(code: string): PairingInfo {
 export function pinOf(fingerprint256: string): string {
   return fingerprint256.replace(/:/g, '').toLowerCase().slice(0, 32);
 }
+
+// « QR de l'adresse » (ADR 0044, v0.33.0): the PC's address on the network it
+// is on now, its port and its certificate's fingerprint, WITHOUT any token.
+// A phone already paired with this PC reads it to find it again on another
+// Wi-Fi: no new pairing, no new first synchronisation. It is useless to any
+// other phone (no token), and the phone checks that the fingerprint is the
+// one of ITS PC before using the address.
+//   TBXA-ABCD-…
+const ADDRESS_PREFIX = 'TBXA';
+
+export interface AddressInfo {
+  host: string;
+  port: number;
+  pin: string;
+}
+
+export function encodeAddress(info: AddressInfo): string {
+  const ip = info.host.split('.').map(Number);
+  if (ip.length !== 4 || ip.some((n) => !(n >= 0 && n <= 255)))
+    throw new Error('Adresse IPv4 attendue');
+  const pin = hexBytes(info.pin);
+  if (pin.length !== 16) throw new Error('Empreinte invalide');
+  const body = new Uint8Array([...ip, info.port >> 8, info.port & 255, ...pin]);
+  const all = new Uint8Array([...body, checksum(body)]);
+  return [ADDRESS_PREFIX, ...toBase32(all).match(/.{1,4}/g)!].join('-');
+}
+
+/** Reads an address code (QR or typed); throws a French message when it is not one. */
+export function decodeAddress(code: string): AddressInfo {
+  const text = code.trim().toUpperCase().replace(/\s+/g, '');
+  if (text.startsWith(PREFIX))
+    throw new Error(
+      'C’est un code d’appairage (TBX1) : pour une nouvelle adresse, affiche sur le PC « QR de l’adresse » (TBXA).',
+    );
+  if (!text.startsWith(ADDRESS_PREFIX))
+    throw new Error('Ce n’est pas un code d’adresse ToolBox (il commence par TBXA).');
+  const bytes = fromBase32(text.slice(ADDRESS_PREFIX.length));
+  if (bytes.length < 23) throw new Error('Code d’adresse incomplet : vérifie chaque groupe.');
+  const body = bytes.slice(0, 22);
+  if (checksum(body) !== bytes[22])
+    throw new Error('Code d’adresse faux : un caractère est mal recopié.');
+  return {
+    host: [...body.slice(0, 4)].join('.'),
+    port: (body[4]! << 8) | body[5]!,
+    pin: toHex(body.slice(6, 22)),
+  };
+}
+
+/** Any ToolBox code read on a photo: a pairing code or an address code. */
+export function codeKind(code: string): 'pairing' | 'address' | null {
+  const text = code.trim().toUpperCase();
+  return text.startsWith(PREFIX) ? 'pairing' : text.startsWith(ADDRESS_PREFIX) ? 'address' : null;
+}

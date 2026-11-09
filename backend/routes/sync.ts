@@ -39,6 +39,18 @@ export function registerSyncRoutes(
     }
   });
 
+  /** « QR de l'adresse » : address + port + fingerprint, no token (a paired phone on another Wi-Fi). */
+  app.post<{ Body: { address?: string } }>(
+    '/api/core/sync/address-code',
+    async (request, reply) => {
+      try {
+        return sync.addressCode(request.body?.address);
+      } catch (error) {
+        return fail(reply, error);
+      }
+    },
+  );
+
   app.delete<{ Params: { id: string } }>('/api/core/sync/peers/:id', async (request) => {
     sync.forget(request.params.id);
     return sync.status();
