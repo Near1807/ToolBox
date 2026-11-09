@@ -13,6 +13,8 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(PcFinderPlugin.class);
         // The live channel to the PC (automatic synchronisation, app on screen only).
         registerPlugin(LiveChannelPlugin.class);
+        // The Timer's ongoing notification (shade and lock screen).
+        registerPlugin(TimerOngoingPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

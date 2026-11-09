@@ -15,6 +15,49 @@ import { describeCounts, KEEP_COPIES, type BackupCopy } from '../../../packages/
 import { dateFr, type Shell } from './App';
 import { PHONE_HIDDEN_SETTINGS, PHONE_SETTING_LABELS } from './page-modules';
 import { SamsungGuide } from './TimerPhone';
+import { ongoingEnabled, setOngoingEnabled } from './timer-ongoing';
+
+/** « Afficher le timer en cours dans les notifications » (on by default, this phone only). */
+function TimerOngoingCard() {
+  const [on, setOn] = useState(ongoingEnabled);
+  return (
+    <Card
+      title={
+        <>
+          Timer dans les notifications{' '}
+          <span className="badge badge--warning" title="Pas encore validé à l’usage">
+            Expérimental
+          </span>
+        </>
+      }
+    >
+      <label className="m-check">
+        <input
+          type="checkbox"
+          checked={on}
+          onChange={(e) => {
+            setOn(e.target.checked);
+            setOngoingEnabled(e.target.checked);
+          }}
+        />{' '}
+        Afficher le timer en cours dans les notifications
+      </label>
+      <p className="small muted">
+        Pendant une session : une notification qui reste dans le volet et sur l’écran de
+        verrouillage, avec le temps restant de la phase qui défile et son nom (« Travail · cycle 2
+        sur 4 », « Pause »). Sans son : les alertes de fin de phase restent à part. Ses boutons
+        ouvrent l’appli et y font l’action.
+      </p>
+      <p className="small">
+        Pour voir le temps restant sur l’écran de verrouillage du S21 :{' '}
+        <strong>
+          Paramètres › Écran de verrouillage et AOD › Notifications › « Afficher le contenu »
+        </strong>{' '}
+        (et ToolBox autorisée dans Paramètres › Applis › ToolBox › Notifications).
+      </p>
+    </Card>
+  );
+}
 
 /** A section as the phone shows it: without what means nothing here, with the phone's words. */
 const forPhone = (section: SettingsSectionData): SettingsSectionData => ({
@@ -101,15 +144,18 @@ export function SettingsPage(props: { shell: Shell }) {
       ))}
 
       {shell.base.modules.some((m) => m.id === 'timer' && m.status === 'loaded') && (
-        <Card title="Timer en arrière-plan (Samsung)">
-          <SamsungGuide />
-        </Card>
+        <>
+          <TimerOngoingCard />
+          <Card title="Timer en arrière-plan (Samsung)">
+            <SamsungGuide />
+          </Card>
+        </>
       )}
 
       <Card title="Synchro avec le PC">
         <p className="small">
           Échanger les données des 5 modules avec ToolBox sur le PC, sur le même Wi-Fi, sans
-          Internet. Rien ne part sans ton geste.
+          Internet. Rien ne part sans ton geste, sauf si tu actives la synchro automatique.
         </p>
         <Link to="/sync" className="button button--secondary">
           Ouvrir la synchro
