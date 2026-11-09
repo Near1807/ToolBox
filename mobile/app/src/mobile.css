@@ -331,3 +331,30 @@ body {
   display: flex;
   gap: 8px;
 }
+
+/* « Synchro automatique » : the small state (à jour / en cours / PC introuvable). */
+.m-auto {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.25rem 0;
+}
+.m-auto__dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  flex: none;
+  background: var(--text-3);
+}
+.m-auto--ok .m-auto__dot {
+  background: var(--success);
+}
+.m-auto--warn .m-auto__dot {
+  background: var(--warning);
+}
+.m-check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.25rem 0 0.5rem;
+}

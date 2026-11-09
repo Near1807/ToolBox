@@ -34,7 +34,7 @@ public class PinnedHttpPlugin extends Plugin {
         return out.toString();
     }
 
-    private static X509TrustManager pinned(final String pin) {
+    static X509TrustManager pinned(final String pin) {
         return new X509TrustManager() {
             @Override
             public void checkClientTrusted(X509Certificate[] chain, String authType) throws CertificateException {

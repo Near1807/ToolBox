@@ -27,6 +27,7 @@ interface Status {
   error: string | null;
   announced: boolean;
   announceError: string | null;
+  live: number;
 }
 
 interface Conflict {
@@ -223,6 +224,7 @@ export function SyncCard() {
               Activée : écoute sur le réseau local, port <strong>{s.port}</strong>
               {s.listening ? '' : ' (pas encore à l’écoute)'}.
               {s.addresses.length > 0 && <> Adresse du PC : {s.addresses.join(', ')}.</>}
+              {s.live > 0 && <> Téléphone connecté en direct (synchro automatique).</>}
             </p>
             <div className="ui-actions">
               {s.addresses.length > 1 && (

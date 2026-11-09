@@ -11,6 +11,8 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(PinnedHttpPlugin.class);
         // Finds the PC on the local network (mDNS), only hints checked by the pinned certificate.
         registerPlugin(PcFinderPlugin.class);
+        // The live channel to the PC (automatic synchronisation, app on screen only).
+        registerPlugin(LiveChannelPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

@@ -15,6 +15,7 @@ import { createHash, randomBytes, X509Certificate } from 'node:crypto';
 import { networkInterfaces } from 'node:os';
 import path from 'node:path';
 import Fastify, { type FastifyInstance } from 'fastify';
+import { WebSocketServer, type WebSocket } from 'ws';
 import selfsigned from 'selfsigned';
 import type { Hub } from '../hub';
 import { createAutomaticBackup } from '../backups';
@@ -59,6 +60,8 @@ export interface SyncStatus {
   announced: boolean;
   /** Why the announcement failed (the rest works without it), or null. */
   announceError: string | null;
+  /** Phones connected live right now (app on screen, automatic synchronisation). */
+  live: number;
 }
 
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
@@ -86,6 +89,10 @@ export class SyncServer {
   private unannounce: (() => Promise<void>) | null = null;
   private announceError: string | null = null;
   private filesCache: SyncFiles | null = null;
+  /** Open live channels (phone app on screen): a change here is pushed in about a second. */
+  private live = new Set<{ socket: WebSocket; peer: string; known: string }>();
+  private liveTimer: ReturnType<typeof setInterval> | null = null;
+  private liveServer: WebSocketServer | null = null;
 
   constructor(
     private readonly hub: Hub,
@@ -178,6 +185,7 @@ export class SyncServer {
       error: this.error,
       announced: this.announced,
       announceError: this.announceError,
+      live: this.live.size,
     };
   }
 
@@ -210,6 +218,7 @@ export class SyncServer {
       await app.listen({ host: '0.0.0.0', port: this.port });
       this.app = app;
       this.hub.logger.info(`Synchro : écoute sur le réseau local, port ${this.port}`);
+      this.openLive(app);
       this.announce();
     } catch (error) {
       this.error =
@@ -239,10 +248,89 @@ export class SyncServer {
     }
   }
 
+  /**
+   * The live channel (ADR 0044, v0.33.0): wss://<PC>/sync/live, on the same
+   * listener (same certificate, pinned by the phone), with the device's
+   * token. The PC sends only « changed » (no data): the phone then runs a
+   * normal synchronisation. Watched every half second while a phone is
+   * connected (the journals' last numbers), so a change made on the PC
+   * reaches the phone in about a second.
+   */
+  private openLive(app: FastifyInstance) {
+    const wss = new WebSocketServer({ noServer: true, maxPayload: 4096 });
+    this.liveServer = wss;
+    app.server.on('upgrade', (request, socket, head) => {
+      const refuse = (code: number, text: string) => {
+        socket.end(`HTTP/1.1 ${code} ${text}\r\nConnection: close\r\n\r\n`);
+      };
+      if (new URL(request.url ?? '/', 'https://pc').pathname !== '/sync/live')
+        return refuse(404, 'Not Found');
+      const peer = this.peerOf(request.headers.authorization);
+      if (!peer) return refuse(401, 'Unauthorized');
+      const row = this.hub.handle.db
+        .prepare('SELECT first_sync_at FROM core__sync_peers WHERE device_id = ?')
+        .get(peer) as { first_sync_at: string | null } | undefined;
+      if (!row?.first_sync_at) return refuse(409, 'Conflict');
+      wss.handleUpgrade(request, socket, head, (ws) => {
+        const entry = { socket: ws, peer, known: this.signature() };
+        this.live.add(entry);
+        ws.on('close', () => {
+          this.live.delete(entry);
+          if (!this.live.size && this.liveTimer) {
+            clearInterval(this.liveTimer);
+            this.liveTimer = null;
+          }
+        });
+        ws.on('error', () => ws.terminate());
+        // Nothing to read from the phone (pings are answered by the library).
+        ws.send(JSON.stringify({ type: 'hello' }));
+        this.liveTimer ??= setInterval(() => this.watchLive(), 500);
+      });
+    });
+  }
+
+  /** Where the journals stand (a change made here moves it). */
+  private signature(): string {
+    return JSON.stringify(this.hub.sync.upTo());
+  }
+
+  private watchLive() {
+    if (!this.live.size) return;
+    let now: string;
+    try {
+      now = this.signature();
+    } catch {
+      return;
+    }
+    for (const entry of this.live)
+      if (entry.known !== now) {
+        entry.known = now;
+        if (entry.socket.readyState === entry.socket.OPEN)
+          entry.socket.send(JSON.stringify({ type: 'changed' }));
+      }
+  }
+
+  /** After an exchange with this phone: what it just received is not pushed again. */
+  private exchanged(peer: string) {
+    const now = this.signature();
+    for (const entry of this.live) if (entry.peer === peer) entry.known = now;
+  }
+
+  /** How many phones are connected live (Réglages). */
+  get liveCount(): number {
+    return this.live.size;
+  }
+
   async stop(): Promise<void> {
     const app = this.app;
     this.app = null;
     this.pairing = null;
+    if (this.liveTimer) clearInterval(this.liveTimer);
+    this.liveTimer = null;
+    for (const entry of this.live) entry.socket.terminate();
+    this.live.clear();
+    this.liveServer?.close();
+    this.liveServer = null;
     const unannounce = this.unannounce;
     this.unannounce = null;
     if (unannounce) await unannounce().catch(() => undefined);
@@ -300,6 +388,7 @@ export class SyncServer {
     this.hub.handle.db
       .prepare('UPDATE core__sync_peers SET revoked_at = ?, token_hash = NULL WHERE device_id = ?')
       .run(new Date().toISOString(), deviceId);
+    for (const entry of this.live) if (entry.peer === deviceId) entry.socket.close(4401, 'oublié');
   }
 
   private peerOf(authorization: string | undefined): string | null {
@@ -429,7 +518,10 @@ export class SyncServer {
         );
       }
       const result = serveFirst(engine(), peer, body);
-      if (body.mode !== 'preview') touch(peer, true);
+      if (body.mode !== 'preview') {
+        touch(peer, true);
+        this.exchanged(peer);
+      }
       this.refusal = null;
       return result;
     });
@@ -473,6 +565,7 @@ export class SyncServer {
         throw new SyncError('Fais d’abord la première synchro (avec son aperçu).');
       const result = serveExchange(engine(), peer, request.body);
       touch(peer);
+      this.exchanged(peer);
       this.refusal = null;
       return result;
     });

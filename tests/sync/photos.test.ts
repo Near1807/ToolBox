@@ -90,7 +90,7 @@ describe('recipe pictures travel with the synchronisation', () => {
     ).id;
     await d.onPc('PUT', `${API}/meals/${gratin}/image`, { data: picture(1600, 1200, 7) });
     const first = await phone.first('replace', async () => {});
-    expect(first.files).toEqual({ sent: 0, received: 1, pending: 0 });
+    expect(first.files).toMatchObject({ sent: 0, received: 1, pending: 0 });
     const [pcRow] = rows('pc').filter((r) => !r.deleted_at);
     const bytes = readFileSync(pcFile(pcRow!.file));
     expect(sha(phoneFile(pcRow!.file)!)).toBe(pcRow!.sha256);
@@ -113,7 +113,7 @@ describe('recipe pictures travel with the synchronisation', () => {
     await d.onPhone('PUT', `${API}/meals/${curry}/image`, { data: picture(1200, 900, 11) });
     calls.length = 0;
     const second = await phone.now();
-    expect(second.files).toEqual({ sent: 1, received: 0, pending: 0 });
+    expect(second.files).toMatchObject({ sent: 1, received: 0, pending: 0 });
     const curryRow = rows('pc').find((r) => r.meal_id === curry && !r.deleted_at)!;
     expect(sha(readFileSync(pcFile(curryRow.file)))).toBe(curryRow.sha256);
     // The data first, then the file.
@@ -124,7 +124,7 @@ describe('recipe pictures travel with the synchronisation', () => {
 
     // Nothing new: no file travels again.
     calls.length = 0;
-    expect((await phone.now()).files).toEqual({ sent: 0, received: 0, pending: 0 });
+    expect((await phone.now()).files).toMatchObject({ sent: 0, received: 0, pending: 0 });
     expect(calls.filter((c) => c.startsWith('/sync/files/get') || c === '/sync/files/put')).toEqual(
       [],
     );
@@ -146,7 +146,7 @@ describe('recipe pictures travel with the synchronisation', () => {
     }
     calls.length = 0;
     const result = await phone.now();
-    expect(result.files).toEqual({ sent: 0, received: 1, pending: 0 });
+    expect(result.files).toMatchObject({ sent: 0, received: 1, pending: 0 });
     const live = rows('phone').filter((r) => !r.deleted_at);
     expect(live).toHaveLength(2);
     expect(new Set(live.map((r) => r.sha256)).size).toBe(1);
@@ -175,10 +175,10 @@ describe('recipe pictures travel with the synchronisation', () => {
     expect(rows('phone').some((r) => r.id === row.id)).toBe(true);
     expect(d.rows('phone', 'todo').tasks!.some((t) => t.title === 'Avec la tarte')).toBe(true);
     // …the picture waits.
-    expect(result.files).toEqual({ sent: 0, received: 0, pending: 1 });
+    expect(result.files).toMatchObject({ sent: 0, received: 0, pending: 1 });
     expect(phoneFile(row.file)).toBeNull();
     renameSync(`${pcFile(row.file)}.away`, pcFile(row.file));
-    expect((await phone.now()).files).toEqual({ sent: 0, received: 1, pending: 0 });
+    expect((await phone.now()).files).toMatchObject({ sent: 0, received: 1, pending: 0 });
     expect(sha(phoneFile(row.file)!)).toBe(row.sha256);
   });
 
@@ -225,7 +225,7 @@ describe('recipe pictures travel with the synchronisation', () => {
     // Replaced on the phone: a new row, the old one a tombstone.
     await d.onPhone('PUT', `${API}/meals/${id}/image`, { data: picture(800, 800, 2) });
     const result = await phone.now();
-    expect(result.files).toEqual({ sent: 1, received: 0, pending: 0 });
+    expect(result.files).toMatchObject({ sent: 1, received: 0, pending: 0 });
     const pcRows = rows('pc').filter((r) => r.meal_id === id);
     expect(pcRows.find((r) => r.id === old.id)!.deleted_at).not.toBeNull();
     expect(pcRows.filter((r) => !r.deleted_at)).toHaveLength(1);

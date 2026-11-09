@@ -6,11 +6,10 @@
 // nothing is lost: the changes wait.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
-import { Button, Card, Page, errorMessage } from '@hub/sdk/frontend';
+import { Button, Card, Page, errorMessage, notifyDataChanged } from '@hub/sdk/frontend';
 import type { ConflictRow, Preview } from '../../../backend/core/sync/engine';
 import type { ExchangeResult } from '../../../backend/core/sync/protocol';
 import {
-  PhoneSync,
   type FilesResult,
   type KnownAddress,
   type SyncState,
@@ -19,18 +18,9 @@ import {
 import type { WorkerClient } from '../../../packages/phone/transport';
 import { dateFr, type Shell } from './App';
 import { takeCopy } from './backup';
-import { findPc } from './pc-finder';
-import { pinnedHttp } from './pinned-http';
+import { autoLabel, autoSync, exclusive, setAutoSync, useAutoStatus } from './auto';
+import { phoneSync } from './phone-sync';
 import { readQrFromPhoto } from './qr-photo';
-
-/** The phone's synchronisation, for the page (worker steps + the native HTTPS call). */
-export function phoneSync(client: WorkerClient): PhoneSync {
-  return new PhoneSync(
-    <T,>(call: SyncWorkerCall) => client.call<T>({ kind: 'sync', call }),
-    pinnedHttp,
-    findPc,
-  );
-}
 
 export const MODULE_NAMES: Record<string, string> = {
   todo: 'To-do',
@@ -87,10 +77,14 @@ export function SyncNowButton(props: { client: WorkerClient; onDone?: () => void
         onClick={() => {
           setBusy(true);
           setMessage(null);
-          phoneSync(props.client)
-            .now()
+          exclusive(() => phoneSync(props.client).now())
             .then(
-              (r) => setMessage({ ok: true, text: `Synchronisé : ${resultText(r)}.` }),
+              (r) => {
+                setMessage({ ok: true, text: `Synchronisé : ${resultText(r)}.` });
+                // The open screens of what came in are read again.
+                if (r.scopes.length) notifyDataChanged(r.scopes);
+                autoSync(props.client).resumeAfterManual();
+              },
               (e: unknown) => setMessage({ ok: false, text: errorMessage(e) }),
             )
             .finally(() => {
@@ -171,6 +165,69 @@ function CodeEntry(props: {
         </Button>
       </div>
     </>
+  );
+}
+
+/** The small state of the automatic synchronisation (Accueil, Synchro). */
+export function AutoIndicator(props: { client: WorkerClient }) {
+  const status = useAutoStatus(props.client);
+  if (!status.enabled) return null;
+  const label = autoLabel(status);
+  return (
+    <p className={`small m-auto m-auto--${label.tone}`} role="status">
+      <span className="m-auto__dot" aria-hidden="true" />
+      Synchro automatique : {label.text}
+      {status.at
+        ? ` (${new Date(status.at).toLocaleTimeString('fr-BE', { timeStyle: 'short' })})`
+        : ''}
+      {status.live ? ' · connecté au PC' : ''}
+    </p>
+  );
+}
+
+/**
+ * « Synchro automatique » (off by default, Thomas turns it on): at opening,
+ * back on screen, shortly after each change, and live from the PC while the
+ * app is on screen. Never in the background, never the first synchronisation.
+ */
+function AutoCard(props: { client: WorkerClient }) {
+  const status = useAutoStatus(props.client);
+  const [busy, setBusy] = useState(false);
+  return (
+    <Card
+      title={
+        <>
+          Synchro automatique{' '}
+          <span className="badge badge--warning" title="Pas encore validé à l’usage">
+            Expérimental
+          </span>
+        </>
+      }
+    >
+      <label className="m-check">
+        <input
+          type="checkbox"
+          checked={status.enabled}
+          disabled={busy}
+          onChange={(e) => {
+            setBusy(true);
+            void setAutoSync(props.client, e.target.checked).finally(() => setBusy(false));
+          }}
+        />{' '}
+        Synchroniser tout seul quand l’appli est ouverte
+      </label>
+      <p className="small muted">
+        Activée : une synchro à l’ouverture et au retour sur l’appli, une autre quelques secondes
+        après tes modifications, et ce que tu changes sur le PC arrive ici en une seconde environ
+        tant que l’appli est ouverte. Rien quand l’appli est fermée (elle rattrape à l’ouverture).
+        Jamais la première synchro, toujours avec ton choix. Versions différentes : elle s’arrête et
+        le dit.
+      </p>
+      {status.enabled && <AutoIndicator client={props.client} />}
+      {status.enabled && status.message && status.state !== 'ok' && (
+        <p className="error small">{status.message}</p>
+      )}
+    </Card>
   );
 }
 
@@ -303,9 +360,13 @@ function FirstSyncCard(props: { shell: Shell; onDone: () => void }) {
         : 'Fusionner les deux appareils ? Tout ce qui est sur l’un ou l’autre sera sur les deux ; les noms en double iront dans « Conflits ».\n\nUne copie de sauvegarde du téléphone est faite avant, et le PC sauvegarde aussi sa base.';
     if (!window.confirm(question)) return;
     run(async () => {
-      const r = await phoneSync(shell.client).first(mode, async () => {
-        await takeCopy(shell.client, 'avant-synchro');
-      });
+      const r = await exclusive(() =>
+        phoneSync(shell.client).first(mode, async () => {
+          await takeCopy(shell.client, 'avant-synchro');
+        }),
+      );
+      notifyDataChanged();
+      autoSync(shell.client).resumeAfterManual();
       await shell.refresh();
       window.alert(
         `Première synchro faite${r.conflicts ? ` (${r.conflicts} élément(s) dans « Conflits »)` : ''}${filesText(r.files)}.`,
@@ -425,6 +486,7 @@ export function SyncPage(props: { shell: Shell }) {
             {error && <p className="error">{error}</p>}
           </Card>
           {first === true && <FirstSyncCard shell={shell} onDone={() => void reload()} />}
+          {done && <AutoCard client={shell.client} />}
           <NewAddressCard client={shell.client} onDone={() => void reload()} />
           <Card title="Conflits">
             <p>

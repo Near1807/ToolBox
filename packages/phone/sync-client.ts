@@ -53,6 +53,7 @@ export type SyncWorkerCall =
   | { op: 'token' }
   | { op: 'forget' }
   | { op: 'addresses' }
+  | { op: 'auto'; on?: boolean }
   | { op: 'learn'; urls: string[]; source: string }
   | { op: 'reached'; url: string }
   | { op: 'versions' }
@@ -159,6 +160,16 @@ export async function syncWorkerCall(hub: PhoneHub, call: SyncWorkerCall): Promi
       return null;
     case 'addresses':
       return addresses(pc().device_id);
+    case 'auto': {
+      // « Synchro automatique » : this phone's own setting (off by default, never synchronised).
+      if (call.on !== undefined)
+        db.prepare(
+          "INSERT INTO core__meta (key, value) VALUES ('sync.auto', ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value",
+        ).run(call.on ? '1' : '0');
+      const row = db.prepare("SELECT value FROM core__meta WHERE key = 'sync.auto'").get() as
+        { value: string } | undefined;
+      return row?.value === '1';
+    }
     case 'learn':
       learn(pc().device_id, call.urls, call.source);
       return addresses(pc().device_id);
@@ -246,7 +257,7 @@ export type Discover = (pcId: string) => Promise<string[]>;
 export class SyncFailure extends Error {
   constructor(
     message: string,
-    readonly kind: 'offline' | 'version' | 'auth' | 'pin' | 'other',
+    readonly kind: 'offline' | 'version' | 'auth' | 'pin' | 'first' | 'other',
   ) {
     super(message);
     this.name = 'SyncFailure';
@@ -280,6 +291,8 @@ export interface FilesResult {
   sent: number;
   received: number;
   pending: number;
+  /** The modules that received a file here. */
+  scopes: string[];
 }
 
 interface HelloAnswer {
@@ -521,7 +534,7 @@ export class PhoneSync {
    * next synchronisation (counted in `pending`).
    */
   async files(): Promise<FilesResult> {
-    const result: FilesResult = { sent: 0, received: 0, pending: 0 };
+    const result: FilesResult = { sent: 0, received: 0, pending: 0, scopes: [] };
     let theirs: FileRef[];
     let mine: FileRef[] = [];
     try {
@@ -574,6 +587,7 @@ export class PhoneSync {
           if (offset >= chunk.total) throw new Error('incomplet');
         }
         result.received++;
+        if (!result.scopes.includes(ref.scope)) result.scopes.push(ref.scope);
       } catch (error) {
         if (error instanceof SyncFailure && error.kind === 'offline') offline = true;
         result.pending++;
@@ -583,13 +597,16 @@ export class PhoneSync {
   }
 
   /** « Synchroniser » : both ways, the data then the files. */
-  async now(): Promise<ExchangeResult & { files: FilesResult }> {
+  async now(): Promise<ExchangeResult & { files: FilesResult; scopes: string[] }> {
     const { firstDone } = await this.hello();
     if (!firstDone)
-      throw new SyncFailure('Fais d’abord la première synchro (avec son aperçu).', 'other');
+      throw new SyncFailure('Fais d’abord la première synchro (avec son aperçu).', 'first');
     const request = await this.worker({ op: 'begin' });
     const response = await this.post<ExchangeResponse>('/sync/exchange', request);
     const result = await this.worker<ExchangeResult>({ op: 'finish', response });
-    return { ...result, files: await this.files() };
+    const files = await this.files();
+    // The modules whose data changed here (the screens showing them are refreshed).
+    const scopes = [...new Set(response.batch.changes.map((c) => c.scope))];
+    return { ...result, files, scopes: [...new Set([...scopes, ...files.scopes])] };
   }
 }
