@@ -68,6 +68,16 @@ export interface ToastEvent {
   tone: 'work' | 'break' | 'done';
 }
 
+/**
+ * After a synchronisation (ADR 0044): the session shown on this device was
+ * stopped by the other one (one timer at a time: the one started last wins).
+ */
+export interface StopNotice {
+  /** The session stopped. */
+  id: string;
+  text: string;
+}
+
 /** What the floating window shows (settings of the module). */
 export interface FloatingDto {
   /** Mini-timer during a session. */

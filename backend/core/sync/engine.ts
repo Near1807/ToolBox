@@ -25,6 +25,7 @@ import type {
   ModuleFiles,
   ModuleSync,
   SettingValue,
+  SyncClock,
   SyncDuplicate,
   SyncTools,
 } from '../../../packages/sdk/core';
@@ -273,6 +274,43 @@ export class SyncEngine {
       return value;
     },
   };
+
+  /** Modules told after a synchronisation changed their rows (SyncClock.onReceived). */
+  private readonly receivedHandlers = new Map<
+    string,
+    Set<(tools: SyncTools & { master: boolean }) => void>
+  >();
+
+  /** The clock of one module: the device's clock, and its `onReceived`. */
+  clockFor(scope: string): SyncClock {
+    const engine = this;
+    return {
+      get device() {
+        return engine.device;
+      },
+      next: () => this.clock.next(),
+      onReceived: (handler) => {
+        let set = this.receivedHandlers.get(scope);
+        if (!set) this.receivedHandlers.set(scope, (set = new Set()));
+        set.add(handler);
+        return () => set.delete(handler);
+      },
+    };
+  }
+
+  /** After a batch or a snapshot: each module whose rows changed is told (errors never undo it). */
+  private told(scopes: Iterable<string>, peer: string) {
+    for (const scope of new Set(scopes)) {
+      if (!this.modules.has(scope)) continue;
+      for (const handler of this.receivedHandlers.get(scope) ?? []) {
+        try {
+          handler({ ...this.tools(scope, peer), master: this.role === 'pc' });
+        } catch {
+          // A module's own follow-up failed: the data received stay.
+        }
+      }
+    }
+  }
 
   private receive(hlc: string) {
     this.hlc.receive(hlc);
@@ -999,6 +1037,7 @@ export class SyncEngine {
     for (const c of batch.changes) this.check(c);
     let applied = 0;
     let skipped = 0;
+    const changed = new Set<string>();
     this.conflictsAdded = [];
     this.pendingDuplicates = [];
     this.db.transaction(() => {
@@ -1008,6 +1047,7 @@ export class SyncEngine {
           skipped++;
           continue;
         }
+        changed.add(c.scope);
         this.receive(c.hlc);
         const seq = this.nextSeq(c.scope);
         this.db
@@ -1034,7 +1074,9 @@ export class SyncEngine {
       for (const [scope, upTo] of Object.entries(batch.upTo))
         if (this.scopes().includes(scope)) this.setCursor(peer, scope, { received: upTo });
     })();
-    return { applied, skipped, conflicts: this.conflictsAdded };
+    const conflicts = this.conflictsAdded;
+    this.told(changed, peer);
+    return { applied, skipped, conflicts };
   }
 
   // --- Names created on both devices ----------------------------------------------
@@ -1377,7 +1419,9 @@ export class SyncEngine {
       this.runDuplicates();
       this.detectNames(peer);
     })();
-    return { applied, skipped: 0, conflicts: this.conflictsAdded };
+    const conflicts = this.conflictsAdded;
+    this.told(Object.keys(remote.scopes), peer);
+    return { applied, skipped: 0, conflicts };
   }
 
   // --- Conflicts ---------------------------------------------------------------------

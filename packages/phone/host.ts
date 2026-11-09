@@ -427,7 +427,7 @@ export class PhoneHub {
         return this.options.db.prepare(sql);
       },
       transaction: (fn) => this.options.db.transaction(fn)(),
-      syncClock: module.backend?.sync ? this.sync.clock : undefined,
+      syncClock: module.backend?.sync ? this.sync.clockFor(id) : undefined,
       backup: (reason) => {
         const backup = this.options.host?.backupDb;
         if (!backup) throw new UnavailableOnPhoneError('ctx.db.backup');

@@ -451,7 +451,7 @@ export class Hub {
         return this.handle.db.prepare(sql);
       },
       transaction: (fn) => this.handle.db.transaction(fn)(),
-      syncClock: record.backend?.sync ? this.sync.clock : undefined,
+      syncClock: record.backend?.sync ? this.sync.clockFor(id) : undefined,
       backup: (reason) => {
         const file = createAutomaticBackup(
           this.handle.db,

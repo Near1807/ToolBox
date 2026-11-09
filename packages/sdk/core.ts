@@ -240,6 +240,14 @@ export interface SyncClock {
   readonly device: string;
   /** A new HLC for a local change. */
   next(): string;
+  /**
+   * Called after a synchronisation changed this module's rows (after its
+   * transaction): the module brings its live state up to date (a timer
+   * received…) and, on the device that decides (`tools.master`, the PC: it
+   * always receives the phone's changes first, and what it writes here goes
+   * back in the same exchange), applies its rules. Returns the unsubscribe.
+   */
+  onReceived?(handler: (tools: SyncTools & { master: boolean }) => void): () => void;
 }
 
 export interface ModuleFiles {
