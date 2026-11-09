@@ -4,7 +4,20 @@
 // started LAST wins, the other is stopped, listed in « Conflits » on both
 // devices, and the device that showed it says so.
 import { afterEach, describe, expect, it } from 'vitest';
-import type { StateDto, StopNotice } from '../../modules/timer/shared/types';
+// The Timer's answers, as read here (the core's tests never import a module).
+interface StopNotice {
+  id: string;
+  text: string;
+}
+interface StateDto {
+  session: {
+    id: string;
+    name: string;
+    status: string;
+    elapsed: number;
+    phases: { kind: string; seconds: number }[];
+  } | null;
+}
 import { devices, type Devices } from './harness';
 
 const API = '/api/modules/timer';

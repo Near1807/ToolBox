@@ -283,11 +283,8 @@ export class SyncEngine {
 
   /** The clock of one module: the device's clock, and its `onReceived`. */
   clockFor(scope: string): SyncClock {
-    const engine = this;
     return {
-      get device() {
-        return engine.device;
-      },
+      device: this.device,
       next: () => this.clock.next(),
       onReceived: (handler) => {
         let set = this.receivedHandlers.get(scope);
