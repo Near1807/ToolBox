@@ -25,6 +25,8 @@ import {
   shortDate,
   slashDate,
   splitQuickAdd,
+  formatDuration,
+  parseDuration,
 } from '../dates';
 import { cleanTags, type TaskDto, type TasksResponse } from '../shared';
 import './todo.css';
@@ -88,6 +90,7 @@ export function QuickAdd(props: { data: TasksResponse; onAdded: (task: TaskDto) 
         tags: parsed.tags,
         due: parsed.due,
         trackId: trackId ? Number(trackId) : null,
+        durationMin: parsed.durationMin,
       });
       setText('');
       setIgnoreDate(false);
@@ -154,6 +157,9 @@ export function QuickAdd(props: { data: TasksResponse; onAdded: (task: TaskDto) 
               #{t}
             </span>
           ))}
+          {parsed.durationMin !== null && (
+            <span className="td-duration">{formatDuration(parsed.durationMin)}</span>
+          )}
           {parsed.due && (
             <span className="td-preview__due">
               <StateBadge tone="accent">{formatDue(parsed.due, today)}</StateBadge>
@@ -180,8 +186,8 @@ export function QuickAdd(props: { data: TasksResponse; onAdded: (task: TaskDto) 
         </div>
       )}
       <p className="small muted td-help">
-        Écris « #tag » pour un tag et termine par l’échéance si besoin : « demain », « vendredi », «
-        dans 3 jours », « le 12 novembre ».
+        Écris « #tag » pour un tag, « ~2h » ou « ~30min » pour une durée estimée, et termine par
+        l’échéance si besoin : « demain », « vendredi », « dans 3 jours », « le 12 novembre ».
       </p>
       {error && <ErrorMessage>{error}</ErrorMessage>}
     </Card>
@@ -209,8 +215,12 @@ function TaskRow(props: {
   const [tags, setTags] = useState(task.tags.join(', '));
   const [due, setDue] = useState(task.due ? slashDate(task.due) : '');
   const [trackId, setTrackId] = useState(task.track ? String(task.track.id) : '');
+  const [duration, setDuration] = useState(
+    task.durationMin ? formatDuration(task.durationMin).slice(1) : '',
+  );
   const [error, setError] = useState<string | null>(null);
   const dueValue = due.trim() ? parseDue(due, data.today) : null;
+  const durationValue = duration.trim() ? parseDuration(duration) : null;
   const late = task.due && !task.done && task.due < data.today;
 
   const save = async (patch: Record<string, unknown>) => {
@@ -227,6 +237,7 @@ function TaskRow(props: {
     setTags(task.tags.join(', '));
     setDue(task.due ? slashDate(task.due) : '');
     setTrackId(task.track ? String(task.track.id) : '');
+    setDuration(task.durationMin ? formatDuration(task.durationMin).slice(1) : '');
     setEditing('details');
   };
 
@@ -275,6 +286,11 @@ function TaskRow(props: {
         )}
         <div className="td-task__meta small">
           <DueBadge task={task} today={data.today} />
+          {task.durationMin !== null && (
+            <span className="td-duration" title="Durée estimée">
+              {formatDuration(task.durationMin)}
+            </span>
+          )}
           {task.tags.map((t) => (
             <button
               key={t}
@@ -305,10 +321,13 @@ function TaskRow(props: {
             onSubmit={(e) => {
               e.preventDefault();
               if (due.trim() && !dueValue) return setError(`Échéance pas comprise : « ${due} »`);
+              if (duration.trim() && !durationValue)
+                return setError(`Durée estimée pas comprise : « ${duration} »`);
               void save({
                 tags: cleanTags(tags.split(',')),
                 due: dueValue,
                 trackId: trackId ? Number(trackId) : null,
+                durationMin: durationValue,
               });
             }}
           >
@@ -333,6 +352,22 @@ function TaskRow(props: {
                 {due.trim()
                   ? dueValue
                     ? `→ ${shortDate(dueValue, data.today)}`
+                    : 'pas comprise'
+                  : 'aucune'}
+              </span>
+            </label>
+            <label className="small">
+              Durée estimée
+              <input
+                className="input"
+                value={duration}
+                onChange={(e) => setDuration(e.target.value)}
+                placeholder="2h, 30min, 1h30…"
+              />
+              <span className={durationValue || !duration.trim() ? 'muted' : 'error'}>
+                {duration.trim()
+                  ? durationValue
+                    ? `→ ${formatDuration(durationValue)}`
                     : 'pas comprise'
                   : 'aucune'}
               </span>
@@ -380,7 +415,7 @@ function TaskRow(props: {
         <button
           type="button"
           className="icon-button"
-          title="Tags, échéance, morceau"
+          title="Tags, échéance, durée, morceau"
           aria-label="Modifier"
           onClick={startDetails}
         >

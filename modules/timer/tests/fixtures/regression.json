@@ -753,7 +753,8 @@
             "doneAt": "+3480000ms",
             "createdAt": "+0ms",
             "track": null,
-            "timeSpent": 2700
+            "timeSpent": 2700,
+            "durationMin": null
           }
         ],
         "tags": [

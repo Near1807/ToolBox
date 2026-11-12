@@ -302,21 +302,83 @@ export function spokenDue(due: string, today: string): string {
   return `${WEEKDAYS[weekdayIndex(due)]} ${day === 1 ? '1er' : day} ${MONTH_LABELS[Number(due.slice(5, 7)) - 1]}${year}`;
 }
 
+// --- Estimated duration (« ~2h », « ~30min », « ~1h30 ») ----------------------
+// Always written with « ~ » first, so it is never taken for a time of day:
+// « 14h » is an hour (a meeting at 2 pm), « ~2h » is a duration (about two hours).
+
+/** Minutes at most for an estimate (5 days of work). */
+export const MAX_DURATION_MIN = 120 * 60;
+
 /**
- * Quick add: « finir le mix #mix pour vendredi » → title « finir le mix »,
- * tags [mix], due = Friday. The date must end the text; nothing is guessed
- * inside the title.
+ * « 2h », « 2 h », « 1h30 », « 1 h 30 », « 1,5h », « 45min », « 45 min »,
+ * « 90 minutes », « 2 heures » (the « ~ » before is optional here) →
+ * minutes, or null when it is not a duration.
+ */
+export function parseDuration(input: string): number | null {
+  const text = input
+    .trim()
+    .toLowerCase()
+    .replace(/^[~≈]\s*/, '')
+    .replace(/\s+/g, ' ');
+  let m = text.match(
+    /^(\d{1,3})(?:[.,](\d))? ?(?:h|heures?)(?: ?(\d{1,2}) ?(?:min|mn|minutes?)?)?$/,
+  );
+  let minutes: number | null = null;
+  if (m) {
+    if (m[2] && m[3]) return null;
+    minutes = Number(m[1]) * 60 + (m[2] ? Number(m[2]) * 6 : 0) + (m[3] ? Number(m[3]) : 0);
+    if (m[3] && Number(m[3]) >= 60) return null;
+  } else if ((m = text.match(/^(\d{1,4}) ?(?:min|mn|minutes?)$/))) {
+    minutes = Number(m[1]);
+  }
+  if (minutes === null || minutes <= 0 || minutes > MAX_DURATION_MIN) return null;
+  return minutes;
+}
+
+/** 120 → « ~2 h », 30 → « ~30 min », 90 → « ~1 h 30 ». */
+export function formatDuration(minutes: number): string {
+  if (minutes < 60) return `~${minutes} min`;
+  const rest = minutes % 60;
+  return `~${Math.floor(minutes / 60)} h${rest ? ` ${String(rest).padStart(2, '0')}` : ''}`;
+}
+
+/** « ~2h » / « ~ 1 h 30 » inside a text (with its « ~ »): where, and how long. */
+const DURATION_IN_TEXT =
+  /(^|\s)[~≈]\s*(\d{1,3}(?:[.,]\d)?\s?(?:h|heures?)(?:\s?\d{1,2}\s?(?:min|mn|minutes?)?)?|\d{1,4}\s?(?:min|mn|minutes?))(?=\s|$)/i;
+
+/** Takes the « ~duration » out of a text: the rest, and the minutes (null when none). */
+export function takeDuration(input: string): { text: string; durationMin: number | null } {
+  const m = input.match(DURATION_IN_TEXT);
+  if (!m) return { text: input, durationMin: null };
+  const durationMin = parseDuration(m[2]!);
+  if (durationMin === null) return { text: input, durationMin: null };
+  const text = `${input.slice(0, m.index!)}${m[1]}${input.slice(m.index! + m[0].length)}`;
+  return { text: text.replace(/\s+/g, ' ').trim(), durationMin };
+}
+
+/**
+ * Quick add: « finir le mix #mix ~2h pour vendredi » → title « finir le mix »,
+ * tags [mix], about 2 hours, due = Friday. The date must end the text;
+ * nothing is guessed inside the title.
  */
 export function splitQuickAdd(
   input: string,
   today: string,
-): { title: string; tags: string[]; due: string | null; dueText: string | null } {
+): {
+  title: string;
+  tags: string[];
+  due: string | null;
+  dueText: string | null;
+  durationMin: number | null;
+} {
   const tags: string[] = [];
   let text = input.replace(/(^|\s)#([\p{L}\p{N}_-]+)/gu, (_all, space: string, tag: string) => {
     tags.push(tag.toLowerCase());
     return space;
   });
-  text = text.replace(/\s+/g, ' ').trim();
+  const taken = takeDuration(text);
+  const durationMin = taken.durationMin;
+  text = taken.text.replace(/\s+/g, ' ').trim();
   const words = text.split(' ');
   for (let take = Math.min(6, words.length - 1); take >= 1; take--) {
     const tail = words.slice(-take).join(' ');
@@ -327,8 +389,8 @@ export function splitQuickAdd(
         .join(' ')
         .replace(/\s+(?:pour|avant|d’ici|d'ici|le)$/i, '');
       if (title.trim())
-        return { title: title.trim(), tags: [...new Set(tags)], due, dueText: tail };
+        return { title: title.trim(), tags: [...new Set(tags)], due, dueText: tail, durationMin };
     }
   }
-  return { title: text, tags: [...new Set(tags)], due: null, dueText: null };
+  return { title: text, tags: [...new Set(tags)], due: null, dueText: null, durationMin };
 }

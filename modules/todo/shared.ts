@@ -13,6 +13,8 @@ export interface TaskDto {
   track: { id: number; title: string } | null;
   /** Seconds of work recorded by the Timer on this task (0 without the Timer module). */
   timeSpent: number;
+  /** Estimated duration in minutes (« ~2h »), null when not given. */
+  durationMin: number | null;
 }
 
 export interface TasksResponse {
