@@ -9,6 +9,8 @@ export interface TodoTask {
   /** "YYYY-MM-DD" or null. */
   due: string | null;
   done: boolean;
+  /** Estimated duration in minutes (v0.34.0), null when not given. */
+  durationMin: number | null;
 }
 
 export interface TodoService {
@@ -30,12 +32,14 @@ export interface TodoService {
    * Adds a task (tags cleaned, due date « YYYY-MM-DD » or natural French).
    * Only on an explicit click of the user in the calling module (e.g.
    * « Transformer en tâche » of the Boîte à idées). `trackId`: a track of
-   * the library, ignored when the library is absent.
+   * the library, ignored when the library is absent. `durationMin`: the
+   * estimate (minutes), none when absent.
    */
   createTask(fields: {
     title: string;
     tags?: string[];
     due?: string | null;
     trackId?: number | null;
+    durationMin?: number | null;
   }): TodoTask;
 }

@@ -50,7 +50,8 @@
             "id": 1,
             "title": "Nuit blanche"
           },
-          "timeSpent": 0
+          "timeSpent": 0,
+          "durationMin": null
         }
       }
     ],
@@ -67,7 +68,8 @@
           "doneAt": null,
           "createdAt": "+180000ms",
           "track": null,
-          "timeSpent": 0
+          "timeSpent": 0,
+          "durationMin": null
         }
       }
     ],
@@ -84,7 +86,8 @@
           "doneAt": null,
           "createdAt": "+240000ms",
           "track": null,
-          "timeSpent": 0
+          "timeSpent": 0,
+          "durationMin": null
         }
       }
     ],
@@ -101,7 +104,8 @@
           "doneAt": null,
           "createdAt": "+300000ms",
           "track": null,
-          "timeSpent": 0
+          "timeSpent": 0,
+          "durationMin": null
         }
       }
     ],
@@ -118,7 +122,8 @@
           "doneAt": null,
           "createdAt": "+300001ms",
           "track": null,
-          "timeSpent": 0
+          "timeSpent": 0,
+          "durationMin": null
         }
       }
     ],
@@ -138,7 +143,8 @@
             "id": 2,
             "title": "Aube"
           },
-          "timeSpent": 0
+          "timeSpent": 0,
+          "durationMin": null
         }
       }
     ],
@@ -182,7 +188,8 @@
           "doneAt": "+900000ms",
           "createdAt": "+240000ms",
           "track": null,
-          "timeSpent": 0
+          "timeSpent": 0,
+          "durationMin": null
         }
       }
     ],
@@ -199,7 +206,8 @@
           "doneAt": "+1020000ms",
           "createdAt": "+180000ms",
           "track": null,
-          "timeSpent": 0
+          "timeSpent": 0,
+          "durationMin": null
         }
       }
     ],
@@ -216,7 +224,8 @@
           "doneAt": null,
           "createdAt": "+180000ms",
           "track": null,
-          "timeSpent": 0
+          "timeSpent": 0,
+          "durationMin": null
         }
       }
     ],
@@ -236,7 +245,8 @@
             "id": 1,
             "title": "Nuit blanche"
           },
-          "timeSpent": 0
+          "timeSpent": 0,
+          "durationMin": null
         }
       }
     ],
@@ -256,7 +266,8 @@
             "id": 2,
             "title": "Aube"
           },
-          "timeSpent": 0
+          "timeSpent": 0,
+          "durationMin": null
         }
       }
     ],
@@ -273,7 +284,8 @@
           "doneAt": null,
           "createdAt": "+180000ms",
           "track": null,
-          "timeSpent": 0
+          "timeSpent": 0,
+          "durationMin": null
         }
       }
     ],
@@ -299,7 +311,8 @@
           "doneAt": null,
           "createdAt": "+180000ms",
           "track": null,
-          "timeSpent": 0
+          "timeSpent": 0,
+          "durationMin": null
         }
       }
     ],
@@ -346,7 +359,8 @@
               "doneAt": null,
               "createdAt": "+300001ms",
               "track": null,
-              "timeSpent": 0
+              "timeSpent": 0,
+              "durationMin": null
             },
             {
               "id": "#6",
@@ -360,7 +374,8 @@
                 "id": 2,
                 "title": "Aube"
               },
-              "timeSpent": 0
+              "timeSpent": 0,
+              "durationMin": null
             },
             {
               "id": "#8",
@@ -374,7 +389,8 @@
                 "id": 1,
                 "title": "Nuit blanche"
               },
-              "timeSpent": 0
+              "timeSpent": 0,
+              "durationMin": null
             },
             {
               "id": "#1",
@@ -388,7 +404,8 @@
                 "id": 2,
                 "title": "Aube"
               },
-              "timeSpent": 0
+              "timeSpent": 0,
+              "durationMin": null
             },
             {
               "id": "#2",
@@ -399,7 +416,8 @@
               "doneAt": null,
               "createdAt": "+180000ms",
               "track": null,
-              "timeSpent": 0
+              "timeSpent": 0,
+              "durationMin": null
             },
             {
               "id": "#4",
@@ -410,7 +428,8 @@
               "doneAt": null,
               "createdAt": "+300000ms",
               "track": null,
-              "timeSpent": 0
+              "timeSpent": 0,
+              "durationMin": null
             },
             {
               "id": "#9",
@@ -421,7 +440,8 @@
               "doneAt": null,
               "createdAt": "+1320003ms",
               "track": null,
-              "timeSpent": 0
+              "timeSpent": 0,
+              "durationMin": null
             }
           ],
           "tags": [
@@ -470,7 +490,8 @@
               "doneAt": null,
               "createdAt": "+300001ms",
               "track": null,
-              "timeSpent": 0
+              "timeSpent": 0,
+              "durationMin": null
             }
           ]
         }
@@ -484,35 +505,40 @@
         "title": "Aujourd’hui",
         "tags": [],
         "due": "2026-11-04",
-        "done": false
+        "done": false,
+        "durationMin": null
       },
       {
         "id": "#6",
         "title": "Dans trois jours",
         "tags": [],
         "due": "2026-11-07",
-        "done": false
+        "done": false,
+        "durationMin": null
       },
       {
         "id": "#1",
         "title": "Finir le mix de « Nuit »",
         "tags": ["mix", "urgent"],
         "due": "2026-11-09",
-        "done": false
+        "done": false,
+        "durationMin": null
       },
       {
         "id": "#2",
         "title": "Mettre à jour la bio",
         "tags": [],
         "due": null,
-        "done": false
+        "done": false,
+        "durationMin": null
       },
       {
         "id": "#4",
         "title": "Sans date",
         "tags": ["idée"],
         "due": null,
-        "done": false
+        "done": false,
+        "durationMin": null
       }
     ],
     "one": {
@@ -520,7 +546,8 @@
       "title": "Finir le mix de « Nuit »",
       "tags": ["mix", "urgent"],
       "due": "2026-11-09",
-      "done": false
+      "done": false,
+      "durationMin": null
     },
     "deleted": null,
     "missing": null,
@@ -529,28 +556,32 @@
       "title": "Finir le mix de « Nuit »",
       "tags": ["mix", "urgent"],
       "due": "2026-11-09",
-      "done": true
+      "done": true,
+      "durationMin": null
     },
     "uncompleted": {
       "id": "#1",
       "title": "Finir le mix de « Nuit »",
       "tags": ["mix", "urgent"],
       "due": "2026-11-09",
-      "done": false
+      "done": false,
+      "durationMin": null
     },
     "created": {
       "id": "#8",
       "title": "Depuis une idée",
       "tags": ["idée", "mix"],
       "due": "2026-11-07",
-      "done": false
+      "done": false,
+      "durationMin": null
     },
     "createdNoLibrary": {
       "id": "#9",
       "title": "Sans morceau",
       "tags": [],
       "due": null,
-      "done": false
+      "done": false,
+      "durationMin": null
     }
   },
   "assistant": {
@@ -936,7 +967,8 @@
         "due_date": "2026-11-09",
         "done_at": null,
         "subject": "music-library:track:2",
-        "legacy_id": null
+        "legacy_id": null,
+        "duration_min": null
       },
       {
         "id": "#2",
@@ -948,7 +980,8 @@
         "due_date": null,
         "done_at": null,
         "subject": null,
-        "legacy_id": null
+        "legacy_id": null,
+        "duration_min": null
       },
       {
         "id": "#3",
@@ -960,7 +993,8 @@
         "due_date": "2026-11-02",
         "done_at": "+900000ms",
         "subject": null,
-        "legacy_id": null
+        "legacy_id": null,
+        "duration_min": null
       },
       {
         "id": "#4",
@@ -972,7 +1006,8 @@
         "due_date": null,
         "done_at": null,
         "subject": null,
-        "legacy_id": null
+        "legacy_id": null,
+        "duration_min": null
       },
       {
         "id": "#5",
@@ -984,7 +1019,8 @@
         "due_date": "2026-11-04",
         "done_at": null,
         "subject": null,
-        "legacy_id": null
+        "legacy_id": null,
+        "duration_min": null
       },
       {
         "id": "#6",
@@ -996,7 +1032,8 @@
         "due_date": "2026-11-07",
         "done_at": null,
         "subject": "music-library:track:2",
-        "legacy_id": null
+        "legacy_id": null,
+        "duration_min": null
       },
       {
         "id": "#8",
@@ -1008,7 +1045,8 @@
         "due_date": "2026-11-07",
         "done_at": null,
         "subject": "music-library:track:1",
-        "legacy_id": null
+        "legacy_id": null,
+        "duration_min": null
       },
       {
         "id": "#9",
@@ -1020,7 +1058,8 @@
         "due_date": null,
         "done_at": null,
         "subject": null,
-        "legacy_id": null
+        "legacy_id": null,
+        "duration_min": null
       }
     ],
     "todo__tasks_v1": []

@@ -429,7 +429,8 @@
             "title": "Un break avec des cordes",
             "tags": ["arrangement", "orchestre"],
             "due": null,
-            "done": false
+            "done": false,
+            "durationMin": null
           }
         }
       }
@@ -1083,7 +1084,8 @@
               "id": 1,
               "title": "Nuit blanche"
             },
-            "timeSpent": 0
+            "timeSpent": 0,
+            "durationMin": null
           }
         ],
         "tags": [

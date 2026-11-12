@@ -161,6 +161,10 @@ Cœur partagé sur le PC, sans changement de comportement : `@hub/sdk/core` (por
 - **Notification permanente du Timer** : greffon `TimerOngoing` (NotificationCompat, compte à rebours natif, canal silencieux, AlarmManager pour passer d'une phase à l'autre, reconstruite après redémarrage). Boutons : ils ouvrent l'appli, qui fait l'action par le serveur du Timer (seule vérité ; le Worker ne tourne pas en arrière-plan).
 - **« Expérimental »** retiré de l'appairage, de la première synchro, de la synchro à la main et des Conflits (validés par Thomas) ; gardé sur la synchro automatique, le repérage réseau et la notification permanente.
 
+## Agenda (v0.34.0)
+
+Sixième module du téléphone, synchronisé dès sa création (`sync: {}`, migration 2 `syncJournalSql`) : événements, semaine type et exceptions d'occurrence voyagent ; les calques restent propres à chaque appareil. Sur le téléphone, une vue jour par jour (`onPhone()`), mise en page dans `agenda.mobile.css`. Contrat du calendrier élargi en même temps : ADR 0045.
+
 ## Conséquences
 
 - Le PC ne change pas de comportement. Chaque étape le prouve par des références écrites avant modification, la suite complète et la CI Windows.

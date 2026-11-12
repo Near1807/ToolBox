@@ -1,0 +1,50 @@
+/* The Agenda on the phone (ADR 0044): one column, big touch areas. */
+.ag-quick__row {
+  flex-direction: column;
+}
+.ag-quick__input {
+  font-size: 1rem;
+}
+.ag-toolbar {
+  flex-direction: column;
+  align-items: stretch;
+}
+.ag-tabs {
+  display: flex;
+}
+.ag-tab {
+  flex: 1;
+  min-height: 44px;
+}
+.ag-toolbar .ui-actions {
+  flex-wrap: wrap;
+}
+.ag-month__day {
+  min-height: 3.6rem;
+  padding: 0.15rem;
+}
+.ag-chip__time {
+  display: none;
+}
+.ag-day__nav .button {
+  min-width: 44px;
+  min-height: 44px;
+}
+.ag-list__item,
+.ag-task,
+.ag-day .ag-band {
+  min-height: 44px;
+}
+.ag-toplace__list {
+  flex-direction: column;
+}
+.ag-task {
+  width: 100%;
+}
+.ag-form__row {
+  flex-direction: column;
+  align-items: stretch;
+}
+.ag-weekly__item .ui-actions {
+  margin-left: 0;
+}

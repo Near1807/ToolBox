@@ -746,6 +746,7 @@ export default defineBackendModule({
       stopped: 'arrêtée',
     };
     ctx.calendar.provide({
+      category: 'Timer',
       events: (from, to) => {
         // A day of margin each side (time zones), then the local date decides.
         const after = new Date(Date.parse(`${from}T00:00:00Z`) - 86_400_000).toISOString();

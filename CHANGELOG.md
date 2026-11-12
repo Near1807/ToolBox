@@ -4,6 +4,23 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.34.0] — 2026-11-12
+
+Session « Agenda + durée estimée dans la To-do ». Les nouveautés sont marquées **Expérimental**.
+
+### Ajouté
+
+- **Module Agenda** (Outils, PC et téléphone, synchronisé) : événements à heure fixe, sur la journée ou sur plusieurs jours (lieu, note, catégorie) ; **semaine type** avec annulation ou déplacement d'une seule occurrence ; **barre de saisie** en français avec aperçu (« dentiste jeudi 14h 1h », « week-end scout 13-15 février », « badminton tous les jeudis 19h 2h », « préparer la réunion ~1h avant vendredi » → tâche de la To-do) ; formulaire détaillé facultatif.
+- **Semaine (PC)** : colonnes par jour (plage 7 h – 23 h réglable), bandes journée / plusieurs jours, « À caser » (tâches de la To-do, jamais recopiées), barre de charge par catégorie (léger / chargé / saturé), « X h de libre · Y h à caser · + N tâches sans durée », chevauchements signalés, calques par catégorie (réglage local), vue mois. **Téléphone** : vue jour par jour, glisser pour changer de jour. Guide court, carte d'accueil.
+- **To-do : durée estimée** (« ~2h », « ~30min » dans l'ajout rapide, champ dans le détail, « ~2 h » affiché) ; exposée par le service `todo` et le calendrier.
+- **Contrat du calendrier** (ajouts seulement, ADR 0045) : catégorie lisible par source ou événement, `endDate` pour plusieurs jours, éléments « à caser » (`unscheduled`), `ctx.calendar.query`.
+
+### Modifié
+
+- Les dates en français de la To-do sont partagées dans le SDK (`@hub/sdk/dates`), lues aussi par l'Agenda.
+- Migration To-do v4 (colonne `duration_min`, ajout seul) ; références de non-régression To-do, Timer et Boîte à idées : seul le champ ajouté (`durationMin: null`) change.
+- CLAUDE.md : lint, typecheck et tests verts avant chaque commit.
+
 ## [0.33.0] — 2026-11-09
 
 Session « Version téléphone, étape 5b ». **Synchro non activée : le PC se comporte comme avant** (aucun port ouvert, rien d'annoncé, références des 5 modules identiques).

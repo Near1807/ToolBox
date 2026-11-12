@@ -1,19 +1,19 @@
 # ToolBox sur Android (`mobile/app/`)
 
-Étapes 3b, 4, 5a et 5b de la version téléphone (ADR 0044). La vraie appli : **ToolBox**, identifiant **`be.toolbox.app`**.
+Étapes 3b, 4, 5a et 5b de la version téléphone (ADR 0044), plus l'Agenda (v0.34.0). La vraie appli : **ToolBox**, identifiant **`be.toolbox.app`**.
 
 > **Cet identifiant ne change plus jamais.** Android reconnaît une mise à jour à son identifiant et à sa clé de signature. Les changer obligerait à désinstaller l'appli, et donc à perdre ses données.
 
 ## Ce qu'elle contient
 
 - **Coquille mobile** (`src/App.tsx`) :
-  - navigation en bas, 5 entrées : Accueil, Courses, To-do, Sport, « Plus » (Boîte à idées, Timer, Réglages) ;
+  - navigation en bas, 5 entrées : Accueil, Courses, To-do, Sport, « Plus » (Agenda, Boîte à idées, Timer, Réglages) ;
   - Accueil : une carte par module installé ;
   - la liste des modules est à un seul endroit par côté : `src/server-modules.ts` (Worker) et `src/page-modules.ts` (page) ;
   - une seule colonne, des zones tactiles d'au moins 44 px ;
   - les thèmes du PC (Nebula par défaut, choix gardé sur le téléphone) ;
   - icônes lucide du SDK, aucun emoji.
-- **Écrans des modules** (To-do, Courses, Sport, Boîte à idées, Timer) : ceux du PC. Une mise en page mobile est ajoutée par des fichiers CSS à part (`modules/<id>/frontend/<id>.mobile.css`, `src/mobile.css`), chargés seulement par l'appli. Les rares écarts de comportement passent par `onPhone()` du SDK (toujours faux sur le PC) : pas de clavier à l'arrivée sur la To-do, séance ouverte amenée à l'écran (Sport), import JSON remplacé par une phrase et « Prendre une photo… » (Courses).
+- **Écrans des modules** (To-do, Courses, Sport, Boîte à idées, Timer, Agenda) : ceux du PC. L'Agenda montre sur le téléphone une vue jour par jour (glisser pour changer de jour) au lieu de la semaine. Une mise en page mobile est ajoutée par des fichiers CSS à part (`modules/<id>/frontend/<id>.mobile.css`, `src/mobile.css`), chargés seulement par l'appli. Les rares écarts de comportement passent par `onPhone()` du SDK (toujours faux sur le PC) : pas de clavier à l'arrivée sur la To-do, séance ouverte amenée à l'écran (Sport), import JSON remplacé par une phrase et « Prendre une photo… » (Courses).
 - **Ce que seule la page peut faire** (`src/page-host.ts`, canal inverse Worker → page) : « Enregistrer sous » = feuille de partage d'Android (greffons Filesystem + Share).
 - **Timer** (`src/timer-notices.ts`, `src/TimerPhone.tsx`) : notifications des fins de phase **programmées à l'avance** (greffon Local Notifications, alarmes exactes si permises), permission demandée avec une phrase, alarmes exactes vérifiées à chaque ouverture, guide Samsung.
 - **Synchro avec le PC** (`src/SyncPage.tsx`, `src/phone-sync.ts`, logique dans `packages/phone/sync-client.ts`) : appairage, première synchro, synchro à la main, Conflits ; le PC retrouvé sur tout réseau (adresses connues, greffon `PcFinder` = NSD, « Nouvelle adresse du PC ») ; photos des recettes ; **synchro automatique** (`src/auto.ts`, `packages/phone/auto-sync.ts`, désactivée par défaut) avec le canal direct (greffon `LiveChannel`, OkHttp). Toutes les requêtes vers le PC passent par un certificat épinglé (`PinnedHttp`).
@@ -61,6 +61,7 @@ versionCode = majeure × 1 000 000 + mineure × 100 + correctif
 | 0.30.0  | 3000        |
 | 0.30.1  | 3001        |
 | 0.31.0  | 3100        |
+| 0.34.0  | 3400        |
 | 1.0.0   | 1000000     |
 
 Il croît toujours tant que le correctif reste sous 100 et la mineure sous 10 000 ; la CI refuse sinon. Deux APK de la même version ont le même versionCode : pour mettre à jour le téléphone, il faut une nouvelle version.

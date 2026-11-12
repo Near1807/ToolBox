@@ -20,7 +20,16 @@ import {
 import type { MusicLibraryService } from '../../music-library/contract';
 import type { TimerService } from '../../timer/contract';
 import type { TodoService, TodoTask } from '../contract';
-import { formatDue, localToday, parseDue, spokenDue, daysBetween, addDays } from '../dates';
+import {
+  formatDue,
+  localToday,
+  MAX_DURATION_MIN,
+  parseDue,
+  parseDuration,
+  spokenDue,
+  daysBetween,
+  addDays,
+} from '@hub/sdk/dates';
 import { cleanTags, type TaskDto, type TasksResponse } from '../shared';
 import {
   ADD_EXAMPLES,
@@ -45,6 +54,8 @@ interface TaskRow {
   subject: string | null;
   /** Its number before v0.25 (migration 2), null for a task created since. */
   legacy_id: number | null;
+  /** Estimated duration in minutes (v0.34.0), null when not given. */
+  duration_min: number | null;
 }
 
 const TRACK_SUBJECT = (id: number) => `music-library:track:${id}`;
@@ -87,6 +98,11 @@ export default defineBackendModule({
         'synchronisation (ADR 0044): HLC, origin and order of the journal, clock of each field',
       up: syncJournalSql('todo__'),
     },
+    {
+      version: 4,
+      description: 'estimated duration of a task (minutes, empty by default)',
+      up: 'ALTER TABLE todo__tasks ADD COLUMN duration_min INTEGER',
+    },
   ],
   sync: {},
 
@@ -114,6 +130,7 @@ export default defineBackendModule({
       createdAt: row.created_at,
       track: trackOf(row),
       timeSpent: Math.round(times[row.id] ?? 0),
+      durationMin: row.duration_min,
     });
 
     const find = (id: string): TaskRow | null => store.get<TaskRow>('tasks', id);
@@ -179,6 +196,25 @@ export default defineBackendModule({
       return cleanTags(list as string[]);
     };
 
+    /** Minutes (a number), a text (« 2h », « ~30min »), or null/"" for none. */
+    const durationFrom = (value: unknown): number | null => {
+      if (value === null || value === undefined || value === '') return null;
+      const minutes =
+        typeof value === 'number'
+          ? Number.isInteger(value) && value > 0 && value <= MAX_DURATION_MIN
+            ? value
+            : null
+          : typeof value === 'string'
+            ? parseDuration(value)
+            : null;
+      if (minutes === null)
+        throw new HttpError(
+          400,
+          `Durée estimée pas comprise : « ${String(value)} » (ex. « 2h », « 30min », « 1h30 »).`,
+        );
+      return minutes;
+    };
+
     const subjectFromTrackId = (value: unknown): string | null => {
       if (value === null || value === undefined || value === '') return null;
       const id = Number(value);
@@ -192,6 +228,7 @@ export default defineBackendModule({
       tags: string[];
       due: string | null;
       subject: string | null;
+      durationMin?: number | null;
     }): TaskRow => {
       return store.create<TaskRow>('tasks', {
         title: fields.title,
@@ -200,22 +237,25 @@ export default defineBackendModule({
         done_at: null,
         subject: fields.subject,
         legacy_id: null,
+        // Written only when given: a task without an estimate stays as before (the reference).
+        ...(fields.durationMin ? { duration_min: fields.durationMin } : {}),
       });
     };
 
     /** Only the fields that change are written (and journaled). */
     const update = (id: string, patch: Record<string, unknown>): TaskRow => {
       const row = get(id);
-      const next: Partial<Record<keyof TaskRow, string | null>> = {};
+      const next: Partial<Record<keyof TaskRow, string | number | null>> = {};
       if ('title' in patch) next.title = titleFrom(patch.title);
       if ('tags' in patch) next.tags = JSON.stringify(tagsFrom(patch.tags));
       if ('due' in patch) next.due_date = dueFrom(patch.due);
       if ('done' in patch)
         next.done_at = patch.done ? (row.done_at ?? new Date().toISOString()) : null;
       if ('trackId' in patch) next.subject = subjectFromTrackId(patch.trackId);
+      if ('durationMin' in patch) next.duration_min = durationFrom(patch.durationMin);
       const changed = Object.fromEntries(
         Object.entries(next).filter(([key, value]) => row[key as keyof TaskRow] !== value),
-      ) as Record<string, string | null>;
+      ) as Record<string, string | number | null>;
       return Object.keys(changed).length ? store.update<TaskRow>('tasks', id, changed) : row;
     };
 
@@ -257,6 +297,7 @@ export default defineBackendModule({
           tags: tagsFrom(body.tags),
           due: dueFrom(body.due),
           subject: subjectFromTrackId(body.trackId),
+          durationMin: durationFrom(body.durationMin),
         }),
       );
     });
@@ -303,6 +344,26 @@ export default defineBackendModule({
           status: row.done_at !== null ? 'fait' : row.due_date! < today ? 'en retard' : 'à faire',
         }));
       },
+      category: 'Tâches',
+      // v0.34.0: the open tasks to fit in (the Agenda's « À caser »): due on or
+      // before `to` (late ones too), and those without a due date.
+      unscheduled: (_from, to) => {
+        const today = localToday();
+        return sorted(
+          ctx.db
+            .prepare(
+              `SELECT * FROM ${tasks} WHERE deleted_at IS NULL AND done_at IS NULL AND (due_date IS NULL OR due_date <= ?)`,
+            )
+            .all(to) as TaskRow[],
+        ).map((row) => ({
+          id: row.id,
+          title: row.title,
+          due: row.due_date,
+          estimateMin: row.duration_min,
+          open: '/m/todo',
+          ...(row.due_date !== null && row.due_date < today ? { status: 'en retard' } : {}),
+        }));
+      },
     });
 
     // --- Service for the other modules (the Timer) ------------------------------
@@ -313,6 +374,7 @@ export default defineBackendModule({
       tags: JSON.parse(row.tags) as string[],
       due: row.due_date,
       done: row.done_at !== null,
+      durationMin: row.duration_min,
     });
     ctx.services.provide<TodoService>('todo', {
       listOpenTasks: () =>
@@ -335,6 +397,7 @@ export default defineBackendModule({
               fields.trackId != null && library()?.getTrack(fields.trackId)
                 ? TRACK_SUBJECT(fields.trackId)
                 : null,
+            durationMin: durationFrom(fields.durationMin ?? null),
           }),
         ),
     });

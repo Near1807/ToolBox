@@ -239,6 +239,7 @@ export default defineBackendModule({
       failed: 'erreur',
     };
     ctx.calendar.provide({
+      category: 'Musique',
       events: (from, to) =>
         store.allItems().flatMap((item) => {
           const when = local(item.scheduled_at);

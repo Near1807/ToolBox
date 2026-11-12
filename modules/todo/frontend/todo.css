@@ -202,6 +202,12 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Estimated duration (« ~2 h »): discreet, next to the due date. */
+.td-duration {
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
 .td-task__actions a.icon-button {
   text-decoration: none;
 }

@@ -634,7 +634,7 @@ export interface CalendarEvent {
   title: string;
   /** Local date-time « YYYY-MM-DDTHH:mm » (or a date « YYYY-MM-DD » for an all-day item). */
   start: string;
-  /** Minutes (0 for a moment). */
+  /** Minutes (0 for a moment). May run past midnight (a night, a camp from Friday 18:00). */
   durationMin: number;
   /** Set by the hub: the module the event comes from. */
   moduleId?: string;
@@ -642,16 +642,66 @@ export interface CalendarEvent {
   open: string;
   /** Free details for the calendar (« fait », « 2 portions »…). */
   status?: string;
+  /**
+   * v0.34.0, optional: a readable category (« Sport », « Repas », « Cours »…).
+   * Without it, the source's `category`, else the module's name.
+   */
+  category?: string;
+  /**
+   * v0.34.0, optional: for an all-day item (`start` is a date), its LAST day
+   * « YYYY-MM-DD » (inclusive) when it spans several days (a camp, exams).
+   */
+  endDate?: string;
+}
+
+/**
+ * v0.34.0: something to fit in somewhere, with no time of its own (a task of
+ * the To-do): the Agenda shows them in « À caser », never in the grid.
+ */
+export interface CalendarItem {
+  id: string;
+  title: string;
+  /** « YYYY-MM-DD », or null when it has no due date. */
+  due: string | null;
+  /** Estimated minutes, or null when not given. */
+  estimateMin: number | null;
+  open: string;
+  category?: string;
+  status?: string;
 }
 
 export interface CalendarSource {
   /** Events between two local dates (inclusive, « YYYY-MM-DD »). Read only. */
   events(from: string, to: string): CalendarEvent[] | Promise<CalendarEvent[]>;
+  /** v0.34.0, optional: the readable category of its events (« Sport », « Repas »…). */
+  category?: string;
+  /**
+   * v0.34.0, optional: the items to fit in (no time of their own): those due
+   * on or before `to` (late ones included) and those without a due date.
+   * Read only.
+   */
+  unscheduled?(from: string, to: string): CalendarItem[] | Promise<CalendarItem[]>;
+}
+
+/** v0.34.0: what `ctx.calendar.query` gives (every source; module and category set). */
+export interface CalendarView {
+  events: (CalendarEvent & { moduleId: string; category: string })[];
+  items: (CalendarItem & { moduleId: string; category: string })[];
+  /**
+   * The modules whose source gives items to fit in (the To-do): their
+   * events (the same tasks, on their due day) need not be shown twice.
+   */
+  itemSources: string[];
 }
 
 export interface ModuleCalendar {
   /** Registers the module's source (one per module; replaces the previous one). */
   provide(source: CalendarSource): void;
+  /**
+   * v0.34.0: reads every source for a period (the Agenda): events and items to
+   * fit in, each with its module and its category. Read only.
+   */
+  query(from: string, to: string): Promise<CalendarView>;
 }
 
 export interface ModuleServices {

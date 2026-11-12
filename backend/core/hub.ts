@@ -140,7 +140,7 @@ export class Hub {
   readonly outputs: OutputStore;
   readonly accounts: AccountManager;
   readonly assistant = new AssistantRegistry();
-  readonly calendar = new CalendarRegistry();
+  readonly calendar = new CalendarRegistry((id) => this.records.get(id)?.manifest?.name ?? id);
   readonly hotkeys: HotkeyManager;
   /** Modules currently asking for the floating indicator. */
   private readonly overlayRequests = new Set<string>();

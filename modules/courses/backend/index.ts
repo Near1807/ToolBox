@@ -1932,6 +1932,7 @@ export default defineBackendModule({
     // --- « Prêt pour le calendrier » (MODULES.md §5.17), read only -------------------
 
     ctx.calendar.provide({
+      category: 'Repas',
       events: (from, to) => {
         const m = new Map(moments().map((x) => [x.id, x]));
         const names = new Map(meals().map((x) => [x.id, x.name]));
