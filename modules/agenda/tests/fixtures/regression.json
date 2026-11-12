@@ -1,0 +1,1177 @@
+{
+  "steps": [
+    [
+      "POST /quick",
+      {
+        "status": 200,
+        "body": {
+          "kind": "event",
+          "event": {
+            "id": "#1",
+            "title": "Dentiste",
+            "start": "2026-11-19T14:00",
+            "end": "2026-11-19T15:00",
+            "allDay": false,
+            "location": null,
+            "note": null,
+            "category": "Rendez-vous",
+            "weekly": null
+          }
+        }
+      }
+    ],
+    [
+      "POST /quick",
+      {
+        "status": 200,
+        "body": {
+          "kind": "event",
+          "event": {
+            "id": "#2",
+            "title": "Réunion staff",
+            "start": "2026-11-17T20:00",
+            "end": "2026-11-17T21:00",
+            "allDay": false,
+            "location": null,
+            "note": null,
+            "category": "Rendez-vous",
+            "weekly": null
+          }
+        }
+      }
+    ],
+    [
+      "POST /quick",
+      {
+        "status": 200,
+        "body": {
+          "kind": "event",
+          "event": {
+            "id": "#3",
+            "title": "Week-end scout",
+            "start": "2027-02-13",
+            "end": "2027-02-15",
+            "allDay": true,
+            "location": null,
+            "note": null,
+            "category": "Rendez-vous",
+            "weekly": null
+          }
+        }
+      }
+    ],
+    [
+      "POST /quick",
+      {
+        "status": 200,
+        "body": {
+          "kind": "event",
+          "event": {
+            "id": "#4",
+            "title": "Examen math",
+            "start": "2027-01-18",
+            "end": "2027-01-18",
+            "allDay": true,
+            "location": null,
+            "note": null,
+            "category": "Examens",
+            "weekly": null
+          }
+        }
+      }
+    ],
+    [
+      "POST /quick",
+      {
+        "status": 200,
+        "body": {
+          "kind": "weekly",
+          "weekly": {
+            "id": "#5",
+            "title": "Badminton",
+            "weekday": 3,
+            "time": "19:00",
+            "durationMin": 120,
+            "category": "Sport",
+            "location": null,
+            "from": "2026-11-12",
+            "until": null
+          }
+        }
+      }
+    ],
+    [
+      "POST /quick",
+      {
+        "status": 200,
+        "body": {
+          "kind": "task",
+          "task": {
+            "id": "#6",
+            "title": "préparer la réunion",
+            "tags": [],
+            "due": "2026-11-13",
+            "done": false,
+            "durationMin": 60
+          }
+        }
+      }
+    ],
+    [
+      "POST /quick",
+      {
+        "status": 200,
+        "body": {
+          "kind": "task",
+          "task": {
+            "id": "#7",
+            "title": "acheter du pain",
+            "tags": [],
+            "due": null,
+            "done": false,
+            "durationMin": null
+          }
+        }
+      }
+    ],
+    [
+      "POST /quick",
+      {
+        "status": 400,
+        "body": {
+          "error": "Écris d’abord un titre (« dentiste jeudi 14h »)."
+        }
+      }
+    ],
+    [
+      "POST /quick",
+      {
+        "status": 400,
+        "body": {
+          "error": "La fin est avant le début."
+        }
+      }
+    ],
+    [
+      "POST /events",
+      {
+        "status": 200,
+        "body": {
+          "id": "#8",
+          "title": "Déjeuner avec Léa",
+          "start": "2026-11-18T12:30",
+          "end": "2026-11-18T14:00",
+          "allDay": false,
+          "location": "Chez Léon",
+          "note": "réserver",
+          "category": "Perso",
+          "weekly": null
+        }
+      }
+    ],
+    [
+      "POST /events",
+      {
+        "status": 400,
+        "body": {
+          "error": "Fin invalide (AAAA-MM-JJTHH:MM)"
+        }
+      }
+    ],
+    [
+      "POST /events",
+      {
+        "status": 400,
+        "body": {
+          "error": "La fin est avant le début."
+        }
+      }
+    ],
+    [
+      "POST /events",
+      {
+        "status": 200,
+        "body": {
+          "id": "#9",
+          "title": "Vacances",
+          "start": "2026-12-21",
+          "end": "2026-12-31",
+          "allDay": true,
+          "location": null,
+          "note": null,
+          "category": "Rendez-vous",
+          "weekly": null
+        }
+      }
+    ],
+    [
+      "PATCH /events/#1",
+      {
+        "status": 200,
+        "body": {
+          "id": "#1",
+          "title": "Dentiste",
+          "start": "2026-11-19T15:00",
+          "end": "2026-11-19T16:00",
+          "allDay": false,
+          "location": null,
+          "note": null,
+          "category": "Rendez-vous",
+          "weekly": null
+        }
+      }
+    ],
+    [
+      "PATCH /events/#1",
+      {
+        "status": 200,
+        "body": {
+          "id": "#1",
+          "title": "Dentiste (contrôle)",
+          "start": "2026-11-19T15:00",
+          "end": "2026-11-19T16:00",
+          "allDay": false,
+          "location": null,
+          "note": null,
+          "category": "Rendez-vous",
+          "weekly": null
+        }
+      }
+    ],
+    [
+      "PATCH /events/#3",
+      {
+        "status": 200,
+        "body": {
+          "id": "#3",
+          "title": "Week-end scout",
+          "start": "2027-02-13",
+          "end": "2027-02-15",
+          "allDay": true,
+          "location": "Spa",
+          "note": null,
+          "category": "Rendez-vous",
+          "weekly": null
+        }
+      }
+    ],
+    [
+      "PUT /weekly/#5/occurrences/2026-11-19",
+      {
+        "status": 200,
+        "body": {
+          "ok": true
+        }
+      }
+    ],
+    [
+      "PUT /weekly/#5/occurrences/2026-11-26",
+      {
+        "status": 200,
+        "body": {
+          "ok": true
+        }
+      }
+    ],
+    [
+      "PUT /weekly/#5/occurrences/2026-12-03",
+      {
+        "status": 200,
+        "body": {
+          "ok": true
+        }
+      }
+    ],
+    [
+      "PUT /weekly/#5/occurrences/2026-12-03",
+      {
+        "status": 200,
+        "body": {
+          "ok": true
+        }
+      }
+    ],
+    [
+      "PUT /weekly/#5/occurrences/2026-11-26",
+      {
+        "status": 400,
+        "body": {
+          "error": "Une occurrence se déplace d’une semaine au plus."
+        }
+      }
+    ],
+    [
+      "POST /weekly",
+      {
+        "status": 200,
+        "body": {
+          "id": "#10",
+          "title": "Yoga",
+          "weekday": 0,
+          "time": "07:30",
+          "durationMin": 45,
+          "category": "Loisirs",
+          "location": null,
+          "from": "2026-11-16",
+          "until": "2026-12-14"
+        }
+      }
+    ],
+    [
+      "PATCH /weekly/#10",
+      {
+        "status": 200,
+        "body": {
+          "id": "#10",
+          "title": "Yoga",
+          "weekday": 0,
+          "time": "08:00",
+          "durationMin": 45,
+          "category": "Loisirs",
+          "location": null,
+          "from": "2026-11-16",
+          "until": "2026-12-14"
+        }
+      }
+    ],
+    [
+      "POST /weekly",
+      {
+        "status": 400,
+        "body": {
+          "error": "Jour invalide (0 = lundi … 6 = dimanche)"
+        }
+      }
+    ],
+    [
+      "DELETE /events/#8",
+      {
+        "status": 200,
+        "body": {
+          "ok": true
+        }
+      }
+    ],
+    [
+      "POST /events/#8/restore",
+      {
+        "status": 200,
+        "body": {
+          "id": "#8",
+          "title": "Déjeuner avec Léa",
+          "start": "2026-11-18T12:30",
+          "end": "2026-11-18T14:00",
+          "allDay": false,
+          "location": "Chez Léon",
+          "note": "réserver",
+          "category": "Perso",
+          "weekly": null
+        }
+      }
+    ],
+    [
+      "DELETE /weekly/#10",
+      {
+        "status": 200,
+        "body": {
+          "ok": true
+        }
+      }
+    ],
+    [
+      "GET /range?from=2026-11-09&to=2026-11-15",
+      {
+        "status": 200,
+        "body": {
+          "today": "2026-11-12",
+          "from": "2026-11-09",
+          "to": "2026-11-15",
+          "events": [
+            {
+              "id": "#5:2026-11-12",
+              "title": "Badminton",
+              "start": "2026-11-12T19:00",
+              "end": "2026-11-12T21:00",
+              "allDay": false,
+              "location": null,
+              "note": null,
+              "category": "Sport",
+              "weekly": {
+                "id": "#5",
+                "date": "2026-11-12",
+                "moved": false
+              }
+            }
+          ],
+          "foreign": [],
+          "toPlace": [
+            {
+              "id": "#6",
+              "title": "préparer la réunion",
+              "due": "2026-11-13",
+              "estimateMin": 60,
+              "open": "/m/todo",
+              "late": false
+            },
+            {
+              "id": "#7",
+              "title": "acheter du pain",
+              "due": null,
+              "estimateMin": null,
+              "open": "/m/todo",
+              "late": false
+            }
+          ],
+          "todo": true,
+          "weekly": [
+            {
+              "id": "#5",
+              "title": "Badminton",
+              "weekday": 3,
+              "time": "19:00",
+              "durationMin": 120,
+              "category": "Sport",
+              "location": null,
+              "from": "2026-11-12",
+              "until": null
+            }
+          ],
+          "dayStartHour": 7,
+          "dayEndHour": 23,
+          "categories": ["Sport"]
+        }
+      }
+    ],
+    [
+      "GET /range?from=2026-11-16&to=2026-11-22",
+      {
+        "status": 200,
+        "body": {
+          "today": "2026-11-12",
+          "from": "2026-11-16",
+          "to": "2026-11-22",
+          "events": [
+            {
+              "id": "#2",
+              "title": "Réunion staff",
+              "start": "2026-11-17T20:00",
+              "end": "2026-11-17T21:00",
+              "allDay": false,
+              "location": null,
+              "note": null,
+              "category": "Rendez-vous",
+              "weekly": null
+            },
+            {
+              "id": "#8",
+              "title": "Déjeuner avec Léa",
+              "start": "2026-11-18T12:30",
+              "end": "2026-11-18T14:00",
+              "allDay": false,
+              "location": "Chez Léon",
+              "note": "réserver",
+              "category": "Perso",
+              "weekly": null
+            },
+            {
+              "id": "#1",
+              "title": "Dentiste (contrôle)",
+              "start": "2026-11-19T15:00",
+              "end": "2026-11-19T16:00",
+              "allDay": false,
+              "location": null,
+              "note": null,
+              "category": "Rendez-vous",
+              "weekly": null
+            }
+          ],
+          "foreign": [],
+          "toPlace": [
+            {
+              "id": "#6",
+              "title": "préparer la réunion",
+              "due": "2026-11-13",
+              "estimateMin": 60,
+              "open": "/m/todo",
+              "late": false
+            },
+            {
+              "id": "#7",
+              "title": "acheter du pain",
+              "due": null,
+              "estimateMin": null,
+              "open": "/m/todo",
+              "late": false
+            }
+          ],
+          "todo": true,
+          "weekly": [
+            {
+              "id": "#5",
+              "title": "Badminton",
+              "weekday": 3,
+              "time": "19:00",
+              "durationMin": 120,
+              "category": "Sport",
+              "location": null,
+              "from": "2026-11-12",
+              "until": null
+            }
+          ],
+          "dayStartHour": 7,
+          "dayEndHour": 23,
+          "categories": ["Perso", "Rendez-vous"]
+        }
+      }
+    ],
+    [
+      "GET /range?from=2026-11-23&to=2026-11-29",
+      {
+        "status": 200,
+        "body": {
+          "today": "2026-11-12",
+          "from": "2026-11-23",
+          "to": "2026-11-29",
+          "events": [
+            {
+              "id": "#5:2026-11-26",
+              "title": "Badminton",
+              "start": "2026-11-26T19:00",
+              "end": "2026-11-26T21:00",
+              "allDay": false,
+              "location": null,
+              "note": null,
+              "category": "Sport",
+              "weekly": {
+                "id": "#5",
+                "date": "2026-11-26",
+                "moved": false
+              }
+            }
+          ],
+          "foreign": [],
+          "toPlace": [
+            {
+              "id": "#6",
+              "title": "préparer la réunion",
+              "due": "2026-11-13",
+              "estimateMin": 60,
+              "open": "/m/todo",
+              "late": false
+            },
+            {
+              "id": "#7",
+              "title": "acheter du pain",
+              "due": null,
+              "estimateMin": null,
+              "open": "/m/todo",
+              "late": false
+            }
+          ],
+          "todo": true,
+          "weekly": [
+            {
+              "id": "#5",
+              "title": "Badminton",
+              "weekday": 3,
+              "time": "19:00",
+              "durationMin": 120,
+              "category": "Sport",
+              "location": null,
+              "from": "2026-11-12",
+              "until": null
+            }
+          ],
+          "dayStartHour": 7,
+          "dayEndHour": 23,
+          "categories": ["Sport"]
+        }
+      }
+    ],
+    [
+      "GET /range?from=2027-02-01&to=2027-02-28",
+      {
+        "status": 200,
+        "body": {
+          "today": "2026-11-12",
+          "from": "2027-02-01",
+          "to": "2027-02-28",
+          "events": [
+            {
+              "id": "#5:2027-02-04",
+              "title": "Badminton",
+              "start": "2027-02-04T19:00",
+              "end": "2027-02-04T21:00",
+              "allDay": false,
+              "location": null,
+              "note": null,
+              "category": "Sport",
+              "weekly": {
+                "id": "#5",
+                "date": "2027-02-04",
+                "moved": false
+              }
+            },
+            {
+              "id": "#5:2027-02-11",
+              "title": "Badminton",
+              "start": "2027-02-11T19:00",
+              "end": "2027-02-11T21:00",
+              "allDay": false,
+              "location": null,
+              "note": null,
+              "category": "Sport",
+              "weekly": {
+                "id": "#5",
+                "date": "2027-02-11",
+                "moved": false
+              }
+            },
+            {
+              "id": "#3",
+              "title": "Week-end scout",
+              "start": "2027-02-13",
+              "end": "2027-02-15",
+              "allDay": true,
+              "location": "Spa",
+              "note": null,
+              "category": "Rendez-vous",
+              "weekly": null
+            },
+            {
+              "id": "#5:2027-02-18",
+              "title": "Badminton",
+              "start": "2027-02-18T19:00",
+              "end": "2027-02-18T21:00",
+              "allDay": false,
+              "location": null,
+              "note": null,
+              "category": "Sport",
+              "weekly": {
+                "id": "#5",
+                "date": "2027-02-18",
+                "moved": false
+              }
+            },
+            {
+              "id": "#5:2027-02-25",
+              "title": "Badminton",
+              "start": "2027-02-25T19:00",
+              "end": "2027-02-25T21:00",
+              "allDay": false,
+              "location": null,
+              "note": null,
+              "category": "Sport",
+              "weekly": {
+                "id": "#5",
+                "date": "2027-02-25",
+                "moved": false
+              }
+            }
+          ],
+          "foreign": [],
+          "toPlace": [
+            {
+              "id": "#6",
+              "title": "préparer la réunion",
+              "due": "2026-11-13",
+              "estimateMin": 60,
+              "open": "/m/todo",
+              "late": false
+            },
+            {
+              "id": "#7",
+              "title": "acheter du pain",
+              "due": null,
+              "estimateMin": null,
+              "open": "/m/todo",
+              "late": false
+            }
+          ],
+          "todo": true,
+          "weekly": [
+            {
+              "id": "#5",
+              "title": "Badminton",
+              "weekday": 3,
+              "time": "19:00",
+              "durationMin": 120,
+              "category": "Sport",
+              "location": null,
+              "from": "2026-11-12",
+              "until": null
+            }
+          ],
+          "dayStartHour": 7,
+          "dayEndHour": 23,
+          "categories": ["Rendez-vous", "Sport"]
+        }
+      }
+    ],
+    [
+      "GET /range?from=2026-11-01&to=2027-03-01",
+      {
+        "status": 400,
+        "body": {
+          "error": "Période trop longue"
+        }
+      }
+    ],
+    [
+      "GET /today",
+      {
+        "status": 200,
+        "body": {
+          "today": "2026-11-12",
+          "from": "2026-11-12",
+          "to": "2026-11-13",
+          "events": [
+            {
+              "id": "#5:2026-11-12",
+              "title": "Badminton",
+              "start": "2026-11-12T19:00",
+              "end": "2026-11-12T21:00",
+              "allDay": false,
+              "location": null,
+              "note": null,
+              "category": "Sport",
+              "weekly": {
+                "id": "#5",
+                "date": "2026-11-12",
+                "moved": false
+              }
+            }
+          ],
+          "foreign": [],
+          "toPlace": [
+            {
+              "id": "#6",
+              "title": "préparer la réunion",
+              "due": "2026-11-13",
+              "estimateMin": 60,
+              "open": "/m/todo",
+              "late": false
+            },
+            {
+              "id": "#7",
+              "title": "acheter du pain",
+              "due": null,
+              "estimateMin": null,
+              "open": "/m/todo",
+              "late": false
+            }
+          ],
+          "todo": true,
+          "weekly": [
+            {
+              "id": "#5",
+              "title": "Badminton",
+              "weekday": 3,
+              "time": "19:00",
+              "durationMin": 120,
+              "category": "Sport",
+              "location": null,
+              "from": "2026-11-12",
+              "until": null
+            }
+          ],
+          "dayStartHour": 7,
+          "dayEndHour": 23,
+          "categories": ["Sport"]
+        }
+      }
+    ]
+  ],
+  "calendar": {
+    "sources": ["todo", "agenda"],
+    "events": [
+      {
+        "id": "#2",
+        "title": "Réunion staff",
+        "start": "2026-11-17T20:00",
+        "durationMin": 60,
+        "open": "/m/agenda?date=2026-11-17",
+        "category": "Rendez-vous",
+        "moduleId": "agenda"
+      },
+      {
+        "id": "#8",
+        "title": "Déjeuner avec Léa",
+        "start": "2026-11-18T12:30",
+        "durationMin": 90,
+        "open": "/m/agenda?date=2026-11-18",
+        "category": "Perso",
+        "status": "Chez Léon",
+        "moduleId": "agenda"
+      },
+      {
+        "id": "#1",
+        "title": "Dentiste (contrôle)",
+        "start": "2026-11-19T15:00",
+        "durationMin": 60,
+        "open": "/m/agenda?date=2026-11-19",
+        "category": "Rendez-vous",
+        "moduleId": "agenda"
+      }
+    ]
+  },
+  "tables": {
+    "agenda__changes": [
+      {
+        "id": "#11",
+        "at": "+0ms",
+        "entity": "events",
+        "entity_id": "#1",
+        "op": "create",
+        "data": "{\"title\":\"Dentiste\",\"start_at\":\"2026-11-19T14:00\",\"end_at\":\"2026-11-19T15:00\",\"all_day\":0,\"location\":null,\"note\":null,\"category\":\"Rendez-vous\"}"
+      },
+      {
+        "id": "#12",
+        "at": "+1ms",
+        "entity": "events",
+        "entity_id": "#2",
+        "op": "create",
+        "data": "{\"title\":\"Réunion staff\",\"start_at\":\"2026-11-17T20:00\",\"end_at\":\"2026-11-17T21:00\",\"all_day\":0,\"location\":null,\"note\":null,\"category\":\"Rendez-vous\"}"
+      },
+      {
+        "id": "#13",
+        "at": "+2ms",
+        "entity": "events",
+        "entity_id": "#3",
+        "op": "create",
+        "data": "{\"title\":\"Week-end scout\",\"start_at\":\"2027-02-13\",\"end_at\":\"2027-02-15\",\"all_day\":1,\"location\":null,\"note\":null,\"category\":\"Rendez-vous\"}"
+      },
+      {
+        "id": "#14",
+        "at": "+3ms",
+        "entity": "events",
+        "entity_id": "#4",
+        "op": "create",
+        "data": "{\"title\":\"Examen math\",\"start_at\":\"2027-01-18\",\"end_at\":\"2027-01-18\",\"all_day\":1,\"location\":null,\"note\":null,\"category\":\"Examens\"}"
+      },
+      {
+        "id": "#15",
+        "at": "+4ms",
+        "entity": "weekly",
+        "entity_id": "#5",
+        "op": "create",
+        "data": "{\"title\":\"Badminton\",\"weekday\":3,\"time\":\"19:00\",\"duration_min\":120,\"category\":\"Sport\",\"location\":null,\"valid_from\":\"2026-11-12\",\"valid_until\":null}"
+      },
+      {
+        "id": "#16",
+        "at": "+300000ms",
+        "entity": "events",
+        "entity_id": "#8",
+        "op": "create",
+        "data": "{\"title\":\"Déjeuner avec Léa\",\"start_at\":\"2026-11-18T12:30\",\"end_at\":\"2026-11-18T14:00\",\"all_day\":0,\"location\":\"Chez Léon\",\"note\":\"réserver\",\"category\":\"Perso\"}"
+      },
+      {
+        "id": "#17",
+        "at": "+300001ms",
+        "entity": "events",
+        "entity_id": "#9",
+        "op": "create",
+        "data": "{\"title\":\"Vacances\",\"start_at\":\"2026-12-21\",\"end_at\":\"2026-12-31\",\"all_day\":1,\"location\":null,\"note\":null,\"category\":\"Rendez-vous\"}"
+      },
+      {
+        "id": "#18",
+        "at": "+600000ms",
+        "entity": "events",
+        "entity_id": "#1",
+        "op": "update",
+        "data": "{\"start_at\":\"2026-11-19T15:00\",\"end_at\":\"2026-11-19T16:00\"}"
+      },
+      {
+        "id": "#19",
+        "at": "+600001ms",
+        "entity": "events",
+        "entity_id": "#1",
+        "op": "update",
+        "data": "{\"title\":\"Dentiste (contrôle)\"}"
+      },
+      {
+        "id": "#20",
+        "at": "+600002ms",
+        "entity": "events",
+        "entity_id": "#3",
+        "op": "update",
+        "data": "{\"location\":\"Spa\"}"
+      },
+      {
+        "id": "#21",
+        "at": "+600003ms",
+        "entity": "exceptions",
+        "entity_id": "#22",
+        "op": "create",
+        "data": "{\"weekly_id\":\"#5\",\"occurrence_date\":\"2026-11-19\",\"kind\":\"cancel\",\"start_at\":null,\"duration_min\":null}"
+      },
+      {
+        "id": "#23",
+        "at": "+600004ms",
+        "entity": "exceptions",
+        "entity_id": "#24",
+        "op": "create",
+        "data": "{\"weekly_id\":\"#5\",\"occurrence_date\":\"2026-11-26\",\"kind\":\"move\",\"start_at\":\"2026-11-27T18:00\",\"duration_min\":90}"
+      },
+      {
+        "id": "#25",
+        "at": "+600005ms",
+        "entity": "exceptions",
+        "entity_id": "#26",
+        "op": "create",
+        "data": "{\"weekly_id\":\"#5\",\"occurrence_date\":\"2026-12-03\",\"kind\":\"cancel\",\"start_at\":null,\"duration_min\":null}"
+      },
+      {
+        "id": "#27",
+        "at": "+600006ms",
+        "entity": "exceptions",
+        "entity_id": "#26",
+        "op": "delete",
+        "data": null
+      },
+      {
+        "id": "#28",
+        "at": "+600007ms",
+        "entity": "exceptions",
+        "entity_id": "#24",
+        "op": "delete",
+        "data": null
+      },
+      {
+        "id": "#29",
+        "at": "+600008ms",
+        "entity": "weekly",
+        "entity_id": "#10",
+        "op": "create",
+        "data": "{\"title\":\"Yoga\",\"weekday\":0,\"time\":\"07:30\",\"duration_min\":45,\"category\":\"Loisirs\",\"location\":null,\"valid_from\":\"2026-11-16\",\"valid_until\":\"2026-12-14\"}"
+      },
+      {
+        "id": "#30",
+        "at": "+600009ms",
+        "entity": "weekly",
+        "entity_id": "#10",
+        "op": "update",
+        "data": "{\"time\":\"08:00\"}"
+      },
+      {
+        "id": "#31",
+        "at": "+900000ms",
+        "entity": "events",
+        "entity_id": "#8",
+        "op": "delete",
+        "data": null
+      },
+      {
+        "id": "#32",
+        "at": "+900001ms",
+        "entity": "events",
+        "entity_id": "#8",
+        "op": "restore",
+        "data": null
+      },
+      {
+        "id": "#33",
+        "at": "+900002ms",
+        "entity": "weekly",
+        "entity_id": "#10",
+        "op": "delete",
+        "data": null
+      }
+    ],
+    "agenda__events": [
+      {
+        "id": "#1",
+        "created_at": "+0ms",
+        "updated_at": "+600001ms",
+        "deleted_at": null,
+        "title": "Dentiste (contrôle)",
+        "start_at": "2026-11-19T15:00",
+        "end_at": "2026-11-19T16:00",
+        "all_day": 0,
+        "location": null,
+        "note": null,
+        "category": "Rendez-vous"
+      },
+      {
+        "id": "#2",
+        "created_at": "+1ms",
+        "updated_at": "+1ms",
+        "deleted_at": null,
+        "title": "Réunion staff",
+        "start_at": "2026-11-17T20:00",
+        "end_at": "2026-11-17T21:00",
+        "all_day": 0,
+        "location": null,
+        "note": null,
+        "category": "Rendez-vous"
+      },
+      {
+        "id": "#3",
+        "created_at": "+2ms",
+        "updated_at": "+600002ms",
+        "deleted_at": null,
+        "title": "Week-end scout",
+        "start_at": "2027-02-13",
+        "end_at": "2027-02-15",
+        "all_day": 1,
+        "location": "Spa",
+        "note": null,
+        "category": "Rendez-vous"
+      },
+      {
+        "id": "#4",
+        "created_at": "+3ms",
+        "updated_at": "+3ms",
+        "deleted_at": null,
+        "title": "Examen math",
+        "start_at": "2027-01-18",
+        "end_at": "2027-01-18",
+        "all_day": 1,
+        "location": null,
+        "note": null,
+        "category": "Examens"
+      },
+      {
+        "id": "#8",
+        "created_at": "+300000ms",
+        "updated_at": "+900001ms",
+        "deleted_at": null,
+        "title": "Déjeuner avec Léa",
+        "start_at": "2026-11-18T12:30",
+        "end_at": "2026-11-18T14:00",
+        "all_day": 0,
+        "location": "Chez Léon",
+        "note": "réserver",
+        "category": "Perso"
+      },
+      {
+        "id": "#9",
+        "created_at": "+300001ms",
+        "updated_at": "+300001ms",
+        "deleted_at": null,
+        "title": "Vacances",
+        "start_at": "2026-12-21",
+        "end_at": "2026-12-31",
+        "all_day": 1,
+        "location": null,
+        "note": null,
+        "category": "Rendez-vous"
+      }
+    ],
+    "agenda__exceptions": [
+      {
+        "id": "#22",
+        "created_at": "+600003ms",
+        "updated_at": "+600003ms",
+        "deleted_at": null,
+        "weekly_id": "#5",
+        "occurrence_date": "2026-11-19",
+        "kind": "cancel",
+        "start_at": null,
+        "duration_min": null
+      },
+      {
+        "id": "#24",
+        "created_at": "+600004ms",
+        "updated_at": "+600007ms",
+        "deleted_at": "+600007ms",
+        "weekly_id": "#5",
+        "occurrence_date": "2026-11-26",
+        "kind": "move",
+        "start_at": "2026-11-27T18:00",
+        "duration_min": 90
+      },
+      {
+        "id": "#26",
+        "created_at": "+600005ms",
+        "updated_at": "+600006ms",
+        "deleted_at": "+600006ms",
+        "weekly_id": "#5",
+        "occurrence_date": "2026-12-03",
+        "kind": "cancel",
+        "start_at": null,
+        "duration_min": null
+      }
+    ],
+    "agenda__weekly": [
+      {
+        "id": "#5",
+        "created_at": "+4ms",
+        "updated_at": "+4ms",
+        "deleted_at": null,
+        "title": "Badminton",
+        "weekday": 3,
+        "time": "19:00",
+        "duration_min": 120,
+        "category": "Sport",
+        "location": null,
+        "valid_from": "2026-11-12",
+        "valid_until": null
+      },
+      {
+        "id": "#10",
+        "created_at": "+600008ms",
+        "updated_at": "+900002ms",
+        "deleted_at": "+900002ms",
+        "title": "Yoga",
+        "weekday": 0,
+        "time": "08:00",
+        "duration_min": 45,
+        "category": "Loisirs",
+        "location": null,
+        "valid_from": "2026-11-16",
+        "valid_until": "2026-12-14"
+      }
+    ]
+  },
+  "todo": {
+    "todo__changes": [
+      {
+        "id": "#34",
+        "at": "+5ms",
+        "entity": "tasks",
+        "entity_id": "#6",
+        "op": "create",
+        "data": "{\"title\":\"préparer la réunion\",\"tags\":\"[]\",\"due_date\":\"2026-11-13\",\"done_at\":null,\"subject\":null,\"legacy_id\":null,\"duration_min\":60}"
+      },
+      {
+        "id": "#35",
+        "at": "+6ms",
+        "entity": "tasks",
+        "entity_id": "#7",
+        "op": "create",
+        "data": "{\"title\":\"acheter du pain\",\"tags\":\"[]\",\"due_date\":null,\"done_at\":null,\"subject\":null,\"legacy_id\":null}"
+      }
+    ],
+    "todo__legacy_ids": [],
+    "todo__tasks": [
+      {
+        "id": "#6",
+        "created_at": "+5ms",
+        "updated_at": "+5ms",
+        "deleted_at": null,
+        "title": "préparer la réunion",
+        "tags": "[]",
+        "due_date": "2026-11-13",
+        "done_at": null,
+        "subject": null,
+        "legacy_id": null,
+        "duration_min": 60
+      },
+      {
+        "id": "#7",
+        "created_at": "+6ms",
+        "updated_at": "+6ms",
+        "deleted_at": null,
+        "title": "acheter du pain",
+        "tags": "[]",
+        "due_date": null,
+        "done_at": null,
+        "subject": null,
+        "legacy_id": null,
+        "duration_min": null
+      }
+    ],
+    "todo__tasks_v1": []
+  }
+}

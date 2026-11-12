@@ -33,9 +33,10 @@ export class CalendarRegistry {
 
   /** Every source for a period: events and items to fit in, with module and category. */
   async query(from: string, to: string): Promise<CalendarView> {
-    const view: CalendarView = { events: [], items: [] };
+    const view: CalendarView = { events: [], items: [], itemSources: [] };
     for (const [moduleId, source] of this.sources) {
       const fallback = source.category ?? this.nameOf(moduleId);
+      if (source.unscheduled) view.itemSources.push(moduleId);
       try {
         for (const event of await source.events(from, to))
           view.events.push({ ...event, moduleId, category: event.category ?? fallback });

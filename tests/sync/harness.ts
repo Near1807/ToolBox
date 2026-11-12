@@ -24,7 +24,7 @@ import {
 } from '../../backend/core/sync/protocol';
 import type { SyncEngine } from '../../backend/core/sync/engine';
 
-export const MODULES = ['todo', 'ideas', 'sport', 'timer', 'courses'];
+export const MODULES = ['todo', 'ideas', 'sport', 'timer', 'courses', 'agenda'];
 const ROOT = path.resolve(__dirname, '..', '..', 'modules');
 
 export interface Devices {

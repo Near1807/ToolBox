@@ -687,6 +687,11 @@ export interface CalendarSource {
 export interface CalendarView {
   events: (CalendarEvent & { moduleId: string; category: string })[];
   items: (CalendarItem & { moduleId: string; category: string })[];
+  /**
+   * The modules whose source gives items to fit in (the To-do): their
+   * events (the same tasks, on their due day) need not be shown twice.
+   */
+  itemSources: string[];
 }
 
 export interface ModuleCalendar {

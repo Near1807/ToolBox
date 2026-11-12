@@ -1,0 +1,30 @@
+{
+  "id": "agenda",
+  "name": "Agenda",
+  "description": "La semaine d'un coup d'œil : tes rendez-vous et événements sur plusieurs jours, la semaine type, ce que les autres outils ont daté (sport, repas, sorties), les tâches de la To-do à caser et la charge de chaque jour. Une barre pour tout écrire en français.",
+  "version": "0.1.0",
+  "section": "Outils",
+  "icon": "calendar-days",
+  "order": 5,
+  "dependsOn": { "optionalServices": ["todo"] },
+  "settings": [
+    {
+      "key": "dayStartHour",
+      "type": "number",
+      "label": "Début de la journée (heure)",
+      "description": "Première heure affichée dans la semaine, et début du temps libre compté.",
+      "default": 7,
+      "min": 0,
+      "max": 12
+    },
+    {
+      "key": "dayEndHour",
+      "type": "number",
+      "label": "Fin de la journée (heure)",
+      "description": "Dernière heure affichée dans la semaine, et fin du temps libre compté.",
+      "default": 23,
+      "min": 13,
+      "max": 24
+    }
+  ]
+}

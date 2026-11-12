@@ -436,7 +436,7 @@ Le socle ajoute `moduleId` et réunit toutes les sources : `GET /api/core/calend
 - `category` sur la source (« Sport », « Repas », « Musique », « Tâches », « Timer ») ou sur un événement (« Cours », « Réunions ») : une catégorie lisible. Par défaut, le nom du module.
 - `endDate` sur un événement « sur la journée » (`start` = une date) : son **dernier** jour, inclus, quand il s'étend sur plusieurs jours (camp, examens). Un événement à l'heure peut dépasser minuit (`durationMin`).
 - `unscheduled(from, to)` sur la source : les **éléments à caser** (`CalendarItem` : `id`, `title`, `due` ou `null`, `estimateMin` ou `null`, `open`, `category`, `status`), ceux qui ont une échéance au plus tard le `to` (en retard compris) et ceux sans échéance. Lecture seule. La To-do les fournit (tâches à faire, avec leur durée estimée) ; l'Agenda les montre dans « À caser », jamais dans la grille.
-- `ctx.calendar.query(from, to)` : lecture de toutes les sources pour un module (l'Agenda), chaque événement et chaque élément avec son `moduleId` et sa `category`. Lecture seule ; une source en erreur est écartée. `GET /api/core/calendar` répond **exactement comme avant** (les références de non-régression des modules en dépendent).
+- `ctx.calendar.query(from, to)` : lecture de toutes les sources pour un module (l'Agenda), chaque événement et chaque élément avec son `moduleId` et sa `category`, et `itemSources` (les modules qui donnent des éléments à caser : leurs événements sont les mêmes tâches, à ne pas montrer deux fois). Lecture seule ; une source en erreur est écartée. `GET /api/core/calendar` répond **exactement comme avant** (les références de non-régression des modules en dépendent).
 
 ## 6. Migrations et sécurité des données
 

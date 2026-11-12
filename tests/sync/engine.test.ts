@@ -350,12 +350,13 @@ describe('synchronisation PC ↔ téléphone (moteur)', () => {
     same(d);
   });
 
-  it('only the 5 modules’ tables travel: never the archives, legacy ids, nor another module', async () => {
+  it('only the synchronised modules’ tables travel (the 5 and the Agenda since v0.34.0): never the archives, legacy ids, nor another module', async () => {
     d = await devices();
     for (const m of ['todo', 'ideas', 'timer'])
       for (const t of d.pcEngine.tables(m))
         expect(t.endsWith('_v1') || t === 'legacy_ids').toBe(false);
     expect([...d.pcEngine.scopes()].sort()).toEqual([
+      'agenda',
       'core',
       'courses',
       'ideas',
