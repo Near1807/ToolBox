@@ -211,3 +211,20 @@
 .td-task__actions a.icon-button {
   text-decoration: none;
 }
+
+/* v0.35.0: planned in the agenda (« mer. 14:00 »), flagged when after the due date. */
+.td-planned {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  color: var(--text-2);
+}
+.td-planned--after {
+  color: var(--warning);
+}
+.td-details__planned {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: flex-end;
+}

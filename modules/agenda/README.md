@@ -13,18 +13,19 @@ Plus la **semaine type** (comme au Sport) : cours, entraînements, réunions fix
 
 Une barre en français, avec aperçu avant validation (« Sera ajouté : Dentiste · jeu. 19 nov. 14:00–15:00 ») ; analyse pure dans `shared/parse.ts`, dates de la To-do (`@hub/sdk/dates`, partagées, jamais copiées).
 
-| Écrit                                                                | Devient                                |
-| -------------------------------------------------------------------- | -------------------------------------- |
-| `dentiste jeudi 14h 1h`                                              | événement jeudi 14:00–15:00            |
-| `réunion staff mardi 20h`                                            | événement 20:00–21:00 (1 h par défaut) |
-| `cours de solfège de 18h à 19h30 lundi`, `répétition 14h-16h samedi` | événement de 18:00 à 19:30             |
-| `week-end scout 13-15 février`, `camp du 30 janvier au 2 février`    | sur la journée, plusieurs jours        |
-| `examen math 18 janvier`                                             | sur la journée                         |
-| `badminton tous les jeudis 19h 2h`, `réunion chaque mardi 20h`       | semaine type (à partir d'aujourd'hui)  |
-| `préparer la réunion ~1h avant vendredi`, `acheter du pain`          | tâche de la To-do, à caser             |
-| `#cours`, `#examens`… n'importe où                                   | la catégorie                           |
+| Écrit                                                                | Devient                                 |
+| -------------------------------------------------------------------- | --------------------------------------- |
+| `dentiste jeudi 14h 1h`                                              | événement jeudi 14:00–15:00             |
+| `réunion staff mardi 20h`                                            | événement 20:00–21:00 (1 h par défaut)  |
+| `cours de solfège de 18h à 19h30 lundi`, `répétition 14h-16h samedi` | événement de 18:00 à 19:30              |
+| `week-end scout 13-15 février`, `camp du 30 janvier au 2 février`    | sur la journée, plusieurs jours         |
+| `examen math 18 janvier`                                             | sur la journée                          |
+| `badminton tous les jeudis 19h 2h`, `réunion chaque mardi 20h`       | semaine type (à partir d'aujourd'hui)   |
+| `préparer la réunion ~1h avant vendredi`, `acheter du pain`          | tâche de la To-do, à caser              |
+| `réviser stats ~2h mercredi 14h` (v0.35.0)                           | tâche de la To-do **prévue** mer. 14:00 |
+| `#cours`, `#examens`… n'importe où                                   | la catégorie                            |
 
-Règles : une **durée avec « ~ »** fait une tâche ; sinon une **heure** fait un événement à cette heure (aujourd'hui si aucune date), une **date seule** un événement sur la journée, **rien de daté** une tâche. La date et les heures viennent après le titre. Après une heure, une longueur sans « ~ » (« 1h », « 30min », « pendant 1h30 ») est la durée (10 h au plus : « 14h 16h » n'est pas 16 heures). Le formulaire détaillé existe aussi, jamais obligatoire.
+Règles : une **durée avec « ~ »** fait une tâche (une heure qui finit cette phrase est son heure prévue, « avant … » son échéance, un jour seul son échéance, v0.35.0) ; sinon une **heure** fait un événement à cette heure (aujourd'hui si aucune date), une **date seule** un événement sur la journée, **rien de daté** une tâche. La date et les heures viennent après le titre. Après une heure, une longueur sans « ~ » (« 1h », « 30min », « pendant 1h30 ») est la durée (10 h au plus : « 14h 16h » n'est pas 16 heures). Le formulaire détaillé existe aussi, jamais obligatoire.
 
 ## Vue de la semaine (PC)
 

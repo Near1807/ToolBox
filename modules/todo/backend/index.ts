@@ -23,8 +23,11 @@ import type { TodoService, TodoTask } from '../contract';
 import {
   formatDue,
   localToday,
+  DEFAULT_PLANNED_MIN,
   MAX_DURATION_MIN,
   parseDue,
+  parseTimeOfDay,
+  PLANNED_PATTERN,
   parseDuration,
   spokenDue,
   daysBetween,
@@ -56,6 +59,8 @@ interface TaskRow {
   legacy_id: number | null;
   /** Estimated duration in minutes (v0.34.0), null when not given. */
   duration_min: number | null;
+  /** Planned start « YYYY-MM-DDTHH:mm » (v0.35.0), null when not planned. */
+  planned_at: string | null;
 }
 
 const TRACK_SUBJECT = (id: number) => `music-library:track:${id}`;
@@ -103,6 +108,11 @@ export default defineBackendModule({
       description: 'estimated duration of a task (minutes, empty by default)',
       up: 'ALTER TABLE todo__tasks ADD COLUMN duration_min INTEGER',
     },
+    {
+      version: 5,
+      description: 'planned start of a task (day and time, empty by default)',
+      up: 'ALTER TABLE todo__tasks ADD COLUMN planned_at TEXT',
+    },
   ],
   sync: {},
 
@@ -131,6 +141,7 @@ export default defineBackendModule({
       track: trackOf(row),
       timeSpent: Math.round(times[row.id] ?? 0),
       durationMin: row.duration_min,
+      plannedAt: row.planned_at,
     });
 
     const find = (id: string): TaskRow | null => store.get<TaskRow>('tasks', id);
@@ -215,6 +226,18 @@ export default defineBackendModule({
       return minutes;
     };
 
+    /** « YYYY-MM-DDTHH:mm » (a real day and time), or null/"" for « not planned ». */
+    const plannedFrom = (value: unknown): string | null => {
+      if (value === null || value === undefined || value === '') return null;
+      const ok =
+        typeof value === 'string' &&
+        PLANNED_PATTERN.test(value) &&
+        parseDue(value.slice(0, 10), localToday()) === value.slice(0, 10) &&
+        parseTimeOfDay(value.slice(11)) !== null;
+      if (!ok) throw new HttpError(400, `Heure prévue invalide : « ${String(value)} »`);
+      return value as string;
+    };
+
     const subjectFromTrackId = (value: unknown): string | null => {
       if (value === null || value === undefined || value === '') return null;
       const id = Number(value);
@@ -229,7 +252,11 @@ export default defineBackendModule({
       due: string | null;
       subject: string | null;
       durationMin?: number | null;
+      plannedAt?: string | null;
     }): TaskRow => {
+      // A planned task always has a length: its estimate, or 30 min by default.
+      const durationMin =
+        fields.plannedAt && !fields.durationMin ? DEFAULT_PLANNED_MIN : fields.durationMin;
       return store.create<TaskRow>('tasks', {
         title: fields.title,
         tags: JSON.stringify(fields.tags),
@@ -238,7 +265,8 @@ export default defineBackendModule({
         subject: fields.subject,
         legacy_id: null,
         // Written only when given: a task without an estimate stays as before (the reference).
-        ...(fields.durationMin ? { duration_min: fields.durationMin } : {}),
+        ...(durationMin ? { duration_min: durationMin } : {}),
+        ...(fields.plannedAt ? { planned_at: fields.plannedAt } : {}),
       });
     };
 
@@ -253,6 +281,11 @@ export default defineBackendModule({
         next.done_at = patch.done ? (row.done_at ?? new Date().toISOString()) : null;
       if ('trackId' in patch) next.subject = subjectFromTrackId(patch.trackId);
       if ('durationMin' in patch) next.duration_min = durationFrom(patch.durationMin);
+      if ('plannedAt' in patch) next.planned_at = plannedFrom(patch.plannedAt);
+      // Placed without an estimate: 30 min by default, and the estimate takes it.
+      const planned = 'planned_at' in next ? next.planned_at : row.planned_at;
+      const length = 'duration_min' in next ? next.duration_min : row.duration_min;
+      if (planned && !length) next.duration_min = DEFAULT_PLANNED_MIN;
       const changed = Object.fromEntries(
         Object.entries(next).filter(([key, value]) => row[key as keyof TaskRow] !== value),
       ) as Record<string, string | number | null>;
@@ -298,6 +331,7 @@ export default defineBackendModule({
           due: dueFrom(body.due),
           subject: subjectFromTrackId(body.trackId),
           durationMin: durationFrom(body.durationMin),
+          plannedAt: plannedFrom(body.plannedAt),
         }),
       );
     });
@@ -325,11 +359,13 @@ export default defineBackendModule({
     });
 
     // --- « Prêt pour le calendrier » (MODULES.md §5.17) --------------------------
-    // Each task with a due date, on that day (all day). Read only.
+    // Each task with a due date, on that day (all day); v0.35.0: each planned
+    // task at its time, for its length (`itemId`: the same task as the item
+    // to fit in, now placed; a ticked one stays, « fait »). Read only.
     ctx.calendar.provide({
       events: (from, to) => {
         const today = localToday();
-        return (
+        const due = (
           ctx.db
             .prepare(
               `SELECT * FROM ${tasks} WHERE deleted_at IS NULL AND due_date IS NOT NULL AND due_date >= ? AND due_date <= ? ORDER BY due_date, created_at`,
@@ -343,6 +379,27 @@ export default defineBackendModule({
           open: '/m/todo',
           status: row.done_at !== null ? 'fait' : row.due_date! < today ? 'en retard' : 'à faire',
         }));
+        const planned = (
+          ctx.db
+            .prepare(
+              `SELECT * FROM ${tasks} WHERE deleted_at IS NULL AND planned_at IS NOT NULL AND substr(planned_at, 1, 10) >= ? AND substr(planned_at, 1, 10) <= ? ORDER BY planned_at, created_at`,
+            )
+            .all(from, to) as TaskRow[]
+        ).map((row) => ({
+          id: `planned:${row.id}`,
+          itemId: row.id,
+          title: row.title,
+          start: row.planned_at!,
+          durationMin: row.duration_min ?? DEFAULT_PLANNED_MIN,
+          open: '/m/todo',
+          status:
+            row.done_at !== null
+              ? 'fait'
+              : row.due_date !== null && row.planned_at!.slice(0, 10) > row.due_date
+                ? 'après l’échéance'
+                : 'à faire',
+        }));
+        return [...due, ...planned];
       },
       category: 'Tâches',
       // v0.34.0: the open tasks to fit in (the Agenda's « À caser »): due on or
@@ -352,7 +409,7 @@ export default defineBackendModule({
         return sorted(
           ctx.db
             .prepare(
-              `SELECT * FROM ${tasks} WHERE deleted_at IS NULL AND done_at IS NULL AND (due_date IS NULL OR due_date <= ?)`,
+              `SELECT * FROM ${tasks} WHERE deleted_at IS NULL AND done_at IS NULL AND planned_at IS NULL AND (due_date IS NULL OR due_date <= ?)`,
             )
             .all(to) as TaskRow[],
         ).map((row) => ({
@@ -375,6 +432,7 @@ export default defineBackendModule({
       due: row.due_date,
       done: row.done_at !== null,
       durationMin: row.duration_min,
+      plannedAt: row.planned_at,
     });
     ctx.services.provide<TodoService>('todo', {
       listOpenTasks: () =>
@@ -398,8 +456,15 @@ export default defineBackendModule({
                 ? TRACK_SUBJECT(fields.trackId)
                 : null,
             durationMin: durationFrom(fields.durationMin ?? null),
+            plannedAt: plannedFrom(fields.plannedAt ?? null),
           }),
         ),
+      planTask: (id, fields) => {
+        const patch: Record<string, unknown> = {};
+        if ('plannedAt' in fields) patch.plannedAt = fields.plannedAt;
+        if ('durationMin' in fields) patch.durationMin = fields.durationMin;
+        return summary(update(id, patch));
+      },
     });
 
     // --- Track page of the library -------------------------------------------

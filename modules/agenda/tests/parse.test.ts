@@ -72,6 +72,7 @@ describe('the quick bar', () => {
       title: 'préparer la réunion',
       due: '2026-11-13',
       durationMin: 60,
+      start: null,
     });
     expect(previewText(p('préparer la réunion ~1h avant vendredi'), TODAY)).toBe(
       'Sera ajouté à la To-do (à caser) : préparer la réunion · pour ven. 13 nov. · ~1 h',
@@ -82,6 +83,7 @@ describe('the quick bar', () => {
       title: 'acheter du pain',
       due: null,
       durationMin: null,
+      start: null,
     });
   });
 
@@ -141,6 +143,33 @@ describe('the quick bar', () => {
       title: 'Anniversaire de Léa',
       start: '2026-12-03',
       allDay: true,
+    });
+  });
+});
+
+// v0.35.0
+const TODAY_THU = '2026-11-12';
+describe('the Agenda bar (only « ~ » phrases are tasks)', () => {
+  it('a « ~ » phrase with an hour is a planned task; without « ~ » still an event', () => {
+    const task = parseQuick('réviser stats ~2h mercredi 14h', TODAY_THU);
+    expect(task).toEqual({
+      kind: 'task',
+      title: 'réviser stats',
+      due: null,
+      durationMin: 120,
+      start: '2026-11-18T14:00',
+    });
+    expect(previewText(task, TODAY_THU)).toBe(
+      'Sera ajouté à la To-do : réviser stats · prévu mer. 18 nov. 14:00 · ~2 h',
+    );
+    expect(parseQuick('appeler Paul 14h', TODAY_THU)).toMatchObject({
+      kind: 'event',
+      start: '2026-11-12T14:00',
+    });
+    expect(parseQuick('dentiste jeudi 14h 1h', TODAY_THU)).toMatchObject({
+      kind: 'event',
+      start: '2026-11-19T14:00',
+      end: '2026-11-19T15:00',
     });
   });
 });

@@ -367,6 +367,7 @@ export default defineBackendModule({
               title: parsed.title,
               due: parsed.due,
               durationMin: parsed.durationMin,
+              plannedAt: parsed.start,
             }),
           };
         }

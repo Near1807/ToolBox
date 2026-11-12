@@ -359,10 +359,147 @@ export function takeDuration(input: string): { text: string; durationMin: number
   return { text: text.replace(/\s+/g, ' ').trim(), durationMin };
 }
 
+// --- Time of day and planned start (v0.35.0) --------------------------------
+
+/** « 14h », « 14h30 », « 14:30 », « 9h » → minutes of the day; null when it is not a time. */
+export function parseTimeOfDay(input: string): number | null {
+  const m = input
+    .trim()
+    .toLowerCase()
+    .match(/^(\d{1,2})(?:h|:)(\d{2})?$/);
+  if (!m || (input.includes(':') && !m[2])) return null;
+  const h = Number(m[1]);
+  const min = m[2] ? Number(m[2]) : 0;
+  if (h > 23 || min > 59) return null;
+  return h * 60 + min;
+}
+
+/** 840 → « 14:00 ». */
+export function timeText(minutes: number): string {
+  return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+}
+
+/** A planned task without an estimate gets this length (minutes) when placed. */
+export const DEFAULT_PLANNED_MIN = 30;
+
+/** « 2026-11-18T14:00 » (a planned start: local day and time, no time zone). */
+export const PLANNED_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+
+/** « mer. 18 nov. 14:00 » / « aujourd’hui 14:00 ». */
+export function formatPlanned(planned: string, today: string): string {
+  return `${shortDate(planned.slice(0, 10), today)} ${planned.slice(11, 16)}`;
+}
+
+/** Words that introduce a due date (« avant vendredi »), never a planned day. */
+const DUE_WORDS = new Set(['avant', 'pour', 'd’ici', "d'ici", 'dici']);
+const fold = (word: string) => normalise(word).replace(/\s+/g, '');
+
+/** A due clause ending the words: « avant vendredi », « pour le 12 novembre ». */
+function takeDueClause(
+  words: string[],
+  today: string,
+): { due: string; text: string; rest: string[] } | null {
+  for (let i = words.length - 1; i >= 1; i--) {
+    if (!DUE_WORDS.has(words[i]!.toLowerCase()) && !DUE_WORDS.has(fold(words[i]!))) continue;
+    if (words.length - i > 7) return null;
+    const text = words.slice(i).join(' ');
+    const due = parseDue(text, today);
+    return due ? { due, text, rest: words.slice(0, i) } : null;
+  }
+  return null;
+}
+
+/** A planned day ending the words (« mercredi », « le 18 novembre »), never « avant … ». */
+function takePlannedDay(words: string[], today: string): { day: string; rest: string[] } | null {
+  for (let take = Math.min(6, words.length - 1); take >= 1; take--) {
+    const tail = words.slice(-take);
+    if (DUE_WORDS.has(fold(tail[0]!)) || DUE_WORDS.has(tail[0]!.toLowerCase())) continue;
+    const day = parseDue(tail.join(' '), today);
+    if (day) return { day, rest: words.slice(0, -take) };
+  }
+  return null;
+}
+
+/**
+ * The planned start of a task at the end of a phrase (v0.35.0, decided with
+ * Thomas): an hour ending the phrase, with or without a day around it, is
+ * when the task is planned — « appeler Paul 14h » (today), « appeler Paul
+ * demain 14h », « rdv 14h demain », « réviser mercredi à 14h avant
+ * vendredi ». An hour inside the title stays text (« réunion 14h avec
+ * Léa »), and so does an hour after « avant » (« acheter du pain avant 19h »).
+ */
+function takePlanned(
+  words: string[],
+  today: string,
+): {
+  start: string;
+  due: string | null;
+  dueText: string | null;
+  rest: string[];
+} | null {
+  let rest = words;
+  let due: { due: string; text: string } | null = null;
+  const clause = takeDueClause(rest, today);
+  if (clause) {
+    due = clause;
+    rest = clause.rest;
+  }
+  // « … 14h » / « … mercredi 14h » / « … 14h mercredi »
+  let at = rest.length - 1;
+  let day: string | null = null;
+  let dayWords = 0;
+  if (parseTimeOfDay(rest[at] ?? '') === null) {
+    // « 14h mercredi »: the hour before a day ending the phrase.
+    for (let take = Math.min(6, rest.length - 2); take >= 1 && day === null; take--) {
+      const tail = rest.slice(-take);
+      if (DUE_WORDS.has(fold(tail[0]!))) continue;
+      const d = parseDue(tail.join(' '), today);
+      if (d && parseTimeOfDay(rest[rest.length - take - 1] ?? '') !== null) {
+        day = d;
+        dayWords = take;
+      }
+    }
+    if (day === null) return null;
+    at = rest.length - dayWords - 1;
+  }
+  const minutes = parseTimeOfDay(rest[at]!)!;
+  const before = fold(rest[at - 1] ?? '');
+  if (before === 'avant' || before === 'apres') return null;
+  let head = rest.slice(0, at);
+  if (['a', 'vers', 'des'].includes(before)) head = head.slice(0, -1);
+  if (day === null) {
+    const planned = takePlannedDay(head, today);
+    if (planned) {
+      day = planned.day;
+      head = planned.rest;
+    }
+  }
+  if (!due) {
+    const late = takeDueClause(head, today);
+    if (late) {
+      due = late;
+      head = late.rest;
+    }
+  }
+  const title = head
+    .join(' ')
+    .replace(/\s+(?:le|pour|à|a)$/i, '')
+    .trim();
+  if (!title || /^(?:le|la|pour|à|a|de|du)$/i.test(title)) return null;
+  return {
+    start: `${day ?? today}T${timeText(minutes)}`,
+    due: due?.due ?? null,
+    dueText: due?.text ?? null,
+    rest: head,
+  };
+}
+
 /**
  * Quick add: « finir le mix #mix ~2h pour vendredi » → title « finir le mix »,
- * tags [mix], about 2 hours, due = Friday. The date must end the text;
- * nothing is guessed inside the title.
+ * tags [mix], about 2 hours, due = Friday; « réviser stats ~2h mercredi 14h »
+ * → planned Wednesday 14:00 (v0.35.0). The date and the hour must end the
+ * text; nothing is guessed inside the title. `plain`: the text without its
+ * tags and duration (« ce n'est pas une date »).
  */
 export function splitQuickAdd(
   input: string,
@@ -373,6 +510,8 @@ export function splitQuickAdd(
   due: string | null;
   dueText: string | null;
   durationMin: number | null;
+  start: string | null;
+  plain: string;
 } {
   const tags: string[] = [];
   let text = input.replace(/(^|\s)#([\p{L}\p{N}_-]+)/gu, (_all, space: string, tag: string) => {
@@ -383,6 +522,19 @@ export function splitQuickAdd(
   const durationMin = taken.durationMin;
   text = taken.text.replace(/\s+/g, ' ').trim();
   const words = text.split(' ');
+  const base = { tags: [...new Set(tags)], durationMin, plain: text };
+  const planned = text ? takePlanned(words, today) : null;
+  if (planned)
+    return {
+      ...base,
+      title: planned.rest
+        .join(' ')
+        .replace(/\s+(?:le|pour|à|a)$/i, '')
+        .trim(),
+      due: planned.due,
+      dueText: planned.dueText,
+      start: planned.start,
+    };
   for (let take = Math.min(6, words.length - 1); take >= 1; take--) {
     const tail = words.slice(-take).join(' ');
     const due = parseDue(tail, today);
@@ -391,9 +543,8 @@ export function splitQuickAdd(
         .slice(0, -take)
         .join(' ')
         .replace(/\s+(?:pour|avant|d’ici|d'ici|le)$/i, '');
-      if (title.trim())
-        return { title: title.trim(), tags: [...new Set(tags)], due, dueText: tail, durationMin };
+      if (title.trim()) return { ...base, title: title.trim(), due, dueText: tail, start: null };
     }
   }
-  return { title: text, tags: [...new Set(tags)], due: null, dueText: null, durationMin };
+  return { ...base, title: text, due: null, dueText: null, start: null };
 }

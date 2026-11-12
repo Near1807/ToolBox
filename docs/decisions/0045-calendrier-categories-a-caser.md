@@ -25,3 +25,11 @@ Le registre `ctx.calendar` (v0.25) réunit les éléments datés de Sport, Cours
 - Les fournisseurs existants marchent sans changement. Ils ont reçu une catégorie de source (« Sport », « Repas », « Musique », « Tâches », « Timer ») ; leurs événements et leurs références ne changent pas.
 - Un futur module daté donne sa catégorie et, s'il a des choses à faire sans heure, `unscheduled`.
 - Le module téléphone a le même registre (`backend/core/calendar.ts`, portable).
+
+## Complément v0.35.0 : une tâche placée à une heure
+
+Thomas veut placer une tâche dans la semaine (glisser, ou « prévu le … à … ») sans qu'elle devienne une copie : la tâche reste une donnée de la To-do (`planned_at`, migration 5), que l'Agenda modifie par le service `todo` (`planTask`).
+
+- **Ajout seulement** : `CalendarEvent.itemId` (facultatif). La To-do donne chaque tâche prévue comme un **événement** à son heure, pour sa durée estimée (30 min si elle n'en a pas au moment où elle est placée), avec `itemId` = l'id de la tâche ; une tâche cochée reste, état « fait ». Une tâche prévue n'est plus un élément à caser.
+- **Lecture** : un lecteur d'éléments (l'Agenda) affiche, pour une source d'éléments, ses événements qui ont un `itemId` et ignore les autres (les échéances, déjà dans « À caser »). Les autres sources ne changent pas.
+- `GET /api/core/calendar` garde sa forme ; il rend aussi ces événements (avec `itemId`) quand une tâche est prévue. Les références (aucune tâche prévue) ne changent que par les champs ajoutés, vides.
