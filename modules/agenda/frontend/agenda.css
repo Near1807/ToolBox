@@ -1,0 +1,476 @@
+/* Agenda: the colours of the categories are the themes' categorical tokens
+   (--series-1 … --series-8), given as --ag-color on each item. */
+
+.ag-subtitle {
+  display: inline-flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.ag-quick {
+  margin-bottom: 0.75rem;
+}
+.ag-quick__row {
+  display: flex;
+  gap: 0.5rem;
+}
+.ag-quick__input {
+  flex: 1;
+  font-size: 1.05rem;
+}
+.ag-quick__preview {
+  margin: 0.35rem 0 0;
+  color: var(--text-2);
+}
+
+.ag-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+.ag-tabs {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.ag-tab {
+  padding: 0.35rem 0.8rem;
+  background: transparent;
+  border: none;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.ag-tab--on {
+  background: var(--accent-soft);
+  color: var(--text);
+  font-weight: 600;
+}
+.ag-period {
+  margin-left: 0.5rem;
+}
+.ag-notice {
+  margin: 0 0 0.5rem;
+}
+.ag-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.ag-dot {
+  display: inline-block;
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: var(--ag-color);
+  flex: none;
+}
+
+/* Layers */
+.ag-layers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  margin-bottom: 0.6rem;
+}
+.ag-layer {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+.ag-layer--off {
+  opacity: 0.45;
+  text-decoration: line-through;
+}
+
+.ag-summary {
+  margin: 0 0 0.5rem;
+}
+
+/* « À caser » */
+.ag-toplace {
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.75rem;
+}
+.ag-toplace__title {
+  font-size: 0.95rem;
+  margin: 0 0 0.35rem;
+}
+.ag-toplace__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.ag-task {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.05rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--series-7);
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+.ag-task--late {
+  border-left-color: var(--danger);
+}
+.ag-task__title {
+  font-weight: 600;
+}
+
+/* The week */
+.ag-week {
+  display: grid;
+  grid-template-columns: 3.4rem repeat(var(--ag-days), minmax(0, 1fr));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--surface);
+}
+.ag-week__corner,
+.ag-week__allday-label {
+  padding: 0.35rem;
+  border-bottom: 1px solid var(--border);
+}
+.ag-week__head {
+  padding: 0.4rem;
+  text-align: center;
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+  border-left: 1px solid var(--border);
+}
+.ag-week__head--today {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.ag-week__allday {
+  grid-column: 2 / -1;
+  display: grid;
+  grid-template-columns: repeat(var(--ag-days), minmax(0, 1fr));
+  grid-auto-rows: min-content;
+  gap: 0.2rem;
+  padding: 0.25rem 0;
+  min-height: 1.8rem;
+  border-bottom: 1px solid var(--border);
+}
+.ag-band {
+  margin: 0 0.15rem;
+  padding: 0.15rem 0.45rem;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--ag-color) 28%, var(--surface));
+  border-left: 3px solid var(--ag-color);
+  color: var(--text);
+  text-align: left;
+  font-size: 0.85rem;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ag-week__hours {
+  position: relative;
+}
+.ag-hour {
+  position: absolute;
+  right: 0.35rem;
+  transform: translateY(-0.5em);
+}
+.ag-week__day {
+  position: relative;
+  border-left: 1px solid var(--border);
+  background-image: linear-gradient(to bottom, var(--border) 1px, transparent 1px);
+}
+.ag-week__day--today {
+  background-color: var(--accent-soft);
+}
+.ag-block {
+  position: absolute;
+  box-sizing: border-box;
+  padding: 0.15rem 0.3rem;
+  border: 1px solid var(--surface);
+  border-left: 3px solid var(--ag-color);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--ag-color) 30%, var(--surface));
+  color: var(--text);
+  text-align: left;
+  font-size: 0.8rem;
+  line-height: 1.2;
+  overflow: hidden;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+}
+.ag-block--foreign {
+  background: color-mix(in srgb, var(--ag-color) 14%, var(--surface));
+  border-style: dashed;
+  border-left-style: solid;
+}
+.ag-block--overlap {
+  outline: 2px solid var(--warning);
+  outline-offset: -2px;
+}
+.ag-block__time {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+.ag-block__title {
+  font-weight: 600;
+}
+.ag-now {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--danger);
+  pointer-events: none;
+}
+
+/* The load bar under each day */
+.ag-load {
+  padding: 0.35rem;
+  border-left: 1px solid var(--border);
+  border-top: 1px solid var(--border);
+}
+.ag-week > .ag-week__corner:last-of-type {
+  border-top: 1px solid var(--border);
+  border-bottom: none;
+}
+.ag-load__bar {
+  display: flex;
+  height: 0.55rem;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.ag-load__part {
+  height: 100%;
+}
+.ag-load__label {
+  display: block;
+  margin-top: 0.25rem;
+}
+
+/* The month */
+.ag-month {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--surface);
+}
+.ag-month__head {
+  padding: 0.3rem;
+  text-align: center;
+  border-bottom: 1px solid var(--border);
+}
+.ag-month__day {
+  min-height: 6rem;
+  padding: 0.25rem;
+  border-top: 1px solid var(--border);
+  border-left: 1px solid var(--border);
+}
+.ag-month__day--other {
+  opacity: 0.55;
+}
+.ag-month__day--today {
+  background: var(--accent-soft);
+}
+.ag-month__num {
+  background: none;
+  border: none;
+  color: var(--text);
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+.ag-month__items {
+  list-style: none;
+  margin: 0.2rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.ag-chip {
+  width: 100%;
+  border: none;
+  border-left: 3px solid var(--ag-color);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--ag-color) 16%, var(--surface));
+  color: var(--text);
+  font-size: 0.75rem;
+  text-align: left;
+  padding: 0.05rem 0.3rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.ag-chip--allday {
+  background: color-mix(in srgb, var(--ag-color) 32%, var(--surface));
+}
+.ag-chip__time {
+  color: var(--text-2);
+  margin-right: 0.25rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Forms, detail, week type */
+.ag-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.ag-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.ag-form__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: flex-end;
+}
+.ag-form label.ag-check {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.4rem;
+}
+.ag-panel__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.ag-weekly {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.ag-weekly__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+.ag-weekly__item .ui-actions {
+  margin-left: auto;
+}
+
+/* Home card */
+.ag-widget ul {
+  list-style: none;
+  margin: 0.15rem 0 0.4rem;
+  padding: 0;
+}
+.ag-widget li {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+/* Guide */
+.ag-guide td {
+  padding: 0.25rem 0.75rem 0.25rem 0;
+  vertical-align: top;
+}
+
+/* The day (the phone's view; also usable on a narrow PC) */
+.ag-day__nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+.ag-day__title--today {
+  color: var(--accent);
+}
+.ag-day .ag-load {
+  border: none;
+  padding: 0.25rem 0;
+}
+.ag-day .ag-band {
+  display: block;
+  width: 100%;
+  margin: 0.25rem 0;
+  padding: 0.4rem 0.6rem;
+}
+.ag-list {
+  list-style: none;
+  margin: 0.5rem 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.ag-list__item {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0 0.6rem;
+  align-items: baseline;
+  padding: 0.5rem 0.6rem;
+  border: none;
+  border-left: 4px solid var(--ag-color);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--ag-color) 14%, var(--surface));
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.ag-list__time {
+  grid-row: span 2;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.ag-list__title {
+  font-weight: 600;
+}
+
+/* The first hour sits on the top edge: keep its label inside the grid. */
+.ag-hour:first-child {
+  transform: none;
+}
+
+/* Half an hour or less: the time and the title on one line. */
+.ag-block--short {
+  flex-direction: row;
+  gap: 0.3rem;
+  align-items: center;
+  white-space: nowrap;
+}

@@ -4,8 +4,9 @@
 //   the tasks due that day (« Tâches »); a state léger / chargé / saturé;
 // - the week: « X h de libre » (the range of each day minus its events,
 //   overlaps counted once) and « Y h à caser » (the estimates of the tasks
-//   due this week, late ones counted on the first day), the tasks without
-//   an estimate counted apart;
+//   that weigh on one of its days), the tasks without an estimate counted
+//   apart; a task weighs on its due day, or on today when it is late (so a
+//   late task is on today's bar, never on a past day nor on a later week);
 // - overlaps: two timed blocks at the same moment, and their columns.
 // All-day items (a camp, an exam) have no hours: they do not weigh.
 import { addDays, minutesBetween } from './time';
@@ -22,6 +23,12 @@ export interface TaskLoad {
   id: string;
   due: string | null;
   estimateMin: number | null;
+}
+
+/** The day a task weighs on: its due day, today when it is late, none without a date. */
+export function weighsOn(due: string | null, today?: string): string | null {
+  if (due === null) return null;
+  return today !== undefined && due < today ? today : due;
 }
 
 export interface Range {
@@ -81,8 +88,8 @@ export function dayLoad(
   blocks: TimedBlock[],
   tasks: TaskLoad[],
   range: Range,
-  /** First day of the week: late tasks count there. */
-  firstDay?: string,
+  /** Today: late tasks weigh on it (without it, on their due day). */
+  today?: string,
 ): DayLoad {
   const rangeMin = (range.endHour - range.startHour) * 60;
   const parts: { category: string; part: [number, number] }[] = [];
@@ -93,9 +100,7 @@ export function dayLoad(
   const byCat = new Map<string, number>();
   for (const { category, part } of parts)
     byCat.set(category, (byCat.get(category) ?? 0) + part[1] - part[0]);
-  const due = tasks.filter(
-    (t) => t.due !== null && (t.due === day || (firstDay === day && t.due < day)),
-  );
+  const due = tasks.filter((t) => weighsOn(t.due, today) === day);
   const estimates = due.reduce((s, t) => s + (t.estimateMin ?? 0), 0);
   if (estimates) byCat.set(TASKS_CATEGORY, (byCat.get(TASKS_CATEGORY) ?? 0) + estimates);
   const totalMin = [...byCat.values()].reduce((s, m) => s + m, 0);
@@ -118,7 +123,7 @@ export interface WeekSummary {
   days: DayLoad[];
   /** « X h de libre »: the free minutes of the week. */
   freeMin: number;
-  /** « Y h à caser »: the estimates of the tasks due this week (late ones included). */
+  /** « Y h à caser »: the estimates of the tasks weighing on this week (late ones: this week if today is in it). */
   toPlaceMin: number;
   /** « + 3 tâches sans durée ». */
   tasksWithoutEstimate: number;
@@ -130,12 +135,16 @@ export function weekSummary(
   blocks: TimedBlock[],
   tasks: TaskLoad[],
   range: Range,
+  today?: string,
 ): WeekSummary {
   const lastDay = addDays(firstDay, count - 1);
   const days: DayLoad[] = [];
   for (let i = 0; i < count; i++)
-    days.push(dayLoad(addDays(firstDay, i), blocks, tasks, range, firstDay));
-  const due = tasks.filter((t) => t.due !== null && t.due <= lastDay);
+    days.push(dayLoad(addDays(firstDay, i), blocks, tasks, range, today));
+  const due = tasks.filter((t) => {
+    const on = weighsOn(t.due, today);
+    return on !== null && on >= firstDay && on <= lastDay;
+  });
   return {
     days,
     freeMin: days.reduce((s, d) => s + d.freeMin, 0),

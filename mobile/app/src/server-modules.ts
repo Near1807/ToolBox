@@ -1,6 +1,8 @@
 // The modules whose server code runs in the Worker (ADR 0044), in one place:
 // the page's list (page-modules.ts) shows the same ones.
 import type { ModuleManifest } from '@hub/sdk/core';
+import agendaBackend from '../../../modules/agenda/backend/index';
+import agendaManifest from '../../../modules/agenda/module.json';
 import coursesBackend from '../../../modules/courses/backend/index';
 import coursesManifest from '../../../modules/courses/module.json';
 import ideasBackend from '../../../modules/ideas/backend/index';
@@ -19,4 +21,5 @@ export const SERVER_MODULES: PhoneModule[] = [
   { manifest: sportManifest as ModuleManifest, backend: sportBackend },
   { manifest: ideasManifest as ModuleManifest, backend: ideasBackend },
   { manifest: timerManifest as ModuleManifest, backend: timerBackend },
+  { manifest: agendaManifest as ModuleManifest, backend: agendaBackend },
 ];

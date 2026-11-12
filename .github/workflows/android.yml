@@ -19,6 +19,7 @@ on:
       - 'modules/todo/**'
       - 'modules/timer/**'
       - 'modules/ideas/**'
+      - 'modules/agenda/**'
       - 'packages/sdk/**'
       - 'packages/phone/**'
       - 'frontend/src/themes/**'

@@ -1,6 +1,6 @@
 // The load of the days and the week, free time, overlaps (pure).
 import { describe, expect, it } from 'vitest';
-import { dayLoad, placeDay, weekSummary, type TimedBlock } from '../shared/load';
+import { dayLoad, placeDay, weekSummary, weighsOn, type TimedBlock } from '../shared/load';
 
 const RANGE = { startHour: 7, endHour: 23 }; // 16 h = 960 min a day.
 const b = (id: string, start: string, end: string, category = 'Cours'): TimedBlock => ({
@@ -61,13 +61,32 @@ describe('load and free time', () => {
       { id: 'next', due: '2026-11-25', estimateMin: 600 },
       { id: 'undated', due: null, estimateMin: 45 },
     ];
-    const week = weekSummary('2026-11-16', 7, blocks, tasks, RANGE);
+    // Today is Tuesday 17: the late task weighs on today.
+    const week = weekSummary('2026-11-16', 7, blocks, tasks, RANGE, '2026-11-17');
     expect(week.freeMin).toBe(7 * 960 - 240);
     expect(week.toPlaceMin).toBe(30 + 90);
     expect(week.tasksWithoutEstimate).toBe(1);
-    // The late task weighs on the first day of the week.
-    expect(week.days[0]!.byCategory).toContainEqual({ category: 'Tâches', minutes: 30 });
+    expect(week.days[0]!.byCategory).not.toContainEqual({ category: 'Tâches', minutes: 30 });
+    expect(week.days[1]!.byCategory).toContainEqual({ category: 'Tâches', minutes: 30 });
     expect(week.days[2]!.byCategory).toContainEqual({ category: 'Tâches', minutes: 90 });
+  });
+
+  it('a later week: tasks due before it (late or not) do not weigh on it', () => {
+    const tasks = [
+      { id: 'late', due: '2026-11-10', estimateMin: 30 },
+      { id: 'friday', due: '2026-11-13', estimateMin: 60 },
+      { id: 'next', due: '2026-11-18', estimateMin: 90 },
+    ];
+    // Today is Thursday 12; the week of the 16th.
+    const week = weekSummary('2026-11-16', 7, [], tasks, RANGE, '2026-11-12');
+    expect(week.toPlaceMin).toBe(90);
+    expect(week.days[0]!.totalMin).toBe(0);
+    // This week: the late one on today, Friday's on Friday.
+    const now = weekSummary('2026-11-09', 7, [], tasks, RANGE, '2026-11-12');
+    expect(now.toPlaceMin).toBe(30 + 60);
+    expect(now.days[3]!.totalMin).toBe(30);
+    expect(now.days[4]!.totalMin).toBe(60);
+    expect(weighsOn(null, '2026-11-12')).toBeNull();
   });
 
   it('overlapping blocks side by side, flagged', () => {
