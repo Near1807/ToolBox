@@ -38,6 +38,7 @@ const data: RangeDto = {
     },
   ],
   toPlace: [],
+  tasks: [],
   todo: false,
   weekly: [],
   dayStartHour: 7,

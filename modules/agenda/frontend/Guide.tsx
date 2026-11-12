@@ -11,6 +11,7 @@ const EXAMPLES: [string, string][] = [
   ['examen math 18 janvier #examens', 'toute la journée, catégorie « Examens »'],
   ['badminton tous les jeudis 19h 2h', 'dans la semaine type, chaque jeudi'],
   ['préparer la réunion ~1h avant vendredi', 'une tâche de la To-do, à caser'],
+  ['réviser stats ~2h mercredi 14h', 'une tâche de la To-do prévue mercredi 14:00, ~2 h'],
 ];
 
 export function GuidePage() {
@@ -47,9 +48,37 @@ export function GuidePage() {
           </tbody>
         </table>
         <p className="small muted">
-          Règles : « ~ » devant une durée en fait une tâche à caser ; sinon une heure fait un
-          événement à cette heure, une date seule un événement sur la journée, rien de daté une
-          tâche. La date et les heures viennent après le titre. « #cours » donne la catégorie.
+          Règles : « ~ » devant une durée en fait une tâche de la To-do : une heure à la fin est
+          alors son heure prévue, « avant … » ou un jour seul son échéance. Sans « ~ », une heure
+          fait un événement à cette heure, une date seule un événement sur la journée, rien de daté
+          une tâche à caser. La date et les heures viennent après le titre. « #cours » donne la
+          catégorie.
+        </p>
+      </Card>
+      <Card title="Prévoir une tâche, déplacer, étirer (Expérimental)">
+        <p>
+          <strong>Glisse</strong> une tâche de « À caser » sur la semaine : elle est prévue ce
+          jour-là à cette heure (au quart d’heure près), pour sa durée estimée (30 min si elle n’en
+          a pas). Tu peux aussi écrire l’heure dans la To-do (« Prévu le … à … ») ou dans la barre.
+        </p>
+        <p>
+          <strong>Glisse un bloc</strong> pour changer son heure ou son jour ;{' '}
+          <strong>tire son bas</strong> pour changer sa durée (15 min au moins ; pour une tâche,
+          c’est sa durée estimée qui change). Pendant le glisser, l’heure de début et de fin
+          s’affiche ; <strong>Échap</strong> annule. Rien n’est enregistré avant de lâcher, et «
+          Annuler » remet comme avant pendant quelques secondes.
+        </p>
+        <p>
+          Une occurrence de la semaine type ne bouge que <strong>cette fois-ci</strong> ; toutes les
+          semaines se changent dans « Semaine type ». Les séances de sport, les repas, le Timer et
+          la musique ne se déplacent pas ici : un clic les ouvre dans leur outil.
+        </p>
+        <p>
+          Clic sur une tâche prévue : son jour, son heure, sa durée, et{' '}
+          <strong>« Retirer de l’agenda »</strong> (elle revient dans « À caser »). C’est la même
+          tâche que dans la To-do : la changer d’un côté la change de l’autre, sur le PC et le
+          téléphone. Cochée, elle reste visible, barrée. Prévue après son échéance, elle est
+          signalée. Sur le téléphone, on change l’heure et la durée par ce détail.
         </p>
       </Card>
       <Card title="La charge et le temps libre">

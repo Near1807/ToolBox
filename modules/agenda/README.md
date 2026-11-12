@@ -33,6 +33,24 @@ Colonnes par jour, heures de la journée (réglage « Début / Fin de la journé
 
 **Charge** : heures des événements à l'heure dans la plage de la journée, par catégorie, plus les durées estimées des tâches échues ce jour-là (« Tâches » ; une tâche en retard pèse sur aujourd'hui, jamais sur un jour passé ni sur une semaine suivante). Léger sous 50 % de la plage, chargé sous 85 %, saturé au-delà. Les événements sur la journée (un camp, un examen) n'ont pas d'heures : ils ne pèsent pas. **Libre** : la plage moins les événements (chevauchements comptés une fois). **À caser** : les durées estimées des tâches qui pèsent sur un jour de la semaine (celles en retard dans la semaine en cours) ; les tâches sans échéance sont dans la bande, pas dans ce total.
 
+## Tâches prévues et glisser-déposer (v0.35.0, Expérimental)
+
+Une tâche reste **une donnée de la To-do** : l'Agenda la lit par le calendrier (un événement de la To-do avec `itemId`, ADR 0045) et la modifie **par le service `todo`** (`planTask`), jamais par une copie. Tout changement d'un côté se voit de l'autre, sur le PC et le téléphone (champs synchronisés de la To-do).
+
+- **PC, glisser-déposer** (calculs purs dans `shared/drag.ts`, testés) :
+  - une tâche de « À caser » → la grille : prévue ce jour, à cette heure, magnétisme au quart d'heure, pour sa durée estimée (30 min sans durée, et la durée estimée prend cette valeur) ;
+  - un bloc (tâche prévue ou événement de l'Agenda) → une autre heure ou un autre jour (sa durée gardée) ;
+  - le **bas** d'un bloc → sa durée (15 min au moins ; pour une tâche, sa durée estimée) ;
+  - une **occurrence de la semaine type** : cette fois-ci seulement (l'exception existante) ;
+  - les éléments des autres modules (Sport, Repas, Timer, Musique) ne se déplacent pas : curseur et infobulle le disent, un clic les ouvre dans leur outil ;
+  - les événements sur la journée ou sur plusieurs jours : pas dans cette version.
+
+  Pendant le glisser : aperçu de l'heure de début et de fin, **Échap** annule. **Rien n'est écrit pendant le glisser : une seule écriture au dépôt**, puis « Annuler » (les valeurs d'avant réécrites).
+
+- **Détail d'une tâche prévue** (clic, PC et téléphone) : jour, heure, durée, « Retirer de l'agenda » (retour dans « À caser »), « Ouvrir dans la To-do ». Cochée : barrée, toujours là. Prévue après son échéance : signalée.
+- **Téléphone** : pas de glisser ; heure et durée se changent par le détail (tâche et événement).
+- Route : `PUT /tasks/:id/plan { plannedAt?, durationMin? }` (`plannedAt: null` = retirer de l'agenda) → service `todo`.
+
 ## Données (« Prêt pour la synchro », MODULES.md §6 bis)
 
 | Élément      | Détail                                                                                                                                                                                                                                                                                                                                                                                                 |
@@ -51,7 +69,7 @@ Ses événements et les occurrences de la semaine type, catégorie comprise ; `e
 
 ## API
 
-`GET /range?from&to` (62 jours au plus) · `POST /quick { text }` · `POST /events` · `PATCH /events/:id` · `DELETE /events/:id` · `POST /events/:id/restore` · `POST /weekly` · `PATCH /weekly/:id` · `DELETE /weekly/:id` · `POST /weekly/:id/restore` · `PUT /weekly/:id/occurrences/:date { action: cancel | move | reset, start, durationMin }` · `GET /today`.
+`GET /range?from&to` (62 jours au plus ; `tasks` = tâches prévues, v0.35.0) · `POST /quick { text }` · `PUT /tasks/:id/plan` · `POST /events` · `PATCH /events/:id` · `DELETE /events/:id` · `POST /events/:id/restore` · `POST /weekly` · `PATCH /weekly/:id` · `DELETE /weekly/:id` · `POST /weekly/:id/restore` · `PUT /weekly/:id/occurrences/:date { action: cancel | move | reset, start, durationMin }` · `GET /today`.
 
 ## Pas dans cette version
 

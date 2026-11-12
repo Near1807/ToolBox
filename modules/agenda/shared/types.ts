@@ -31,6 +31,27 @@ export interface ForeignEventDto {
   status: string | null;
 }
 
+/**
+ * v0.35.0: a task of the To-do planned at a time (its block in the week). It
+ * stays the To-do's: the Agenda changes it through the service `todo`.
+ */
+export interface PlannedTaskDto {
+  /** The task's id (the To-do's UUID). */
+  id: string;
+  title: string;
+  /** « YYYY-MM-DDTHH:mm ». */
+  start: string;
+  end: string;
+  allDay: false;
+  category: string;
+  /** Ticked: shown crossed out. */
+  done: boolean;
+  due: string | null;
+  /** Planned after its due date: flagged, never blocked. */
+  afterDue: boolean;
+  open: string;
+}
+
 /** A task of the To-do to fit in (read only here). */
 export interface ToPlaceDto {
   id: string;
@@ -64,6 +85,8 @@ export interface RangeDto {
   foreign: ForeignEventDto[];
   /** Tasks to fit in (due by `to`, late ones too, then those without a date). */
   toPlace: ToPlaceDto[];
+  /** v0.35.0: tasks of the To-do planned in the period (blocks). */
+  tasks: PlannedTaskDto[];
   /** The To-do is there: « À caser » is shown, and the bar can add tasks. */
   todo: boolean;
   weekly: WeeklyDto[];

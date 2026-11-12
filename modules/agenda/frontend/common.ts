@@ -5,13 +5,24 @@ import { useCallback, useState } from 'react';
 import { useApi, useModule } from '@hub/sdk/frontend';
 import { categoryColor } from '../shared/categories';
 import type { TimedBlock, TaskLoad } from '../shared/load';
-import type { AgendaEventDto, ForeignEventDto, RangeDto } from '../shared/types';
+import type { AgendaEventDto, ForeignEventDto, PlannedTaskDto, RangeDto } from '../shared/types';
 
 /** One thing drawn in a day: an event of the Agenda or of another module. */
 export type Item =
-  { source: 'own'; event: AgendaEventDto } | { source: 'foreign'; event: ForeignEventDto };
+  | { source: 'own'; event: AgendaEventDto }
+  | { source: 'foreign'; event: ForeignEventDto }
+  /** v0.35.0: a task of the To-do planned at a time (moved through the To-do's service). */
+  | { source: 'task'; event: PlannedTaskDto };
 
-export const itemId = (i: Item) => (i.source === 'own' ? `own:${i.event.id}` : i.event.id);
+export const itemId = (i: Item) =>
+  i.source === 'own'
+    ? `own:${i.event.id}`
+    : i.source === 'task'
+      ? `task:${i.event.id}`
+      : i.event.id;
+
+/** Can be moved and stretched in the week: the Agenda's events at a time, and the planned tasks. */
+export const movable = (i: Item) => !i.event.allDay && (i.source === 'own' || i.source === 'task');
 
 export function useRange(from: string, to: string) {
   const module = useModule();
@@ -53,6 +64,7 @@ export function itemsOf(data: RangeDto, shown: (category: string) => boolean): I
   return [
     ...data.events.map((event) => ({ source: 'own' as const, event })),
     ...data.foreign.map((event) => ({ source: 'foreign' as const, event })),
+    ...data.tasks.map((event) => ({ source: 'task' as const, event })),
   ]
     .filter((i) => shown(i.event.category))
     .sort((a, b) => a.event.start.localeCompare(b.event.start));
@@ -60,7 +72,7 @@ export function itemsOf(data: RangeDto, shown: (category: string) => boolean): I
 
 /** For the load: every timed block (all of them, whatever the layers: the real load). */
 export function timedBlocks(data: RangeDto): TimedBlock[] {
-  return [...data.events, ...data.foreign]
+  return [...data.events, ...data.foreign, ...data.tasks]
     .filter((e) => !e.allDay)
     .map((e) => ({ id: e.id, start: e.start, end: e.end, category: e.category }));
 }

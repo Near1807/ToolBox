@@ -20,12 +20,14 @@ import {
 import { localToday, parseDue } from '@hub/sdk/dates';
 import type { TodoService } from '../../todo/contract';
 import { DEFAULT_CATEGORY } from '../shared/categories';
+import { MIN_BLOCK_MIN } from '../shared/drag';
 import { parseQuick, type Parsed } from '../shared/parse';
 import { occurrences, type OccurrenceException } from '../shared/recurrence';
 import { addDays, addMinutes, daysBetween, minutesBetween } from '../shared/time';
 import type {
   AgendaEventDto,
   ForeignEventDto,
+  PlannedTaskDto,
   RangeDto,
   ToPlaceDto,
   WeeklyDto,
@@ -196,6 +198,32 @@ export default defineBackendModule({
       const own = ownEvents(from, to);
       const view = await ctx.calendar.query(from, to);
       const skip = new Set([ctx.id, ...view.itemSources]);
+      const service = todo();
+      // v0.35.0: the planned tasks (events of a source of items, with `itemId`).
+      const tasks: PlannedTaskDto[] = [];
+      for (const e of view.events) {
+        if (
+          !e.itemId ||
+          !view.itemSources.includes(e.moduleId!) ||
+          !service ||
+          e.start.length === 10
+        )
+          continue;
+        const task = service.getTask(e.itemId);
+        if (!task) continue;
+        tasks.push({
+          id: task.id,
+          title: e.title,
+          start: e.start,
+          end: addMinutes(e.start, e.durationMin),
+          allDay: false,
+          category: e.category,
+          done: task.done,
+          due: task.due,
+          afterDue: task.due !== null && e.start.slice(0, 10) > task.due,
+          open: e.open,
+        });
+      }
       const foreign: ForeignEventDto[] = view.events
         .filter((e) => !skip.has(e.moduleId))
         .map((e) => {
@@ -212,7 +240,6 @@ export default defineBackendModule({
             status: e.status ?? null,
           };
         });
-      const service = todo();
       const toPlace: ToPlaceDto[] = service
         ? view.items.map((i) => ({
             id: i.id,
@@ -224,7 +251,11 @@ export default defineBackendModule({
           }))
         : [];
       const categories = [
-        ...new Set([...own.map((e) => e.category), ...foreign.map((e) => e.category)]),
+        ...new Set([
+          ...own.map((e) => e.category),
+          ...foreign.map((e) => e.category),
+          ...tasks.map((e) => e.category),
+        ]),
       ].sort((a, b) => a.localeCompare(b));
       return {
         today,
@@ -233,6 +264,7 @@ export default defineBackendModule({
         events: own,
         foreign,
         toPlace,
+        tasks,
         todo: Boolean(service),
         weekly: weeklyList(),
         dayStartHour: setting('dayStartHour', 7),
@@ -384,6 +416,33 @@ export default defineBackendModule({
     ctx.routes.post('/quick', (request) => quickAdd(requestBody(request).text));
 
     ctx.routes.post('/events', (request) => createEvent(requestBody(request)));
+
+    /**
+     * v0.35.0: plan a task of the To-do at a time, move or stretch it, or take
+     * it out of the agenda (`plannedAt: null`) — on a drop or a click of the
+     * user, with « Annuler » after. The task stays the To-do's (its service).
+     */
+    ctx.routes.put('/tasks/:id/plan', (request) => {
+      const service = todo();
+      if (!service) throw new HttpError(409, 'La To-do n’est pas là.');
+      const id = uuidParam(request.params);
+      if (!service.getTask(id)) throw new HttpError(404, 'Tâche introuvable');
+      const body = requestBody(request);
+      const fields: { plannedAt?: string | null; durationMin?: number | null } = {};
+      if ('plannedAt' in body) {
+        const v = body.plannedAt;
+        if (v !== null && !isDateTime(String(v)))
+          throw new HttpError(400, 'Heure prévue invalide (AAAA-MM-JJTHH:MM)');
+        fields.plannedAt = v === null ? null : String(v);
+      }
+      if ('durationMin' in body) {
+        const d = body.durationMin;
+        if (d !== null && !(Number.isInteger(d) && (d as number) >= MIN_BLOCK_MIN))
+          throw new HttpError(400, `Durée invalide (${MIN_BLOCK_MIN} min au moins)`);
+        fields.durationMin = d as number | null;
+      }
+      return service.planTask(id, fields);
+    });
     ctx.routes.patch('/events/:id', (request) => {
       const id = uuidParam(request.params);
       const row = getEvent(id);

@@ -120,7 +120,11 @@ export function DayView(props: {
                   {i.event.start.slice(0, 10) === day ? i.event.start.slice(11) : '…'}–
                   {i.event.end.slice(0, 10) === day ? i.event.end.slice(11) : '…'}
                 </span>
-                <span className="ag-list__title">{i.event.title}</span>
+                <span
+                  className={`ag-list__title${i.source === 'task' && i.event.done ? ' ag-done' : ''}`}
+                >
+                  {i.event.title}
+                </span>
                 <span className="small muted">
                   {i.event.category}
                   {overlapping.has(itemId(i)) && (
