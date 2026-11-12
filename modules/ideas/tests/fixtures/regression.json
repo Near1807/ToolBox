@@ -430,7 +430,8 @@
             "tags": ["arrangement", "orchestre"],
             "due": null,
             "done": false,
-            "durationMin": null
+            "durationMin": null,
+            "plannedAt": null
           }
         }
       }
@@ -1085,7 +1086,8 @@
               "title": "Nuit blanche"
             },
             "timeSpent": 0,
-            "durationMin": null
+            "durationMin": null,
+            "plannedAt": null
           }
         ],
         "tags": [

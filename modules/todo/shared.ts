@@ -15,6 +15,8 @@ export interface TaskDto {
   timeSpent: number;
   /** Estimated duration in minutes (« ~2h »), null when not given. */
   durationMin: number | null;
+  /** Planned start « YYYY-MM-DDTHH:mm » (« prévu le … à … »), null when not planned. */
+  plannedAt: string | null;
 }
 
 export interface TasksResponse {

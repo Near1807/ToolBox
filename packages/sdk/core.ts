@@ -652,6 +652,13 @@ export interface CalendarEvent {
    * « YYYY-MM-DD » (inclusive) when it spans several days (a camp, exams).
    */
   endDate?: string;
+  /**
+   * v0.35.0, optional: this event is one of the source's items to fit in
+   * (`CalendarItem.id`), now placed at a time (a planned task). A reader
+   * that shows the items (the Agenda) shows these events and leaves out
+   * the source's other ones (the due dates of the same items).
+   */
+  itemId?: string;
 }
 
 /**

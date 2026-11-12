@@ -90,6 +90,8 @@ describe('splitQuickAdd', () => {
       due: '2026-10-26',
       dueText: 'pour lundi',
       durationMin: null,
+      start: null,
+      plain: 'finir le mix de boumboum pour lundi',
     });
     expect(splitQuickAdd('appeler le studio demain #Studio #studio', TODAY)).toMatchObject({
       title: 'appeler le studio',
@@ -105,6 +107,8 @@ describe('splitQuickAdd', () => {
       due: null,
       dueText: null,
       durationMin: null,
+      start: null,
+      plain: 'acheter 2 cordes',
     });
     // A date alone is a title, not an empty task.
     expect(splitQuickAdd('demain', TODAY).title).toBe('demain');

@@ -112,7 +112,8 @@
             "tags": [],
             "due": "2026-11-13",
             "done": false,
-            "durationMin": 60
+            "durationMin": 60,
+            "plannedAt": null
           }
         }
       }
@@ -129,7 +130,8 @@
             "tags": [],
             "due": null,
             "done": false,
-            "durationMin": null
+            "durationMin": null,
+            "plannedAt": null
           }
         }
       }
@@ -422,6 +424,7 @@
               "late": false
             }
           ],
+          "tasks": [],
           "todo": true,
           "weekly": [
             {
@@ -438,7 +441,8 @@
           ],
           "dayStartHour": 7,
           "dayEndHour": 23,
-          "categories": ["Sport"]
+          "categories": ["Sport"],
+          "categoriesOff": ["Sport", "Repas", "Timer"]
         }
       }
     ],
@@ -504,6 +508,7 @@
               "late": false
             }
           ],
+          "tasks": [],
           "todo": true,
           "weekly": [
             {
@@ -520,7 +525,8 @@
           ],
           "dayStartHour": 7,
           "dayEndHour": 23,
-          "categories": ["Perso", "Rendez-vous"]
+          "categories": ["Perso", "Rendez-vous"],
+          "categoriesOff": ["Sport", "Repas", "Timer"]
         }
       }
     ],
@@ -568,6 +574,7 @@
               "late": false
             }
           ],
+          "tasks": [],
           "todo": true,
           "weekly": [
             {
@@ -584,7 +591,8 @@
           ],
           "dayStartHour": 7,
           "dayEndHour": 23,
-          "categories": ["Sport"]
+          "categories": ["Sport"],
+          "categoriesOff": ["Sport", "Repas", "Timer"]
         }
       }
     ],
@@ -688,6 +696,7 @@
               "late": false
             }
           ],
+          "tasks": [],
           "todo": true,
           "weekly": [
             {
@@ -704,7 +713,8 @@
           ],
           "dayStartHour": 7,
           "dayEndHour": 23,
-          "categories": ["Rendez-vous", "Sport"]
+          "categories": ["Rendez-vous", "Sport"],
+          "categoriesOff": ["Sport", "Repas", "Timer"]
         }
       }
     ],
@@ -761,6 +771,7 @@
               "late": false
             }
           ],
+          "tasks": [],
           "todo": true,
           "weekly": [
             {
@@ -777,7 +788,8 @@
           ],
           "dayStartHour": 7,
           "dayEndHour": 23,
-          "categories": ["Sport"]
+          "categories": ["Sport"],
+          "categoriesOff": ["Sport", "Repas", "Timer"]
         }
       }
     ]
@@ -1156,7 +1168,8 @@
         "done_at": null,
         "subject": null,
         "legacy_id": null,
-        "duration_min": 60
+        "duration_min": 60,
+        "planned_at": null
       },
       {
         "id": "#7",
@@ -1169,7 +1182,8 @@
         "done_at": null,
         "subject": null,
         "legacy_id": null,
-        "duration_min": null
+        "duration_min": null,
+        "planned_at": null
       }
     ],
     "todo__tasks_v1": []

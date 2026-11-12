@@ -50,6 +50,8 @@ describe('estimated duration', () => {
       due: '2026-11-13',
       dueText: 'vendredi',
       durationMin: 120,
+      start: null,
+      plain: 'finir le mix vendredi',
     });
     expect(splitQuickAdd('préparer la réunion ~1h avant vendredi', TODAY)).toMatchObject({
       title: 'préparer la réunion',
@@ -61,10 +63,12 @@ describe('estimated duration', () => {
       due: null,
       durationMin: 30,
     });
-    // Without « ~ »: unchanged behaviour (no duration).
+    // Without « ~ »: no duration. v0.35.0 (decided with Thomas): an hour with a
+    // day ending the phrase is the planned start, no longer text and a due date.
     expect(splitQuickAdd('rdv 14h demain', TODAY)).toMatchObject({
-      title: 'rdv 14h',
-      due: '2026-11-13',
+      title: 'rdv',
+      due: null,
+      start: '2026-11-13T14:00',
       durationMin: null,
     });
   });

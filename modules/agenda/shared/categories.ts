@@ -53,3 +53,36 @@ export function categoryFromTag(tag: string): string {
   const word = tag.replace(/^#/, '').replace(/-/g, ' ');
   return word.charAt(0).toUpperCase() + word.slice(1);
 }
+
+// --- Category switches (v0.35.0) -------------------------------------------
+// A switch ON: the category is shown AND counted (load, free time,
+// overlaps); OFF: neither. The everyday things are off by default (setting
+// « Catégories éteintes par défaut »); each device keeps its own choices.
+
+/** Off by default: the things of every day (Sport, the meals and the batch, the Timer). */
+export const DEFAULT_OFF = ['Sport', 'Repas', 'Timer'];
+
+/** « Sport, Repas ; Timer » → ['Sport', 'Repas', 'Timer'] (the setting). */
+export function categoryList(text: string | null | undefined): string[] {
+  return [
+    ...new Set(
+      (text ?? '')
+        .split(/[,;\n]/)
+        .map((c) => c.trim())
+        .filter(Boolean),
+    ),
+  ];
+}
+
+const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+
+/** Is this category on? The device's choice first, else the default. */
+export function isOn(
+  category: string,
+  choices: Record<string, boolean>,
+  offByDefault: readonly string[],
+): boolean {
+  const chosen = Object.entries(choices).find(([c]) => same(c, category));
+  if (chosen) return chosen[1];
+  return !offByDefault.some((c) => same(c, category));
+}

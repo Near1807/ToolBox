@@ -4,6 +4,24 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.35.0] — 2026-11-12
+
+Session « Agenda : tâches prévues à une heure, glisser-déposer, catégories du quotidien masquées par défaut ». Nouveautés marquées **Expérimental**.
+
+### Ajouté
+
+- **To-do : heure prévue** (« prévu le … à … ») d'une tâche, distincte de l'échéance ; 30 min par défaut si la tâche n'a pas de durée estimée au moment où elle est placée. Détail : « Prévu le », « à », « Retirer de l'agenda » ; liste : « mer. 18 nov. 14:00 » ; prévue après son échéance : signalée.
+- **Saisie rapide** : une heure qui finit la phrase est l'heure prévue (« appeler Paul 14h », « réviser ~2h mercredi 14h », « … jeudi 9h avant vendredi ») ; dans la barre de l'Agenda, seulement dans une phrase « ~ ».
+- **Agenda : tâches prévues** dans la semaine (la même donnée que la To-do, modifiée par son service, dans les deux sens et sur les deux appareils) ; cochées : barrées ; détail avec jour, heure, durée, « Retirer de l'agenda ».
+- **Glisser-déposer (PC)** : une tâche de « À caser » vers la grille, un bloc vers une autre heure ou un autre jour, son bas pour la durée ; magnétisme au quart d'heure, 15 min au moins ; occurrence de la semaine type : cette fois-ci seulement ; aperçu, Échap, une seule écriture au dépôt, « Annuler ».
+- **Interrupteurs de catégorie** : allumée = affichée et comptée (charge, libre, chevauchements) ; éteinte = ni l'un ni l'autre. Sport, Repas et Timer éteints par défaut (réglage « Catégories éteintes par défaut »), choix propre à chaque appareil ; bilan « hors Sport, Repas ».
+
+### Modifié
+
+- **Sens d'une phrase de la To-do (choisi par Thomas)** : « appeler Paul 14h » donnait le titre « appeler Paul 14h » ; c'est maintenant « appeler Paul » prévue à 14:00 (« ce n'est pas une heure » garde l'ancien sens).
+- Migration To-do v5 (colonne `planned_at`, ajout seul) ; contrat du calendrier : `CalendarEvent.itemId` (ADR 0045, complément) ; service `todo` : `planTask`.
+- Références To-do, Timer, Idées, Agenda : seuls des champs ajoutés (vides ; pour l'Agenda, `tasks` vide et `categoriesOff` = la liste du réglage).
+
 ## [0.34.0] — 2026-11-12
 
 Session « Agenda + durée estimée dans la To-do ». Les nouveautés sont marquées **Expérimental**.

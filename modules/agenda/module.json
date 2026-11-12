@@ -6,7 +6,9 @@
   "section": "Outils",
   "icon": "calendar-days",
   "order": 5,
-  "dependsOn": { "optionalServices": ["todo"] },
+  "dependsOn": {
+    "optionalServices": ["todo"]
+  },
   "settings": [
     {
       "key": "dayStartHour",
@@ -25,6 +27,13 @@
       "default": 23,
       "min": 13,
       "max": 24
+    },
+    {
+      "key": "categoriesOff",
+      "type": "text",
+      "label": "Catégories éteintes par défaut",
+      "description": "Ni affichées ni comptées dans la charge tant que tu ne les allumes pas dans la semaine (chaque appareil garde ses choix). Séparées par des virgules. Par défaut : les choses de tous les jours.",
+      "default": "Sport, Repas, Timer"
     }
   ]
 }

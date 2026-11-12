@@ -8,6 +8,7 @@ import {
   Card,
   defineFrontendModule,
   ErrorMessage,
+  errorMessage,
   onPhone,
   Page,
   UndoToast,
@@ -15,14 +16,18 @@ import {
   useModule,
 } from '@hub/sdk/frontend';
 import { addDays, dayLabel, mondayOf } from '../shared/time';
-import type { AgendaEventDto, RangeDto } from '../shared/types';
-import { colorStyle, useLayers, useRange, type Item } from './common';
+import type { AgendaEventDto, PlannedTaskDto, RangeDto } from '../shared/types';
+import { minutesBetween } from '../shared/time';
+import { spanLabel } from '../shared/drag';
+import { TaskPanel } from './TaskPanel';
+import { colorStyle, switchCategories, useRange, useSwitches, type Item } from './common';
+import { DEFAULT_OFF } from '../shared/categories';
 import { DayView } from './DayView';
 import { EventForm, EventPanel, type Undo } from './EventPanel';
 import { GuidePage } from './Guide';
 import { MonthView, monthGrid, monthTitle } from './MonthView';
 import { QuickBar } from './QuickBar';
-import { Layers, WeekView } from './WeekView';
+import { CategorySwitches, WeekView, type Drop } from './WeekView';
 import { WeekTypeView } from './WeekTypeView';
 import './agenda.css';
 
@@ -46,21 +51,79 @@ function AgendaPage() {
   const period =
     view === 'month' ? monthGrid(day.slice(0, 7)) : { from: monday, to: addDays(monday, 6) };
   const { data, error, reload } = useRange(period.from, period.to);
-  const layers = useLayers();
+  const layers = useSwitches(data?.categoriesOff ?? DEFAULT_OFF);
   const [selected, setSelected] = useState<AgendaEventDto | null>(null);
+  const [selectedTask, setSelectedTask] = useState<PlannedTaskDto | null>(null);
   const [creating, setCreating] = useState(false);
   /** The last change: its message, and « Annuler » when it can be undone. */
   const [notice, setNotice] = useState<Undo | { message: string; run: null } | null>(null);
 
   const open = (item: Item) => {
+    setSelected(null);
+    setSelectedTask(null);
     if (item.source === 'foreign') navigate(item.event.open);
+    else if (item.source === 'task') setSelectedTask(item.event);
     else setSelected(item.event);
   };
   const changed = (u?: Undo) => {
     setSelected(null);
+    setSelectedTask(null);
     setNotice(u ?? null);
     reload();
   };
+  /** A drop in the week: ONE write, then « Annuler » (the previous values written back). */
+  const drop = (d: Drop) => {
+    const where = `${dayLabel(d.to.start.slice(0, 10), data?.today ?? day)} ${spanLabel(d.to)}`;
+    let write: () => Promise<unknown>;
+    let undo: () => Promise<unknown>;
+    let title: string;
+    if (d.kind === 'place') {
+      const url = `/tasks/${d.task.id}/plan`;
+      title = d.task.title;
+      write = () => module.api.put(url, { plannedAt: d.to.start });
+      undo = () => module.api.put(url, { plannedAt: null, durationMin: d.task.estimateMin });
+    } else if (d.item.source === 'task') {
+      const url = `/tasks/${d.item.event.id}/plan`;
+      title = d.item.event.title;
+      const field = (span: typeof d.to) =>
+        d.kind === 'move'
+          ? { plannedAt: span.start }
+          : { durationMin: minutesBetween(span.start, span.end) };
+      write = () => module.api.put(url, field(d.to));
+      undo = () => module.api.put(url, field(d.from));
+    } else if (d.item.source === 'own' && d.item.event.weekly) {
+      // An occurrence of the week type: this time only (its exception).
+      const w = d.item.event.weekly;
+      const url = `/weekly/${w.id}/occurrences/${w.date}`;
+      const move = (span: typeof d.to) => ({
+        action: 'move',
+        start: span.start,
+        durationMin: minutesBetween(span.start, span.end),
+      });
+      title = d.item.event.title;
+      write = () => module.api.put(url, move(d.to));
+      undo = () => module.api.put(url, w.moved ? move(d.from) : { action: 'reset' });
+    } else if (d.item.source === 'own') {
+      const url = `/events/${d.item.event.id}`;
+      title = d.item.event.title;
+      write = () => module.api.patch(url, d.to);
+      undo = () => module.api.patch(url, d.from);
+    } else return;
+    write().then(
+      () => {
+        setNotice({
+          message: `« ${title} » ${d.kind === 'stretch' ? 'dure maintenant' : 'déplacé à'} ${where}`,
+          run: undo,
+        });
+        reload();
+      },
+      (e: unknown) => {
+        setNotice({ message: errorMessage(e), run: null });
+        reload();
+      },
+    );
+  };
+
   const shift = (n: number) => {
     if (view !== 'month') return setDay(addDays(day, view === 'day' ? n : n * 7));
     const d = new Date(Date.UTC(Number(day.slice(0, 4)), Number(day.slice(5, 7)) - 1 + n, 1));
@@ -86,7 +149,12 @@ function AgendaPage() {
           onAdded={(a) => {
             setNotice(
               a.kind === 'task'
-                ? { message: `« ${a.title} » ajouté à la To-do (à caser)`, run: null }
+                ? {
+                    message: a.plannedAt
+                      ? `« ${a.title} » ajouté à la To-do, prévu ${dayLabel(a.plannedAt.slice(0, 10), data.today)} ${a.plannedAt.slice(11, 16)}`
+                      : `« ${a.title} » ajouté à la To-do (à caser)`,
+                    run: null,
+                  }
                 : {
                     message:
                       a.kind === 'weekly'
@@ -116,6 +184,7 @@ function AgendaPage() {
               className={`ag-tab${view === v ? ' ag-tab--on' : ''}`}
               onClick={() => {
                 setSelected(null);
+                setSelectedTask(null);
                 setView(v);
               }}
             >
@@ -195,11 +264,30 @@ function AgendaPage() {
           }}
         />
       )}
+      {selectedTask && data && (
+        <TaskPanel
+          key={`${selectedTask.id}:${selectedTask.start}:${selectedTask.end}`}
+          task={selectedTask}
+          today={data.today}
+          onClose={() => setSelectedTask(null)}
+          onChanged={changed}
+        />
+      )}
       {data && view !== 'weekly' && (
-        <Layers categories={data.categories} hidden={layers.hidden} onToggle={layers.toggle} />
+        <CategorySwitches
+          categories={switchCategories(data)}
+          shown={layers.shown}
+          onToggle={layers.toggle}
+        />
       )}
       {data && view === 'week' && (
-        <WeekView data={data} monday={monday} shown={layers.shown} onOpen={open} />
+        <WeekView
+          data={data}
+          monday={monday}
+          shown={layers.shown}
+          onOpen={open}
+          onDrop={phone ? undefined : drop}
+        />
       )}
       {data && view === 'day' && (
         <DayView data={data} day={day} shown={layers.shown} onDay={setDay} onOpen={open} />
@@ -228,7 +316,9 @@ function HomeWidget() {
   const module = useModule();
   const { data } = useApi<RangeDto>(module.url('/today'));
   if (!data) return null;
-  const items = [...data.events, ...data.foreign].sort((a, b) => a.start.localeCompare(b.start));
+  const items = [...data.events, ...data.foreign, ...data.tasks].sort((a, b) =>
+    a.start.localeCompare(b.start),
+  );
   const of = (d: string) =>
     items.filter((e) => e.start.slice(0, 10) <= d && e.end.slice(0, 10) >= d);
   const tomorrow = addDays(data.today, 1);

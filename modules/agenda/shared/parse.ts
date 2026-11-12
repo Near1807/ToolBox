@@ -6,6 +6,7 @@
 //   « examen math 18 janvier »          → event, all day
 //   « badminton tous les jeudis 19h 2h » → an entry of the week type
 //   « préparer la réunion ~1h avant vendredi » → a task of the To-do (« à caser »)
+//   « réviser stats ~2h mercredi 14h » → a task of the To-do planned Wed. 14:00 (v0.35.0)
 //   « #cours » anywhere                 → its category
 // Rules (written for Thomas in the guide): a « ~duration » makes a task to fit
 // in; otherwise an hour makes an event at that time, a date alone an event
@@ -14,7 +15,9 @@
 import {
   formatDuration,
   parseDue,
+  formatPlanned,
   parseDuration,
+  parseTimeOfDay,
   splitQuickAdd,
   takeDuration,
 } from '@hub/sdk/dates';
@@ -38,7 +41,14 @@ export type Parsed =
       durationMin: number;
       category: string;
     }
-  | { kind: 'task'; title: string; due: string | null; durationMin: number | null }
+  | {
+      kind: 'task';
+      title: string;
+      due: string | null;
+      durationMin: number | null;
+      /** v0.35.0: planned start « YYYY-MM-DDTHH:mm » (an hour in a « ~ » phrase), or null. */
+      start: string | null;
+    }
   | { kind: 'error'; message: string }
   | { kind: 'empty' };
 
@@ -68,15 +78,8 @@ const fold = (s: string) =>
     .replace(/[’']/g, ' ')
     .replace(/[,.;!?]+$/, '');
 
-/** « 14h », « 14h30 », « 14:30 », « 9h » → minutes of the day (null: not a time). */
-function timeToken(key: string): number | null {
-  const m = key.match(/^(\d{1,2})(?:h|:)(\d{2})?$/);
-  if (!m || (key.includes(':') && !m[2])) return null;
-  const h = Number(m[1]);
-  const min = m[2] ? Number(m[2]) : 0;
-  if (h > 23 || min > 59) return null;
-  return h * 60 + min;
-}
+/** « 14h », « 14h30 », « 14:30 », « 9h » → minutes of the day (shared with the To-do). */
+const timeToken = parseTimeOfDay;
 
 const capitalise = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
@@ -240,7 +243,13 @@ export function parseQuick(input: string, today: string): Parsed {
   if (takeDuration(text).durationMin !== null) {
     const split = splitQuickAdd(text, today);
     if (!split.title) return { kind: 'empty' };
-    return { kind: 'task', title: split.title, due: split.due, durationMin: split.durationMin };
+    return {
+      kind: 'task',
+      title: split.title,
+      due: split.due,
+      durationMin: split.durationMin,
+      start: split.start,
+    };
   }
 
   let words = text.split(' ');
@@ -299,7 +308,13 @@ export function parseQuick(input: string, today: string): Parsed {
   if (date.day)
     return { kind: 'event', title, start: date.day, end: date.day, allDay: true, category: cat };
   // Nothing dated: something to fit in (a task without a date).
-  return { kind: 'task', title: cleanTitle(text.split(' ')), due: null, durationMin: null };
+  return {
+    kind: 'task',
+    title: cleanTitle(text.split(' ')),
+    due: null,
+    durationMin: null,
+    start: null,
+  };
 }
 
 /** « Sera ajouté : Dentiste · jeu. 13 nov. 14:00–15:00 » (the preview, before validating). */
@@ -313,7 +328,7 @@ export function previewText(parsed: Parsed, today: string): string {
           (24 * 60),
       )}`;
     case 'task':
-      return `Sera ajouté à la To-do (à caser) : ${parsed.title}${parsed.due ? ` · pour ${dayLabel(parsed.due, today)}` : ''}${parsed.durationMin ? ` · ${formatDuration(parsed.durationMin)}` : ''}`;
+      return `Sera ajouté à la To-do${parsed.start ? '' : ' (à caser)'} : ${parsed.title}${parsed.start ? ` · prévu ${formatPlanned(parsed.start, today)}` : ''}${parsed.due ? ` · pour ${dayLabel(parsed.due, today)}` : ''}${parsed.durationMin ? ` · ${formatDuration(parsed.durationMin)}` : ''}`;
     case 'error':
       return parsed.message;
     case 'empty':

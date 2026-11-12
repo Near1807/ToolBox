@@ -3,70 +3,115 @@
 // of another module or of the Agenda is drawn.
 import { useCallback, useState } from 'react';
 import { useApi, useModule } from '@hub/sdk/frontend';
-import { categoryColor } from '../shared/categories';
-import type { TimedBlock, TaskLoad } from '../shared/load';
-import type { AgendaEventDto, ForeignEventDto, RangeDto } from '../shared/types';
+import { categoryColor, isOn } from '../shared/categories';
+import { TASKS_CATEGORY, type TimedBlock, type TaskLoad } from '../shared/load';
+import type { AgendaEventDto, ForeignEventDto, PlannedTaskDto, RangeDto } from '../shared/types';
 
 /** One thing drawn in a day: an event of the Agenda or of another module. */
 export type Item =
-  { source: 'own'; event: AgendaEventDto } | { source: 'foreign'; event: ForeignEventDto };
+  | { source: 'own'; event: AgendaEventDto }
+  | { source: 'foreign'; event: ForeignEventDto }
+  /** v0.35.0: a task of the To-do planned at a time (moved through the To-do's service). */
+  | { source: 'task'; event: PlannedTaskDto };
 
-export const itemId = (i: Item) => (i.source === 'own' ? `own:${i.event.id}` : i.event.id);
+export const itemId = (i: Item) =>
+  i.source === 'own'
+    ? `own:${i.event.id}`
+    : i.source === 'task'
+      ? `task:${i.event.id}`
+      : i.event.id;
+
+/** Can be moved and stretched in the week: the Agenda's events at a time, and the planned tasks. */
+export const movable = (i: Item) => !i.event.allDay && (i.source === 'own' || i.source === 'task');
 
 export function useRange(from: string, to: string) {
   const module = useModule();
   return useApi<RangeDto>(module.url(`/range?from=${from}&to=${to}`));
 }
 
-const HIDDEN_KEY = 'toolbox.agenda.hiddenCategories';
+const SWITCHES_KEY = 'toolbox.agenda.categorySwitches';
+/** v0.34.0's layers (categories hidden): read once, as switches off. */
+const OLD_HIDDEN_KEY = 'toolbox.agenda.hiddenCategories';
 
-function readHidden(): string[] {
+function readChoices(): Record<string, boolean> {
   try {
-    const value = JSON.parse(localStorage.getItem(HIDDEN_KEY) ?? '[]') as unknown;
-    return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
+    const value = JSON.parse(localStorage.getItem(SWITCHES_KEY) ?? 'null') as unknown;
+    if (value && typeof value === 'object' && !Array.isArray(value))
+      return Object.fromEntries(
+        Object.entries(value).filter((e): e is [string, boolean] => typeof e[1] === 'boolean'),
+      );
+    const old = JSON.parse(localStorage.getItem(OLD_HIDDEN_KEY) ?? '[]') as unknown;
+    return Array.isArray(old)
+      ? Object.fromEntries(old.filter((c) => typeof c === 'string').map((c) => [c, false]))
+      : {};
   } catch {
-    return [];
+    return {};
   }
 }
 
-/** The layers: the categories hidden on this device (not synchronised). */
-export function useLayers() {
-  const [hidden, setHidden] = useState<string[]>(readHidden);
-  const toggle = useCallback((category: string) => {
-    setHidden((list) => {
-      const next = list.includes(category)
-        ? list.filter((c) => c !== category)
-        : [...list, category];
-      try {
-        localStorage.setItem(HIDDEN_KEY, JSON.stringify(next));
-      } catch {
-        // Not kept: shown again next time.
-      }
-      return next;
-    });
-  }, []);
-  return { hidden, toggle, shown: (category: string) => !hidden.includes(category) };
+/**
+ * The category switches (v0.35.0): ON = shown and counted, OFF = neither.
+ * The device's choices (local, never synchronised), else the default
+ * (`offByDefault`: the setting, Sport, Repas and Timer at first).
+ */
+export function useSwitches(offByDefault: readonly string[]) {
+  const [choices, setChoices] = useState<Record<string, boolean>>(readChoices);
+  const shown = useCallback(
+    (category: string) => isOn(category, choices, offByDefault),
+    [choices, offByDefault],
+  );
+  const toggle = useCallback(
+    (category: string) => {
+      setChoices((current) => {
+        const next = { ...current, [category]: !isOn(category, current, offByDefault) };
+        try {
+          localStorage.setItem(SWITCHES_KEY, JSON.stringify(next));
+        } catch {
+          // Not kept: the default comes back next time.
+        }
+        return next;
+      });
+    },
+    [offByDefault],
+  );
+  return { shown, toggle };
 }
 
-/** Every event of the period (own and foreign), the layers applied. */
+/** Every event of the period (own, foreign, planned tasks), the switches applied. */
 export function itemsOf(data: RangeDto, shown: (category: string) => boolean): Item[] {
   return [
     ...data.events.map((event) => ({ source: 'own' as const, event })),
     ...data.foreign.map((event) => ({ source: 'foreign' as const, event })),
+    ...data.tasks.map((event) => ({ source: 'task' as const, event })),
   ]
     .filter((i) => shown(i.event.category))
     .sort((a, b) => a.event.start.localeCompare(b.event.start));
 }
 
-/** For the load: every timed block (all of them, whatever the layers: the real load). */
-export function timedBlocks(data: RangeDto): TimedBlock[] {
-  return [...data.events, ...data.foreign]
-    .filter((e) => !e.allDay)
+/** For the load, the free time and the overlaps: the timed blocks of the categories switched ON. */
+export function timedBlocks(
+  data: RangeDto,
+  shown: (category: string) => boolean = () => true,
+): TimedBlock[] {
+  return [...data.events, ...data.foreign, ...data.tasks]
+    .filter((e) => !e.allDay && shown(e.category))
     .map((e) => ({ id: e.id, start: e.start, end: e.end, category: e.category }));
 }
 
-export const taskLoads = (data: RangeDto): TaskLoad[] =>
-  data.toPlace.map((t) => ({ id: t.id, due: t.due, estimateMin: t.estimateMin }));
+/** The estimates of the tasks to fit in (none when « Tâches » is switched off). */
+export const taskLoads = (
+  data: RangeDto,
+  shown: (category: string) => boolean = () => true,
+): TaskLoad[] =>
+  shown(TASKS_CATEGORY)
+    ? data.toPlace.map((t) => ({ id: t.id, due: t.due, estimateMin: t.estimateMin }))
+    : [];
+
+/** The switches to show: the categories of the period, and « Tâches » with the To-do. */
+export const switchCategories = (data: RangeDto) =>
+  [...new Set([...data.categories, ...(data.todo ? [TASKS_CATEGORY] : [])])].sort((a, b) =>
+    a.localeCompare(b),
+  );
 
 /** The block's colours: its category's token (never a colour of its own). */
 export const colorStyle = (category: string) =>

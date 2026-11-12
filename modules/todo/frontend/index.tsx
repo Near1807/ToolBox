@@ -18,6 +18,7 @@ import {
   onPhone,
 } from '@hub/sdk/frontend';
 import {
+  DEFAULT_PLANNED_MIN,
   daysBetween,
   formatDue,
   localToday,
@@ -26,6 +27,7 @@ import {
   slashDate,
   splitQuickAdd,
   formatDuration,
+  formatPlanned,
   parseDuration,
 } from '@hub/sdk/dates';
 import { cleanTags, type TaskDto, type TasksResponse } from '../shared';
@@ -71,13 +73,8 @@ export function QuickAdd(props: { data: TasksResponse; onAdded: (task: TaskDto) 
   const today = props.data.today;
   const parsed = useMemo(() => {
     const split = splitQuickAdd(text, today);
-    return ignoreDate
-      ? {
-          ...split,
-          title: split.dueText ? `${split.title} ${split.dueText}` : split.title,
-          due: null,
-        }
-      : split;
+    // « ce n'est pas une date / une heure »: the whole text is the title.
+    return ignoreDate ? { ...split, title: split.plain, due: null, start: null } : split;
   }, [text, today, ignoreDate]);
 
   const submit = async () => {
@@ -91,6 +88,7 @@ export function QuickAdd(props: { data: TasksResponse; onAdded: (task: TaskDto) 
         due: parsed.due,
         trackId: trackId ? Number(trackId) : null,
         durationMin: parsed.durationMin,
+        plannedAt: parsed.start,
       });
       setText('');
       setIgnoreDate(false);
@@ -157,16 +155,25 @@ export function QuickAdd(props: { data: TasksResponse; onAdded: (task: TaskDto) 
               #{t}
             </span>
           ))}
-          {parsed.durationMin !== null && (
-            <span className="td-duration">{formatDuration(parsed.durationMin)}</span>
+          {parsed.start && (
+            <span className="td-planned" title="Prévu dans l’agenda">
+              <Icon name="calendar-days" /> prévu {formatPlanned(parsed.start, today)}
+            </span>
+          )}
+          {(parsed.durationMin !== null || parsed.start) && (
+            <span className="td-duration">
+              {formatDuration(parsed.durationMin ?? DEFAULT_PLANNED_MIN)}
+            </span>
           )}
           {parsed.due && (
             <span className="td-preview__due">
               <StateBadge tone="accent">{formatDue(parsed.due, today)}</StateBadge>
-              <button type="button" className="td-link" onClick={() => setIgnoreDate(true)}>
-                ce n’est pas une date
-              </button>
             </span>
+          )}
+          {(parsed.due || parsed.start) && (
+            <button type="button" className="td-link" onClick={() => setIgnoreDate(true)}>
+              {parsed.start ? 'ce n’est pas une heure' : 'ce n’est pas une date'}
+            </button>
           )}
         </div>
       )}
@@ -187,7 +194,9 @@ export function QuickAdd(props: { data: TasksResponse; onAdded: (task: TaskDto) 
       )}
       <p className="small muted td-help">
         Écris « #tag » pour un tag, « ~2h » ou « ~30min » pour une durée estimée, et termine par
-        l’échéance si besoin : « demain », « vendredi », « dans 3 jours », « le 12 novembre ».
+        l’échéance si besoin : « demain », « vendredi », « dans 3 jours », « le 12 novembre ». Une
+        heure à la fin la prévoit dans l’agenda : « réviser ~2h mercredi 14h », « appeler Paul 14h
+        avant vendredi ».
       </p>
       {error && <ErrorMessage>{error}</ErrorMessage>}
     </Card>
@@ -218,7 +227,10 @@ function TaskRow(props: {
   const [duration, setDuration] = useState(
     task.durationMin ? formatDuration(task.durationMin).slice(1) : '',
   );
+  const [plannedDay, setPlannedDay] = useState(task.plannedAt?.slice(0, 10) ?? '');
+  const [plannedTime, setPlannedTime] = useState(task.plannedAt?.slice(11, 16) ?? '');
   const [error, setError] = useState<string | null>(null);
+  const afterDue = task.plannedAt && task.due && task.plannedAt.slice(0, 10) > task.due;
   const dueValue = due.trim() ? parseDue(due, data.today) : null;
   const durationValue = duration.trim() ? parseDuration(duration) : null;
   const late = task.due && !task.done && task.due < data.today;
@@ -238,6 +250,8 @@ function TaskRow(props: {
     setDue(task.due ? slashDate(task.due) : '');
     setTrackId(task.track ? String(task.track.id) : '');
     setDuration(task.durationMin ? formatDuration(task.durationMin).slice(1) : '');
+    setPlannedDay(task.plannedAt?.slice(0, 10) ?? '');
+    setPlannedTime(task.plannedAt?.slice(11, 16) ?? '');
     setEditing('details');
   };
 
@@ -286,6 +300,18 @@ function TaskRow(props: {
         )}
         <div className="td-task__meta small">
           <DueBadge task={task} today={data.today} />
+          {task.plannedAt && (
+            <span
+              className={`td-planned${afterDue ? ' td-planned--after' : ''}`}
+              title={
+                afterDue ? 'Prévue après son échéance' : 'Prévue dans l’agenda (heure de début)'
+              }
+            >
+              {afterDue ? <Icon name="warning" /> : <Icon name="calendar-days" />}{' '}
+              {formatPlanned(task.plannedAt, data.today)}
+              {afterDue && ' · après l’échéance'}
+            </span>
+          )}
           {task.durationMin !== null && (
             <span className="td-duration" title="Durée estimée">
               {formatDuration(task.durationMin)}
@@ -323,11 +349,14 @@ function TaskRow(props: {
               if (due.trim() && !dueValue) return setError(`Échéance pas comprise : « ${due} »`);
               if (duration.trim() && !durationValue)
                 return setError(`Durée estimée pas comprise : « ${duration} »`);
+              if (Boolean(plannedDay) !== Boolean(plannedTime))
+                return setError('Pour prévoir la tâche, indique le jour et l’heure.');
               void save({
                 tags: cleanTags(tags.split(',')),
                 due: dueValue,
                 trackId: trackId ? Number(trackId) : null,
                 durationMin: durationValue,
+                plannedAt: plannedDay && plannedTime ? `${plannedDay}T${plannedTime}` : null,
               });
             }}
           >
@@ -372,6 +401,42 @@ function TaskRow(props: {
                   : 'aucune'}
               </span>
             </label>
+            <div className="td-details__planned">
+              <label className="small">
+                Prévu le
+                <input
+                  className="input"
+                  type="date"
+                  value={plannedDay}
+                  onChange={(e) => setPlannedDay(e.target.value)}
+                />
+              </label>
+              <label className="small">
+                à
+                <input
+                  className="input"
+                  type="time"
+                  step={900}
+                  value={plannedTime}
+                  onChange={(e) => setPlannedTime(e.target.value)}
+                />
+              </label>
+              {task.plannedAt && (
+                <Button
+                  small
+                  variant="secondary"
+                  title="Efface l’heure prévue : la tâche revient dans « À caser » de l’Agenda"
+                  onClick={() => void save({ plannedAt: null })}
+                >
+                  Retirer de l’agenda
+                </Button>
+              )}
+              <span className="muted small">
+                {plannedDay && plannedTime && !duration.trim()
+                  ? `durée : ${formatDuration(DEFAULT_PLANNED_MIN)} par défaut`
+                  : ''}
+              </span>
+            </div>
             {data.library && (
               <label className="small">
                 Morceau
@@ -554,7 +619,7 @@ function TodoPage() {
           <ul className="td-list">
             {shown.map((task) => (
               <TaskRow
-                key={`${task.id}-${task.title}-${task.due}-${task.done}-${task.tags.join()}-${task.track?.id}`}
+                key={`${task.id}-${task.title}-${task.due}-${task.done}-${task.tags.join()}-${task.track?.id}-${task.plannedAt}-${task.durationMin}`}
                 task={task}
                 data={data}
                 onTag={(t) => setTag(t)}
