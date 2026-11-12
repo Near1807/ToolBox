@@ -12,6 +12,7 @@ import '../../../frontend/src/styles.css';
 import { applyTheme, cachedTheme, installThemes } from '../../../frontend/src/themes';
 import { WorkerClient, workerTransport } from '../../../packages/phone/transport';
 import { App } from './App';
+import { autoSync } from './auto';
 import { pageHost } from './page-host';
 import './mobile.css';
 
@@ -21,7 +22,23 @@ applyTheme(cachedTheme());
 const worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
 const client = new WorkerClient(worker);
 client.serveHost(pageHost);
-setApiTransport(workerTransport(client));
+// A change made here (an API call that writes) is synchronised shortly after,
+// when the automatic synchronisation is on (grouped, packages/phone/auto-sync.ts).
+const transport = workerTransport(client);
+setApiTransport({
+  ...transport,
+  request: async (path, init) => {
+    const response = await transport.request(path, init);
+    const method = (init.method ?? 'GET').toUpperCase();
+    if (
+      method !== 'GET' &&
+      response.status < 400 &&
+      (path.startsWith('/api/modules/') || path.startsWith('/api/core/settings'))
+    )
+      autoSync(client).localChange();
+    return response;
+  },
+});
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Missing #root element');

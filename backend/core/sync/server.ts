@@ -15,11 +15,14 @@ import { createHash, randomBytes, X509Certificate } from 'node:crypto';
 import { networkInterfaces } from 'node:os';
 import path from 'node:path';
 import Fastify, { type FastifyInstance } from 'fastify';
+import { WebSocketServer, type WebSocket } from 'ws';
 import selfsigned from 'selfsigned';
 import type { Hub } from '../hub';
 import { createAutomaticBackup } from '../backups';
 import { SyncError } from './engine';
-import { encodePairing, pinOf } from './pairing-code';
+import { encodeAddress, encodePairing, pinOf } from './pairing-code';
+import { mdnsAnnouncer, type Announcer } from './announce';
+import { SyncFiles, type FileChunk, type FileRef } from './files';
 import {
   serveExchange,
   serveFirst,
@@ -53,6 +56,12 @@ export interface SyncStatus {
   refusal: string | null;
   conflicts: number;
   error: string | null;
+  /** Announced on the local network (mDNS), so the phone finds the PC on any Wi-Fi. */
+  announced: boolean;
+  /** Why the announcement failed (the rest works without it), or null. */
+  announceError: string | null;
+  /** Phones connected live right now (app on screen, automatic synchronisation). */
+  live: number;
 }
 
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
@@ -76,13 +85,28 @@ export class SyncServer {
   private pairing: { token: string; expires: number; tries: number } | null = null;
   private refusal: string | null = null;
   private error: string | null = null;
+  /** Stops the mDNS announcement (null: nothing announced). */
+  private unannounce: (() => Promise<void>) | null = null;
+  private announceError: string | null = null;
+  private filesCache: SyncFiles | null = null;
+  /** Open live channels (phone app on screen): a change here is pushed in about a second. */
+  private live = new Set<{ socket: WebSocket; peer: string; known: string }>();
+  private liveTimer: ReturnType<typeof setInterval> | null = null;
+  private liveServer: WebSocketServer | null = null;
 
   constructor(
     private readonly hub: Hub,
     private readonly appVersion: string,
     /** The PC's local addresses (the tests give 127.0.0.1). */
     private readonly addresses: () => string[] = localAddresses,
+    /** The announcement on the local network (mDNS; the tests give their own). */
+    private readonly announcer: Announcer | null = mdnsAnnouncer,
   ) {}
+
+  /** Whether the PC is announced on the local network right now (mDNS). */
+  get announced(): boolean {
+    return this.unannounce !== null;
+  }
 
   private meta(key: string): string | null {
     const row = this.hub.handle.db
@@ -159,6 +183,9 @@ export class SyncServer {
       refusal: this.refusal,
       conflicts: this.hub.sync.conflicts().length,
       error: this.error,
+      announced: this.announced,
+      announceError: this.announceError,
+      live: this.live.size,
     };
   }
 
@@ -191,6 +218,8 @@ export class SyncServer {
       await app.listen({ host: '0.0.0.0', port: this.port });
       this.app = app;
       this.hub.logger.info(`Synchro : écoute sur le réseau local, port ${this.port}`);
+      this.openLive(app);
+      this.announce();
     } catch (error) {
       this.error =
         (error as NodeJS.ErrnoException).code === 'EADDRINUSE'
@@ -200,11 +229,137 @@ export class SyncServer {
     }
   }
 
+  /** Announces the PC on the local network (only while listening). Never blocks the listener. */
+  private announce() {
+    if (!this.announcer || this.unannounce) return;
+    this.announceError = null;
+    try {
+      this.unannounce = this.announcer({
+        port: this.port,
+        id: this.hub.sync.device,
+        onError: (error) => {
+          this.announceError = `Annonce sur le réseau impossible : ${error.message}`;
+          this.hub.logger.warn(`Synchro : ${this.announceError}`);
+        },
+      });
+    } catch (error) {
+      this.announceError = `Annonce sur le réseau impossible : ${(error as Error).message}`;
+      this.hub.logger.warn(`Synchro : ${this.announceError}`);
+    }
+  }
+
+  /**
+   * The live channel (ADR 0044, v0.33.0): wss://<PC>/sync/live, on the same
+   * listener (same certificate, pinned by the phone), with the device's
+   * token. The PC sends only « changed » (no data): the phone then runs a
+   * normal synchronisation. Watched every half second while a phone is
+   * connected (the journals' last numbers), so a change made on the PC
+   * reaches the phone in about a second.
+   */
+  private openLive(app: FastifyInstance) {
+    const wss = new WebSocketServer({ noServer: true, maxPayload: 4096 });
+    this.liveServer = wss;
+    app.server.on('upgrade', (request, socket, head) => {
+      const refuse = (code: number, text: string) => {
+        socket.end(`HTTP/1.1 ${code} ${text}\r\nConnection: close\r\n\r\n`);
+      };
+      if (new URL(request.url ?? '/', 'https://pc').pathname !== '/sync/live')
+        return refuse(404, 'Not Found');
+      const peer = this.peerOf(request.headers.authorization);
+      if (!peer) return refuse(401, 'Unauthorized');
+      const row = this.hub.handle.db
+        .prepare('SELECT first_sync_at FROM core__sync_peers WHERE device_id = ?')
+        .get(peer) as { first_sync_at: string | null } | undefined;
+      if (!row?.first_sync_at) return refuse(409, 'Conflict');
+      wss.handleUpgrade(request, socket, head, (ws) => {
+        const entry = { socket: ws, peer, known: this.signature() };
+        this.live.add(entry);
+        ws.on('close', () => {
+          this.live.delete(entry);
+          if (!this.live.size && this.liveTimer) {
+            clearInterval(this.liveTimer);
+            this.liveTimer = null;
+          }
+        });
+        ws.on('error', () => ws.terminate());
+        // Nothing to read from the phone (pings are answered by the library).
+        ws.send(JSON.stringify({ type: 'hello' }));
+        this.liveTimer ??= setInterval(() => this.watchLive(), 500);
+      });
+    });
+  }
+
+  /** Where the journals stand (a change made here moves it). */
+  private signature(): string {
+    return JSON.stringify(this.hub.sync.upTo());
+  }
+
+  private watchLive() {
+    if (!this.live.size) return;
+    let now: string;
+    try {
+      now = this.signature();
+    } catch {
+      return;
+    }
+    for (const entry of this.live)
+      if (entry.known !== now) {
+        entry.known = now;
+        if (entry.socket.readyState === entry.socket.OPEN)
+          entry.socket.send(JSON.stringify({ type: 'changed' }));
+      }
+  }
+
+  /** After an exchange with this phone: what it just received is not pushed again. */
+  private exchanged(peer: string) {
+    const now = this.signature();
+    for (const entry of this.live) if (entry.peer === peer) entry.known = now;
+  }
+
+  /** How many phones are connected live (Réglages). */
+  get liveCount(): number {
+    return this.live.size;
+  }
+
   async stop(): Promise<void> {
     const app = this.app;
     this.app = null;
     this.pairing = null;
+    if (this.liveTimer) clearInterval(this.liveTimer);
+    this.liveTimer = null;
+    for (const entry of this.live) entry.socket.terminate();
+    this.live.clear();
+    this.liveServer?.close();
+    this.liveServer = null;
+    const unannounce = this.unannounce;
+    this.unannounce = null;
+    if (unannounce) await unannounce().catch(() => undefined);
     if (app) await app.close();
+  }
+
+  /** The PC's addresses for the phone (https://ip:port), best first. */
+  urls(): string[] {
+    return this.addresses().map((a) => `https://${a}:${this.port}`);
+  }
+
+  /**
+   * « QR de l'adresse » : the address on the network the PC is on now, its
+   * port and its certificate's fingerprint, WITHOUT any token. For a phone
+   * already paired, on another Wi-Fi: no new pairing, no new first sync.
+   */
+  addressCode(address?: string): { code: string; address: string } {
+    if (!this.listening)
+      throw new SyncError('Active d’abord la synchro (l’écoute du réseau local).');
+    const addresses = this.addresses();
+    const host = address && addresses.includes(address) ? address : addresses[0];
+    if (!host)
+      throw new SyncError(
+        'Aucun réseau local trouvé : le PC est-il connecté au Wi-Fi ou au câble ?',
+      );
+    return {
+      code: encodeAddress({ host, port: this.port, pin: pinOf(this.fingerprint()!) }),
+      address: host,
+    };
   }
 
   /** A new single-use code for « Appairer un téléphone » (the address chosen among the PC's). */
@@ -233,6 +388,7 @@ export class SyncServer {
     this.hub.handle.db
       .prepare('UPDATE core__sync_peers SET revoked_at = ?, token_hash = NULL WHERE device_id = ?')
       .run(new Date().toISOString(), deviceId);
+    for (const entry of this.live) if (entry.peer === deviceId) entry.socket.close(4401, 'oublié');
   }
 
   private peerOf(authorization: string | undefined): string | null {
@@ -323,6 +479,7 @@ export class SyncServer {
           token,
           pc: engine().device,
           name: 'PC',
+          addresses: this.urls(),
           versions: engine().versions(),
           app: this.appVersion,
         };
@@ -339,6 +496,9 @@ export class SyncServer {
         versions: engine().versions(),
         app: this.appVersion,
         firstDone: Boolean(row.first_sync_at),
+        // The PC's addresses on the network it is on now: the phone keeps them
+        // (home, other Wi-Fi…) to find the PC again elsewhere.
+        addresses: this.urls(),
       };
     });
 
@@ -358,9 +518,42 @@ export class SyncServer {
         );
       }
       const result = serveFirst(engine(), peer, body);
-      if (body.mode !== 'preview') touch(peer, true);
+      if (body.mode !== 'preview') {
+        touch(peer, true);
+        this.exchanged(peer);
+      }
       this.refusal = null;
       return result;
+    });
+
+    // The files named by the rows (recipe pictures): after the data, by pieces.
+    const files = () => (this.filesCache ??= new SyncFiles(engine()));
+    const firstDone = (peer: string) => {
+      const row = this.hub.handle.db
+        .prepare('SELECT first_sync_at FROM core__sync_peers WHERE device_id = ?')
+        .get(peer) as { first_sync_at: string | null };
+      if (!row.first_sync_at)
+        throw new SyncError('Fais d’abord la première synchro (avec son aperçu).');
+    };
+    app.post('/sync/files/missing', async (request) => {
+      firstDone(auth(request));
+      return { files: files().missing() };
+    });
+    app.post<{ Body: { ref: FileRef; offset: number } }>('/sync/files/get', async (request) => {
+      firstDone(auth(request));
+      try {
+        return files().read(request.body.ref, request.body.offset);
+      } catch (error) {
+        throw new SyncError((error as Error).message);
+      }
+    });
+    app.post<{ Body: { ref: FileRef; chunk: FileChunk } }>('/sync/files/put', async (request) => {
+      firstDone(auth(request));
+      try {
+        return { done: await files().receive(request.body.ref, request.body.chunk) };
+      } catch (error) {
+        throw new SyncError((error as Error).message);
+      }
     });
 
     app.post<{ Body: ExchangeRequest }>('/sync/exchange', async (request) => {
@@ -372,6 +565,7 @@ export class SyncServer {
         throw new SyncError('Fais d’abord la première synchro (avec son aperçu).');
       const result = serveExchange(engine(), peer, request.body);
       touch(peer);
+      this.exchanged(peer);
       this.refusal = null;
       return result;
     });

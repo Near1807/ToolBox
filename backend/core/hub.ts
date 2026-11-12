@@ -451,7 +451,7 @@ export class Hub {
         return this.handle.db.prepare(sql);
       },
       transaction: (fn) => this.handle.db.transaction(fn)(),
-      syncClock: record.backend?.sync ? this.sync.clock : undefined,
+      syncClock: record.backend?.sync ? this.sync.clockFor(id) : undefined,
       backup: (reason) => {
         const file = createAutomaticBackup(
           this.handle.db,
@@ -530,7 +530,8 @@ export class Hub {
         throw new Error(`service(s) déclaré(s) mais non fourni(s) : ${missing.join(', ')}`);
       }
       this.services.commit(id, pendingServices);
-      if (record.backend?.sync) this.sync.addModule({ id, sync: record.backend.sync, db });
+      if (record.backend?.sync)
+        this.sync.addModule({ id, sync: record.backend.sync, db, files: ctx.files });
       record.routes = routeList;
       record.status = 'loaded';
       record.error = undefined;

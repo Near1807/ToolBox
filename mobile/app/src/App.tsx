@@ -28,8 +28,10 @@ import {
 } from './backup';
 import { PAGE_MODULES, type PageModule } from './page-modules';
 import { SettingsPage } from './SettingsPage';
-import { ConflictsPage, SyncNowButton, SyncPage, useSyncState } from './SyncPage';
+import { AutoIndicator, ConflictsPage, SyncNowButton, SyncPage, useSyncState } from './SyncPage';
+import { startAutoSync } from './auto';
 import { startTimerNotifications } from './timer-notices';
+import { startTimerOngoing } from './timer-ongoing';
 
 /** The modules' Background components (the Timer's sound), mounted once for the whole app. */
 function Backgrounds(props: { loaded: Set<string> }) {
@@ -152,6 +154,7 @@ function HomeSync(props: { shell: Shell }) {
         {state.peer.last_sync_at ? dateFr(state.peer.last_sync_at) : 'pas encore'}
         {state.conflicts ? ` · ${state.conflicts} conflit(s)` : ''}
       </p>
+      <AutoIndicator client={props.shell.client} />
       <SyncNowButton client={props.shell.client} onDone={() => void reload()} />
     </Card>
   );
@@ -289,7 +292,10 @@ export function App(props: { client: WorkerClient }) {
         ) {
           timerNotificationsStarted = true;
           startTimerNotifications();
+          startTimerOngoing();
         }
+        // The automatic synchronisation (off by default): at opening, if Thomas turned it on.
+        void startAutoSync(client).catch(() => undefined);
         const offered = await offerAtOpening(status);
         if (offered) setOffer(offered);
         else

@@ -135,7 +135,12 @@ async function answer(call: WorkerCall): Promise<unknown> {
       return { ok: true };
     case 'sync':
       if (!open.hub) throw new Error('La base du téléphone n’est pas prête.');
-      return syncWorkerCall(open.hub, call.call);
+      {
+        const result = await syncWorkerCall(open.hub, call.call);
+        // A file received (a recipe picture) is on disk before the answer.
+        await HOST.files.flush();
+        return result;
+      }
     case 'migrate':
       // After the copy « avant-migration » (the page took it), or nothing pending.
       if (!open.hub) await runHub(open);

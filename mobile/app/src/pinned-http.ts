@@ -9,6 +9,7 @@ const Native = registerPlugin<{
     body: string;
     pin: string;
     token?: string;
+    connectTimeout?: number;
   }): Promise<{ status: number; body: string }>;
 }>('PinnedHttp');
 

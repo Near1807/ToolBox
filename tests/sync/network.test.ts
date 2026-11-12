@@ -30,7 +30,7 @@ describe('synchronisation over the local network', () => {
 
   const setup = async () => {
     d = await devices();
-    server = new SyncServer(d.pc.hub, '0.32.0', () => ['127.0.0.1']);
+    server = new SyncServer(d.pc.hub, '0.32.0', () => ['127.0.0.1'], null);
     const worker = <T>(call: SyncWorkerCall) => syncWorkerCall(d.phone, call) as Promise<T>;
     const phone = new PhoneSync(worker, nodePinnedHttp);
     return { server, phone };

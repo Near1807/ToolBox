@@ -47,6 +47,7 @@ import type {
   FloatingDto,
   LiveDto,
   ToastEvent,
+  StopNotice,
 } from '../shared/types';
 import {
   extractPause,
@@ -209,6 +210,10 @@ export default defineBackendModule({
     /** A phase change shown briefly in the floating window, until this time. */
     let toastUntil = 0;
     let toastTimer: ReturnType<typeof setTimeout> | null = null;
+    /** The session shown at the last publish (to see one stopped by a synchronisation). */
+    let lastActiveId: string | null = null;
+    /** « Ton timer … est arrêté » after a synchronisation, until « OK » (memory only). */
+    let stopNotice: StopNotice | null = null;
 
     const setting = <T extends SettingValue>(key: string, fallback: T): T =>
       ctx.settings.get<T>(key) ?? fallback;
@@ -220,7 +225,7 @@ export default defineBackendModule({
     const active = (): SessionRow | null =>
       (ctx.db
         .prepare(
-          `SELECT * FROM ${sessions} WHERE status IN ${ACTIVE} AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 1`,
+          `SELECT * FROM ${sessions} WHERE status IN ${ACTIVE} AND deleted_at IS NULL ORDER BY status = 'ended', created_at DESC LIMIT 1`,
         )
         .get() as SessionRow | undefined) ?? null;
     const byId = (id: string) =>
@@ -307,6 +312,7 @@ export default defineBackendModule({
       return f.timer || (row.status === 'ended' && f.question);
     };
     const publish = () => {
+      lastActiveId = active()?.id ?? null;
       broadcast('session', liveDto());
       ctx.ui.setOverlay(overlayWanted());
     };
@@ -506,9 +512,62 @@ export default defineBackendModule({
       publish();
     };
 
+    // --- Two devices (ADR 0044, v0.33.0) -----------------------------------------
+    // A session started on one device appears on the other after a
+    // synchronisation (same phase, same time left: the rows hold the real
+    // times). One timer at a time: if two run (one started on each device
+    // between two synchronisations), the one started LAST wins; the other is
+    // stopped and listed in « Conflits ». Decided by the PC only (it receives
+    // the phone's changes first; its decision goes back in the same exchange).
+    ctx.db.syncClock?.onReceived?.((tools) => {
+      const other = tools.master ? 'le téléphone' : 'le PC';
+      if (tools.master) {
+        const running = ctx.db
+          .prepare(
+            `SELECT * FROM ${sessions} WHERE status IN ('running', 'paused') AND deleted_at IS NULL ORDER BY started_at DESC, id DESC`,
+          )
+          .all() as SessionRow[];
+        const [winner, ...losers] = running;
+        for (const loser of losers) {
+          finish(loser, 'stopped');
+          const where =
+            tools.creator('sessions', winner!.id) === ctx.db.syncClock?.device
+              ? 'sur le PC'
+              : 'sur le téléphone';
+          tools.conflict({
+            table: 'sessions',
+            id: loser.id,
+            label: `Timer « ${loser.name} »`,
+            detail: `arrêté : « ${winner!.name} », lancé plus tard ${where}, a la priorité (un seul timer à la fois)`,
+          });
+          ctx.logger.info(
+            `Timer « ${loser.name} » arrêté : un autre, lancé plus tard, a la priorité`,
+          );
+        }
+      }
+      // The session shown here was stopped by the other device: say it.
+      const now = active();
+      if (lastActiveId && lastActiveId !== now?.id) {
+        const before = byId(lastActiveId);
+        if (before?.status === 'stopped') {
+          const winner = now && now.status !== 'ended' ? now : null;
+          stopNotice = {
+            id: before.id,
+            text: winner
+              ? `Ton timer « ${before.name} » est arrêté : « ${winner.name} », lancé plus tard sur ${other}, a la priorité (un seul timer à la fois). C’est noté dans Conflits.`
+              : `Ton timer « ${before.name} » a été arrêté sur ${other}.`,
+          };
+          broadcast('notice', stopNotice);
+        }
+      }
+      tick();
+      publish();
+    });
+
     // Resume after a restart: catch up with the real time (transitions missed
     // while the app was closed are not notified).
     tick();
+    lastActiveId = active()?.id ?? null;
     if (active()) ctx.ui.setOverlay(overlayWanted());
     // A switch of the floating window changed: shown or hidden at once.
     const offSettings = ctx.settings.onChange((key) => {
@@ -646,6 +705,14 @@ export default defineBackendModule({
     ctx.routes.delete('/presets/:id', (request) => {
       const id = uuidParam(request.params);
       if (store.get('presets', id)) store.remove('presets', id);
+      return { ok: true };
+    });
+
+    /** « Ton timer … est arrêté » (after a synchronisation), until « OK ». */
+    ctx.routes.get('/notice', () => ({ notice: stopNotice }));
+    ctx.routes.post('/notice/dismiss', () => {
+      stopNotice = null;
+      broadcast('notice', null);
       return { ok: true };
     });
 

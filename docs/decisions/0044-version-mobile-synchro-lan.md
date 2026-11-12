@@ -149,10 +149,22 @@ Cœur partagé sur le PC, sans changement de comportement : `@hub/sdk/core` (por
 - **Première synchro** : aperçu par module, puis « Partir des données du PC » (les 5 modules du téléphone remplacés) ou « Fusionner » ; copie « avant-synchro » du téléphone et sauvegarde du PC avant.
 - **Pas dans 5a** (étape 5b) : repérage mDNS, WebSocket et synchro automatique, photos des recettes, Timer lancé sur les deux appareils.
 
+## Étape 5b faite (v0.33.0)
+
+- **Le PC retrouvé sur n'importe quel réseau** (problème rencontré par Thomas : appairé à la maison, plus de synchro au kot) : le certificat et le jeton restent valables, seule l'adresse change.
+  - Adresses connues : le téléphone garde toutes celles où il a joint le PC et celles que le PC lui envoie à chaque échange (`core__sync_addresses`, migration du socle v7) ; il les essaie toutes ensemble, délai court.
+  - Repérage mDNS : le PC s'annonce (`_toolbox-sync._tcp`, son identifiant) **seulement pendant l'écoute** ; le téléphone le cherche (greffon `PcFinder`, NSD d'Android). Une adresse trouvée n'est utilisée que si le certificat est l'épinglé.
+  - Secours : « QR de l'adresse » (`TBXA-…`, adresse + port + empreinte, sans jeton) → « Nouvelle adresse du PC » : ni réappairage, ni nouvelle première synchro ; refusé si l'empreinte diffère.
+- **Photos des recettes** : déclarées par le module (`sync.files`), elles voyagent après les données, dans les deux sens, une fois par empreinte, par morceaux de 512 Kio ; une photo manquante ne bloque jamais les données.
+- **Timer sur deux appareils** (décision de Thomas, 05/11) : un seul timer à la fois, le plus récemment lancé gagne ; l'autre est arrêté, listé dans « Conflits », et l'appareil concerné le dit. Décidé par le PC (`syncClock.onReceived`, `tools.master`).
+- **Synchro automatique** : réglage du téléphone, **désactivé par défaut**. À l'ouverture et au retour sur l'appli, 3 s après les modifications, et en direct depuis le PC (WebSocket `wss://…/sync/live` sur l'écouteur existant, même épinglage, même jeton ; greffon `LiveChannel`, OkHttp). Jamais en arrière-plan, jamais la première synchro. Écart avec la décision du 05/11 (« activée à l'appairage ») : Thomas a demandé qu'elle soit désactivée par défaut et qu'il l'active lui-même.
+- **Notification permanente du Timer** : greffon `TimerOngoing` (NotificationCompat, compte à rebours natif, canal silencieux, AlarmManager pour passer d'une phase à l'autre, reconstruite après redémarrage). Boutons : ils ouvrent l'appli, qui fait l'action par le serveur du Timer (seule vérité ; le Worker ne tourne pas en arrière-plan).
+- **« Expérimental »** retiré de l'appairage, de la première synchro, de la synchro à la main et des Conflits (validés par Thomas) ; gardé sur la synchro automatique, le repérage réseau et la notification permanente.
+
 ## Conséquences
 
 - Le PC ne change pas de comportement. Chaque étape le prouve par des références écrites avant modification, la suite complète et la CI Windows.
 - Le même SQL et les mêmes migrations servent sur les deux appareils, ce qui facilite la synchro et la vérification de version.
-- **Inconnue encore à lever** : repérage mDNS du PC (non vérifié ; repli : l'adresse du QR code).
+- **Inconnue encore à lever** : repérage mDNS du PC sur le Wi-Fi du kot (non vérifié ; les adresses connues et « QR de l'adresse » suffisent sans lui).
 
   Voir la section « Questions ouvertes » de l'étude.

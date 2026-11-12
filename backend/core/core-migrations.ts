@@ -170,4 +170,19 @@ export const coreMigrations: Migration[] = [
       );
     `,
   },
+  {
+    version: 7,
+    description:
+      'synchronisation: every address where the phone has reached its PC (home, other Wi-Fi…), ADR 0044',
+    up: `
+      CREATE TABLE core__sync_addresses (
+        peer TEXT NOT NULL,
+        url TEXT NOT NULL,
+        source TEXT NOT NULL,
+        added_at TEXT NOT NULL,
+        last_ok_at TEXT,
+        PRIMARY KEY (peer, url)
+      );
+    `,
+  },
 ];

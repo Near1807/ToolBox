@@ -25,6 +25,9 @@ interface Status {
   refusal: string | null;
   conflicts: number;
   error: string | null;
+  announced: boolean;
+  announceError: string | null;
+  live: number;
 }
 
 interface Conflict {
@@ -159,6 +162,7 @@ export function SyncCard() {
     address: string;
   } | null>(null);
   const [address, setAddress] = useState('');
+  const [addressCode, setAddressCode] = useState<{ code: string; address: string } | null>(null);
   const s = status.data;
   // The code expires (10 minutes): hidden then.
   useEffect(() => {
@@ -177,16 +181,7 @@ export function SyncCard() {
   if (!s) return <Card title="Synchro avec le téléphone">{status.error ?? 'Chargement…'}</Card>;
   return (
     <>
-      <Card
-        title={
-          <>
-            Synchro avec le téléphone{' '}
-            <span className="badge badge--warning" title="Pas encore validé à l’usage">
-              Expérimental
-            </span>
-          </>
-        }
-      >
+      <Card title="Synchro avec le téléphone">
         <p>
           Échange les données de Courses, To-do, Sport, Boîte à idées et Timer avec l’appli ToolBox
           du téléphone, sur ton Wi-Fi, sans Internet ni cloud. La musique ne quitte jamais le PC.
@@ -220,6 +215,7 @@ export function SyncCard() {
               Activée : écoute sur le réseau local, port <strong>{s.port}</strong>
               {s.listening ? '' : ' (pas encore à l’écoute)'}.
               {s.addresses.length > 0 && <> Adresse du PC : {s.addresses.join(', ')}.</>}
+              {s.live > 0 && <> Téléphone connecté en direct (synchro automatique).</>}
             </p>
             <div className="ui-actions">
               {s.addresses.length > 1 && (
@@ -240,17 +236,35 @@ export function SyncCard() {
               <Button
                 disabled={busy || !s.listening}
                 onClick={() =>
-                  run(async () =>
+                  run(async () => {
+                    setAddressCode(null);
                     setPairing(
                       await api.post<{ code: string; expiresAt: string; address: string }>(
                         '/api/core/sync/pairing',
                         { address: address || undefined },
                       ),
-                    ),
-                  )
+                    );
+                  })
                 }
               >
                 Appairer un téléphone
+              </Button>
+              <Button
+                variant="secondary"
+                disabled={busy || !s.listening}
+                onClick={() =>
+                  run(async () => {
+                    setPairing(null);
+                    setAddressCode(
+                      await api.post<{ code: string; address: string }>(
+                        '/api/core/sync/address-code',
+                        { address: address || undefined },
+                      ),
+                    );
+                  })
+                }
+              >
+                QR de l’adresse
               </Button>
               <Button
                 variant="secondary"
@@ -280,6 +294,36 @@ export function SyncCard() {
                 </div>
               </div>
             )}
+            {addressCode && (
+              <div className="sync-pairing">
+                <Qr text={addressCode.code} />
+                <div>
+                  <p>
+                    Pour un téléphone <strong>déjà appairé</strong>, quand le PC a changé de réseau
+                    : sur le téléphone, <strong>Synchro avec le PC › Nouvelle adresse du PC</strong>
+                    . Ou tape ce code :
+                  </p>
+                  <p className="sync-code">{addressCode.code}</p>
+                  <p className="small muted">
+                    Il contient seulement l’adresse du PC ({addressCode.address}), son port et
+                    l’empreinte de son certificat : aucun jeton. Il ne permet pas d’appairer un
+                    autre téléphone.
+                  </p>
+                </div>
+              </div>
+            )}
+            <p className="small muted">
+              Repérage sur le réseau{' '}
+              <span className="badge badge--warning" title="Pas encore validé à l’usage">
+                Expérimental
+              </span>{' '}
+              :{' '}
+              {s.announced
+                ? 'le PC s’annonce sur le réseau local (mDNS) pour que le téléphone le retrouve sur n’importe quel Wi-Fi.'
+                : 'le PC ne s’annonce pas.'}
+              {s.announceError ? ` ${s.announceError}` : ''} Le téléphone garde aussi toutes les
+              adresses où il a trouvé le PC.
+            </p>
             {s.fingerprint && (
               <p className="small muted">
                 Empreinte du certificat du PC :{' '}

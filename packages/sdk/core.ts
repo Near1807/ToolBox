@@ -79,6 +79,15 @@ export interface ModuleSync {
    * them (e.g. the sessions of a week generated twice).
    */
   onDuplicate?(event: SyncDuplicate, tools: SyncTools): void;
+  /**
+   * Tables whose rows name a file of the module's data folder (a recipe
+   * picture…): the file travels after the data, once per fingerprint, in
+   * both directions; a missing file never stops the data and arrives at the
+   * next synchronisation. `column` holds the file name (in `folder`),
+   * `sha256` its fingerprint (hex). A row's file is never deleted by a
+   * synchronisation: a deleted row keeps its file (restorable).
+   */
+  files?: { table: string; folder: string; column: string; sha256: string }[];
 }
 
 export interface SyncDuplicate {
@@ -231,6 +240,14 @@ export interface SyncClock {
   readonly device: string;
   /** A new HLC for a local change. */
   next(): string;
+  /**
+   * Called after a synchronisation changed this module's rows (after its
+   * transaction): the module brings its live state up to date (a timer
+   * received…) and, on the device that decides (`tools.master`, the PC: it
+   * always receives the phone's changes first, and what it writes here goes
+   * back in the same exchange), applies its rules. Returns the unsubscribe.
+   */
+  onReceived?(handler: (tools: SyncTools & { master: boolean }) => void): () => void;
 }
 
 export interface ModuleFiles {

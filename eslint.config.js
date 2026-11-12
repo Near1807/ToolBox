@@ -44,6 +44,7 @@ export const PHONE_SHARED_FILES = [
   'backend/core/calendar.ts',
   'backend/core/modules/dependencies.ts',
   'backend/core/sync/engine.ts',
+  'backend/core/sync/files.ts',
   'backend/core/sync/hlc.ts',
   'backend/core/sync/protocol.ts',
 ];

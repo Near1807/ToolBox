@@ -427,7 +427,7 @@ export class PhoneHub {
         return this.options.db.prepare(sql);
       },
       transaction: (fn) => this.options.db.transaction(fn)(),
-      syncClock: module.backend?.sync ? this.sync.clock : undefined,
+      syncClock: module.backend?.sync ? this.sync.clockFor(id) : undefined,
       backup: (reason) => {
         const backup = this.options.host?.backupDb;
         if (!backup) throw new UnavailableOnPhoneError('ctx.db.backup');
@@ -478,7 +478,8 @@ export class PhoneHub {
       if (missing.length > 0)
         throw new Error(`service(s) déclaré(s) mais non fourni(s) : ${missing.join(', ')}`);
       this.services.commit(id, pendingServices);
-      if (module.backend?.sync) this.sync.addModule({ id, sync: module.backend.sync, db });
+      if (module.backend?.sync)
+        this.sync.addModule({ id, sync: module.backend.sync, db, files: ctx.files });
       routes.mount();
       this.shutdown.push(...shutdown);
       this.states.set(id, { id, status: 'loaded' });

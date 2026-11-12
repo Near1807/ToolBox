@@ -85,6 +85,16 @@ export function TimerPage() {
     >
       {error && <ErrorMessage>{error}</ErrorMessage>}
       {data.error && <ErrorMessage>{data.error}</ErrorMessage>}
+      {live.notice && (
+        <Card>
+          <p>{live.notice.text}</p>
+          <div className="ui-actions">
+            <Button small onClick={() => void run(() => module.api.post('/notice/dismiss'))}>
+              OK
+            </Button>
+          </div>
+        </Card>
+      )}
       {session && live.state && session.status !== 'ended' && (
         <Running session={session} state={live.state} now={live.now} run={run} />
       )}

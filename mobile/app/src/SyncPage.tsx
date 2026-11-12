@@ -6,27 +6,21 @@
 // nothing is lost: the changes wait.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
-import { Button, Card, Page, errorMessage } from '@hub/sdk/frontend';
+import { Button, Card, Page, errorMessage, notifyDataChanged } from '@hub/sdk/frontend';
 import type { ConflictRow, Preview } from '../../../backend/core/sync/engine';
 import type { ExchangeResult } from '../../../backend/core/sync/protocol';
 import {
-  PhoneSync,
+  type FilesResult,
+  type KnownAddress,
   type SyncState,
   type SyncWorkerCall,
 } from '../../../packages/phone/sync-client';
 import type { WorkerClient } from '../../../packages/phone/transport';
 import { dateFr, type Shell } from './App';
 import { takeCopy } from './backup';
-import { pinnedHttp } from './pinned-http';
+import { autoLabel, autoSync, exclusive, setAutoSync, useAutoStatus } from './auto';
+import { phoneSync } from './phone-sync';
 import { readQrFromPhoto } from './qr-photo';
-
-/** The phone's synchronisation, for the page (worker steps + the native HTTPS call). */
-export function phoneSync(client: WorkerClient): PhoneSync {
-  return new PhoneSync(
-    <T,>(call: SyncWorkerCall) => client.call<T>({ kind: 'sync', call }),
-    pinnedHttp,
-  );
-}
 
 export const MODULE_NAMES: Record<string, string> = {
   todo: 'To-do',
@@ -37,9 +31,23 @@ export const MODULE_NAMES: Record<string, string> = {
   core: 'Réglages',
 };
 
-export function resultText(r: ExchangeResult): string {
-  const n = (x: number, one: string, many: string) => `${x} ${x === 1 ? one : many}`;
-  return `${n(r.received, 'reçu', 'reçus')}, ${n(r.sent, 'envoyé', 'envoyés')}, ${n(r.conflicts, 'conflit', 'conflits')}`;
+const plural = (x: number, one: string, many: string) => `${x} ${x === 1 ? one : many}`;
+
+/** « 1 photo reçue · 1 en attente (prochaine synchro) », or '' when no picture moved. */
+export function filesText(f: FilesResult | undefined): string {
+  if (!f) return '';
+  const parts = [
+    f.received ? plural(f.received, 'photo reçue', 'photos reçues') : '',
+    f.sent ? plural(f.sent, 'photo envoyée', 'photos envoyées') : '',
+    f.pending
+      ? `${plural(f.pending, 'photo en attente', 'photos en attente')} (prochaine synchro)`
+      : '',
+  ].filter(Boolean);
+  return parts.length ? ` · ${parts.join(', ')}` : '';
+}
+
+export function resultText(r: ExchangeResult & { files?: FilesResult }): string {
+  return `${plural(r.received, 'reçu', 'reçus')}, ${plural(r.sent, 'envoyé', 'envoyés')}, ${plural(r.conflicts, 'conflit', 'conflits')}${filesText(r.files)}`;
 }
 
 /** The state of the synchronisation (paired PC, last time, conflicts). */
@@ -69,10 +77,14 @@ export function SyncNowButton(props: { client: WorkerClient; onDone?: () => void
         onClick={() => {
           setBusy(true);
           setMessage(null);
-          phoneSync(props.client)
-            .now()
+          exclusive(() => phoneSync(props.client).now())
             .then(
-              (r) => setMessage({ ok: true, text: `Synchronisé : ${resultText(r)}.` }),
+              (r) => {
+                setMessage({ ok: true, text: `Synchronisé : ${resultText(r)}.` });
+                // The open screens of what came in are read again.
+                if (r.scopes.length) notifyDataChanged(r.scopes);
+                autoSync(props.client).resumeAfterManual();
+              },
               (e: unknown) => setMessage({ ok: false, text: errorMessage(e) }),
             )
             .finally(() => {
@@ -88,11 +100,140 @@ export function SyncNowButton(props: { client: WorkerClient; onDone?: () => void
   );
 }
 
-function PairCard(props: { client: WorkerClient; onPaired: () => void }) {
+/** A ToolBox code: photo of its QR code (camera or gallery), or typed by hand. */
+function CodeEntry(props: {
+  busy: boolean;
+  photoLabel: string;
+  typeLabel: string;
+  placeholder: string;
+  button: string;
+  onCode: (code: string) => void;
+  onError: (message: string) => void;
+}) {
   const [code, setCode] = useState('');
+  const [reading, setReading] = useState(false);
+  const photo = useRef<HTMLInputElement>(null);
+  const busy = props.busy || reading;
+  return (
+    <>
+      <div className="m-actions">
+        <Button disabled={busy} onClick={() => photo.current?.click()}>
+          {props.photoLabel}
+        </Button>
+      </div>
+      <input
+        ref={photo}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="m-hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          if (!file) return;
+          setReading(true);
+          readQrFromPhoto(file)
+            .then(
+              (text) =>
+                text
+                  ? props.onCode(text)
+                  : props.onError(
+                      'QR code introuvable sur la photo : rapproche-toi de l’écran, ou tape le code.',
+                    ),
+              () => props.onError('Photo illisible.'),
+            )
+            .finally(() => setReading(false));
+        }}
+      />
+      <p className="small muted">{props.typeLabel}</p>
+      <textarea
+        className="input m-code"
+        rows={3}
+        value={code}
+        placeholder={props.placeholder}
+        aria-label={props.typeLabel}
+        autoCapitalize="characters"
+        onChange={(e) => setCode(e.target.value)}
+      />
+      <div className="m-actions">
+        <Button
+          variant="secondary"
+          disabled={busy || !code.trim()}
+          onClick={() => props.onCode(code)}
+        >
+          {props.button}
+        </Button>
+      </div>
+    </>
+  );
+}
+
+/** The small state of the automatic synchronisation (Accueil, Synchro). */
+export function AutoIndicator(props: { client: WorkerClient }) {
+  const status = useAutoStatus(props.client);
+  if (!status.enabled) return null;
+  const label = autoLabel(status);
+  return (
+    <p className={`small m-auto m-auto--${label.tone}`} role="status">
+      <span className="m-auto__dot" aria-hidden="true" />
+      Synchro automatique : {label.text}
+      {status.at
+        ? ` (${new Date(status.at).toLocaleTimeString('fr-BE', { timeStyle: 'short' })})`
+        : ''}
+      {status.live ? ' · connecté au PC' : ''}
+    </p>
+  );
+}
+
+/**
+ * « Synchro automatique » (off by default, Thomas turns it on): at opening,
+ * back on screen, shortly after each change, and live from the PC while the
+ * app is on screen. Never in the background, never the first synchronisation.
+ */
+function AutoCard(props: { client: WorkerClient }) {
+  const status = useAutoStatus(props.client);
+  const [busy, setBusy] = useState(false);
+  return (
+    <Card
+      title={
+        <>
+          Synchro automatique{' '}
+          <span className="badge badge--warning" title="Pas encore validé à l’usage">
+            Expérimental
+          </span>
+        </>
+      }
+    >
+      <label className="m-check">
+        <input
+          type="checkbox"
+          checked={status.enabled}
+          disabled={busy}
+          onChange={(e) => {
+            setBusy(true);
+            void setAutoSync(props.client, e.target.checked).finally(() => setBusy(false));
+          }}
+        />{' '}
+        Synchroniser tout seul quand l’appli est ouverte
+      </label>
+      <p className="small muted">
+        Activée : une synchro à l’ouverture et au retour sur l’appli, une autre quelques secondes
+        après tes modifications, et ce que tu changes sur le PC arrive ici en une seconde environ
+        tant que l’appli est ouverte. Rien quand l’appli est fermée (elle rattrape à l’ouverture).
+        Jamais la première synchro, toujours avec ton choix. Versions différentes : elle s’arrête et
+        le dit.
+      </p>
+      {status.enabled && <AutoIndicator client={props.client} />}
+      {status.enabled && status.message && status.state !== 'ok' && (
+        <p className="error small">{status.message}</p>
+      )}
+    </Card>
+  );
+}
+
+function PairCard(props: { client: WorkerClient; onPaired: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const photo = useRef<HTMLInputElement>(null);
   const pair = (value: string) => {
     setBusy(true);
     setError(null);
@@ -107,59 +248,94 @@ function PairCard(props: { client: WorkerClient; onPaired: () => void }) {
         Sur le PC : <strong>Réglages › Synchro avec le téléphone</strong> › active la synchro, puis
         « Appairer un téléphone ». Un QR code s’affiche.
       </p>
-      <div className="m-actions">
-        <Button disabled={busy} onClick={() => photo.current?.click()}>
-          Photographier le QR code
-        </Button>
-      </div>
-      <input
-        ref={photo}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        className="m-hidden"
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          e.target.value = '';
-          if (!file) return;
-          setBusy(true);
-          readQrFromPhoto(file).then(
-            (text) => {
-              if (text) pair(text);
-              else {
-                setBusy(false);
-                setError(
-                  'QR code introuvable sur la photo : rapproche-toi de l’écran, ou tape le code.',
-                );
-              }
-            },
-            () => {
-              setBusy(false);
-              setError('Photo illisible.');
-            },
-          );
-        }}
-      />
-      <p className="small muted">Ou tape le code affiché sous le QR code (TBX1-…) :</p>
-      <textarea
-        className="input m-code"
-        rows={3}
-        value={code}
+      <CodeEntry
+        busy={busy}
+        photoLabel="Photographier le QR code"
+        typeLabel="Ou tape le code affiché sous le QR code (TBX1-…) :"
         placeholder="TBX1-XXXX-XXXX-…"
-        aria-label="Code d’appairage"
-        autoCapitalize="characters"
-        onChange={(e) => setCode(e.target.value)}
+        button="Appairer avec ce code"
+        onCode={pair}
+        onError={setError}
       />
-      <div className="m-actions">
-        <Button variant="secondary" disabled={busy || !code.trim()} onClick={() => pair(code)}>
-          Appairer avec ce code
-        </Button>
-      </div>
       {busy && <p className="small muted">Connexion au PC…</p>}
       {error && <p className="error">{error}</p>}
       <p className="small muted">
         Le téléphone ne parle qu’au PC dont le certificat correspond au code : jamais à un autre
         appareil du réseau. Rien ne passe par Internet.
+      </p>
+    </Card>
+  );
+}
+
+/**
+ * « Nouvelle adresse du PC » : the PC is on another network and none of the
+ * known addresses answers. The code of « QR de l'adresse » (no token) gives
+ * its address; its fingerprint must be the one of the paired PC. No new
+ * pairing, no new first synchronisation.
+ */
+function NewAddressCard(props: { client: WorkerClient; onDone: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(null);
+  const [known, setKnown] = useState<KnownAddress[]>([]);
+  useEffect(() => {
+    props.client
+      .call<KnownAddress[]>({ kind: 'sync', call: { op: 'addresses' } })
+      .then(setKnown, () => setKnown([]));
+  }, [props.client, done]);
+  const use = (value: string) => {
+    setBusy(true);
+    setError(null);
+    setDone(null);
+    phoneSync(props.client)
+      .newAddress(value)
+      .then(
+        (url) => {
+          setDone(`PC retrouvé à ${url.replace(/^https:\/\//, '')}. Tu peux synchroniser.`);
+          setOpen(false);
+          props.onDone();
+        },
+        (e: unknown) => setError(errorMessage(e)),
+      )
+      .finally(() => setBusy(false));
+  };
+  return (
+    <Card title="Le PC sur un autre réseau">
+      <p className="small">
+        À chaque synchro, le téléphone essaie toutes les adresses où il a déjà trouvé le PC (maison,
+        kot…), puis le cherche sur le Wi-Fi{' '}
+        <span className="badge badge--warning">Expérimental</span>. Si rien ne répond : sur le PC,{' '}
+        <strong>Réglages › Synchro avec le téléphone › QR de l’adresse</strong>, puis ici.
+      </p>
+      {known.length > 0 && (
+        <p className="small muted">
+          Adresses connues : {known.map((a) => a.url.replace(/^https:\/\//, '')).join(', ')}
+        </p>
+      )}
+      {!open ? (
+        <div className="m-actions">
+          <Button variant="secondary" onClick={() => setOpen(true)}>
+            Nouvelle adresse du PC
+          </Button>
+        </div>
+      ) : (
+        <CodeEntry
+          busy={busy}
+          photoLabel="Photographier le QR de l’adresse"
+          typeLabel="Ou tape le code affiché sous ce QR code (TBXA-…) :"
+          placeholder="TBXA-XXXX-XXXX-…"
+          button="Utiliser cette adresse"
+          onCode={use}
+          onError={setError}
+        />
+      )}
+      {busy && <p className="small muted">Connexion au PC…</p>}
+      {done && <p className="small">{done}</p>}
+      {error && <p className="error">{error}</p>}
+      <p className="small muted">
+        Sans réappairer ni refaire de première synchro : le téléphone vérifie que c’est bien ton PC
+        (même certificat).
       </p>
     </Card>
   );
@@ -184,12 +360,16 @@ function FirstSyncCard(props: { shell: Shell; onDone: () => void }) {
         : 'Fusionner les deux appareils ? Tout ce qui est sur l’un ou l’autre sera sur les deux ; les noms en double iront dans « Conflits ».\n\nUne copie de sauvegarde du téléphone est faite avant, et le PC sauvegarde aussi sa base.';
     if (!window.confirm(question)) return;
     run(async () => {
-      const r = await phoneSync(shell.client).first(mode, async () => {
-        await takeCopy(shell.client, 'avant-synchro');
-      });
+      const r = await exclusive(() =>
+        phoneSync(shell.client).first(mode, async () => {
+          await takeCopy(shell.client, 'avant-synchro');
+        }),
+      );
+      notifyDataChanged();
+      autoSync(shell.client).resumeAfterManual();
       await shell.refresh();
       window.alert(
-        `Première synchro faite${r.conflicts ? ` (${r.conflicts} élément(s) dans « Conflits »)` : ''}.`,
+        `Première synchro faite${r.conflicts ? ` (${r.conflicts} élément(s) dans « Conflits »)` : ''}${filesText(r.files)}.`,
       );
       props.onDone();
     });
@@ -279,12 +459,7 @@ export function SyncPage(props: { shell: Shell }) {
 
   if (!state) return <Page title="Synchro avec le PC">{null}</Page>;
   return (
-    <Page
-      title="Synchro avec le PC"
-      subtitle={
-        <span className="badge badge--warning">Expérimental : pas encore validé à l’usage</span>
-      }
-    >
+    <Page title="Synchro avec le PC">
       {!state.peer ? (
         <PairCard client={shell.client} onPaired={() => void reload()} />
       ) : (
@@ -306,6 +481,8 @@ export function SyncPage(props: { shell: Shell }) {
             {error && <p className="error">{error}</p>}
           </Card>
           {first === true && <FirstSyncCard shell={shell} onDone={() => void reload()} />}
+          {done && <AutoCard client={shell.client} />}
+          <NewAddressCard client={shell.client} onDone={() => void reload()} />
           <Card title="Conflits">
             <p>
               {state.conflicts === 0

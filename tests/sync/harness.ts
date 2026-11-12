@@ -6,6 +6,8 @@ import Database from 'better-sqlite3';
 import {
   createTestHub,
   loadModuleFolder,
+  MemoryFileStore,
+  normaliseImage,
   openWasmDatabase,
   PhoneHub,
   phoneRequest,
@@ -29,6 +31,8 @@ export interface Devices {
   pc: TestHub;
   phone: PhoneHub;
   phoneDb: SqlDatabase;
+  /** The phone's files (OPFS in the app, here in memory). */
+  phoneFiles: MemoryFileStore;
   pcEngine: SyncEngine;
   phoneEngine: SyncEngine;
   /** A request on the PC's API (module routes). */
@@ -47,7 +51,13 @@ export async function devices(): Promise<Devices> {
   const loaded = await Promise.all(MODULES.map((id) => loadModuleFolder(path.join(ROOT, id))));
   const pc = await createTestHub({ loadExamples: false, modules: loaded });
   const phoneDb = await openWasmDatabase();
-  const phone = await PhoneHub.start({ db: phoneDb, modules: loaded as never[], log: () => {} });
+  const phoneFiles = new MemoryFileStore();
+  const phone = await PhoneHub.start({
+    db: phoneDb,
+    modules: loaded as never[],
+    host: { files: phoneFiles, normaliseImage },
+    log: () => {},
+  });
   const pcEngine = pc.hub.sync;
   const phoneEngine = phone.sync;
   const ok = <T>(r: { status: number; body: T }, what: string) => {
@@ -69,6 +79,7 @@ export async function devices(): Promise<Devices> {
     pc,
     phone,
     phoneDb,
+    phoneFiles,
     pcEngine,
     phoneEngine,
     onPc: async (method, url, body) =>

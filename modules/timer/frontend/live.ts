@@ -7,6 +7,7 @@ import type {
   FloatingDto,
   LiveDto,
   SessionDto,
+  StopNotice,
   ToastEvent,
   TransitionEvent,
 } from '../shared/types';
@@ -32,6 +33,8 @@ export function useLiveSession(
   /** After « Non » : the session to restart, until « Plus tard ». */
   followUp: SessionDto | null;
   floating: FloatingDto | null;
+  /** The session shown here was stopped by the other device (after a synchronisation). */
+  notice: StopNotice | null;
   connected: boolean;
   now: number;
 } {
@@ -40,6 +43,7 @@ export function useLiveSession(
   const [live, setLive] = useState<LiveDto | null>(null);
   const session = live?.session ?? null;
   const [connected, setConnected] = useState(false);
+  const [notice, setNotice] = useState<StopNotice | null>(null);
   const [now, setNow] = useState(() => Date.now());
   // The latest handler, read when an event arrives (the stream is opened once).
   const handler = useRef(onTransition);
@@ -58,9 +62,17 @@ export function useLiveSession(
         },
         transition: (data) => handler.current?.(data as TransitionEvent),
         toast: (data) => toastHandler.current?.(data as ToastEvent),
+        notice: (data) => setNotice(data as StopNotice | null),
       }),
     [url],
   );
+  // A notice given while the page was closed.
+  useEffect(() => {
+    module.api.get<{ notice: StopNotice | null }>('/notice').then(
+      (r) => setNotice(r.notice),
+      () => undefined,
+    );
+  }, [module.api]);
   useEffect(() => {
     if (session?.status !== 'running') return;
     const id = setInterval(() => setNow(Date.now()), 250);
@@ -72,6 +84,7 @@ export function useLiveSession(
     state,
     followUp: live?.followUp ?? null,
     floating: live?.floating ?? null,
+    notice,
     connected,
     now,
   };

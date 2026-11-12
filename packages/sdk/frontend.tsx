@@ -425,11 +425,45 @@ export interface ApiState<T> {
 }
 
 /** GETs a path on mount (and when it changes); `reload()` fetches again. */
+/** Screens told that data changed outside them (the phone's synchronisation). */
+const dataListeners = new Set<(scopes: string[] | null) => void>();
+
+/**
+ * Data changed outside the screens (on the phone: a synchronisation received
+ * them, ADR 0044): the open screens reading these modules' API read it again.
+ * `scopes` null: every screen. Never called on the PC.
+ */
+export function notifyDataChanged(scopes: string[] | null = null): void {
+  for (const listener of dataListeners) listener(scopes);
+}
+
+/** Whether an API path reads one of these modules (or the core settings). */
+function readsScopes(path: string, scopes: string[] | null): boolean {
+  if (scopes === null) return true;
+  return scopes.some((scope) =>
+    scope === 'core'
+      ? path.startsWith('/api/core/settings')
+      : path.startsWith(`/api/modules/${scope}/`) || path === `/api/modules/${scope}`,
+  );
+}
+
 export function useApi<T>(path: string | null): ApiState<T> {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(path !== null);
   const [version, setVersion] = useState(0);
+
+  // Read again (silently: the data shown stay until the new ones come) when told.
+  useEffect(() => {
+    if (path === null) return;
+    const listener = (scopes: string[] | null) => {
+      if (readsScopes(path, scopes)) setVersion((v) => v + 1);
+    };
+    dataListeners.add(listener);
+    return () => {
+      dataListeners.delete(listener);
+    };
+  }, [path]);
 
   useEffect(() => {
     if (path === null) return;
