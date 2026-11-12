@@ -27,7 +27,7 @@ import {
   splitQuickAdd,
   formatDuration,
   parseDuration,
-} from '../dates';
+} from '@hub/sdk/dates';
 import { cleanTags, type TaskDto, type TasksResponse } from '../shared';
 import './todo.css';
 

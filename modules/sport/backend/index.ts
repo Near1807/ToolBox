@@ -874,6 +874,7 @@ export default defineBackendModule({
     // --- « Prêt pour le calendrier » (MODULES.md §5.17), read only -----------------
 
     ctx.calendar.provide({
+      category: 'Sport',
       events: (from, to) => {
         const stored = sessionsBetween(from, to).filter((s) => s.status !== 'cancelled');
         // Weeks to come not shown yet: what the template will give (nothing written).

@@ -1,6 +1,9 @@
+// French dates shared by the modules (@hub/sdk/dates; v0.34.0: moved from the
+// To-do to the SDK, used by the To-do and the Agenda — one code, never a copy).
 // Due dates in natural French (« demain », « vendredi », « dans 3 jours »,
-// « le 12 novembre »…), resolved against a given day. Pure functions: the
-// assistant and the quick-add field use the same code, tested in tests/dates.test.ts.
+// « le 12 novembre »…), resolved against a given day, and estimated
+// durations (« ~2h »). Pure functions, portable (also on the phone), tested
+// in modules/todo/tests/dates.test.ts and duration.test.ts.
 // Days are plain calendar days "YYYY-MM-DD" (no time, no time zone).
 
 const WEEKDAYS = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];

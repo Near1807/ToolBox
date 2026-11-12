@@ -9,7 +9,7 @@ import {
   stripCommand,
   type AssistantParams,
 } from '@hub/sdk/core';
-import { parseDue } from '../dates';
+import { parseDue } from '@hub/sdk/dates';
 
 export const ADD_EXAMPLES = [
   'ajoute une tâche finir le mix pour vendredi',

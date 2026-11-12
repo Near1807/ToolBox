@@ -29,7 +29,7 @@ import {
   spokenDue,
   daysBetween,
   addDays,
-} from '../dates';
+} from '@hub/sdk/dates';
 import { cleanTags, type TaskDto, type TasksResponse } from '../shared';
 import {
   ADD_EXAMPLES,
@@ -342,6 +342,26 @@ export default defineBackendModule({
           durationMin: 0,
           open: '/m/todo',
           status: row.done_at !== null ? 'fait' : row.due_date! < today ? 'en retard' : 'à faire',
+        }));
+      },
+      category: 'Tâches',
+      // v0.34.0: the open tasks to fit in (the Agenda's « À caser »): due on or
+      // before `to` (late ones too), and those without a due date.
+      unscheduled: (_from, to) => {
+        const today = localToday();
+        return sorted(
+          ctx.db
+            .prepare(
+              `SELECT * FROM ${tasks} WHERE deleted_at IS NULL AND done_at IS NULL AND (due_date IS NULL OR due_date <= ?)`,
+            )
+            .all(to) as TaskRow[],
+        ).map((row) => ({
+          id: row.id,
+          title: row.title,
+          due: row.due_date,
+          estimateMin: row.duration_min,
+          open: '/m/todo',
+          ...(row.due_date !== null && row.due_date < today ? { status: 'en retard' } : {}),
         }));
       },
     });

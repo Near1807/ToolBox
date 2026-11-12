@@ -2,7 +2,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { TrackInfoProvider } from '../../music-library/contract';
 import { createTestHub, loadModuleFolder, type TestHub } from '@hub/sdk/testing';
-import { localToday, addDays } from '../dates';
+import { localToday, addDays } from '@hub/sdk/dates';
 import type { TaskDto, TasksResponse } from '../shared';
 
 const MODULE_DIR = path.resolve(__dirname, '..');

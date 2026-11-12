@@ -239,7 +239,9 @@ export class PhoneHub {
   /** The synchronisation's engine (ADR 0044), created once the core is migrated. */
   sync!: SyncEngine;
   readonly services = new ServiceRegistry();
-  readonly calendar = new CalendarRegistry();
+  readonly calendar = new CalendarRegistry(
+    (id) => this.options.modules.find((m) => m.manifest.id === id)?.manifest.name ?? id,
+  );
   readonly settings: PhoneSettings;
   private readonly states = new Map<string, PhoneModuleState>();
   private readonly shutdown: (() => void | Promise<void>)[] = [];

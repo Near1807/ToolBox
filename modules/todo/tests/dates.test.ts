@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatDue, parseDue, splitQuickAdd, spokenDue } from '../dates';
+import { formatDue, parseDue, splitQuickAdd, spokenDue } from '@hub/sdk/dates';
 
 // Friday 23 October 2026.
 const TODAY = '2026-10-23';

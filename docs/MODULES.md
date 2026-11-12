@@ -431,6 +431,13 @@ Tout module qui a des **éléments datés** déclare une source pour le futur ca
 
 Le socle ajoute `moduleId` et réunit toutes les sources : `GET /api/core/calendar?from=&to=` (lecture seule ; une source en erreur est journalisée, les autres répondent). Une source ne modifie **jamais** rien quand on l'interroge. Appliqué à : Sport (séances), Courses (repas planifiés), Planning de sortie (publications YouTube, Shorts et Instagram à leur date et heure locales, avec leur état), To-do (tâches à échéance, sur la journée : à faire, en retard, fait) et Timer (sessions passées de leur début à leur fin, celle en cours jusqu'à sa fin prévue).
 
+**Ajouts v0.34.0 (ADR 0045), tous facultatifs** : les fournisseurs existants restent valables sans modification.
+
+- `category` sur la source (« Sport », « Repas », « Musique », « Tâches », « Timer ») ou sur un événement (« Cours », « Réunions ») : une catégorie lisible. Par défaut, le nom du module.
+- `endDate` sur un événement « sur la journée » (`start` = une date) : son **dernier** jour, inclus, quand il s'étend sur plusieurs jours (camp, examens). Un événement à l'heure peut dépasser minuit (`durationMin`).
+- `unscheduled(from, to)` sur la source : les **éléments à caser** (`CalendarItem` : `id`, `title`, `due` ou `null`, `estimateMin` ou `null`, `open`, `category`, `status`), ceux qui ont une échéance au plus tard le `to` (en retard compris) et ceux sans échéance. Lecture seule. La To-do les fournit (tâches à faire, avec leur durée estimée) ; l'Agenda les montre dans « À caser », jamais dans la grille.
+- `ctx.calendar.query(from, to)` : lecture de toutes les sources pour un module (l'Agenda), chaque événement et chaque élément avec son `moduleId` et sa `category`. Lecture seule ; une source en erreur est écartée. `GET /api/core/calendar` répond **exactement comme avant** (les références de non-régression des modules en dépendent).
+
 ## 6. Migrations et sécurité des données
 
 ```ts

@@ -35,6 +35,7 @@ export const PHONE_SHARED_FILES = [
   'packages/phone/**/*.ts',
   'packages/sdk/core.ts',
   'packages/sdk/sync.ts',
+  'packages/sdk/dates.ts',
   'packages/sdk/manifest.ts',
   'backend/core/migrations-core.ts',
   'backend/core/core-migrations.ts',

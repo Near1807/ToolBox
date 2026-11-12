@@ -2,7 +2,7 @@
 // that it is never taken for a time of day (« 14h » is an hour, « ~2h » a
 // duration).
 import { describe, expect, it } from 'vitest';
-import { formatDuration, parseDuration, splitQuickAdd, takeDuration } from '../dates';
+import { formatDuration, parseDuration, splitQuickAdd, takeDuration } from '@hub/sdk/dates';
 
 const TODAY = '2026-11-12'; // A Thursday.
 
