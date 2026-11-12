@@ -62,7 +62,7 @@ export function TaskPanel(props: {
         </p>
       )}
       <form
-        className="ag-form__row"
+        className="ag-form"
         onSubmit={(e) => {
           e.preventDefault();
           const minutes = parseDuration(duration);
@@ -77,36 +77,38 @@ export function TaskPanel(props: {
           );
         }}
       >
-        <label className="small">
-          Prévu le
-          <input
-            className="input"
-            type="date"
-            value={day}
-            onChange={(e) => setDay(e.target.value)}
-          />
-        </label>
-        <label className="small">
-          à
-          <input
-            className="input"
-            type="time"
-            step={900}
-            value={time}
-            onChange={(e) => setTime(e.target.value)}
-          />
-        </label>
-        <label className="small">
-          Durée
-          <input
-            className="input input--short"
-            value={duration}
-            onChange={(e) => setDuration(e.target.value)}
-          />
-        </label>
-        <Button small type="submit">
-          Enregistrer
-        </Button>
+        <div className="ag-form__row">
+          <label className="small">
+            Prévu le
+            <input
+              className="input"
+              type="date"
+              value={day}
+              onChange={(e) => setDay(e.target.value)}
+            />
+          </label>
+          <label className="small">
+            à
+            <input
+              className="input"
+              type="time"
+              step={900}
+              value={time}
+              onChange={(e) => setTime(e.target.value)}
+            />
+          </label>
+          <label className="small">
+            Durée
+            <input
+              className="input input--short"
+              value={duration}
+              onChange={(e) => setDuration(e.target.value)}
+            />
+          </label>
+          <Button small type="submit">
+            Enregistrer
+          </Button>
+        </div>
       </form>
       <div className="ui-actions">
         <Button

@@ -9,6 +9,8 @@ export interface Added {
   kind: 'event' | 'weekly' | 'task';
   id: string;
   title: string;
+  /** A task planned at a time (v0.35.0): « YYYY-MM-DDTHH:mm ». */
+  plannedAt?: string | null;
 }
 
 export function QuickBar(props: { today: string; todo: boolean; onAdded: (added: Added) => void }) {
@@ -28,10 +30,15 @@ export function QuickBar(props: { today: string; todo: boolean; onAdded: (added:
         kind: Added['kind'];
         event?: { id: string; title: string };
         weekly?: { id: string; title: string };
-        task?: { id: string; title: string };
+        task?: { id: string; title: string; plannedAt?: string | null };
       }>('/quick', { text });
       const made = r.event ?? r.weekly ?? r.task!;
-      props.onAdded({ kind: r.kind, id: made.id, title: made.title });
+      props.onAdded({
+        kind: r.kind,
+        id: made.id,
+        title: made.title,
+        plannedAt: r.task?.plannedAt ?? null,
+      });
       setText('');
     } catch (e) {
       setError(errorMessage(e));

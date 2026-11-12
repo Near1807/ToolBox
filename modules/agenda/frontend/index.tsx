@@ -149,7 +149,12 @@ function AgendaPage() {
           onAdded={(a) => {
             setNotice(
               a.kind === 'task'
-                ? { message: `« ${a.title} » ajouté à la To-do (à caser)`, run: null }
+                ? {
+                    message: a.plannedAt
+                      ? `« ${a.title} » ajouté à la To-do, prévu ${dayLabel(a.plannedAt.slice(0, 10), data.today)} ${a.plannedAt.slice(11, 16)}`
+                      : `« ${a.title} » ajouté à la To-do (à caser)`,
+                    run: null,
+                  }
                 : {
                     message:
                       a.kind === 'weekly'
