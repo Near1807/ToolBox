@@ -20,13 +20,14 @@ import type { AgendaEventDto, PlannedTaskDto, RangeDto } from '../shared/types';
 import { minutesBetween } from '../shared/time';
 import { spanLabel } from '../shared/drag';
 import { TaskPanel } from './TaskPanel';
-import { colorStyle, useLayers, useRange, type Item } from './common';
+import { colorStyle, switchCategories, useRange, useSwitches, type Item } from './common';
+import { DEFAULT_OFF } from '../shared/categories';
 import { DayView } from './DayView';
 import { EventForm, EventPanel, type Undo } from './EventPanel';
 import { GuidePage } from './Guide';
 import { MonthView, monthGrid, monthTitle } from './MonthView';
 import { QuickBar } from './QuickBar';
-import { Layers, WeekView, type Drop } from './WeekView';
+import { CategorySwitches, WeekView, type Drop } from './WeekView';
 import { WeekTypeView } from './WeekTypeView';
 import './agenda.css';
 
@@ -50,7 +51,7 @@ function AgendaPage() {
   const period =
     view === 'month' ? monthGrid(day.slice(0, 7)) : { from: monday, to: addDays(monday, 6) };
   const { data, error, reload } = useRange(period.from, period.to);
-  const layers = useLayers();
+  const layers = useSwitches(data?.categoriesOff ?? DEFAULT_OFF);
   const [selected, setSelected] = useState<AgendaEventDto | null>(null);
   const [selectedTask, setSelectedTask] = useState<PlannedTaskDto | null>(null);
   const [creating, setCreating] = useState(false);
@@ -268,7 +269,11 @@ function AgendaPage() {
         />
       )}
       {data && view !== 'weekly' && (
-        <Layers categories={data.categories} hidden={layers.hidden} onToggle={layers.toggle} />
+        <CategorySwitches
+          categories={switchCategories(data)}
+          shown={layers.shown}
+          onToggle={layers.toggle}
+        />
       )}
       {data && view === 'week' && (
         <WeekView

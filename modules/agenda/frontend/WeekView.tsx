@@ -2,7 +2,8 @@
 // coloured by category; on top the all-day and several-day items in bands
 // and « À caser » (the To-do's tasks due this week, by due date, then those
 // without a date, folded); under each day its load bar by category and a
-// state; « X h de libre · Y h à caser »; overlaps flagged; layers.
+// state; « X h de libre · Y h à caser »; overlaps flagged; category
+// switches (v0.35.0: what is off is neither shown nor counted).
 // v0.35.0: drag and drop (PC) — a task from « À caser » to the grid, a block
 // to another time or day, its bottom to stretch it; Échap cancels; one write
 // on the drop only (the page does it, with « Annuler »).
@@ -11,45 +12,70 @@ import { useNavigate } from 'react-router';
 import { Icon, StateBadge } from '@hub/sdk/frontend';
 import { formatDuration } from '@hub/sdk/dates';
 import { categoryColor } from '../shared/categories';
-import { placeDay, weekSummary, weighsOn, type DayLoad } from '../shared/load';
+import { placeDay, TASKS_CATEGORY, weekSummary, weighsOn, type DayLoad } from '../shared/load';
 import { addDays, dayLabel, daysBetween, hoursText } from '../shared/time';
 import type { RangeDto, ToPlaceDto } from '../shared/types';
 import { moveSpan, placeSpan, sameSpan, spanLabel, stretchSpan, type Span } from '../shared/drag';
 import { minutesBetween, minutesOfDay } from '../shared/time';
-import { colorStyle, itemId, itemsOf, movable, taskLoads, timedBlocks, type Item } from './common';
+import {
+  colorStyle,
+  itemId,
+  itemsOf,
+  movable,
+  switchCategories,
+  taskLoads,
+  timedBlocks,
+  type Item,
+} from './common';
 
 const HOUR_PX = 44;
 
 const STATE_TONE = { léger: 'success', chargé: 'warning', saturé: 'danger' } as const;
 
-export function Layers(props: {
+/**
+ * The category switches (v0.35.0): ON = shown AND counted (load, free time,
+ * overlaps); OFF = neither. Sport, Repas and Timer are off by default; each
+ * device keeps its own choices.
+ */
+export function CategorySwitches(props: {
   categories: string[];
-  hidden: string[];
+  shown: (category: string) => boolean;
   onToggle: (category: string) => void;
 }) {
   if (props.categories.length === 0) return null;
   return (
-    <div className="ag-layers" role="group" aria-label="Calques">
-      <span className="small muted">Calques :</span>
+    <div className="ag-layers" role="group" aria-label="Catégories affichées et comptées">
+      <span className="small muted">Catégories :</span>
       {props.categories.map((c) => {
-        const on = !props.hidden.includes(c);
+        const on = props.shown(c);
         return (
           <button
             key={c}
             type="button"
-            className={`ag-layer${on ? '' : ' ag-layer--off'}`}
+            role="switch"
+            aria-checked={on}
+            className={`ag-layer${on ? ' ag-layer--on' : ' ag-layer--off'}`}
             style={colorStyle(c)}
-            aria-pressed={on}
-            title={on ? `Masquer « ${c} »` : `Afficher « ${c} »`}
+            title={
+              on
+                ? `« ${c} » est affiché et compté dans la charge. Clic : éteindre`
+                : `« ${c} » n’est ni affiché ni compté. Clic : allumer`
+            }
             onClick={() => props.onToggle(c)}
           >
-            <span className="ag-dot" aria-hidden="true" />
+            <span className="ag-switch" aria-hidden="true" />
             {c}
           </button>
         );
       })}
     </div>
   );
+}
+
+/** « (hors Sport, Repas) »: what the summary does not count. */
+export function offText(categories: string[], shown: (category: string) => boolean): string {
+  const off = categories.filter((c) => !shown(c));
+  return off.length ? ` · hors ${off.join(', ')}` : '';
 }
 
 /** A day's load: a bar cut by category, and its state. */
@@ -253,7 +279,16 @@ export function WeekView(props: {
   const days = Array.from({ length: 7 }, (_, i) => addDays(monday, i));
   const sunday = days[6]!;
   const range = { startHour: data.dayStartHour, endHour: data.dayEndHour };
-  const summary = weekSummary(monday, 7, timedBlocks(data), taskLoads(data), range, data.today);
+  // Only what is switched on is counted (load, free time, overlaps).
+  const summary = weekSummary(
+    monday,
+    7,
+    timedBlocks(data, props.shown),
+    taskLoads(data, props.shown),
+    range,
+    data.today,
+  );
+  const tasksOn = props.shown(TASKS_CATEGORY);
   const items = itemsOf(data, props.shown);
   const allDay = items.filter((i) => i.event.allDay);
   const timed = items.filter((i) => !i.event.allDay);
@@ -373,7 +408,7 @@ export function WeekView(props: {
     <>
       <p className="ag-summary">
         <strong>{hoursText(summary.freeMin)} de libre</strong>
-        {data.todo && (
+        {data.todo && tasksOn && (
           <>
             {' · '}
             <strong>{hoursText(summary.toPlaceMin)} à caser</strong>
@@ -383,10 +418,11 @@ export function WeekView(props: {
         )}
         <span className="small muted">
           {' '}
-          (de {range.startHour} h à {range.endHour} h chaque jour)
+          (de {range.startHour} h à {range.endHour} h chaque jour
+          {offText(switchCategories(data), props.shown)})
         </span>
       </p>
-      {data.todo && (
+      {data.todo && tasksOn && (
         <ToPlace
           tasks={data.toPlace}
           firstDay={monday}

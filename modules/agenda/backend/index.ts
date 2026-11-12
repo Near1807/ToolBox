@@ -19,7 +19,7 @@ import {
 } from '@hub/sdk/core';
 import { localToday, parseDue } from '@hub/sdk/dates';
 import type { TodoService } from '../../todo/contract';
-import { DEFAULT_CATEGORY } from '../shared/categories';
+import { categoryList, DEFAULT_CATEGORY, DEFAULT_OFF } from '../shared/categories';
 import { MIN_BLOCK_MIN } from '../shared/drag';
 import { parseQuick, type Parsed } from '../shared/parse';
 import { occurrences, type OccurrenceException } from '../shared/recurrence';
@@ -270,6 +270,9 @@ export default defineBackendModule({
         dayStartHour: setting('dayStartHour', 7),
         dayEndHour: setting('dayEndHour', 23),
         categories,
+        categoriesOff: categoryList(
+          ctx.settings.get<string>('categoriesOff') ?? DEFAULT_OFF.join(', '),
+        ),
       };
     };
 

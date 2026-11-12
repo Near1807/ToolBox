@@ -441,7 +441,8 @@
           ],
           "dayStartHour": 7,
           "dayEndHour": 23,
-          "categories": ["Sport"]
+          "categories": ["Sport"],
+          "categoriesOff": ["Sport", "Repas", "Timer"]
         }
       }
     ],
@@ -524,7 +525,8 @@
           ],
           "dayStartHour": 7,
           "dayEndHour": 23,
-          "categories": ["Perso", "Rendez-vous"]
+          "categories": ["Perso", "Rendez-vous"],
+          "categoriesOff": ["Sport", "Repas", "Timer"]
         }
       }
     ],
@@ -589,7 +591,8 @@
           ],
           "dayStartHour": 7,
           "dayEndHour": 23,
-          "categories": ["Sport"]
+          "categories": ["Sport"],
+          "categoriesOff": ["Sport", "Repas", "Timer"]
         }
       }
     ],
@@ -710,7 +713,8 @@
           ],
           "dayStartHour": 7,
           "dayEndHour": 23,
-          "categories": ["Rendez-vous", "Sport"]
+          "categories": ["Rendez-vous", "Sport"],
+          "categoriesOff": ["Sport", "Repas", "Timer"]
         }
       }
     ],
@@ -784,7 +788,8 @@
           ],
           "dayStartHour": 7,
           "dayEndHour": 23,
-          "categories": ["Sport"]
+          "categories": ["Sport"],
+          "categoriesOff": ["Sport", "Repas", "Timer"]
         }
       }
     ]

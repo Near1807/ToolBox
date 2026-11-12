@@ -92,6 +92,8 @@ export interface RangeDto {
   weekly: WeeklyDto[];
   dayStartHour: number;
   dayEndHour: number;
-  /** Every category seen in the period (own and other modules'), for the layers. */
+  /** Every category seen in the period (own and other modules'), for the switches. */
   categories: string[];
+  /** v0.35.0: the categories off by default (setting), until switched on on this device. */
+  categoriesOff: string[];
 }

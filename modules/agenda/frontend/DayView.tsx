@@ -4,7 +4,7 @@
 import { useRef } from 'react';
 import { Button, Icon } from '@hub/sdk/frontend';
 import { formatDuration } from '@hub/sdk/dates';
-import { dayLoad, placeDay, weighsOn } from '../shared/load';
+import { dayLoad, placeDay, TASKS_CATEGORY, weighsOn } from '../shared/load';
 import { addDays, dayLabel } from '../shared/time';
 import type { RangeDto } from '../shared/types';
 import { colorStyle, itemId, itemsOf, taskLoads, timedBlocks, type Item } from './common';
@@ -40,7 +40,13 @@ export function DayView(props: {
       .filter((p) => p.overlaps)
       .map((p) => p.id),
   );
-  const load = dayLoad(day, timedBlocks(data), taskLoads(data), range, data.today);
+  const load = dayLoad(
+    day,
+    timedBlocks(data, props.shown),
+    taskLoads(data, props.shown),
+    range,
+    data.today,
+  );
   const due = data.toPlace.filter((t) => weighsOn(t.due, data.today) === day);
   const undated = data.toPlace.filter((t) => t.due === null);
   return (
@@ -139,7 +145,7 @@ export function DayView(props: {
           ))}
         </ul>
       )}
-      {data.todo && (due.length > 0 || undated.length > 0) && (
+      {data.todo && props.shown(TASKS_CATEGORY) && (due.length > 0 || undated.length > 0) && (
         <section className="ag-toplace" aria-label="À caser">
           <h2 className="ag-toplace__title">À caser</h2>
           <ul className="ag-toplace__list">
