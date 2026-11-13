@@ -5,6 +5,8 @@ import { activeSlot, DEFAULT_PREFS, effectiveTheme, type ThemePrefs } from '../t
 /** Interface preferences stored by the core (GET/PUT /api/core/ui). */
 export interface UiPrefs extends ThemePrefs {
   navigation: string;
+  /** v0.36.0: shortcut of the « Ajouter » bar (« Ctrl+N »; empty: none). */
+  quickAddShortcut: string;
 }
 
 /** The theme preferences of the core, with their defaults. */

@@ -6,7 +6,8 @@
 // base is absent or empty and a copy exists (never automatic); otherwise
 // today's copy (safety net).
 import { useCallback, useEffect, useState } from 'react';
-import { Link, NavLink, Route, Routes, useLocation } from 'react-router';
+import { Link, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router';
+import { QuickAddHost } from '@hub/sdk/quick-add';
 import {
   Button,
   Card,
@@ -264,6 +265,9 @@ export function App(props: { client: WorkerClient }) {
   const [migrationError, setMigrationError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const location = useLocation();
+  const navigate = useNavigate();
+  // v0.36.0: the « Ajouter » bar (ADR 0046), the « + » above the bottom bar.
+  const [adding, setAdding] = useState(false);
 
   const refresh = useCallback(async () => {
     setBase(await client.call<BaseStatus>({ kind: 'status' }));
@@ -382,6 +386,19 @@ export function App(props: { client: WorkerClient }) {
             <Route path="*" element={<HomePage shell={shell} />} />
           </Routes>
         </main>
+        <button
+          type="button"
+          className="m-add"
+          aria-label="Ajouter : une tâche, un rendez-vous, une idée…"
+          onClick={() => setAdding(true)}
+        >
+          <Icon name="plus" />
+        </button>
+        <QuickAddHost
+          open={adding}
+          onClose={() => setAdding(false)}
+          navigate={(r) => void navigate(r)}
+        />
         <nav className="m-nav" aria-label="Navigation">
           <NavLink to="/" end className="m-nav__item">
             <Icon name="home" />

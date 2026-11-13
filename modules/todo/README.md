@@ -58,6 +58,10 @@ La To-do **prête sa fiche de tâche** aux autres modules : `provides: { 'todo.t
 
 Service : `deleteTask(id)`, ajouté seulement pour l'« Annuler » d'une création faite par un autre module sur un clic (« Tâche » dans un créneau de l'Agenda).
 
+## Barre « Ajouter » (v0.36.0)
+
+Destination **« Tâche »** (la première, celle par défaut) de la barre « Ajouter » du shell (ADR 0046) : mêmes règles que l'ajout rapide (tags, échéance, durée « ~ », heure prévue), aperçu par `taskPreview` (`shared.ts`), « Annuler » supprime la tâche ajoutée.
+
 ## Assistant (actions, MODULES.md §5.15)
 
 | Action          | Risque                      | Rôle                                                                                                                                                            |

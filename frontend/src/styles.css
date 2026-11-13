@@ -2088,3 +2088,105 @@ input[type='range'] {
 .sync-conflict {
   align-items: flex-start;
 }
+
+/* v0.36.0: the « Ajouter » bar (ADR 0046), PC and phone. */
+.sidebar__add {
+  margin-left: auto;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--text);
+  cursor: pointer;
+}
+.sidebar__add:hover {
+  background: var(--surface-hover);
+}
+.quick-add-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 12vh 16px 16px;
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+}
+.quick-add {
+  width: min(640px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.9rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface-solid);
+  box-shadow: var(--shadow);
+}
+.quick-add__targets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.quick-add__target {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.quick-add__target--on {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--text);
+  font-weight: 600;
+}
+.quick-add__input {
+  font-size: 1.1rem;
+}
+.quick-add__preview {
+  margin: 0;
+  min-height: 1.3em;
+}
+.quick-add-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 950;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  max-width: calc(100% - 32px);
+  padding: 0.55rem 0.8rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-solid);
+  box-shadow: var(--shadow);
+}
+.quick-add-toast--error {
+  bottom: 80px;
+  color: var(--danger);
+}
+.quick-add-toast__action {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--accent);
+  font-weight: 600;
+  cursor: pointer;
+}
+.quick-add-toast__close {
+  border: none;
+  background: none;
+  color: var(--text-2);
+  cursor: pointer;
+  display: grid;
+}

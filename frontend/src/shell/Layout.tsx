@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Outlet, useNavigate } from 'react-router';
 import { ModuleBackgrounds } from '../modules/ModuleExtras';
 import { NavigationProvider } from './NavigationContext';
+import { QuickAdd } from './QuickAdd';
 import { Sidebar } from './Sidebar';
 import { useThemeAutomation } from './theme-automation';
 import { useFullscreen, WindowButtons } from './WindowControls';
@@ -21,6 +22,7 @@ export function Layout() {
           <Outlet />
         </main>
         <WindowButtons fullscreen={fullscreen} />
+        <QuickAdd />
         <ModuleBackgrounds />
       </div>
     </NavigationProvider>

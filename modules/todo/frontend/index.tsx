@@ -27,7 +27,7 @@ import {
   formatDuration,
   formatPlanned,
 } from '@hub/sdk/dates';
-import { type TaskDto, type TasksResponse } from '../shared';
+import { taskPreview, type TaskDto, type TasksResponse } from '../shared';
 import { TaskFields } from './TaskFields';
 import { TaskEditor } from './TaskEditor';
 import './todo.css';
@@ -551,4 +551,22 @@ export default defineFrontendModule({
   // v0.36.0 (ADR 0046): the full sheet of a task, lent to the other modules
   // (the Agenda): the To-do's own form and API, never a copy.
   provides: { 'todo.taskEditor': TaskEditor },
+  // v0.36.0 (ADR 0046): « Tâche » in the shell's « Ajouter » bar (the default one).
+  quickAdd: {
+    label: 'Tâche',
+    icon: 'list-todo',
+    order: 1,
+    placeholder: 'réviser stats ~2h mercredi 14h #cours',
+    preview: (text, today) => taskPreview(text, today),
+    add: async (text, { api, today }) => {
+      const parsed = taskPreview(text, today);
+      if (!parsed.ok) throw new Error(parsed.text);
+      const made = await api.post<TaskDto>('/tasks', parsed.fields);
+      return {
+        message: `« ${made.title} » ajoutée à la To-do`,
+        open: '/m/todo',
+        undo: () => api.delete(`/tasks/${made.id}`),
+      };
+    },
+  },
 });

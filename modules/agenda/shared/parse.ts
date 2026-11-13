@@ -335,3 +335,19 @@ export function previewText(parsed: Parsed, today: string): string {
       return '';
   }
 }
+
+/**
+ * v0.36.0, the « Ajouter » bar (« Rendez-vous »): the Agenda bar's rules;
+ * a « ~ » phrase is a task — the bar says to choose « Tâche ». Pure.
+ */
+export function appointmentPreview(input: string, today: string): { ok: boolean; text: string } {
+  const parsed = parseQuick(input, today);
+  if (parsed.kind === 'task')
+    return {
+      ok: false,
+      text: 'C’est une tâche (« ~ » ou rien de daté) : Tab pour choisir « Tâche ».',
+    };
+  if (parsed.kind === 'empty') return { ok: false, text: '' };
+  if (parsed.kind === 'error') return { ok: false, text: parsed.message };
+  return { ok: true, text: previewText(parsed, today) };
+}

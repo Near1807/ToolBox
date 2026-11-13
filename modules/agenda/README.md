@@ -63,6 +63,10 @@ Colonnes par jour, heures de la journée (réglage « Début / Fin de la journé
   - pour une tâche, gardé par la To-do.
 - Le bloc dont le timer tourne a une petite icône ⏱ (semaine et vue jour). `RangeDto.timer` est lu par le service `timer` (facultatif) ; la page se rafraîchit chaque minute tant qu'un timer tourne.
 
+## Barre « Ajouter » (v0.36.0)
+
+Destination **« Rendez-vous »** de la barre « Ajouter » du shell (ADR 0046). Elle suit les règles de la barre de l'Agenda (`appointmentPreview`, `shared/parse.ts`) : un événement ou une entrée de la semaine type. Une phrase de tâche (« ~ », ou rien de daté) est refusée avec « Tab pour choisir Tâche ». « Annuler » supprime l'ajout, « Ouvrir » montre son jour.
+
 ## Interrupteurs de catégorie (v0.35.0, Expérimental)
 
 Les calques de v0.34 deviennent des **interrupteurs** : une catégorie **allumée** est affichée **et comptée** (charge, temps libre, chevauchements, « à caser » pour « Tâches ») ; **éteinte**, elle n'est ni affichée ni comptée (remplace la règle « la charge compte toujours tout »).

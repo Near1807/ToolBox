@@ -1,4 +1,11 @@
 // Types shared by the backend and the page of the To-do module.
+import {
+  DEFAULT_PLANNED_MIN,
+  formatDue,
+  formatDuration,
+  formatPlanned,
+  splitQuickAdd,
+} from '@hub/sdk/dates';
 
 export interface TaskDto {
   id: string;
@@ -39,4 +46,41 @@ export function cleanTag(tag: string): string {
 
 export function cleanTags(tags: readonly string[]): string[] {
   return [...new Set(tags.map(cleanTag).filter(Boolean))];
+}
+
+/**
+ * v0.36.0, the « Ajouter » bar (« Tâche »): what will be added, with the
+ * To-do's quick-add rules (splitQuickAdd). Pure.
+ */
+export function taskPreview(
+  input: string,
+  today: string,
+): { ok: true; text: string; fields: QuickTask } | { ok: false; text: string } {
+  const split = splitQuickAdd(input, today);
+  if (!split.title.trim()) return { ok: false, text: 'Écris d’abord un titre.' };
+  const parts = [`Tâche « ${split.title} »`];
+  if (split.tags.length) parts.push(split.tags.map((t) => `#${t}`).join(' '));
+  if (split.start) parts.push(`prévue ${formatPlanned(split.start, today)}`);
+  if (split.due) parts.push(`échéance ${formatDue(split.due, today)}`);
+  if (split.durationMin || split.start)
+    parts.push(formatDuration(split.durationMin ?? DEFAULT_PLANNED_MIN));
+  return {
+    ok: true,
+    text: parts.join(' · '),
+    fields: {
+      title: split.title,
+      tags: cleanTags(split.tags),
+      due: split.due,
+      durationMin: split.durationMin,
+      plannedAt: split.start,
+    },
+  };
+}
+
+export interface QuickTask {
+  title: string;
+  tags: string[];
+  due: string | null;
+  durationMin: number | null;
+  plannedAt: string | null;
 }

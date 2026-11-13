@@ -20,6 +20,7 @@ import { addDays, dayLabel, mondayOf } from '../shared/time';
 import type { AgendaEventDto, RangeDto } from '../shared/types';
 import { minutesBetween } from '../shared/time';
 import { spanLabel, type Span } from '../shared/drag';
+import { appointmentPreview } from '../shared/parse';
 import type { SlotKind } from './CreateSlot';
 import { TaskPanel, type OpenTask } from './TaskPanel';
 import {
@@ -461,6 +462,34 @@ function HomeWidget() {
 }
 
 export default defineFrontendModule({
+  // v0.36.0 (ADR 0046): « Rendez-vous » in the shell's « Ajouter » bar (the Agenda bar's rules).
+  quickAdd: {
+    label: 'Rendez-vous',
+    icon: 'calendar-days',
+    order: 2,
+    placeholder: 'dentiste jeudi 14h 1h',
+    preview: (text, today) => appointmentPreview(text, today),
+    add: async (text, { api }) => {
+      const r = await api.post<{
+        kind: 'event' | 'weekly' | 'task';
+        event?: { id: string; title: string; start: string };
+        weekly?: { id: string; title: string };
+      }>('/quick', { text });
+      if (r.kind === 'weekly' && r.weekly)
+        return {
+          message: `« ${r.weekly.title} » ajouté à la semaine type`,
+          open: '/m/agenda',
+          undo: () => api.delete(`/weekly/${r.weekly!.id}`),
+        };
+      if (r.kind === 'event' && r.event)
+        return {
+          message: `« ${r.event.title} » ajouté à l’agenda`,
+          open: `/m/agenda?date=${r.event.start.slice(0, 10)}`,
+          undo: () => api.delete(`/events/${r.event!.id}`),
+        };
+      return { message: 'Ajouté', open: '/m/agenda' };
+    },
+  },
   pages: [
     { path: '', component: AgendaPage },
     { path: 'guide', component: GuidePage },

@@ -683,14 +683,17 @@ export function Lent<P extends object>(props: { name: string; props: P; fallback
 /** The quick-add destinations of the present modules, in their order (the default first). */
 export function useQuickAddDestinations(): (QuickAddDestination & { moduleId: string })[] {
   const modules = useContext(PresentModulesContext);
-  return useMemo(
-    () =>
-      modules
-        .filter((m) => m.frontend.quickAdd)
-        .map((m) => ({ ...m.frontend.quickAdd!, moduleId: m.manifest.id }))
-        .sort((a, b) => (a.order ?? 100) - (b.order ?? 100) || a.label.localeCompare(b.label)),
-    [modules],
-  );
+  return useMemo(() => quickAddDestinationsOf(modules), [modules]);
+}
+
+/** Pure: the destinations of these modules, in their order (absent module = no destination). */
+export function quickAddDestinationsOf(
+  modules: readonly PresentModule[],
+): (QuickAddDestination & { moduleId: string })[] {
+  return modules
+    .filter((m) => m.frontend.quickAdd)
+    .map((m) => ({ ...m.frontend.quickAdd!, moduleId: m.manifest.id }))
+    .sort((a, b) => (a.order ?? 100) - (b.order ?? 100) || a.label.localeCompare(b.label));
 }
 
 // ---------------------------------------------------------------------------
