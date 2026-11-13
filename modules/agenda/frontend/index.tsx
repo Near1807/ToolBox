@@ -16,10 +16,11 @@ import {
   useModule,
 } from '@hub/sdk/frontend';
 import { addDays, dayLabel, mondayOf } from '../shared/time';
-import type { AgendaEventDto, PlannedTaskDto, RangeDto } from '../shared/types';
+import type { AgendaEventDto, RangeDto } from '../shared/types';
 import { minutesBetween } from '../shared/time';
-import { spanLabel } from '../shared/drag';
-import { TaskPanel } from './TaskPanel';
+import { spanLabel, type Span } from '../shared/drag';
+import type { SlotKind } from './CreateSlot';
+import { TaskPanel, type OpenTask } from './TaskPanel';
 import { colorStyle, switchCategories, useRange, useSwitches, type Item } from './common';
 import { DEFAULT_OFF } from '../shared/categories';
 import { DayView } from './DayView';
@@ -53,7 +54,7 @@ function AgendaPage() {
   const { data, error, reload } = useRange(period.from, period.to);
   const layers = useSwitches(data?.categoriesOff ?? DEFAULT_OFF);
   const [selected, setSelected] = useState<AgendaEventDto | null>(null);
-  const [selectedTask, setSelectedTask] = useState<PlannedTaskDto | null>(null);
+  const [selectedTask, setSelectedTask] = useState<OpenTask | null>(null);
   const [creating, setCreating] = useState(false);
   /** The last change: its message, and « Annuler » when it can be undone. */
   const [notice, setNotice] = useState<Undo | { message: string; run: null } | null>(null);
@@ -62,7 +63,12 @@ function AgendaPage() {
     setSelected(null);
     setSelectedTask(null);
     if (item.source === 'foreign') navigate(item.event.open);
-    else if (item.source === 'task') setSelectedTask(item.event);
+    else if (item.source === 'task')
+      setSelectedTask({
+        id: item.event.id,
+        title: item.event.title,
+        category: item.event.category,
+      });
     else setSelected(item.event);
   };
   const changed = (u?: Undo) => {
@@ -123,6 +129,53 @@ function AgendaPage() {
       },
     );
   };
+
+  /** v0.36.0: tick a task from its block (the To-do's service), « Annuler » after. */
+  const tick = (item: Item, done: boolean) => {
+    if (item.source !== 'task') return;
+    const url = `/tasks/${item.event.id}/done`;
+    module.api.put(url, { done }).then(
+      () => {
+        setNotice({
+          message: done
+            ? `« ${item.event.title} » cochée`
+            : `« ${item.event.title} » de nouveau à faire`,
+          run: () => module.api.put(url, { done: !done }),
+        });
+        reload();
+      },
+      (e: unknown) => setNotice({ message: errorMessage(e), run: null }),
+    );
+  };
+
+  /** v0.36.0: create in an empty slot, after the choice (« Tâche » / « Rendez-vous »). */
+  const create = async (kind: SlotKind, title: string, span: Span) => {
+    const where = `${dayLabel(span.start.slice(0, 10), data?.today ?? day)} ${spanLabel(span)}`;
+    if (kind === 'task') {
+      const made = await module.api.post<{ id: string; title: string }>('/tasks', {
+        title,
+        plannedAt: span.start,
+        durationMin: minutesBetween(span.start, span.end),
+      });
+      setNotice({
+        message: `Tâche « ${made.title} » prévue ${where}`,
+        run: () => module.api.delete(`/tasks/${made.id}`),
+      });
+    } else {
+      const made = await module.api.post<{ id: string; title: string }>('/events', {
+        title,
+        start: span.start,
+        end: span.end,
+      });
+      setNotice({
+        message: `Rendez-vous « ${made.title} » ${where}`,
+        run: () => module.api.delete(`/events/${made.id}`),
+      });
+    }
+    reload();
+  };
+  const openToPlace = (t: { id: string; title: string }) =>
+    setSelectedTask({ id: t.id, title: t.title, category: 'Tâches' });
 
   const shift = (n: number) => {
     if (view !== 'month') return setDay(addDays(day, view === 'day' ? n : n * 7));
@@ -266,11 +319,14 @@ function AgendaPage() {
       )}
       {selectedTask && data && (
         <TaskPanel
-          key={`${selectedTask.id}:${selectedTask.start}:${selectedTask.end}`}
+          key={selectedTask.id}
           task={selectedTask}
-          today={data.today}
           onClose={() => setSelectedTask(null)}
-          onChanged={changed}
+          // The sheet stays open: the change shows in the week, with « Annuler ».
+          onChanged={(u) => {
+            setNotice(u ?? null);
+            reload();
+          }}
         />
       )}
       {data && view !== 'weekly' && (
@@ -287,10 +343,22 @@ function AgendaPage() {
           shown={layers.shown}
           onOpen={open}
           onDrop={phone ? undefined : drop}
+          onTick={tick}
+          onOpenTask={openToPlace}
+          onCreate={create}
         />
       )}
       {data && view === 'day' && (
-        <DayView data={data} day={day} shown={layers.shown} onDay={setDay} onOpen={open} />
+        <DayView
+          data={data}
+          day={day}
+          shown={layers.shown}
+          onDay={setDay}
+          onOpen={open}
+          onTick={tick}
+          onOpenTask={openToPlace}
+          onCreate={create}
+        />
       )}
       {data && view === 'month' && (
         <MonthView

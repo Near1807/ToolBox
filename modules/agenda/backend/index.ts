@@ -425,6 +425,49 @@ export default defineBackendModule({
      * it out of the agenda (`plannedAt: null`) — on a drop or a click of the
      * user, with « Annuler » after. The task stays the To-do's (its service).
      */
+    const todoOrFail = () => {
+      const service = todo();
+      if (!service) throw new HttpError(409, 'La To-do n’est pas là.');
+      return service;
+    };
+
+    /** v0.36.0: tick or untick a task from the Agenda (a click, with « Annuler »). */
+    ctx.routes.put('/tasks/:id/done', (request) => {
+      const service = todoOrFail();
+      const id = uuidParam(request.params);
+      if (!service.getTask(id)) throw new HttpError(404, 'Tâche introuvable');
+      return requestBody(request).done === true
+        ? service.completeTask(id)
+        : service.uncompleteTask(id);
+    });
+
+    /**
+     * v0.36.0: « Tâche » in an empty slot of the week: a task of the To-do,
+     * planned at that moment for the length of the slot (on « Tâche » or
+     * Entrée; « Annuler » deletes it again).
+     */
+    ctx.routes.post('/tasks', (request) => {
+      const service = todoOrFail();
+      const body = requestBody(request);
+      const start = String(body.plannedAt ?? '');
+      if (!isDateTime(start)) throw new HttpError(400, 'Heure prévue invalide (AAAA-MM-JJTHH:MM)');
+      const minutes = Number(body.durationMin);
+      if (!(Number.isInteger(minutes) && minutes >= MIN_BLOCK_MIN))
+        throw new HttpError(400, `Durée invalide (${MIN_BLOCK_MIN} min au moins)`);
+      return service.createTask({
+        title: text(body.title, 'Titre', true)!,
+        plannedAt: start,
+        durationMin: minutes,
+      });
+    });
+    ctx.routes.delete('/tasks/:id', (request) => {
+      const service = todoOrFail();
+      const id = uuidParam(request.params);
+      if (!service.getTask(id)) throw new HttpError(404, 'Tâche introuvable');
+      service.deleteTask(id);
+      return { ok: true };
+    });
+
     ctx.routes.put('/tasks/:id/plan', (request) => {
       const service = todo();
       if (!service) throw new HttpError(409, 'La To-do n’est pas là.');

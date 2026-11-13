@@ -600,6 +600,20 @@ L'interface a plusieurs thèmes (Réglages › Apparence, `docs/THEMES.md`). **A
 - **Mise à jour dans le même commit** que tout changement d'une vue, d'un graphe, d'une mesure ou d'un réglage : texte, et captures relancées si l'élément montré a changé. Un test vérifie que chaque « ? », chaque lien interne et chaque repère mène à une section ou une capture existante (modèle : `modules/master-analysis/tests/guide.test.ts`).
 - Le guide **explique et ne décide rien** : il ne change ni le comportement du module ni ses données.
 
+### 7.5 Entre modules : composants prêtés et barre « Ajouter » (v0.36.0, ADR 0046)
+
+- **Prêter un composant** : `defineFrontendModule({ provides: { 'todo.taskEditor': TaskEditor } })`.
+  - Le nom commence par l'id du module.
+  - Ses props sont un type exporté par le `contract.ts` du prêteur (`TaskEditorProps`).
+  - Le composant tourne dans le contexte de son module (son `useModule()`, son API) : il n'écrit que ses propres données.
+- **Emprunter** : `<Lent<TaskEditorProps> name="todo.taskEditor" props={…} fallback={…} />` ; `useLentAvailable(name)` pour cacher un bouton quand le prêteur est absent. Jamais d'import du code d'un autre module.
+- **Déclarer une destination « Ajouter »** : `quickAdd: { label, icon, order, placeholder, preview(text, today), add(text, { api, today }) }`.
+  - `preview` est pur et dit ce qui sera ajouté.
+  - `add` écrit avec l'API du module, seulement sur Entrée ou un clic, et rend `{ message, open?, undo? }`.
+  - Le shell affiche « Annuler » et « Ouvrir ».
+  - La destination de plus petit `order` est celle par défaut.
+- Le shell fournit la liste des modules chargés (`PresentModulesProvider`), sur le PC comme sur le téléphone : un module absent = composant et destination absents.
+
 ## 8. Tests
 
 Chaque module a ses tests dans `modules/<id>/tests/`. `@hub/sdk/testing` démarre un **vrai socle** (base, migrations, routes) dans un dossier temporaire :

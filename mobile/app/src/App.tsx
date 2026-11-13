@@ -14,6 +14,7 @@ import {
   Icon,
   ModuleProvider,
   Page,
+  PresentModulesProvider,
   errorMessage,
 } from '@hub/sdk/frontend';
 import { describeCounts, type BackupCopy } from '../../../packages/phone/backup';
@@ -358,43 +359,46 @@ export function App(props: { client: WorkerClient }) {
   // « Plus » stays lit on the pages it leads to (Boîte à idées, Timer, Réglages).
   const moreClass = ({ isActive }: { isActive: boolean }) =>
     `m-nav__item${isActive || MORE_PATHS.some((p) => location.pathname.startsWith(p)) ? ' active' : ''}`;
+  const present = PAGE_MODULES.filter((m) => loaded.has(m.manifest.id));
   return (
-    <div className="m-shell">
-      <Backgrounds loaded={loaded} />
-      <main className="m-content">
-        {copyError && <p className="error m-banner">{copyError}</p>}
-        <Routes>
-          <Route index element={<HomePage shell={shell} />} />
-          {PAGE_MODULES.map((module) => (
-            <Route
-              key={module.manifest.id}
-              path={`m/${module.manifest.id}/*`}
-              element={<ModuleRoutes module={module} />}
-            />
-          ))}
-          <Route path="more" element={<MorePage />} />
-          <Route path="settings" element={<SettingsPage shell={shell} />} />
-          <Route path="sync" element={<SyncPage shell={shell} />} />
-          <Route path="sync/conflicts" element={<ConflictsPage shell={shell} />} />
-          <Route path="*" element={<HomePage shell={shell} />} />
-        </Routes>
-      </main>
-      <nav className="m-nav" aria-label="Navigation">
-        <NavLink to="/" end className="m-nav__item">
-          <Icon name="home" />
-          <span>Accueil</span>
-        </NavLink>
-        {PAGE_MODULES.filter((m) => m.place === 'bar').map(({ manifest }) => (
-          <NavLink key={manifest.id} to={`/m/${manifest.id}`} className="m-nav__item">
-            <Icon name={manifest.icon} />
-            <span>{manifest.name}</span>
+    <PresentModulesProvider modules={present}>
+      <div className="m-shell">
+        <Backgrounds loaded={loaded} />
+        <main className="m-content">
+          {copyError && <p className="error m-banner">{copyError}</p>}
+          <Routes>
+            <Route index element={<HomePage shell={shell} />} />
+            {PAGE_MODULES.map((module) => (
+              <Route
+                key={module.manifest.id}
+                path={`m/${module.manifest.id}/*`}
+                element={<ModuleRoutes module={module} />}
+              />
+            ))}
+            <Route path="more" element={<MorePage />} />
+            <Route path="settings" element={<SettingsPage shell={shell} />} />
+            <Route path="sync" element={<SyncPage shell={shell} />} />
+            <Route path="sync/conflicts" element={<ConflictsPage shell={shell} />} />
+            <Route path="*" element={<HomePage shell={shell} />} />
+          </Routes>
+        </main>
+        <nav className="m-nav" aria-label="Navigation">
+          <NavLink to="/" end className="m-nav__item">
+            <Icon name="home" />
+            <span>Accueil</span>
           </NavLink>
-        ))}
-        <NavLink to="/more" className={moreClass}>
-          <Icon name="ellipsis" />
-          <span>Plus</span>
-        </NavLink>
-      </nav>
-    </div>
+          {PAGE_MODULES.filter((m) => m.place === 'bar').map(({ manifest }) => (
+            <NavLink key={manifest.id} to={`/m/${manifest.id}`} className="m-nav__item">
+              <Icon name={manifest.icon} />
+              <span>{manifest.name}</span>
+            </NavLink>
+          ))}
+          <NavLink to="/more" className={moreClass}>
+            <Icon name="ellipsis" />
+            <span>Plus</span>
+          </NavLink>
+        </nav>
+      </div>
+    </PresentModulesProvider>
   );
 }

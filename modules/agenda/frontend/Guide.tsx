@@ -82,6 +82,27 @@ export function GuidePage() {
           signalée. Sur le téléphone, on change l’heure et la durée par ce détail.
         </p>
       </Card>
+      <Card title="Agir sur place (Expérimental)">
+        <p>
+          <strong>Clic sur une tâche</strong> (prévue ou à caser) : sa fiche complète, celle de la
+          To-do — titre, tags, échéance, durée, heure prévue, morceau ; « Faite », « Retirer de
+          l’agenda », « Supprimer ». Chaque changement se voit tout de suite dans la To-do, avec «
+          Annuler ».
+        </p>
+        <p>
+          <strong>La case</strong> d’un bloc de tâche la coche (barrée), « Annuler » juste après.
+        </p>
+        <p>
+          <strong>Clic sur un créneau vide</strong> (ou glisser sur une plage vide) : écris un
+          titre, puis <strong>Tâche</strong> (Entrée : une tâche de la To-do prévue là) ou{' '}
+          <strong>Rendez-vous</strong>. Échap annule ; rien n’est créé avant. Sur le téléphone,
+          touche un créneau « Libre » dans la vue jour.
+        </p>
+        <p>
+          Un rendez-vous se modifie directement dans son panneau (tous les champs), « Annuler »
+          après l’enregistrement.
+        </p>
+      </Card>
       <Card title="La charge et le temps libre">
         <p>
           Sous chaque jour, une barre découpée par catégorie : les heures de tes événements dans la

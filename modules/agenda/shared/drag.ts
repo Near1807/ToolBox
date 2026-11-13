@@ -51,3 +51,21 @@ export const sameSpan = (a: Span, b: Span) => a.start === b.start && a.end === b
 
 /** « 14:15–15:15 » (the preview while dragging). */
 export const spanLabel = (span: Span) => `${span.start.slice(11)}–${span.end.slice(11)}`;
+
+/**
+ * v0.36.0, create in an empty slot: a click at `fromMin` gives 30 min from
+ * the quarter of an hour before it; a drag from `fromMin` to `toMin` gives
+ * the quarters it covers (15 minutes at least), whichever way it went.
+ */
+export function slotSpan(day: string, fromMin: number, toMin: number | null): Span {
+  const floorQ = (m: number) => Math.floor(m / SNAP_MIN) * SNAP_MIN;
+  const ceilQ = (m: number) => Math.ceil(m / SNAP_MIN) * SNAP_MIN;
+  if (toMin === null) {
+    const start = `${day}T${timeOf(clampStart(floorQ(fromMin)))}`;
+    return { start, end: addMinutes(start, 30) };
+  }
+  const a = clampStart(floorQ(Math.min(fromMin, toMin)));
+  const b = Math.min(DAY_MIN, Math.max(a + MIN_BLOCK_MIN, ceilQ(Math.max(fromMin, toMin))));
+  const start = `${day}T${timeOf(a)}`;
+  return { start, end: addMinutes(start, b - a) };
+}

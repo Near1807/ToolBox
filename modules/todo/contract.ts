@@ -1,5 +1,6 @@
 // Public types of the To-do's service `todo` (types only: the only import
 // allowed between modules, docs/MODULES.md §5.8).
+import type { ReactNode } from 'react';
 
 export interface TodoTask {
   /** A UUID since v0.25 (« Prêt pour la synchro »; a task numbered n before is `legacyId('todo:task', n)`). */
@@ -56,4 +57,24 @@ export interface TodoService {
     id: string,
     fields: { plannedAt?: string | null; durationMin?: number | null },
   ): TodoTask;
+  /**
+   * v0.36.0: deletes a task (a tombstone, like the To-do's own deletion).
+   * Only to undo a creation the calling module made on a click (« Annuler »
+   * after « Tâche » in the Agenda).
+   */
+  deleteTask(id: string): void;
+}
+
+/**
+ * v0.36.0 (ADR 0046): props of the sheet the To-do lends, « todo.taskEditor »
+ * (get it with useLent('todo.taskEditor'); null without the To-do). Every
+ * field of the task, the To-do's own form and checks; it writes only
+ * through the To-do's API.
+ */
+export interface TaskEditorProps {
+  taskId: string;
+  /** After each change made in the sheet: what happened, and its undo when there is one. */
+  onChanged?: (change: { message: string; undo?: () => Promise<unknown> }) => void;
+  /** The borrower's own buttons (the Agenda: « Lancer un timer »). */
+  children?: ReactNode;
 }

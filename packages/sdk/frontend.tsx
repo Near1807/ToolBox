@@ -7,6 +7,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useState,
   type ButtonHTMLAttributes,
   type ComponentType,
@@ -52,6 +53,51 @@ export interface FrontendModule {
    * (never overlap) and the window takes the size of its content. MODULES.md §5.16.
    */
   Overlay?: ComponentType;
+  /**
+   * v0.36.0, optional: components this module LENDS to the others, by name
+   * (« todo.taskEditor »). Their props are typed in the lender's
+   * `contract.ts` (types only). A borrower renders one with
+   * `<Lent name="todo.taskEditor" props={…} />` and checks
+   * `useLentAvailable(name)` to hide a button when the lender is absent. The component runs in its lender's context: its useModule()
+   * and API are the lender's own — it changes only its own data. ADR 0046.
+   */
+  provides?: Record<string, ComponentType<never>>;
+  /**
+   * v0.36.0, optional: this module's destination in the « Ajouter » bar of
+   * the shell (PC and phone). The shell knows no module: it lists the
+   * destinations of the modules present. ADR 0046, MODULES.md §7.6.
+   */
+  quickAdd?: QuickAddDestination;
+}
+
+/** What the « Ajouter » bar shows before validating: one line, or why not. */
+export type QuickAddPreview = { ok: true; text: string } | { ok: false; text: string };
+
+/** What an added thing gives back: the confirmation, and how to open or undo it. */
+export interface QuickAddResult {
+  /** « « Réviser » ajoutée à la To-do ». */
+  message: string;
+  /** UI route that opens it. */
+  open?: string;
+  /** Undoes the addition (with « Annuler »), when possible. */
+  undo?: () => Promise<unknown>;
+}
+
+export interface QuickAddDestination {
+  /** « Tâche », « Rendez-vous », « Idée ». */
+  label: string;
+  /** An icon of the SDK (« list-checks »). */
+  icon: string;
+  /** Lower first: the default destination is the first one (« Tâche »). */
+  order?: number;
+  placeholder: string;
+  /** Pure: what will be added (`today`: « YYYY-MM-DD »). */
+  preview(text: string, today: string): QuickAddPreview;
+  /** Adds it, with the module's own API (only on Entrée or a click). */
+  add(
+    text: string,
+    ctx: { api: ModuleContextValue['api']; today: string },
+  ): Promise<QuickAddResult>;
 }
 
 /** Identity helper giving type inference to `frontend/index.tsx`. */
@@ -573,6 +619,78 @@ export function useModule(): ModuleContextValue {
   const value = useContext(ModuleReactContext);
   if (!value) throw new Error('useModule() doit être utilisé dans une page ou un widget de module');
   return value;
+}
+
+// ---------------------------------------------------------------------------
+// Between modules (v0.36.0, ADR 0046): lent components and quick-add
+// destinations, from the modules PRESENT (the shell gives the list)
+// ---------------------------------------------------------------------------
+
+export interface PresentModule {
+  manifest: ModuleManifest;
+  frontend: FrontendModule;
+}
+
+const PresentModulesContext = createContext<PresentModule[]>([]);
+
+/** The shell (PC and phone) wraps everything with the modules loaded right now. */
+export function PresentModulesProvider(props: { modules: PresentModule[]; children: ReactNode }) {
+  return (
+    <PresentModulesContext.Provider value={props.modules}>
+      {props.children}
+    </PresentModulesContext.Provider>
+  );
+}
+
+/** The API of a module, scoped to /api/modules/<id> (the shell's quick-add bar). */
+export function moduleApi(id: string): ModuleContextValue['api'] {
+  const base = `/api/modules/${id}`;
+  return {
+    get: <T,>(path: string) => api.get<T>(base + path),
+    post: <T,>(path: string, body?: unknown) => api.post<T>(base + path, body),
+    put: <T,>(path: string, body?: unknown) => api.put<T>(base + path, body),
+    patch: <T,>(path: string, body?: unknown) => api.patch<T>(base + path, body),
+    delete: <T,>(path: string) => api.delete<T>(base + path),
+  };
+}
+
+function useLender(name: string): PresentModule | null {
+  const modules = useContext(PresentModulesContext);
+  return modules.find((m) => m.frontend.provides?.[name]) ?? null;
+}
+
+/** True when a present module lends this component (show the button that uses it). */
+export function useLentAvailable(name: string): boolean {
+  return useLender(name) !== null;
+}
+
+/**
+ * Renders a component lent by another module (« todo.taskEditor »), in its
+ * lender's context (its useModule() and API); `fallback` when no present
+ * module lends it. Its props are typed in the lender's contract.ts.
+ */
+export function Lent<P extends object>(props: { name: string; props: P; fallback?: ReactNode }) {
+  const lender = useLender(props.name);
+  const Borrowed = lender?.frontend.provides?.[props.name] as ComponentType<P> | undefined;
+  if (!lender || !Borrowed) return <>{props.fallback ?? null}</>;
+  return (
+    <ModuleProvider manifest={lender.manifest}>
+      <Borrowed {...props.props} />
+    </ModuleProvider>
+  );
+}
+
+/** The quick-add destinations of the present modules, in their order (the default first). */
+export function useQuickAddDestinations(): (QuickAddDestination & { moduleId: string })[] {
+  const modules = useContext(PresentModulesContext);
+  return useMemo(
+    () =>
+      modules
+        .filter((m) => m.frontend.quickAdd)
+        .map((m) => ({ ...m.frontend.quickAdd!, moduleId: m.manifest.id }))
+        .sort((a, b) => (a.order ?? 100) - (b.order ?? 100) || a.label.localeCompare(b.label)),
+    [modules],
+  );
 }
 
 // ---------------------------------------------------------------------------

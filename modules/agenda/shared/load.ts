@@ -199,3 +199,29 @@ export function placeDay(day: string, blocks: TimedBlock[]): Placed[] {
   if (group.length) close();
   return placed;
 }
+
+/**
+ * v0.36.0: the free slots of a day in its range (the phone's day view: a tap
+ * on one creates there), `minMin` minutes at least, blocks merged.
+ */
+export function freeGaps(
+  day: string,
+  blocks: TimedBlock[],
+  range: Range,
+  minMin = 30,
+): { from: number; to: number }[] {
+  const lo = range.startHour * 60;
+  const hi = range.endHour * 60;
+  const busy = blocks
+    .map((b) => clip(b, day, range))
+    .filter((p): p is [number, number] => p !== null)
+    .sort((a, b) => a[0] - b[0]);
+  const gaps: { from: number; to: number }[] = [];
+  let at = lo;
+  for (const [from, to] of busy) {
+    if (from - at >= minMin) gaps.push({ from: at, to: from });
+    at = Math.max(at, to);
+  }
+  if (hi - at >= minMin) gaps.push({ from: at, to: hi });
+  return gaps;
+}

@@ -465,6 +465,7 @@ export default defineBackendModule({
         if ('durationMin' in fields) patch.durationMin = fields.durationMin;
         return summary(update(id, patch));
       },
+      deleteTask: (id) => void remove(id),
     });
 
     // --- Track page of the library -------------------------------------------

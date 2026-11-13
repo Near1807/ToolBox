@@ -15,7 +15,16 @@ import { categoryColor } from '../shared/categories';
 import { placeDay, TASKS_CATEGORY, weekSummary, weighsOn, type DayLoad } from '../shared/load';
 import { addDays, dayLabel, daysBetween, hoursText } from '../shared/time';
 import type { RangeDto, ToPlaceDto } from '../shared/types';
-import { moveSpan, placeSpan, sameSpan, spanLabel, stretchSpan, type Span } from '../shared/drag';
+import {
+  moveSpan,
+  placeSpan,
+  sameSpan,
+  slotSpan,
+  spanLabel,
+  stretchSpan,
+  type Span,
+} from '../shared/drag';
+import { CreateSlot, type SlotKind } from './CreateSlot';
 import { minutesBetween, minutesOfDay } from '../shared/time';
 import {
   colorStyle,
@@ -126,7 +135,8 @@ type DragHandlers = {
 
 /** A drag in progress: nothing is written until the drop. */
 interface Dragging {
-  kind: 'move' | 'stretch' | 'place';
+  /** v0.36.0 « create »: a press or a drag on an empty slot. */
+  kind: 'move' | 'stretch' | 'place' | 'create';
   item?: Item;
   task?: ToPlaceDto;
   from?: Span;
@@ -153,6 +163,8 @@ export function ToPlace(props: {
   dragging?: string | null;
   /** True right after a drag (the click that follows is not an « open »). */
   wasDrag?: () => boolean;
+  /** v0.36.0: a click opens the task's sheet here (else: the To-do). */
+  onOpenTask?: (task: ToPlaceDto) => void;
 }) {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -168,11 +180,15 @@ export function ToPlace(props: {
         className={`ag-task${t.late ? ' ag-task--late' : ''}${props.dragProps ? ' ag-task--draggable' : ''}${props.dragging === t.id ? ' ag-block--dragging' : ''}`}
         title={
           props.dragProps
-            ? 'Glisser dans la semaine pour la prévoir · clic : ouvrir dans la To-do'
-            : 'Ouvrir dans la To-do'
+            ? 'Glisser dans la semaine pour la prévoir · clic : sa fiche'
+            : props.onOpenTask
+              ? 'Sa fiche'
+              : 'Ouvrir dans la To-do'
         }
         onClick={() => {
-          if (!props.wasDrag?.()) navigate(t.open);
+          if (props.wasDrag?.()) return;
+          if (props.onOpenTask) props.onOpenTask(t);
+          else navigate(t.open);
         }}
         {...props.dragProps?.(t)}
       >
@@ -222,6 +238,8 @@ function Block(props: {
   onOpen: (item: Item) => void;
   wasDrag: () => boolean;
   drag?: (kind: 'move' | 'stretch') => DragHandlers;
+  /** v0.36.0: tick a task here. */
+  onTick?: (item: Item, done: boolean) => void;
 }) {
   const { item } = props;
   const e = item.event;
@@ -240,6 +258,17 @@ function Block(props: {
         width: `${100 / props.lanes}%`,
       }}
     >
+      {task && props.onTick && (
+        <input
+          type="checkbox"
+          className="ag-block__check"
+          checked={task.done}
+          title={task.done ? 'Marquer à faire' : 'Cocher : faite'}
+          aria-label={task.done ? `Marquer « ${task.title} » à faire` : `Cocher « ${task.title} »`}
+          onPointerDown={(e) => e.stopPropagation()}
+          onChange={(e) => props.onTick!(item, e.target.checked)}
+        />
+      )}
       <button
         type="button"
         className="ag-block__body"
@@ -274,6 +303,12 @@ export function WeekView(props: {
   onOpen: (item: Item) => void;
   /** PC: a drop (one write by the page, with « Annuler »). */
   onDrop?: (drop: Drop) => void;
+  /** v0.36.0: tick a task from its block. */
+  onTick?: (item: Item, done: boolean) => void;
+  /** v0.36.0: a task « à caser » clicked: its sheet. */
+  onOpenTask?: (task: ToPlaceDto) => void;
+  /** v0.36.0: create in an empty slot (« Tâche » or « Rendez-vous »), one write after the choice. */
+  onCreate?: (kind: SlotKind, title: string, span: Span) => Promise<void>;
 }) {
   const { data, monday } = props;
   const days = Array.from({ length: 7 }, (_, i) => addDays(monday, i));
@@ -341,6 +376,11 @@ export function WeekView(props: {
     range.startHour * 60 + ((y - rect.top) / HOUR_PX) * 60;
 
   const preview = (d: Dragging, x: number, y: number): Span | null => {
+    if (d.kind === 'create') {
+      const rect = columns.current[d.col0]?.getBoundingClientRect();
+      if (!rect) return null;
+      return slotSpan(days[d.col0]!, minutesAt(d.y0, rect), minutesAt(y, rect));
+    }
     if (d.kind === 'place') {
       const col = columnAt(x, false);
       if (!col || y < col.rect.top || y > col.rect.bottom) return null;
@@ -354,11 +394,16 @@ export function WeekView(props: {
 
   const handlers = (start: () => Omit<Dragging, 'x0' | 'y0' | 'col0' | 'moved' | 'preview'>) => ({
     onPointerDown: (e: ReactPointerEvent<HTMLElement>) => {
-      if (e.button !== 0 || !props.onDrop) return;
+      if (e.button !== 0) return;
+      const begin = start();
+      if (begin.kind === 'create' ? !props.onCreate : !props.onDrop) return;
+      // Create: only on the empty background of a day, never through a block.
+      if (begin.kind === 'create' && e.target !== e.currentTarget) return;
       e.stopPropagation();
       e.currentTarget.setPointerCapture(e.pointerId);
+      setCreating(null);
       update({
-        ...start(),
+        ...begin,
         x0: e.clientX,
         y0: e.clientY,
         col0: columnAt(e.clientX, true)?.index ?? 0,
@@ -378,6 +423,18 @@ export function WeekView(props: {
       if (!d) return;
       e.stopPropagation();
       update(null);
+      if (d.kind === 'create') {
+        // A click: 30 min from that quarter; a drag: the slot covered. Nothing written yet.
+        const rect = columns.current[d.col0]?.getBoundingClientRect();
+        const span =
+          d.moved && d.preview
+            ? d.preview
+            : rect
+              ? slotSpan(days[d.col0]!, minutesAt(d.y0, rect), null)
+              : null;
+        if (span) setCreating(span);
+        return;
+      }
       if (!d.moved) return; // a click: the button's onClick opens it
       justDragged.current = true;
       const to = d.preview;
@@ -402,6 +459,10 @@ export function WeekView(props: {
   const placeDrag = props.onDrop
     ? (task: ToPlaceDto) => handlers(() => ({ kind: 'place' as const, task }))
     : undefined;
+  const createDrag = props.onCreate
+    ? () => handlers(() => ({ kind: 'create' as const }))
+    : undefined;
+  const [creating, setCreating] = useState<Span | null>(null);
   const draggingId = drag?.moved ? (drag.item ? itemId(drag.item) : (drag.task?.id ?? null)) : null;
 
   return (
@@ -431,6 +492,7 @@ export function WeekView(props: {
           dragProps={placeDrag}
           dragging={draggingId}
           wasDrag={wasDrag}
+          onOpenTask={props.onOpenTask}
         />
       )}
       <div
@@ -500,14 +562,17 @@ export function WeekView(props: {
               ? drag.preview
               : null;
           const ghostCategory = drag?.item?.event.category ?? 'Tâches';
+          const slot = creating && creating.start.slice(0, 10) === d ? creating : null;
           return (
             <div
               key={d}
               ref={(el) => {
                 columns.current[index] = el;
               }}
-              className={`ag-week__day${d === data.today ? ' ag-week__day--today' : ''}`}
+              className={`ag-week__day${d === data.today ? ' ag-week__day--today' : ''}${createDrag ? ' ag-week__day--creatable' : ''}`}
               style={{ height, backgroundSize: `100% ${HOUR_PX}px` }}
+              title={createDrag ? 'Clic ou glisser sur un créneau vide : créer ici' : undefined}
+              {...createDrag?.()}
             >
               {placed.map((p) => {
                 const item = mine.find((i) => itemId(i) === p.id)!;
@@ -527,9 +592,46 @@ export function WeekView(props: {
                     onOpen={props.onOpen}
                     wasDrag={wasDrag}
                     drag={blockDrag(item)}
+                    onTick={props.onTick}
                   />
                 );
               })}
+              {slot && props.onCreate && (
+                <>
+                  <span
+                    className="ag-block ag-block--ghost ag-slot"
+                    style={{
+                      ...colorStyle('Tâches'),
+                      top:
+                        ((minutesOfDay(slot.start.slice(11)) - range.startHour * 60) / 60) *
+                        HOUR_PX,
+                      height: Math.max(
+                        18,
+                        (minutesBetween(slot.start, slot.end) / 60) * HOUR_PX - 2,
+                      ),
+                    }}
+                    aria-hidden="true"
+                  />
+                  <CreateSlot
+                    key={slot.start + slot.end}
+                    span={slot}
+                    today={data.today}
+                    todo={data.todo}
+                    className={`ag-create--week${index >= 5 ? ' ag-create--left' : ''}`}
+                    style={{
+                      top:
+                        ((minutesOfDay(slot.start.slice(11)) - range.startHour * 60) / 60) *
+                          HOUR_PX +
+                        Math.max(18, (minutesBetween(slot.start, slot.end) / 60) * HOUR_PX),
+                    }}
+                    onCancel={() => setCreating(null)}
+                    onSubmit={async (kind, title) => {
+                      await props.onCreate!(kind, title, slot);
+                      setCreating(null);
+                    }}
+                  />
+                </>
+              )}
               {ghost && (
                 <span
                   className="ag-block ag-block--ghost"

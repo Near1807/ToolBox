@@ -1,12 +1,16 @@
 // The phone's view: one day at a time (a swipe or the arrows change it):
 // the all-day and several-day items in bands, then the timed ones in order,
 // « à caser », and the day's load. The PC has the week (WeekView).
-import { useRef } from 'react';
+// v0.36.0: the free slots are listed between them; a tap creates there
+// (« Tâche » or « Rendez-vous »); a task can be ticked from its line.
+import { useRef, useState } from 'react';
 import { Button, Icon } from '@hub/sdk/frontend';
 import { formatDuration } from '@hub/sdk/dates';
-import { dayLoad, placeDay, TASKS_CATEGORY, weighsOn } from '../shared/load';
-import { addDays, dayLabel } from '../shared/time';
-import type { RangeDto } from '../shared/types';
+import { dayLoad, freeGaps, placeDay, TASKS_CATEGORY, weighsOn } from '../shared/load';
+import { slotSpan, type Span } from '../shared/drag';
+import { addDays, dayLabel, minutesOfDay, timeOf } from '../shared/time';
+import type { RangeDto, ToPlaceDto } from '../shared/types';
+import { CreateSlot, type SlotKind } from './CreateSlot';
 import { colorStyle, itemId, itemsOf, taskLoads, timedBlocks, type Item } from './common';
 import { LoadBar } from './WeekView';
 import { useNavigate } from 'react-router';
@@ -17,8 +21,15 @@ export function DayView(props: {
   shown: (category: string) => boolean;
   onDay: (day: string) => void;
   onOpen: (item: Item) => void;
+  /** v0.36.0: tick a task from its line. */
+  onTick?: (item: Item, done: boolean) => void;
+  /** v0.36.0: a task « à caser » touched: its sheet. */
+  onOpenTask?: (task: ToPlaceDto) => void;
+  /** v0.36.0: create in a free slot, after the choice. */
+  onCreate?: (kind: SlotKind, title: string, span: Span) => Promise<void>;
 }) {
   const { data, day } = props;
+  const [slot, setSlot] = useState<Span | null>(null);
   const navigate = useNavigate();
   const touch = useRef<{ x: number; y: number } | null>(null);
   const range = { startHour: data.dayStartHour, endHour: data.dayEndHour };
@@ -27,6 +38,25 @@ export function DayView(props: {
   );
   const bands = items.filter((i) => i.event.allDay);
   const timed = items.filter((i) => !i.event.allDay);
+  // The timed items and (v0.36.0) the free slots, in the order of the day.
+  type Row =
+    | { kind: 'item'; at: number; item: Item }
+    | { kind: 'gap'; at: number; from: number; to: number };
+  const rows: Row[] = [
+    ...timed.map((item): Row => ({
+      kind: 'item',
+      at: item.event.start.slice(0, 10) < day ? -1 : minutesOfDay(item.event.start.slice(11)),
+      item,
+    })),
+    ...(props.onCreate
+      ? freeGaps(day, timedBlocks(data, props.shown), range).map((g): Row => ({
+          kind: 'gap',
+          at: g.from,
+          from: g.from,
+          to: g.to,
+        }))
+      : []),
+  ].sort((a, b) => a.at - b.at);
   const overlapping = new Set(
     placeDay(
       day,
@@ -110,30 +140,73 @@ export function DayView(props: {
             ` (jusqu’au ${dayLabel(i.event.end.slice(0, 10), data.today)})`}
         </button>
       ))}
-      {timed.length === 0 && bands.length === 0 ? (
+      {timed.length === 0 && bands.length === 0 && !props.onCreate && (
         <p className="muted">Rien de prévu ce jour-là.</p>
-      ) : (
-        <ul className="ag-list">
-          {timed.map((i) => (
-            <li key={itemId(i)}>
+      )}
+      <ul className="ag-list">
+        {rows.map((row) =>
+          row.kind === 'gap' ? (
+            <li key={`gap:${row.from}`}>
+              {slot && slot.start === `${day}T${timeOf(row.from)}` ? (
+                <CreateSlot
+                  span={slot}
+                  today={data.today}
+                  todo={data.todo}
+                  onCancel={() => setSlot(null)}
+                  onSubmit={async (kind, title) => {
+                    await props.onCreate!(kind, title, slot);
+                    setSlot(null);
+                  }}
+                />
+              ) : (
+                <button
+                  type="button"
+                  className="ag-gap"
+                  title="Toucher pour créer ici"
+                  onClick={() => setSlot(slotSpan(day, row.from, Math.min(row.to, row.from + 30)))}
+                >
+                  <span className="ag-list__time">
+                    {timeOf(row.from)}–{timeOf(row.to)}
+                  </span>
+                  <span className="small muted">
+                    Libre · <Icon name="plus" /> créer ici
+                  </span>
+                </button>
+              )}
+            </li>
+          ) : (
+            <li key={itemId(row.item)} className="ag-list__row">
+              {row.item.source === 'task' && props.onTick && (
+                <input
+                  type="checkbox"
+                  className="ag-list__check"
+                  checked={row.item.event.done}
+                  aria-label={
+                    row.item.event.done
+                      ? `Marquer « ${row.item.event.title} » à faire`
+                      : `Cocher « ${row.item.event.title} »`
+                  }
+                  onChange={(e) => props.onTick!(row.item, e.target.checked)}
+                />
+              )}
               <button
                 type="button"
                 className="ag-list__item"
-                style={colorStyle(i.event.category)}
-                onClick={() => props.onOpen(i)}
+                style={colorStyle(row.item.event.category)}
+                onClick={() => props.onOpen(row.item)}
               >
                 <span className="ag-list__time">
-                  {i.event.start.slice(0, 10) === day ? i.event.start.slice(11) : '…'}–
-                  {i.event.end.slice(0, 10) === day ? i.event.end.slice(11) : '…'}
+                  {row.item.event.start.slice(0, 10) === day ? row.item.event.start.slice(11) : '…'}
+                  –{row.item.event.end.slice(0, 10) === day ? row.item.event.end.slice(11) : '…'}
                 </span>
                 <span
-                  className={`ag-list__title${i.source === 'task' && i.event.done ? ' ag-done' : ''}`}
+                  className={`ag-list__title${row.item.source === 'task' && row.item.event.done ? ' ag-done' : ''}`}
                 >
-                  {i.event.title}
+                  {row.item.event.title}
                 </span>
                 <span className="small muted">
-                  {i.event.category}
-                  {overlapping.has(itemId(i)) && (
+                  {row.item.event.category}
+                  {overlapping.has(itemId(row.item)) && (
                     <>
                       {' · '}
                       <Icon name="warning" /> chevauche un autre élément
@@ -142,9 +215,9 @@ export function DayView(props: {
                 </span>
               </button>
             </li>
-          ))}
-        </ul>
-      )}
+          ),
+        )}
+      </ul>
       {data.todo && props.shown(TASKS_CATEGORY) && (due.length > 0 || undated.length > 0) && (
         <section className="ag-toplace" aria-label="À caser">
           <h2 className="ag-toplace__title">À caser</h2>
@@ -154,7 +227,7 @@ export function DayView(props: {
                 <button
                   type="button"
                   className={`ag-task${t.late ? ' ag-task--late' : ''}`}
-                  onClick={() => navigate(t.open)}
+                  onClick={() => (props.onOpenTask ? props.onOpenTask(t) : navigate(t.open))}
                 >
                   <span className="ag-task__title">{t.title}</span>
                   <span className="small muted">

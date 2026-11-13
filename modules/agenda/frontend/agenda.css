@@ -573,3 +573,81 @@
   align-items: center;
   white-space: nowrap;
 }
+
+/* v0.36.0: tick a task from its block / its line. */
+.ag-block__check,
+.ag-list__check {
+  flex: none;
+  cursor: pointer;
+}
+.ag-block__check {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  z-index: 1;
+  margin: 0;
+}
+.ag-block--task .ag-block__body {
+  padding-right: 1.3rem;
+}
+.ag-list__row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.ag-list__check {
+  width: 1.2rem;
+  height: 1.2rem;
+}
+
+/* v0.36.0: create in an empty slot. */
+.ag-week__day--creatable {
+  cursor: cell;
+}
+.ag-create {
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.5rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-solid);
+  box-shadow: var(--shadow);
+  cursor: default;
+}
+.ag-create--week {
+  position: absolute;
+  left: 0;
+  width: max(15rem, 100%);
+}
+.ag-create--left {
+  left: auto;
+  right: 0;
+}
+.ag-create__preview {
+  margin: 0;
+}
+.ag-gap {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0 0.6rem;
+  align-items: baseline;
+  padding: 0.35rem 0.6rem;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-2);
+  text-align: left;
+  cursor: pointer;
+}
+.ag-panel__more {
+  margin-top: 0.5rem;
+}
+
+.ag-slot {
+  left: 0;
+  right: 0;
+  z-index: 4;
+}
