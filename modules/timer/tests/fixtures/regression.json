@@ -133,6 +133,7 @@
           "status": "running",
           "taskId": null,
           "taskTitle": null,
+          "subject": null,
           "startedAt": "+0ms",
           "elapsed": 0,
           "at": "+0ms"
@@ -180,6 +181,7 @@
             "status": "paused",
             "taskId": null,
             "taskTitle": null,
+            "subject": null,
             "startedAt": "+0ms",
             "elapsed": 240,
             "at": "+360000ms"
@@ -294,6 +296,7 @@
             "status": "ended",
             "taskId": null,
             "taskTitle": null,
+            "subject": null,
             "startedAt": "+0ms",
             "elapsed": 600,
             "at": "+720000ms"
@@ -422,6 +425,7 @@
           "status": "running",
           "taskId": "#3",
           "taskTitle": "Écrire le texte",
+          "subject": null,
           "startedAt": "+780000ms",
           "elapsed": 0,
           "at": "+780000ms"
@@ -484,6 +488,7 @@
             "status": "running",
             "taskId": "#3",
             "taskTitle": "Écrire le texte",
+            "subject": null,
             "startedAt": "+780000ms",
             "elapsed": 1500,
             "at": "+2280000ms"
@@ -627,6 +632,7 @@
             "status": "ended",
             "taskId": "#3",
             "taskTitle": "Écrire le texte",
+            "subject": null,
             "startedAt": "+780000ms",
             "elapsed": 3000,
             "at": "+3480000ms"
@@ -755,7 +761,8 @@
             "track": null,
             "timeSpent": 2700,
             "durationMin": null,
-            "plannedAt": null
+            "plannedAt": null,
+            "timerPref": null
           }
         ],
         "tags": [
@@ -836,6 +843,7 @@
             "status": "ended",
             "taskId": "#3",
             "taskTitle": "Écrire le texte",
+            "subject": null,
             "startedAt": "+780000ms",
             "elapsed": 3000,
             "at": "+3480000ms"
@@ -998,6 +1006,7 @@
           "status": "running",
           "taskId": null,
           "taskTitle": null,
+          "subject": null,
           "startedAt": "+3780000ms",
           "elapsed": 0,
           "at": "+3780000ms"
@@ -1053,6 +1062,7 @@
             "status": "running",
             "taskId": null,
             "taskTitle": null,
+            "subject": null,
             "startedAt": "+3780000ms",
             "elapsed": 840,
             "at": "+4620000ms"
@@ -1330,7 +1340,8 @@
       {
         "current": {
           "taskId": "#3",
-          "phase": "work"
+          "phase": "work",
+          "subject": null
         },
         "timeByTask": {}
       }
@@ -1340,7 +1351,8 @@
       {
         "current": {
           "taskId": "#3",
-          "phase": "break"
+          "phase": "break",
+          "subject": null
         },
         "timeByTask": {}
       }
@@ -1702,7 +1714,8 @@
         "ended_at": "+720000ms",
         "work_sec": 600,
         "answer": null,
-        "legacy_id": null
+        "legacy_id": null,
+        "subject": null
       },
       {
         "id": "#8",
@@ -1723,7 +1736,8 @@
         "ended_at": "+3480000ms",
         "work_sec": 2700,
         "answer": "no",
-        "legacy_id": null
+        "legacy_id": null,
+        "subject": null
       },
       {
         "id": "#9",
@@ -1744,7 +1758,8 @@
         "ended_at": "+4620000ms",
         "work_sec": 720,
         "answer": null,
-        "legacy_id": null
+        "legacy_id": null,
+        "subject": null
       }
     ],
     "timer__sessions_v1": []

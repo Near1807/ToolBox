@@ -651,3 +651,9 @@
   right: 0;
   z-index: 4;
 }
+
+/* v0.36.0: its timer runs. */
+.ag-block__timer {
+  display: inline-flex;
+  color: var(--accent);
+}

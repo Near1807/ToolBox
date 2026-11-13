@@ -18,7 +18,7 @@ export interface OpenTask {
 export function TaskPanel(props: {
   task: OpenTask;
   onClose: () => void;
-  onChanged: (undo?: Undo) => void;
+  onChanged: (notice: Undo | { message: string; run: null }) => void;
   /** Buttons of the Agenda (« Lancer un timer »). */
   children?: ReactNode;
 }) {
@@ -41,7 +41,9 @@ export function TaskPanel(props: {
           taskId: props.task.id,
           onChanged: (change) =>
             props.onChanged(
-              change.undo ? { message: change.message, run: change.undo } : undefined,
+              change.undo
+                ? { message: change.message, run: change.undo }
+                : { message: change.message, run: null },
             ),
           children: props.children,
         }}

@@ -34,6 +34,7 @@ import {
   switchCategories,
   taskLoads,
   timedBlocks,
+  timerRuns,
   type Item,
 } from './common';
 
@@ -240,6 +241,8 @@ function Block(props: {
   drag?: (kind: 'move' | 'stretch') => DragHandlers;
   /** v0.36.0: tick a task here. */
   onTick?: (item: Item, done: boolean) => void;
+  /** v0.36.0: its timer runs now. */
+  running?: boolean;
 }) {
   const { item } = props;
   const e = item.event;
@@ -279,6 +282,11 @@ function Block(props: {
         {...props.drag?.('move')}
       >
         <span className="ag-block__time">
+          {props.running && (
+            <span className="ag-block__timer" title="Son timer tourne">
+              <Icon name="timer" />
+            </span>
+          )}
           {e.start.slice(11)}
           {(props.overlaps || task?.afterDue) && <Icon name="warning" />}
         </span>
@@ -593,6 +601,7 @@ export function WeekView(props: {
                     wasDrag={wasDrag}
                     drag={blockDrag(item)}
                     onTick={props.onTick}
+                    running={timerRuns(data, item)}
                   />
                 );
               })}

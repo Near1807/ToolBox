@@ -1,6 +1,7 @@
 // Frontend of the Timer: its page, the sound of the transitions (Background,
 // mounted for the whole session), its panels of the floating window
 // (Floating.tsx) and the home widget (session in progress, or quick start).
+import { TimerLaunch } from './Launch';
 import { Link } from 'react-router';
 import { api, Button, defineFrontendModule, useApi, useModule } from '@hub/sdk/frontend';
 import { clock, phaseLabel } from '../shared/plan';
@@ -68,4 +69,6 @@ export default defineFrontendModule({
   HomeWidget,
   Background,
   Overlay,
+  // v0.36.0 (ADR 0046): « Lancer un timer », lent to the other modules (the Agenda).
+  provides: { 'timer.launch': TimerLaunch },
 });

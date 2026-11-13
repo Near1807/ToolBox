@@ -256,3 +256,11 @@ export function phaseLabel(status: 'running' | 'paused' | 'ended', phase: Phase 
   if (status === 'paused') return 'En pause';
   return PHASE_LABELS[phase.kind];
 }
+
+/** v0.36.0: « Pomodoro » launched from another module: the Timer's usual 25/5, 4 cycles. */
+export const DEFAULT_POMODORO: PlanConfig = {
+  mode: 'pomodoro',
+  workMin: 25,
+  breakMin: 5,
+  cycles: 4,
+};

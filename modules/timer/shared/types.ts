@@ -14,6 +14,8 @@ export interface SessionDto {
   status: SessionStatus;
   taskId: string | null;
   taskTitle: string | null;
+  /** v0.36.0: what it was started for in another module (« agenda:event:<id> »), or null. */
+  subject: string | null;
   startedAt: string;
   /** Active seconds elapsed at `at` (pauses excluded); add the time since `at` while running. */
   elapsed: number;

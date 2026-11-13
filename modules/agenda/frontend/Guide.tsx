@@ -103,6 +103,18 @@ export function GuidePage() {
           après l’enregistrement.
         </p>
       </Card>
+      <Card title="Lancer un timer (Expérimental)">
+        <p>
+          Dans la fiche d’une tâche ou le panneau d’un rendez-vous :{' '}
+          <strong>Lancer un timer</strong>, puis la durée du bloc, un pomodoro ou un de tes
+          préréglages. Sur une tâche, le timer lui est lié : « Tâche terminée ? » la coche à la fin.
+        </p>
+        <p>
+          Coche « Associer ce choix » : ensuite, un clic sur « Lancer : … » suffit. Si un timer
+          tourne déjà, il est nommé et n’est arrêté qu’après ta confirmation. Le bloc dont le timer
+          tourne porte une petite icône.
+        </p>
+      </Card>
       <Card title="La charge et le temps libre">
         <p>
           Sous chaque jour, une barre découpée par catégorie : les heures de tes événements dans la

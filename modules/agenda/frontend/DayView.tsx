@@ -11,7 +11,15 @@ import { slotSpan, type Span } from '../shared/drag';
 import { addDays, dayLabel, minutesOfDay, timeOf } from '../shared/time';
 import type { RangeDto, ToPlaceDto } from '../shared/types';
 import { CreateSlot, type SlotKind } from './CreateSlot';
-import { colorStyle, itemId, itemsOf, taskLoads, timedBlocks, type Item } from './common';
+import {
+  colorStyle,
+  itemId,
+  itemsOf,
+  taskLoads,
+  timedBlocks,
+  timerRuns,
+  type Item,
+} from './common';
 import { LoadBar } from './WeekView';
 import { useNavigate } from 'react-router';
 
@@ -196,6 +204,11 @@ export function DayView(props: {
                 onClick={() => props.onOpen(row.item)}
               >
                 <span className="ag-list__time">
+                  {timerRuns(data, row.item) && (
+                    <span className="ag-block__timer" title="Son timer tourne">
+                      <Icon name="timer" />{' '}
+                    </span>
+                  )}
                   {row.item.event.start.slice(0, 10) === day ? row.item.event.start.slice(11) : '…'}
                   –{row.item.event.end.slice(0, 10) === day ? row.item.event.end.slice(11) : '…'}
                 </span>

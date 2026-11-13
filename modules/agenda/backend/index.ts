@@ -19,6 +19,7 @@ import {
 } from '@hub/sdk/core';
 import { localToday, parseDue } from '@hub/sdk/dates';
 import type { TodoService } from '../../todo/contract';
+import type { TimerService } from '../../timer/contract';
 import { categoryList, DEFAULT_CATEGORY, DEFAULT_OFF } from '../shared/categories';
 import { MIN_BLOCK_MIN } from '../shared/drag';
 import { parseQuick, type Parsed } from '../shared/parse';
@@ -42,6 +43,8 @@ interface EventRow {
   location: string | null;
   note: string | null;
   category: string;
+  /** v0.36.0: the associated timer (the Timer's TimerChoice, as JSON), or null. */
+  timer_pref: string | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -57,6 +60,8 @@ interface WeeklyRow {
   location: string | null;
   valid_from: string | null;
   valid_until: string | null;
+  /** v0.36.0: the associated timer, as JSON, or null. */
+  timer_pref: string | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -78,6 +83,17 @@ const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const DATE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 /** A period asked at once: a month view and a bit around. */
+/** The associated timer as the page gets it (null when none or unreadable). */
+function prefOf(json: string | null | undefined): Record<string, unknown> | null {
+  if (!json) return null;
+  try {
+    const value = JSON.parse(json) as unknown;
+    return value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
 const MAX_RANGE_DAYS = 62;
 const MAX_TEXT = 200;
 
@@ -112,6 +128,15 @@ export default defineBackendModule({
         'synchronisation (ADR 0044): HLC, origin and order of the journal, clock of each field',
       up: syncJournalSql('agenda__'),
     },
+    {
+      version: 3,
+      description:
+        'the timer associated with an event or an entry of the week type (empty by default)',
+      up: `
+        ALTER TABLE agenda__events ADD COLUMN timer_pref TEXT;
+        ALTER TABLE agenda__weekly ADD COLUMN timer_pref TEXT;
+      `,
+    },
   ],
   sync: {},
 
@@ -121,6 +146,7 @@ export default defineBackendModule({
     const weeklyTable = ctx.db.table('weekly');
     const exceptions = ctx.db.table('exceptions');
     const todo = () => ctx.services.optional<TodoService>('todo');
+    const timer = () => ctx.services.optional<TimerService>('timer');
     const setting = (key: string, fallback: number) => ctx.settings.get<number>(key) ?? fallback;
 
     // --- Reading ----------------------------------------------------------------
@@ -135,6 +161,7 @@ export default defineBackendModule({
       note: row.note,
       category: row.category,
       weekly: null,
+      timerPref: prefOf(row.timer_pref),
     });
     const weeklyDto = (row: WeeklyRow): WeeklyDto => ({
       id: row.id,
@@ -146,6 +173,7 @@ export default defineBackendModule({
       location: row.location,
       from: row.valid_from,
       until: row.valid_until,
+      timerPref: prefOf(row.timer_pref),
     });
     const weeklyList = () =>
       (
@@ -265,6 +293,11 @@ export default defineBackendModule({
         foreign,
         toPlace,
         tasks,
+        // v0.36.0: the timer running now (its task or what it was started for), to show it.
+        timer: (() => {
+          const now = timer()?.current();
+          return now ? { taskId: now.taskId, subject: now.subject } : null;
+        })(),
         todo: Boolean(service),
         weekly: weeklyList(),
         dayStartHour: setting('dayStartHour', 7),
@@ -277,6 +310,19 @@ export default defineBackendModule({
     };
 
     // --- Writing ----------------------------------------------------------------
+
+    /** The associated timer (v0.36.0): a small object the Timer gave, kept as is; null clears. */
+    const prefFrom = (value: unknown): string | null => {
+      if (value === null || value === undefined || value === '') return null;
+      const json = JSON.stringify(value);
+      if (
+        typeof value !== 'object' ||
+        typeof (value as { kind?: unknown }).kind !== 'string' ||
+        json.length > 500
+      )
+        throw new HttpError(400, 'Timer associé invalide');
+      return json;
+    };
 
     const text = (value: unknown, label: string, required = false): string | null => {
       const t =
@@ -350,6 +396,7 @@ export default defineBackendModule({
         out.duration_min = d;
       }
       if (!partial || 'category' in body) out.category = category(body.category);
+      if (partial && 'timerPref' in body) out.timer_pref = prefFrom(body.timerPref);
       if (!partial || 'location' in body) out.location = text(body.location, 'Lieu');
       for (const [key, column] of [
         ['from', 'valid_from'],
@@ -498,6 +545,7 @@ export default defineBackendModule({
       if ('location' in body) fields.location = text(body.location, 'Lieu');
       if ('note' in body) fields.note = text(body.note, 'Note');
       if ('category' in body) fields.category = category(body.category);
+      if ('timerPref' in body) fields.timer_pref = prefFrom(body.timerPref);
       if ('start' in body || 'end' in body || 'allDay' in body)
         Object.assign(
           fields,

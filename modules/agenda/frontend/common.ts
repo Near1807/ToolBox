@@ -116,3 +116,17 @@ export const switchCategories = (data: RangeDto) =>
 /** The block's colours: its category's token (never a colour of its own). */
 export const colorStyle = (category: string) =>
   ({ '--ag-color': categoryColor(category) }) as React.CSSProperties;
+
+/** v0.36.0: what a timer started from the Agenda is for (an event, or one occurrence of the week type). */
+export const timerSubject = (event: AgendaEventDto) =>
+  event.weekly
+    ? `agenda:weekly:${event.weekly.id}:${event.weekly.date}`
+    : `agenda:event:${event.id}`;
+
+/** v0.36.0: is this item's timer the one running now? */
+export function timerRuns(data: RangeDto, item: Item): boolean {
+  if (!data.timer) return false;
+  if (item.source === 'task') return data.timer.taskId === item.event.id;
+  if (item.source === 'own') return data.timer.subject === timerSubject(item.event);
+  return false;
+}

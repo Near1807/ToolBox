@@ -83,6 +83,7 @@ describe('the plan of the ongoing notification', () => {
       status: 'running',
       taskId: null,
       taskTitle: null,
+      subject: null,
       startedAt: new Date().toISOString(),
       elapsed: 0,
       at: new Date().toISOString(),

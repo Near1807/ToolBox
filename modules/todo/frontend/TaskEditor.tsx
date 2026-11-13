@@ -8,6 +8,7 @@ import { Link } from 'react-router';
 import {
   Button,
   confirmDelete,
+  Lent,
   ErrorMessage,
   errorMessage,
   Icon,
@@ -16,6 +17,7 @@ import {
 } from '@hub/sdk/frontend';
 import { formatDuration, formatPlanned } from '@hub/sdk/dates';
 import type { TaskEditorProps } from '../contract';
+import type { TimerChoice, TimerLaunchProps } from '../../timer/contract';
 import type { TaskDto, TasksResponse } from '../shared';
 import { TaskFields } from './TaskFields';
 import { useState } from 'react';
@@ -122,6 +124,28 @@ export function TaskEditor(props: TaskEditorProps) {
           </>
         }
       />
+      {!task.done && (
+        // v0.36.0: « Lancer un timer », lent by the Timer (absent without it):
+        // linked to this task; the associated timer is kept on the task.
+        <Lent<TimerLaunchProps>
+          name="timer.launch"
+          props={{
+            title: task.title,
+            blockMin: task.durationMin ?? 30,
+            taskId: task.id,
+            preferred: (task.timerPref as TimerChoice | null) ?? null,
+            onPreferredChange: async (choice) => {
+              await module.api.patch(url, { timerPref: choice });
+              reload();
+              props.onChanged?.({
+                message: choice ? `Timer associé à « ${task.title} »` : 'Plus de timer associé',
+                undo: () => module.api.patch(url, { timerPref: task.timerPref }),
+              });
+            },
+            onStarted: () => props.onChanged?.({ message: `Timer lancé sur « ${task.title} »` }),
+          }}
+        />
+      )}
       {props.children && <div className="ui-actions td-sheet__more">{props.children}</div>}
       {actionError && <ErrorMessage>{actionError}</ErrorMessage>}
     </div>

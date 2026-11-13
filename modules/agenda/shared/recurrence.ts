@@ -47,6 +47,7 @@ export function occurrences(
         note: null,
         category: w.category,
         weekly: { id: w.id, date: day, moved },
+        timerPref: w.timerPref ?? null,
       });
     }
   }

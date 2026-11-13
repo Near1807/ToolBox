@@ -1,7 +1,7 @@
 // The Agenda's pages: the bar on top, then the week (PC) or the day
 // (phone), the month, the week type; layers, the detail of an event, a
 // short guide. « Expérimental » until Thomas validates it.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import {
   Button,
@@ -9,6 +9,7 @@ import {
   defineFrontendModule,
   ErrorMessage,
   errorMessage,
+  Lent,
   onPhone,
   Page,
   UndoToast,
@@ -21,7 +22,15 @@ import { minutesBetween } from '../shared/time';
 import { spanLabel, type Span } from '../shared/drag';
 import type { SlotKind } from './CreateSlot';
 import { TaskPanel, type OpenTask } from './TaskPanel';
-import { colorStyle, switchCategories, useRange, useSwitches, type Item } from './common';
+import {
+  colorStyle,
+  switchCategories,
+  timerSubject,
+  useRange,
+  useSwitches,
+  type Item,
+} from './common';
+import type { TimerChoice, TimerLaunchProps } from '../../timer/contract';
 import { DEFAULT_OFF } from '../shared/categories';
 import { DayView } from './DayView';
 import { EventForm, EventPanel, type Undo } from './EventPanel';
@@ -52,6 +61,13 @@ function AgendaPage() {
   const period =
     view === 'month' ? monthGrid(day.slice(0, 7)) : { from: monday, to: addDays(monday, 6) };
   const { data, error, reload } = useRange(period.from, period.to);
+  // v0.36.0: while a timer runs, the blocks follow it (a light refresh each minute).
+  const timerOn = Boolean(data?.timer);
+  useEffect(() => {
+    if (!timerOn) return;
+    const every = window.setInterval(reload, 60_000);
+    return () => window.clearInterval(every);
+  }, [timerOn, reload]);
   const layers = useSwitches(data?.categoriesOff ?? DEFAULT_OFF);
   const [selected, setSelected] = useState<AgendaEventDto | null>(null);
   const [selectedTask, setSelectedTask] = useState<OpenTask | null>(null);
@@ -306,6 +322,35 @@ function AgendaPage() {
       )}
       {selected && data && (
         <EventPanel
+          // v0.36.0: « Lancer un timer » (lent by the Timer, absent without it)
+          children={
+            !selected.allDay && (
+              <Lent<TimerLaunchProps>
+                name="timer.launch"
+                props={{
+                  title: selected.title,
+                  blockMin: minutesBetween(selected.start, selected.end),
+                  subject: timerSubject(selected),
+                  preferred: (selected.timerPref as TimerChoice | null) ?? null,
+                  onPreferredChange: async (choice) => {
+                    const url = selected.weekly
+                      ? `/weekly/${selected.weekly.id}`
+                      : `/events/${selected.id}`;
+                    await module.api.patch(url, { timerPref: choice });
+                    setSelected({ ...selected, timerPref: choice });
+                    setNotice({
+                      message: choice
+                        ? `Timer associé à « ${selected.title} »${selected.weekly ? ' (toutes les semaines)' : ''}`
+                        : 'Plus de timer associé',
+                      run: () => module.api.patch(url, { timerPref: selected.timerPref }),
+                    });
+                    reload();
+                  },
+                  onStarted: reload,
+                }}
+              />
+            )
+          }
           key={`${selected.id}:${selected.start}`}
           event={selected}
           today={data.today}
@@ -324,7 +369,7 @@ function AgendaPage() {
           onClose={() => setSelectedTask(null)}
           // The sheet stays open: the change shows in the week, with « Annuler ».
           onChanged={(u) => {
-            setNotice(u ?? null);
+            setNotice(u);
             reload();
           }}
         />

@@ -52,7 +52,8 @@
           },
           "timeSpent": 0,
           "durationMin": null,
-          "plannedAt": null
+          "plannedAt": null,
+          "timerPref": null
         }
       }
     ],
@@ -71,7 +72,8 @@
           "track": null,
           "timeSpent": 0,
           "durationMin": null,
-          "plannedAt": null
+          "plannedAt": null,
+          "timerPref": null
         }
       }
     ],
@@ -90,7 +92,8 @@
           "track": null,
           "timeSpent": 0,
           "durationMin": null,
-          "plannedAt": null
+          "plannedAt": null,
+          "timerPref": null
         }
       }
     ],
@@ -109,7 +112,8 @@
           "track": null,
           "timeSpent": 0,
           "durationMin": null,
-          "plannedAt": null
+          "plannedAt": null,
+          "timerPref": null
         }
       }
     ],
@@ -128,7 +132,8 @@
           "track": null,
           "timeSpent": 0,
           "durationMin": null,
-          "plannedAt": null
+          "plannedAt": null,
+          "timerPref": null
         }
       }
     ],
@@ -150,7 +155,8 @@
           },
           "timeSpent": 0,
           "durationMin": null,
-          "plannedAt": null
+          "plannedAt": null,
+          "timerPref": null
         }
       }
     ],
@@ -196,7 +202,8 @@
           "track": null,
           "timeSpent": 0,
           "durationMin": null,
-          "plannedAt": null
+          "plannedAt": null,
+          "timerPref": null
         }
       }
     ],
@@ -215,7 +222,8 @@
           "track": null,
           "timeSpent": 0,
           "durationMin": null,
-          "plannedAt": null
+          "plannedAt": null,
+          "timerPref": null
         }
       }
     ],
@@ -234,7 +242,8 @@
           "track": null,
           "timeSpent": 0,
           "durationMin": null,
-          "plannedAt": null
+          "plannedAt": null,
+          "timerPref": null
         }
       }
     ],
@@ -256,7 +265,8 @@
           },
           "timeSpent": 0,
           "durationMin": null,
-          "plannedAt": null
+          "plannedAt": null,
+          "timerPref": null
         }
       }
     ],
@@ -278,7 +288,8 @@
           },
           "timeSpent": 0,
           "durationMin": null,
-          "plannedAt": null
+          "plannedAt": null,
+          "timerPref": null
         }
       }
     ],
@@ -297,7 +308,8 @@
           "track": null,
           "timeSpent": 0,
           "durationMin": null,
-          "plannedAt": null
+          "plannedAt": null,
+          "timerPref": null
         }
       }
     ],
@@ -325,7 +337,8 @@
           "track": null,
           "timeSpent": 0,
           "durationMin": null,
-          "plannedAt": null
+          "plannedAt": null,
+          "timerPref": null
         }
       }
     ],
@@ -374,7 +387,8 @@
               "track": null,
               "timeSpent": 0,
               "durationMin": null,
-              "plannedAt": null
+              "plannedAt": null,
+              "timerPref": null
             },
             {
               "id": "#6",
@@ -390,7 +404,8 @@
               },
               "timeSpent": 0,
               "durationMin": null,
-              "plannedAt": null
+              "plannedAt": null,
+              "timerPref": null
             },
             {
               "id": "#8",
@@ -406,7 +421,8 @@
               },
               "timeSpent": 0,
               "durationMin": null,
-              "plannedAt": null
+              "plannedAt": null,
+              "timerPref": null
             },
             {
               "id": "#1",
@@ -422,7 +438,8 @@
               },
               "timeSpent": 0,
               "durationMin": null,
-              "plannedAt": null
+              "plannedAt": null,
+              "timerPref": null
             },
             {
               "id": "#2",
@@ -435,7 +452,8 @@
               "track": null,
               "timeSpent": 0,
               "durationMin": null,
-              "plannedAt": null
+              "plannedAt": null,
+              "timerPref": null
             },
             {
               "id": "#4",
@@ -448,7 +466,8 @@
               "track": null,
               "timeSpent": 0,
               "durationMin": null,
-              "plannedAt": null
+              "plannedAt": null,
+              "timerPref": null
             },
             {
               "id": "#9",
@@ -461,7 +480,8 @@
               "track": null,
               "timeSpent": 0,
               "durationMin": null,
-              "plannedAt": null
+              "plannedAt": null,
+              "timerPref": null
             }
           ],
           "tags": [
@@ -512,7 +532,8 @@
               "track": null,
               "timeSpent": 0,
               "durationMin": null,
-              "plannedAt": null
+              "plannedAt": null,
+              "timerPref": null
             }
           ]
         }
@@ -1000,7 +1021,8 @@
         "subject": "music-library:track:2",
         "legacy_id": null,
         "duration_min": null,
-        "planned_at": null
+        "planned_at": null,
+        "timer_pref": null
       },
       {
         "id": "#2",
@@ -1014,7 +1036,8 @@
         "subject": null,
         "legacy_id": null,
         "duration_min": null,
-        "planned_at": null
+        "planned_at": null,
+        "timer_pref": null
       },
       {
         "id": "#3",
@@ -1028,7 +1051,8 @@
         "subject": null,
         "legacy_id": null,
         "duration_min": null,
-        "planned_at": null
+        "planned_at": null,
+        "timer_pref": null
       },
       {
         "id": "#4",
@@ -1042,7 +1066,8 @@
         "subject": null,
         "legacy_id": null,
         "duration_min": null,
-        "planned_at": null
+        "planned_at": null,
+        "timer_pref": null
       },
       {
         "id": "#5",
@@ -1056,7 +1081,8 @@
         "subject": null,
         "legacy_id": null,
         "duration_min": null,
-        "planned_at": null
+        "planned_at": null,
+        "timer_pref": null
       },
       {
         "id": "#6",
@@ -1070,7 +1096,8 @@
         "subject": "music-library:track:2",
         "legacy_id": null,
         "duration_min": null,
-        "planned_at": null
+        "planned_at": null,
+        "timer_pref": null
       },
       {
         "id": "#8",
@@ -1084,7 +1111,8 @@
         "subject": "music-library:track:1",
         "legacy_id": null,
         "duration_min": null,
-        "planned_at": null
+        "planned_at": null,
+        "timer_pref": null
       },
       {
         "id": "#9",
@@ -1098,7 +1126,8 @@
         "subject": null,
         "legacy_id": null,
         "duration_min": null,
-        "planned_at": null
+        "planned_at": null,
+        "timer_pref": null
       }
     ],
     "todo__tasks_v1": []

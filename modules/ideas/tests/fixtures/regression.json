@@ -1087,7 +1087,8 @@
             },
             "timeSpent": 0,
             "durationMin": null,
-            "plannedAt": null
+            "plannedAt": null,
+            "timerPref": null
           }
         ],
         "tags": [

@@ -61,9 +61,22 @@ interface TaskRow {
   duration_min: number | null;
   /** Planned start « YYYY-MM-DDTHH:mm » (v0.35.0), null when not planned. */
   planned_at: string | null;
+  /** v0.36.0: the associated timer (JSON of the Timer's TimerChoice, opaque here), or null. */
+  timer_pref: string | null;
 }
 
 const TRACK_SUBJECT = (id: number) => `music-library:track:${id}`;
+
+/** The associated timer as the page gets it (null when none or unreadable). */
+function timerPrefOf(json: string | null): Record<string, unknown> | null {
+  if (!json) return null;
+  try {
+    const value = JSON.parse(json) as unknown;
+    return value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
 const MAX_TITLE = 200;
 
 /** « avec le tag mix » / « avec les tags mix et studio ». */
@@ -113,6 +126,11 @@ export default defineBackendModule({
       description: 'planned start of a task (day and time, empty by default)',
       up: 'ALTER TABLE todo__tasks ADD COLUMN planned_at TEXT',
     },
+    {
+      version: 6,
+      description: 'the timer associated with a task (empty by default)',
+      up: 'ALTER TABLE todo__tasks ADD COLUMN timer_pref TEXT',
+    },
   ],
   sync: {},
 
@@ -142,6 +160,7 @@ export default defineBackendModule({
       timeSpent: Math.round(times[row.id] ?? 0),
       durationMin: row.duration_min,
       plannedAt: row.planned_at,
+      timerPref: timerPrefOf(row.timer_pref),
     });
 
     const find = (id: string): TaskRow | null => store.get<TaskRow>('tasks', id);
@@ -238,6 +257,16 @@ export default defineBackendModule({
       return value as string;
     };
 
+    /** The associated timer (v0.36.0): a small object the Timer gave, kept as is; null clears. */
+    const timerPrefFrom = (value: unknown): string | null => {
+      if (value === null || value === undefined || value === '') return null;
+      const kind = (value as { kind?: unknown }).kind;
+      const json = JSON.stringify(value);
+      if (typeof value !== 'object' || typeof kind !== 'string' || json.length > 500)
+        throw new HttpError(400, 'Timer associé invalide');
+      return json;
+    };
+
     const subjectFromTrackId = (value: unknown): string | null => {
       if (value === null || value === undefined || value === '') return null;
       const id = Number(value);
@@ -282,6 +311,7 @@ export default defineBackendModule({
       if ('trackId' in patch) next.subject = subjectFromTrackId(patch.trackId);
       if ('durationMin' in patch) next.duration_min = durationFrom(patch.durationMin);
       if ('plannedAt' in patch) next.planned_at = plannedFrom(patch.plannedAt);
+      if ('timerPref' in patch) next.timer_pref = timerPrefFrom(patch.timerPref);
       // Placed without an estimate: 30 min by default, and the estimate takes it.
       const planned = 'planned_at' in next ? next.planned_at : row.planned_at;
       const length = 'duration_min' in next ? next.duration_min : row.duration_min;

@@ -92,6 +92,12 @@ interface SessionRow {
   deleted_at: string | null;
   /** Its number before v0.25 (migration 2), null for a session started since. */
   legacy_id: number | null;
+  /**
+   * v0.36.0: what the session was started for, in another module (a generic
+   * reference, « agenda:event:<id> »), or null. Read by that module only to
+   * show its timer is running.
+   */
+  subject: string | null;
 }
 
 interface PresetRow {
@@ -186,6 +192,11 @@ export default defineBackendModule({
         'synchronisation (ADR 0044): HLC, origin and order of the journal, clock of each field',
       up: syncJournalSql('timer__'),
     },
+    {
+      version: 4,
+      description: 'what a session was started for in another module (empty by default)',
+      up: 'ALTER TABLE timer__sessions ADD COLUMN subject TEXT',
+    },
   ],
   sync: {
     names: [{ table: 'presets', column: 'name', label: 'Préréglage du Timer' }],
@@ -250,6 +261,7 @@ export default defineBackendModule({
       status: row.status as SessionStatus,
       taskId: row.task_id,
       taskTitle: row.task_title,
+      subject: row.subject ?? null,
       startedAt: row.started_at,
       elapsed: elapsedOf(row),
       at: new Date().toISOString(),
@@ -417,10 +429,19 @@ export default defineBackendModule({
       return { id: task.id, title: task.title };
     };
 
+    /** « agenda:event:<uuid> »: a module id, a colon, then letters, digits and « :-_ » (200 at most). */
+    const subjectFrom = (value: unknown): string | null => {
+      if (value === null || value === undefined || value === '') return null;
+      if (typeof value !== 'string' || !/^[a-z][a-z0-9-]*:[\w:.-]{1,180}$/i.test(value))
+        throw new HttpError(400, 'Référence invalide');
+      return value;
+    };
+
     const start = (
       config: PlanConfig,
       name: string | null,
       task: { id: string; title: string } | null,
+      subject: string | null = null,
     ): SessionRow => {
       const running = active();
       if (running && running.status !== 'ended')
@@ -452,6 +473,8 @@ export default defineBackendModule({
         phases: JSON.stringify(phases),
         task_id: task?.id ?? null,
         task_title: task?.title ?? null,
+        // Written only when given: a session without one stays as before (the reference).
+        ...(subject ? { subject } : {}),
         status: 'running',
         started_at: now,
         resumed_at: now,
@@ -616,6 +639,7 @@ export default defineBackendModule({
         body.config as PlanConfig,
         typeof body.name === 'string' ? body.name : null,
         taskFrom(body.taskId),
+        subjectFrom(body.subject),
       );
       return sessionDto(byId(row.id)!);
     });
@@ -786,7 +810,11 @@ export default defineBackendModule({
         const row = active();
         if (!row) return null;
         const state = stateAt(phasesOf(row), elapsedOf(row));
-        return { taskId: row.task_id, phase: state.phase?.kind ?? null };
+        return {
+          taskId: row.task_id,
+          phase: state.phase?.kind ?? null,
+          subject: row.subject ?? null,
+        };
       },
     });
 

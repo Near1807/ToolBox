@@ -17,6 +17,8 @@ export interface TaskDto {
   durationMin: number | null;
   /** Planned start « YYYY-MM-DDTHH:mm » (« prévu le … à … »), null when not planned. */
   plannedAt: string | null;
+  /** v0.36.0: the associated timer (the Timer's TimerChoice, opaque here), or null. */
+  timerPref: Record<string, unknown> | null;
 }
 
 export interface TasksResponse {

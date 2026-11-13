@@ -354,3 +354,61 @@
   color: var(--danger);
   font-size: 0.85rem;
 }
+
+/* v0.36.0: « Lancer un timer », lent to the other modules. */
+.tm-launch {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.tm-launch__menu {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.4rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-solid);
+  min-width: 15rem;
+}
+.tm-launch__choice {
+  text-align: left;
+  padding: 0.35rem 0.5rem;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+.tm-launch__choice:hover,
+.tm-launch__choice:focus-visible {
+  background: var(--surface-hover);
+}
+.tm-launch__running {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--accent);
+}
+.tm-launch__busy {
+  margin: 0 0 0.2rem;
+  color: var(--warning);
+}
+.tm-launch__associate {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+  margin-top: 0.25rem;
+}
+.tm-launch__done {
+  margin: 0;
+}
+.tm-launch__unlink {
+  align-self: flex-start;
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--accent);
+  cursor: pointer;
+}

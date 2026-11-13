@@ -15,7 +15,8 @@
             "location": null,
             "note": null,
             "category": "Rendez-vous",
-            "weekly": null
+            "weekly": null,
+            "timerPref": null
           }
         }
       }
@@ -35,7 +36,8 @@
             "location": null,
             "note": null,
             "category": "Rendez-vous",
-            "weekly": null
+            "weekly": null,
+            "timerPref": null
           }
         }
       }
@@ -55,7 +57,8 @@
             "location": null,
             "note": null,
             "category": "Rendez-vous",
-            "weekly": null
+            "weekly": null,
+            "timerPref": null
           }
         }
       }
@@ -75,7 +78,8 @@
             "location": null,
             "note": null,
             "category": "Examens",
-            "weekly": null
+            "weekly": null,
+            "timerPref": null
           }
         }
       }
@@ -95,7 +99,8 @@
             "category": "Sport",
             "location": null,
             "from": "2026-11-12",
-            "until": null
+            "until": null,
+            "timerPref": null
           }
         }
       }
@@ -167,7 +172,8 @@
           "location": "Chez Léon",
           "note": "réserver",
           "category": "Perso",
-          "weekly": null
+          "weekly": null,
+          "timerPref": null
         }
       }
     ],
@@ -202,7 +208,8 @@
           "location": null,
           "note": null,
           "category": "Rendez-vous",
-          "weekly": null
+          "weekly": null,
+          "timerPref": null
         }
       }
     ],
@@ -219,7 +226,8 @@
           "location": null,
           "note": null,
           "category": "Rendez-vous",
-          "weekly": null
+          "weekly": null,
+          "timerPref": null
         }
       }
     ],
@@ -236,7 +244,8 @@
           "location": null,
           "note": null,
           "category": "Rendez-vous",
-          "weekly": null
+          "weekly": null,
+          "timerPref": null
         }
       }
     ],
@@ -253,7 +262,8 @@
           "location": "Spa",
           "note": null,
           "category": "Rendez-vous",
-          "weekly": null
+          "weekly": null,
+          "timerPref": null
         }
       }
     ],
@@ -315,7 +325,8 @@
           "category": "Loisirs",
           "location": null,
           "from": "2026-11-16",
-          "until": "2026-12-14"
+          "until": "2026-12-14",
+          "timerPref": null
         }
       }
     ],
@@ -332,7 +343,8 @@
           "category": "Loisirs",
           "location": null,
           "from": "2026-11-16",
-          "until": "2026-12-14"
+          "until": "2026-12-14",
+          "timerPref": null
         }
       }
     ],
@@ -367,7 +379,8 @@
           "location": "Chez Léon",
           "note": "réserver",
           "category": "Perso",
-          "weekly": null
+          "weekly": null,
+          "timerPref": null
         }
       }
     ],
@@ -402,7 +415,8 @@
                 "id": "#5",
                 "date": "2026-11-12",
                 "moved": false
-              }
+              },
+              "timerPref": null
             }
           ],
           "foreign": [],
@@ -425,6 +439,7 @@
             }
           ],
           "tasks": [],
+          "timer": null,
           "todo": true,
           "weekly": [
             {
@@ -436,7 +451,8 @@
               "category": "Sport",
               "location": null,
               "from": "2026-11-12",
-              "until": null
+              "until": null,
+              "timerPref": null
             }
           ],
           "dayStartHour": 7,
@@ -464,7 +480,8 @@
               "location": null,
               "note": null,
               "category": "Rendez-vous",
-              "weekly": null
+              "weekly": null,
+              "timerPref": null
             },
             {
               "id": "#8",
@@ -475,7 +492,8 @@
               "location": "Chez Léon",
               "note": "réserver",
               "category": "Perso",
-              "weekly": null
+              "weekly": null,
+              "timerPref": null
             },
             {
               "id": "#1",
@@ -486,7 +504,8 @@
               "location": null,
               "note": null,
               "category": "Rendez-vous",
-              "weekly": null
+              "weekly": null,
+              "timerPref": null
             }
           ],
           "foreign": [],
@@ -509,6 +528,7 @@
             }
           ],
           "tasks": [],
+          "timer": null,
           "todo": true,
           "weekly": [
             {
@@ -520,7 +540,8 @@
               "category": "Sport",
               "location": null,
               "from": "2026-11-12",
-              "until": null
+              "until": null,
+              "timerPref": null
             }
           ],
           "dayStartHour": 7,
@@ -552,7 +573,8 @@
                 "id": "#5",
                 "date": "2026-11-26",
                 "moved": false
-              }
+              },
+              "timerPref": null
             }
           ],
           "foreign": [],
@@ -575,6 +597,7 @@
             }
           ],
           "tasks": [],
+          "timer": null,
           "todo": true,
           "weekly": [
             {
@@ -586,7 +609,8 @@
               "category": "Sport",
               "location": null,
               "from": "2026-11-12",
-              "until": null
+              "until": null,
+              "timerPref": null
             }
           ],
           "dayStartHour": 7,
@@ -618,7 +642,8 @@
                 "id": "#5",
                 "date": "2027-02-04",
                 "moved": false
-              }
+              },
+              "timerPref": null
             },
             {
               "id": "#5:2027-02-11",
@@ -633,7 +658,8 @@
                 "id": "#5",
                 "date": "2027-02-11",
                 "moved": false
-              }
+              },
+              "timerPref": null
             },
             {
               "id": "#3",
@@ -644,7 +670,8 @@
               "location": "Spa",
               "note": null,
               "category": "Rendez-vous",
-              "weekly": null
+              "weekly": null,
+              "timerPref": null
             },
             {
               "id": "#5:2027-02-18",
@@ -659,7 +686,8 @@
                 "id": "#5",
                 "date": "2027-02-18",
                 "moved": false
-              }
+              },
+              "timerPref": null
             },
             {
               "id": "#5:2027-02-25",
@@ -674,7 +702,8 @@
                 "id": "#5",
                 "date": "2027-02-25",
                 "moved": false
-              }
+              },
+              "timerPref": null
             }
           ],
           "foreign": [],
@@ -697,6 +726,7 @@
             }
           ],
           "tasks": [],
+          "timer": null,
           "todo": true,
           "weekly": [
             {
@@ -708,7 +738,8 @@
               "category": "Sport",
               "location": null,
               "from": "2026-11-12",
-              "until": null
+              "until": null,
+              "timerPref": null
             }
           ],
           "dayStartHour": 7,
@@ -749,7 +780,8 @@
                 "id": "#5",
                 "date": "2026-11-12",
                 "moved": false
-              }
+              },
+              "timerPref": null
             }
           ],
           "foreign": [],
@@ -772,6 +804,7 @@
             }
           ],
           "tasks": [],
+          "timer": null,
           "todo": true,
           "weekly": [
             {
@@ -783,7 +816,8 @@
               "category": "Sport",
               "location": null,
               "from": "2026-11-12",
-              "until": null
+              "until": null,
+              "timerPref": null
             }
           ],
           "dayStartHour": 7,
@@ -1002,7 +1036,8 @@
         "all_day": 0,
         "location": null,
         "note": null,
-        "category": "Rendez-vous"
+        "category": "Rendez-vous",
+        "timer_pref": null
       },
       {
         "id": "#2",
@@ -1015,7 +1050,8 @@
         "all_day": 0,
         "location": null,
         "note": null,
-        "category": "Rendez-vous"
+        "category": "Rendez-vous",
+        "timer_pref": null
       },
       {
         "id": "#3",
@@ -1028,7 +1064,8 @@
         "all_day": 1,
         "location": "Spa",
         "note": null,
-        "category": "Rendez-vous"
+        "category": "Rendez-vous",
+        "timer_pref": null
       },
       {
         "id": "#4",
@@ -1041,7 +1078,8 @@
         "all_day": 1,
         "location": null,
         "note": null,
-        "category": "Examens"
+        "category": "Examens",
+        "timer_pref": null
       },
       {
         "id": "#8",
@@ -1054,7 +1092,8 @@
         "all_day": 0,
         "location": "Chez Léon",
         "note": "réserver",
-        "category": "Perso"
+        "category": "Perso",
+        "timer_pref": null
       },
       {
         "id": "#9",
@@ -1067,7 +1106,8 @@
         "all_day": 1,
         "location": null,
         "note": null,
-        "category": "Rendez-vous"
+        "category": "Rendez-vous",
+        "timer_pref": null
       }
     ],
     "agenda__exceptions": [
@@ -1118,7 +1158,8 @@
         "category": "Sport",
         "location": null,
         "valid_from": "2026-11-12",
-        "valid_until": null
+        "valid_until": null,
+        "timer_pref": null
       },
       {
         "id": "#10",
@@ -1132,7 +1173,8 @@
         "category": "Loisirs",
         "location": null,
         "valid_from": "2026-11-16",
-        "valid_until": "2026-12-14"
+        "valid_until": "2026-12-14",
+        "timer_pref": null
       }
     ]
   },
@@ -1169,7 +1211,8 @@
         "subject": null,
         "legacy_id": null,
         "duration_min": 60,
-        "planned_at": null
+        "planned_at": null,
+        "timer_pref": null
       },
       {
         "id": "#7",
@@ -1183,7 +1226,8 @@
         "subject": null,
         "legacy_id": null,
         "duration_min": null,
-        "planned_at": null
+        "planned_at": null,
+        "timer_pref": null
       }
     ],
     "todo__tasks_v1": []

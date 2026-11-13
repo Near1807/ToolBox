@@ -52,6 +52,17 @@ Colonnes par jour, heures de la journée (réglage « Début / Fin de la journé
 
 - **Panneau d'un événement** : tous les champs modifiables directement (plus d'étape « Modifier »), « Enregistrer » avec « Annuler ». Une occurrence de la semaine type garde ses actions « cette fois-ci ».
 
+## Timer depuis l'Agenda (v0.36.0, Expérimental)
+
+- « Lancer un timer » (composant prêté par le Timer, absent sans lui) :
+  - dans la fiche d'une tâche : la session est liée à la tâche ;
+  - dans le panneau d'un rendez-vous : la session porte son titre et la référence `agenda:event:<id>` (une occurrence de la semaine type : `agenda:weekly:<id>:<date>`).
+- Le choix proposé : durée du bloc, pomodoro, préréglages.
+- **Timer associé** :
+  - gardé par l'événement ou par l'élément de la semaine type (`timer_pref`, migration 3, synchronisé ; pour la semaine type, il vaut pour toutes les semaines) ;
+  - pour une tâche, gardé par la To-do.
+- Le bloc dont le timer tourne a une petite icône ⏱ (semaine et vue jour). `RangeDto.timer` est lu par le service `timer` (facultatif) ; la page se rafraîchit chaque minute tant qu'un timer tourne.
+
 ## Interrupteurs de catégorie (v0.35.0, Expérimental)
 
 Les calques de v0.34 deviennent des **interrupteurs** : une catégorie **allumée** est affichée **et comptée** (charge, temps libre, chevauchements, « à caser » pour « Tâches ») ; **éteinte**, elle n'est ni affichée ni comptée (remplace la règle « la charge compte toujours tout »).
