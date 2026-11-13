@@ -2158,13 +2158,15 @@ input[type='range'] {
 .quick-add-toast {
   position: fixed;
   left: 50%;
-  bottom: 24px;
+  /* Above a module's own « Annuler » bar (.ui-undo), never on top of it. */
+  bottom: 84px;
   transform: translateX(-50%);
   z-index: 950;
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  max-width: calc(100% - 32px);
+  width: max-content;
+  max-width: min(640px, calc(100vw - 32px));
   padding: 0.55rem 0.8rem;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
@@ -2172,7 +2174,7 @@ input[type='range'] {
   box-shadow: var(--shadow);
 }
 .quick-add-toast--error {
-  bottom: 80px;
+  bottom: 144px;
   color: var(--danger);
 }
 .quick-add-toast__action {

@@ -360,6 +360,17 @@ body {
 }
 
 /* v0.36.0: the « Ajouter » bar's « + », above the bottom bar. */
+.m-shell .quick-add-toast {
+  left: 12px;
+  right: 12px;
+  bottom: calc(128px + env(safe-area-inset-bottom, 0px));
+  transform: none;
+  width: auto;
+  max-width: none;
+}
+.m-shell .quick-add-toast--error {
+  bottom: calc(188px + env(safe-area-inset-bottom, 0px));
+}
 .m-add {
   position: fixed;
   right: 16px;
