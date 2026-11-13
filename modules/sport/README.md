@@ -17,6 +17,7 @@ Catégorie **Vie perso**. Un calendrier de sport simple : une **semaine type**, 
 - **Bilan** : faites / prévues sur la semaine et le mois (annulées non comptées), séries de semaines complètes, humeur moyenne, nombre à valider.
 - **Export** du mois affiché en CSV ou Markdown (« Enregistrer sous »), avec le **commentaire** et les **exercices** de chaque séance. CSV séparé par `;`, champs entre guillemets quand il le faut (un commentaire sur plusieurs lignes reste entier).
 - **Carte d'accueil** : séance(s) du jour.
+- **« Lancer un timer »** (v0.36.0, Expérimental) dans le détail d'une séance : le bouton du Timer, prêté par lui (`timer.launch`, ADR 0046). Choix : durée de la séance, pomodoro 25/5 ou un préréglage. Le timer porte le nom de la séance et la référence `sport:session:<id>`. Le bouton est absent sans le Timer. Le Sport ne stocke rien de plus : pas de timer associé à une séance, faute de colonne prévue.
 
 ## Assistant (MODULES.md §5.15)
 
