@@ -320,9 +320,6 @@
   cursor: grab;
   touch-action: none;
 }
-.ag-warning {
-  color: var(--warning);
-}
 .ag-drag-hint {
   margin: 0.4rem 0 0;
 }

@@ -503,12 +503,6 @@
   flex-wrap: wrap;
   gap: 16px;
 }
-.cs-preview-meal__image {
-  width: 220px;
-  max-width: 100%;
-  border-radius: var(--radius);
-  object-fit: cover;
-}
 .cs-image-field {
   display: flex;
   align-items: center;
@@ -694,37 +688,6 @@
 }
 .cs-batch-guide__body p {
   max-width: 72ch;
-}
-.cs-batch-guide__figure {
-  width: 100%;
-  max-width: 460px;
-  height: auto;
-}
-.cs-svg-text {
-  fill: var(--text-2);
-  font-size: 11px;
-}
-.cs-svg-axis {
-  stroke: var(--border-strong);
-  stroke-width: 1.5;
-}
-.cs-svg-window {
-  fill: var(--accent-soft);
-  stroke: var(--accent);
-}
-.cs-svg-meal {
-  fill: var(--accent);
-}
-.cs-batch-entries {
-  width: 100%;
-  border-collapse: collapse;
-}
-.cs-batch-entries td {
-  padding: 4px 8px;
-  border-bottom: 1px solid var(--border);
-}
-.cs-batch-entry--covered td {
-  color: var(--text-3);
 }
 .cs-batch-grid td {
   text-align: center;

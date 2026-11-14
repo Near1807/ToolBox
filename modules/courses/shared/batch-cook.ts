@@ -7,15 +7,7 @@
 import { optionOf, type BatchMeal } from './batch';
 import { addUp, formatAmount, plannedLines, type Line, type PieceWeights } from './quantities';
 import { expandRecipe } from './recipe';
-import type { BatchCookDto, BatchUseDto, CookBasis } from './types';
-
-/** `prep:<id>` or `meal:<id>`: an element (what is cooked), the key of the calculation. */
-export const cookKey = (c: Pick<BatchCookDto, 'prepId' | 'mealId'>) =>
-  c.prepId ? `prep:${c.prepId}` : `meal:${c.mealId}`;
-
-/** Portions added up without the floating point dust (shown rounded anyway). */
-export const totalPortions = (uses: readonly { servings: number }[]) =>
-  Math.round(uses.reduce((n, u) => n + u.servings, 0) * 1e9) / 1e9;
+import type { BatchUseDto, CookBasis } from './types';
 
 export interface IngredientFacts {
   names: Record<string, string>;

@@ -324,13 +324,6 @@
   font-size: 1.15rem;
 }
 
-.ys-badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 14px;
-  margin-top: 8px;
-}
-
 /* Théories */
 .ys-theories {
   display: grid;
