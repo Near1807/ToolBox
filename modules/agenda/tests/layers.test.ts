@@ -16,6 +16,7 @@ const own = (id: string, category: string, start: string, end: string, allDay = 
   note: null,
   category,
   weekly: null,
+  timerPref: null,
 });
 
 const data: RangeDto = {
@@ -60,6 +61,7 @@ const data: RangeDto = {
       late: false,
     },
   ],
+  timer: null,
   tasks: [
     {
       id: 't2',

@@ -4,6 +4,41 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.36.0] — 2026-11-13
+
+Session « Interconnexions : agir sur place depuis l'Agenda, Timer depuis l'Agenda, barre « Ajouter » partout ». Nouveautés marquées **Expérimental**.
+
+### Ajouté
+
+- **Composants prêtés entre modules** (ADR 0046, MODULES.md §7.5) : un module prête un composant (`provides`). Les autres l'affichent avec `<Lent name="…">`, rendu dans le contexte de son propriétaire : il écrit par sa propre API. Module absent = rien d'affiché.
+- **Agenda, fiche de tâche complète** : la To-do prête sa fiche (`todo.taskEditor`). On y trouve tous les champs avec les validations de la To-do (le même formulaire que le crayon de la liste), plus « Faite », « Retirer de l'agenda », « Supprimer » (confirmation, puis « Annuler ») et « Ouvrir dans la To-do ». Elle s'ouvre depuis la semaine, le jour, le mois et « À caser ».
+- **Agenda, cocher** une tâche sur son bloc ou dans la fiche, avec « Annuler ».
+- **Agenda, créer dans un créneau vide** :
+  - un clic donne 30 min au quart d'heure ; un glissé donne la durée couverte ;
+  - choix « Tâche » (Entrée) ou « Rendez-vous » ; Échap annule ; rien n'est créé avant la validation ;
+  - sur le téléphone, la vue jour liste les trous libres (30 min au moins), et un toucher ouvre la même saisie.
+- **Agenda, rendez-vous modifiable sur place**, avec « Annuler » qui remet les valeurs d'avant.
+- **« Lancer un timer »**, un bouton prêté par le Timer (`timer.launch`) :
+  - dans la fiche d'une tâche, dans le détail d'un rendez-vous et dans le détail d'une séance de Sport ;
+  - choix : durée du bloc, pomodoro 25/5 ou un préréglage ;
+  - sur une tâche, le timer y est lié (« Tâche terminée ? » la coche) ;
+  - sur un rendez-vous ou une séance, il porte son titre et une référence générique (`subject`).
+- **Timer associé** (« Associer ce choix ») à une tâche, un rendez-vous ou une entrée de la semaine type. Il est synchronisé, et le bouton devient « Lancer : pomodoro 25/5 » en un clic.
+- **Timer déjà en cours** : le bouton le dit, puis l'arrête après confirmation. Un bloc dont le timer tourne porte une petite icône.
+- **Barre « Ajouter »** :
+  - accès par « + » en haut de la barre latérale, par **Ctrl+N** (réglable dans Réglages › Apparence, désactivable) ou par « + » flottant sur le téléphone ;
+  - une saisie avec aperçu, trois destinations déclarées par les modules (`quickAdd`) : Tâche (par défaut), Rendez-vous, Idée ; Tab pour changer ;
+  - après l'ajout : « Annuler » et « Ouvrir ».
+
+### Modifié
+
+- Migrations, ajouts seuls, colonnes vides par défaut :
+  - To-do v6 (`timer_pref`) ;
+  - Timer v4 (`subject`) ;
+  - Agenda v3 (`timer_pref` sur les événements et la semaine type).
+- Service `todo` : `deleteTask`. Le service `timer.current()` donne `subject`.
+- Références To-do, Timer, Idées, Agenda : seuls des champs ajoutés (vides).
+
 ## [0.35.0] — 2026-11-12
 
 Session « Agenda : tâches prévues à une heure, glisser-déposer, catégories du quotidien masquées par défaut ». Nouveautés marquées **Expérimental**.

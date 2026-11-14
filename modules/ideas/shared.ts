@@ -130,3 +130,20 @@ export function formatText(body: string): Block[] {
   flush();
   return blocks;
 }
+
+/**
+ * v0.36.0, the « Ajouter » bar: « refrain en mineur #mix #voix » → the
+ * idea « refrain en mineur », tags mix and voix (no text: it is written on
+ * the page). Pure.
+ */
+export function splitIdea(input: string): { title: string; tags: string[] } {
+  const tags: string[] = [];
+  const title = input
+    .replace(/(^|\s)#([\p{L}\p{N}_-]+)/gu, (_all, space: string, tag: string) => {
+      tags.push(tag);
+      return space;
+    })
+    .replace(/\s+/g, ' ')
+    .trim();
+  return { title, tags: cleanTags(tags) };
+}

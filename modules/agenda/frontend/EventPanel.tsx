@@ -151,6 +151,8 @@ export function EventForm(props: {
 }
 
 export function EventPanel(props: {
+  /** v0.36.0: the Agenda's own buttons (« Lancer un timer »). */
+  children?: React.ReactNode;
   event: AgendaEventDto;
   today: string;
   onClose: () => void;
@@ -159,7 +161,6 @@ export function EventPanel(props: {
 }) {
   const module = useModule();
   const { event } = props;
-  const [editing, setEditing] = useState(false);
   const [moveTo, setMoveTo] = useState(event.start);
   const [error, setError] = useState<string | null>(null);
   const run = (task: () => Promise<unknown>, undo?: Undo) => {
@@ -184,17 +185,68 @@ export function EventPanel(props: {
         </Button>
       }
     >
-      {editing && !occurrence ? (
-        <EventForm
-          initial={event}
-          submitLabel="Enregistrer"
-          onCancel={() => setEditing(false)}
-          onSubmit={async (fields) => {
-            await module.api.patch(`/events/${event.id}`, fields);
-            setEditing(false);
-            props.onChanged();
-          }}
-        />
+      {!occurrence ? (
+        // v0.36.0: every field editable in place; « Annuler » writes the previous values back.
+        <>
+          <EventForm
+            initial={event}
+            submitLabel="Enregistrer"
+            onCancel={props.onClose}
+            onSubmit={async (fields) => {
+              await module.api.patch(`/events/${event.id}`, fields);
+              props.onChanged({
+                message: `« ${String(fields.title)} » enregistré`,
+                run: () =>
+                  module.api.patch(`/events/${event.id}`, {
+                    title: event.title,
+                    allDay: event.allDay,
+                    start: event.start,
+                    end: event.end,
+                    location: event.location ?? '',
+                    note: event.note ?? '',
+                    category: event.category,
+                  }),
+              });
+            }}
+          />
+          <div className="ui-actions ag-panel__more">
+            {!event.allDay && (
+              <Button
+                small
+                variant="secondary"
+                title="Le même, une semaine plus tard"
+                onClick={() =>
+                  run(() =>
+                    module.api.post('/events', {
+                      title: event.title,
+                      start: addMinutes(event.start, 7 * 24 * 60),
+                      end: addMinutes(event.end, 7 * 24 * 60),
+                      location: event.location,
+                      note: event.note,
+                      category: event.category,
+                    }),
+                  )
+                }
+              >
+                Dupliquer la semaine suivante
+              </Button>
+            )}
+            <Button
+              small
+              variant="danger"
+              onClick={() =>
+                window.confirm(`Supprimer « ${event.title} » de l’agenda ?`) &&
+                run(() => module.api.delete(`/events/${event.id}`), {
+                  message: `« ${event.title} » supprimé`,
+                  run: () => module.api.post(`/events/${event.id}/restore`),
+                })
+              }
+            >
+              Supprimer
+            </Button>
+            {props.children}
+          </div>
+        </>
       ) : (
         <>
           <p>
@@ -207,102 +259,61 @@ export function EventPanel(props: {
             {occurrence ? ` · semaine type${occurrence.moved ? ' (déplacée)' : ''}` : ''}
           </p>
           {event.note && <p>{event.note}</p>}
-          {occurrence ? (
-            <>
-              <div className="ui-actions">
-                <Button
-                  small
-                  variant="secondary"
-                  onClick={() =>
-                    window.confirm(`Annuler « ${event.title} » de cette semaine seulement ?`) &&
-                    run(() => module.api.put(occurrenceUrl, { action: 'cancel' }), {
-                      message: `« ${event.title} » annulé pour cette fois`,
-                      run: () => module.api.put(occurrenceUrl, { action: 'reset' }),
-                    })
-                  }
-                >
-                  Annuler cette fois-ci
-                </Button>
-                {occurrence.moved && (
-                  <Button
-                    small
-                    variant="secondary"
-                    onClick={() => run(() => module.api.put(occurrenceUrl, { action: 'reset' }))}
-                  >
-                    Remettre à l’heure habituelle
-                  </Button>
-                )}
-                <Button small variant="secondary" onClick={props.onWeekType}>
-                  Modifier la semaine type
-                </Button>
-              </div>
-              <div className="ag-form__row">
-                <label className="small">
-                  Déplacer cette fois-ci à
-                  <input
-                    className="input"
-                    type="datetime-local"
-                    value={moveTo}
-                    onChange={(e) => setMoveTo(e.target.value)}
-                  />
-                </label>
-                <Button
-                  small
-                  onClick={() =>
-                    run(() =>
-                      module.api.put(occurrenceUrl, {
-                        action: 'move',
-                        start: moveTo,
-                        durationMin: minutesBetween(event.start, event.end),
-                      }),
-                    )
-                  }
-                >
-                  Déplacer
-                </Button>
-              </div>
-            </>
-          ) : (
+          <>
             <div className="ui-actions">
-              <Button small onClick={() => setEditing(true)}>
-                Modifier
-              </Button>
-              {!event.allDay && (
-                <Button
-                  small
-                  variant="secondary"
-                  title="Le même, une semaine plus tard"
-                  onClick={() =>
-                    run(() =>
-                      module.api.post('/events', {
-                        title: event.title,
-                        start: addMinutes(event.start, 7 * 24 * 60),
-                        end: addMinutes(event.end, 7 * 24 * 60),
-                        location: event.location,
-                        note: event.note,
-                        category: event.category,
-                      }),
-                    )
-                  }
-                >
-                  Dupliquer la semaine suivante
-                </Button>
-              )}
               <Button
                 small
-                variant="danger"
+                variant="secondary"
                 onClick={() =>
-                  window.confirm(`Supprimer « ${event.title} » de l’agenda ?`) &&
-                  run(() => module.api.delete(`/events/${event.id}`), {
-                    message: `« ${event.title} » supprimé`,
-                    run: () => module.api.post(`/events/${event.id}/restore`),
+                  window.confirm(`Annuler « ${event.title} » de cette semaine seulement ?`) &&
+                  run(() => module.api.put(occurrenceUrl, { action: 'cancel' }), {
+                    message: `« ${event.title} » annulé pour cette fois`,
+                    run: () => module.api.put(occurrenceUrl, { action: 'reset' }),
                   })
                 }
               >
-                Supprimer
+                Annuler cette fois-ci
+              </Button>
+              {occurrence.moved && (
+                <Button
+                  small
+                  variant="secondary"
+                  onClick={() => run(() => module.api.put(occurrenceUrl, { action: 'reset' }))}
+                >
+                  Remettre à l’heure habituelle
+                </Button>
+              )}
+              <Button small variant="secondary" onClick={props.onWeekType}>
+                Modifier la semaine type
+              </Button>
+              {props.children}
+            </div>
+            <div className="ag-form__row">
+              <label className="small">
+                Déplacer cette fois-ci à
+                <input
+                  className="input"
+                  type="datetime-local"
+                  value={moveTo}
+                  onChange={(e) => setMoveTo(e.target.value)}
+                />
+              </label>
+              <Button
+                small
+                onClick={() =>
+                  run(() =>
+                    module.api.put(occurrenceUrl, {
+                      action: 'move',
+                      start: moveTo,
+                      durationMin: minutesBetween(event.start, event.end),
+                    }),
+                  )
+                }
+              >
+                Déplacer
               </Button>
             </div>
-          )}
+          </>
         </>
       )}
       {error && <ErrorMessage>{error}</ErrorMessage>}

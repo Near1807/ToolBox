@@ -14,6 +14,7 @@ const badminton: WeeklyDto = {
   location: 'Salle',
   from: '2026-11-01',
   until: '2026-12-31',
+  timerPref: null,
 };
 
 describe('the week type', () => {

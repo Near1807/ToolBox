@@ -64,3 +64,4 @@ Modèle :
 | 0043 | [Batch en deux temps : éléments de base et doubles doses](0043-batch-deux-temps.md)                                                  |
 | 0044 | [Version mobile et synchro LAN (acceptée)](0044-version-mobile-synchro-lan.md)                                                       |
 | 0045 | [Calendrier : catégories, plusieurs jours, éléments à caser](0045-calendrier-categories-a-caser.md)                                  |
+| 0046 | [Entre modules : composants prêtés et destinations « Ajouter »](0046-entre-modules-composants-ajout-rapide.md)                       |

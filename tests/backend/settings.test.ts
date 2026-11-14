@@ -101,6 +101,7 @@ describe('settings', () => {
       themeEveningFrom: '20:00',
       themeEveningTo: '07:00',
       themeShortcut: '',
+      quickAddShortcut: 'Ctrl+N',
       navigation: '',
     });
     expect((await hub.request('PUT', '/api/core/ui', { theme: 'clair' })).status).toBe(200);

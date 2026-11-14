@@ -2,6 +2,10 @@
 
 Section **Outils**. Noter une idée en une seconde et la retrouver quand on en a besoin. Ce n'est pas une to-do : une idée n'a ni échéance ni case « Fait » ; elle peut **devenir** une tâche sur un clic (ADR 0038).
 
+## Barre « Ajouter » (v0.36.0)
+
+Destination **« Idée »** de la barre « Ajouter » du shell (ADR 0046) : « refrain en mineur #mix » donne le titre et ses tags (`splitIdea`, `shared.ts`) ; le texte s'écrit ensuite dans la page. « Annuler » supprime l'idée ajoutée.
+
 ## Ce qu'il fait
 
 - **Une idée** : titre court (obligatoire), texte libre long facultatif, tags, dates de création et de modification, morceau lié facultatif (Bibliothèque en service facultatif).

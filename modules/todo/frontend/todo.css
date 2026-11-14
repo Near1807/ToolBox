@@ -228,3 +228,25 @@
   gap: 0.5rem;
   align-items: flex-end;
 }
+
+/* v0.36.0: the sheet lent to the other modules (the Agenda). */
+.td-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.td-sheet__done {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 600;
+}
+.td-sheet__meta {
+  margin: 0;
+}
+.td-details__title {
+  flex-basis: 100%;
+}
+.td-sheet .td-details {
+  align-items: start;
+}

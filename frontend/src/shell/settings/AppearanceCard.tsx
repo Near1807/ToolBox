@@ -8,6 +8,7 @@ import {
   type ThemePrefs,
 } from '../../themes/automation';
 import { THEME_PREFS_EVENT } from '../theme-automation';
+import { DEFAULT_QUICK_ADD_SHORTCUT } from '../QuickAdd';
 import { chooseTheme, loadUiPrefs, saveUiPrefs, themePrefs } from '../ui-prefs';
 
 /**
@@ -57,10 +58,14 @@ export function AppearanceCard() {
   const [shown, setShown] = useState(cachedTheme());
   const [error, setError] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
+  // v0.36.0: the « Ajouter » bar's shortcut (Ctrl+N by default).
+  const [addKey, setAddKey] = useState(DEFAULT_QUICK_ADD_SHORTCUT);
+  const [recordingAdd, setRecordingAdd] = useState(false);
 
   useEffect(() => {
     loadUiPrefs()
       .then((p) => {
+        setAddKey(p.quickAddShortcut ?? DEFAULT_QUICK_ADD_SHORTCUT);
         const loaded = themePrefs(p);
         setPrefs(loaded);
         setShown(effectiveTheme(loaded, new Date()));
@@ -204,6 +209,7 @@ export function AppearanceCard() {
                 const key = shortcutOf(e.nativeEvent);
                 if (!key) return;
                 setRecording(false);
+                if (key === addKey) return setError(`${key} est déjà pris (barre « Ajouter »).`);
                 save({ themeShortcut: key });
               }}
             >
@@ -221,6 +227,63 @@ export function AppearanceCard() {
               </Button>
               {prefs.themeShortcut && (
                 <Button small variant="secondary" onClick={() => save({ themeShortcut: '' })}>
+                  Désactiver
+                </Button>
+              )}
+            </>
+          )}
+        </div>
+        <div className="appearance-options__line">
+          <span className="small">Ouvrir la barre « Ajouter » :</span>
+          {recordingAdd ? (
+            <button
+              type="button"
+              className="button button--secondary button--small appearance-options__record"
+              autoFocus
+              onBlur={() => setRecordingAdd(false)}
+              onKeyDown={(e) => {
+                e.preventDefault();
+                if (e.key === 'Escape') return setRecordingAdd(false);
+                const key = shortcutOf(e.nativeEvent);
+                if (!key) return;
+                setRecordingAdd(false);
+                // No clash with the others: Ctrl+K (search) and the theme's.
+                if (key === 'Ctrl+K' || key === prefs.themeShortcut)
+                  return setError(
+                    `${key} est déjà pris (${key === 'Ctrl+K' ? 'recherche' : 'thème suivant'}).`,
+                  );
+                setError(null);
+                saveUiPrefs({ quickAddShortcut: key })
+                  .then(() => {
+                    setAddKey(key);
+                    window.dispatchEvent(new Event(THEME_PREFS_EVENT));
+                  })
+                  .catch((err: unknown) => setError(errorMessage(err)));
+              }}
+            >
+              Appuie sur la touche… (Échap : annuler)
+            </button>
+          ) : (
+            <>
+              {addKey ? (
+                <kbd>{addKey}</kbd>
+              ) : (
+                <span className="small muted">aucun (le bouton « + » reste)</span>
+              )}
+              <Button small variant="secondary" onClick={() => setRecordingAdd(true)}>
+                Changer…
+              </Button>
+              {addKey && (
+                <Button
+                  small
+                  variant="secondary"
+                  onClick={() =>
+                    void saveUiPrefs({ quickAddShortcut: '' }).then(() => {
+                      setAddKey('');
+                      window.dispatchEvent(new Event(THEME_PREFS_EVENT));
+                    })
+                  }
+                >
                   Désactiver
                 </Button>
               )}

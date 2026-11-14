@@ -110,6 +110,8 @@ export const UI_SETTINGS: SettingField[] = [
   },
   { key: 'themeEveningTo', type: 'string', label: 'Thème du soir : jusqu’à', default: '07:00' },
   { key: 'themeShortcut', type: 'string', label: 'Raccourci : thème suivant', default: '' },
+  // v0.36.0: the « Ajouter » bar (Ctrl+N by default; empty: no shortcut, the « + » button stays).
+  { key: 'quickAddShortcut', type: 'string', label: 'Raccourci : Ajouter', default: 'Ctrl+N' },
   // JSON of the sidebar layout (categories, placement and order of the tools).
   { key: 'navigation', type: 'text', label: 'Barre latérale', default: '' },
 ];

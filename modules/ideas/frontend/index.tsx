@@ -23,6 +23,7 @@ import {
 import {
   cleanTags,
   formatText,
+  splitIdea,
   type IdeaDto,
   type IdeaSort,
   type IdeasResponse,
@@ -691,4 +692,28 @@ function HomeWidget() {
 export default defineFrontendModule({
   pages: [{ path: '', component: IdeasPage }],
   HomeWidget,
+  // v0.36.0 (ADR 0046): « Idée » in the shell's « Ajouter » bar.
+  quickAdd: {
+    label: 'Idée',
+    icon: 'lightbulb',
+    order: 3,
+    placeholder: 'refrain en mineur #mix',
+    preview: (text) => {
+      const idea = splitIdea(text);
+      if (!idea.title) return { ok: false, text: 'Écris d’abord un titre.' };
+      return {
+        ok: true,
+        text: `Idée « ${idea.title} »${idea.tags.length ? ` · ${idea.tags.map((t) => `#${t}`).join(' ')}` : ''}`,
+      };
+    },
+    add: async (text, { api }) => {
+      const idea = splitIdea(text);
+      const made = await api.post<{ id: string; title: string }>('/ideas', idea);
+      return {
+        message: `« ${made.title} » ajoutée à la Boîte à idées`,
+        open: '/m/ideas',
+        undo: () => api.delete(`/ideas/${made.id}`),
+      };
+    },
+  },
 });

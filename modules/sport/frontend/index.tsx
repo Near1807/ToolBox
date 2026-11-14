@@ -17,8 +17,10 @@ import {
   useApi,
   useModule,
   Icon,
+  Lent,
   onPhone,
 } from '@hub/sdk/frontend';
+import type { TimerLaunchProps } from '../../timer/contract';
 import {
   formatLine,
   fold,
@@ -466,6 +468,15 @@ function SessionEditor(props: {
           Heure, durée et jour changés ici valent pour cette séance seulement ; la semaine type n’y
           touche plus.
         </p>
+        {/* v0.36.0 (Expérimental): the Timer's own button, when the Timer is there. */}
+        <Lent<TimerLaunchProps>
+          name="timer.launch"
+          props={{
+            title: s.name,
+            blockMin: s.durationMin,
+            subject: `sport:session:${s.id}`,
+          }}
+        />
       </div>
     </Card>
   );

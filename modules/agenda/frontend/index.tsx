@@ -1,7 +1,7 @@
 // The Agenda's pages: the bar on top, then the week (PC) or the day
 // (phone), the month, the week type; layers, the detail of an event, a
 // short guide. « Expérimental » until Thomas validates it.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import {
   Button,
@@ -9,6 +9,7 @@ import {
   defineFrontendModule,
   ErrorMessage,
   errorMessage,
+  Lent,
   onPhone,
   Page,
   UndoToast,
@@ -16,11 +17,21 @@ import {
   useModule,
 } from '@hub/sdk/frontend';
 import { addDays, dayLabel, mondayOf } from '../shared/time';
-import type { AgendaEventDto, PlannedTaskDto, RangeDto } from '../shared/types';
+import type { AgendaEventDto, RangeDto } from '../shared/types';
 import { minutesBetween } from '../shared/time';
-import { spanLabel } from '../shared/drag';
-import { TaskPanel } from './TaskPanel';
-import { colorStyle, switchCategories, useRange, useSwitches, type Item } from './common';
+import { spanLabel, type Span } from '../shared/drag';
+import { appointmentPreview } from '../shared/parse';
+import type { SlotKind } from './CreateSlot';
+import { TaskPanel, type OpenTask } from './TaskPanel';
+import {
+  colorStyle,
+  switchCategories,
+  timerSubject,
+  useRange,
+  useSwitches,
+  type Item,
+} from './common';
+import type { TimerChoice, TimerLaunchProps } from '../../timer/contract';
 import { DEFAULT_OFF } from '../shared/categories';
 import { DayView } from './DayView';
 import { EventForm, EventPanel, type Undo } from './EventPanel';
@@ -51,9 +62,16 @@ function AgendaPage() {
   const period =
     view === 'month' ? monthGrid(day.slice(0, 7)) : { from: monday, to: addDays(monday, 6) };
   const { data, error, reload } = useRange(period.from, period.to);
+  // v0.36.0: while a timer runs, the blocks follow it (a light refresh each minute).
+  const timerOn = Boolean(data?.timer);
+  useEffect(() => {
+    if (!timerOn) return;
+    const every = window.setInterval(reload, 60_000);
+    return () => window.clearInterval(every);
+  }, [timerOn, reload]);
   const layers = useSwitches(data?.categoriesOff ?? DEFAULT_OFF);
   const [selected, setSelected] = useState<AgendaEventDto | null>(null);
-  const [selectedTask, setSelectedTask] = useState<PlannedTaskDto | null>(null);
+  const [selectedTask, setSelectedTask] = useState<OpenTask | null>(null);
   const [creating, setCreating] = useState(false);
   /** The last change: its message, and « Annuler » when it can be undone. */
   const [notice, setNotice] = useState<Undo | { message: string; run: null } | null>(null);
@@ -62,7 +80,12 @@ function AgendaPage() {
     setSelected(null);
     setSelectedTask(null);
     if (item.source === 'foreign') navigate(item.event.open);
-    else if (item.source === 'task') setSelectedTask(item.event);
+    else if (item.source === 'task')
+      setSelectedTask({
+        id: item.event.id,
+        title: item.event.title,
+        category: item.event.category,
+      });
     else setSelected(item.event);
   };
   const changed = (u?: Undo) => {
@@ -123,6 +146,53 @@ function AgendaPage() {
       },
     );
   };
+
+  /** v0.36.0: tick a task from its block (the To-do's service), « Annuler » after. */
+  const tick = (item: Item, done: boolean) => {
+    if (item.source !== 'task') return;
+    const url = `/tasks/${item.event.id}/done`;
+    module.api.put(url, { done }).then(
+      () => {
+        setNotice({
+          message: done
+            ? `« ${item.event.title} » cochée`
+            : `« ${item.event.title} » de nouveau à faire`,
+          run: () => module.api.put(url, { done: !done }),
+        });
+        reload();
+      },
+      (e: unknown) => setNotice({ message: errorMessage(e), run: null }),
+    );
+  };
+
+  /** v0.36.0: create in an empty slot, after the choice (« Tâche » / « Rendez-vous »). */
+  const create = async (kind: SlotKind, title: string, span: Span) => {
+    const where = `${dayLabel(span.start.slice(0, 10), data?.today ?? day)} ${spanLabel(span)}`;
+    if (kind === 'task') {
+      const made = await module.api.post<{ id: string; title: string }>('/tasks', {
+        title,
+        plannedAt: span.start,
+        durationMin: minutesBetween(span.start, span.end),
+      });
+      setNotice({
+        message: `Tâche « ${made.title} » prévue ${where}`,
+        run: () => module.api.delete(`/tasks/${made.id}`),
+      });
+    } else {
+      const made = await module.api.post<{ id: string; title: string }>('/events', {
+        title,
+        start: span.start,
+        end: span.end,
+      });
+      setNotice({
+        message: `Rendez-vous « ${made.title} » ${where}`,
+        run: () => module.api.delete(`/events/${made.id}`),
+      });
+    }
+    reload();
+  };
+  const openToPlace = (t: { id: string; title: string }) =>
+    setSelectedTask({ id: t.id, title: t.title, category: 'Tâches' });
 
   const shift = (n: number) => {
     if (view !== 'month') return setDay(addDays(day, view === 'day' ? n : n * 7));
@@ -253,6 +323,35 @@ function AgendaPage() {
       )}
       {selected && data && (
         <EventPanel
+          // v0.36.0: « Lancer un timer » (lent by the Timer, absent without it)
+          children={
+            !selected.allDay && (
+              <Lent<TimerLaunchProps>
+                name="timer.launch"
+                props={{
+                  title: selected.title,
+                  blockMin: minutesBetween(selected.start, selected.end),
+                  subject: timerSubject(selected),
+                  preferred: (selected.timerPref as TimerChoice | null) ?? null,
+                  onPreferredChange: async (choice) => {
+                    const url = selected.weekly
+                      ? `/weekly/${selected.weekly.id}`
+                      : `/events/${selected.id}`;
+                    await module.api.patch(url, { timerPref: choice });
+                    setSelected({ ...selected, timerPref: choice });
+                    setNotice({
+                      message: choice
+                        ? `Timer associé à « ${selected.title} »${selected.weekly ? ' (toutes les semaines)' : ''}`
+                        : 'Plus de timer associé',
+                      run: () => module.api.patch(url, { timerPref: selected.timerPref }),
+                    });
+                    reload();
+                  },
+                  onStarted: reload,
+                }}
+              />
+            )
+          }
           key={`${selected.id}:${selected.start}`}
           event={selected}
           today={data.today}
@@ -266,11 +365,14 @@ function AgendaPage() {
       )}
       {selectedTask && data && (
         <TaskPanel
-          key={`${selectedTask.id}:${selectedTask.start}:${selectedTask.end}`}
+          key={selectedTask.id}
           task={selectedTask}
-          today={data.today}
           onClose={() => setSelectedTask(null)}
-          onChanged={changed}
+          // The sheet stays open: the change shows in the week, with « Annuler ».
+          onChanged={(u) => {
+            setNotice(u);
+            reload();
+          }}
         />
       )}
       {data && view !== 'weekly' && (
@@ -287,10 +389,22 @@ function AgendaPage() {
           shown={layers.shown}
           onOpen={open}
           onDrop={phone ? undefined : drop}
+          onTick={tick}
+          onOpenTask={openToPlace}
+          onCreate={create}
         />
       )}
       {data && view === 'day' && (
-        <DayView data={data} day={day} shown={layers.shown} onDay={setDay} onOpen={open} />
+        <DayView
+          data={data}
+          day={day}
+          shown={layers.shown}
+          onDay={setDay}
+          onOpen={open}
+          onTick={tick}
+          onOpenTask={openToPlace}
+          onCreate={create}
+        />
       )}
       {data && view === 'month' && (
         <MonthView
@@ -348,6 +462,34 @@ function HomeWidget() {
 }
 
 export default defineFrontendModule({
+  // v0.36.0 (ADR 0046): « Rendez-vous » in the shell's « Ajouter » bar (the Agenda bar's rules).
+  quickAdd: {
+    label: 'Rendez-vous',
+    icon: 'calendar-days',
+    order: 2,
+    placeholder: 'dentiste jeudi 14h 1h',
+    preview: (text, today) => appointmentPreview(text, today),
+    add: async (text, { api }) => {
+      const r = await api.post<{
+        kind: 'event' | 'weekly' | 'task';
+        event?: { id: string; title: string; start: string };
+        weekly?: { id: string; title: string };
+      }>('/quick', { text });
+      if (r.kind === 'weekly' && r.weekly)
+        return {
+          message: `« ${r.weekly.title} » ajouté à la semaine type`,
+          open: '/m/agenda',
+          undo: () => api.delete(`/weekly/${r.weekly!.id}`),
+        };
+      if (r.kind === 'event' && r.event)
+        return {
+          message: `« ${r.event.title} » ajouté à l’agenda`,
+          open: `/m/agenda?date=${r.event.start.slice(0, 10)}`,
+          undo: () => api.delete(`/events/${r.event!.id}`),
+        };
+      return { message: 'Ajouté', open: '/m/agenda' };
+    },
+  },
   pages: [
     { path: '', component: AgendaPage },
     { path: 'guide', component: GuidePage },

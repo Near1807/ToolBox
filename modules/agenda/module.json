@@ -7,7 +7,7 @@
   "icon": "calendar-days",
   "order": 5,
   "dependsOn": {
-    "optionalServices": ["todo"]
+    "optionalServices": ["todo", "timer"]
   },
   "settings": [
     {

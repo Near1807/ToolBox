@@ -36,6 +36,7 @@ import {
   type NavCategory,
 } from './navigation';
 import { FullscreenButton } from './WindowControls';
+import { QUICK_ADD_EVENT, useQuickAddShortcut } from './QuickAdd';
 
 const TOOL_TYPE = 'application/x-toolbox-tool';
 const CATEGORY_TYPE = 'application/x-toolbox-category';
@@ -211,6 +212,7 @@ export function Sidebar(props: { fullscreen: boolean }) {
   };
   const isDrop = (target: DropTarget) => JSON.stringify(drop) === JSON.stringify(target);
 
+  const quickAddShortcut = useQuickAddShortcut();
   return (
     <nav className="sidebar" aria-label="Navigation principale" onDragEnd={() => setDrop(null)}>
       <div className="sidebar__brand">
@@ -218,6 +220,16 @@ export function Sidebar(props: { fullscreen: boolean }) {
           <Wrench size={15} />
         </span>
         ToolBox
+        {/* v0.36.0: the « Ajouter » bar (ADR 0046), always within reach. */}
+        <button
+          type="button"
+          className="sidebar__add"
+          title={`Ajouter : une tâche, un rendez-vous, une idée… (${quickAddShortcut || 'sans raccourci'})`}
+          aria-label="Ajouter"
+          onClick={() => window.dispatchEvent(new Event(QUICK_ADD_EVENT))}
+        >
+          <Icon name="plus" />
+        </button>
       </div>
 
       <div className="sidebar__tools">

@@ -15,6 +15,8 @@ export interface AgendaEventDto {
   category: string;
   /** Occurrence of the week type: its entry and its date (cancel / move one). */
   weekly: { id: string; date: string; moved: boolean } | null;
+  /** v0.36.0: the associated timer (the Timer's TimerChoice; an occurrence: its entry's), or null. */
+  timerPref: Record<string, unknown> | null;
 }
 
 /** Something of another module, as the Agenda shows it (read only). */
@@ -75,6 +77,8 @@ export interface WeeklyDto {
   /** First and last day it applies (null: no limit). */
   from: string | null;
   until: string | null;
+  /** v0.36.0: the associated timer, or null. */
+  timerPref: Record<string, unknown> | null;
 }
 
 export interface RangeDto {
@@ -87,6 +91,8 @@ export interface RangeDto {
   toPlace: ToPlaceDto[];
   /** v0.35.0: tasks of the To-do planned in the period (blocks). */
   tasks: PlannedTaskDto[];
+  /** v0.36.0: the timer running now (with the Timer): its task, or what it was started for. */
+  timer: { taskId: string | null; subject: string | null } | null;
   /** The To-do is there: « À caser » is shown, and the bar can add tasks. */
   todo: boolean;
   weekly: WeeklyDto[];

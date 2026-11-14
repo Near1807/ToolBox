@@ -14,6 +14,7 @@
   - les thèmes du PC (Nebula par défaut, choix gardé sur le téléphone) ;
   - icônes lucide du SDK, aucun emoji.
 - **Écrans des modules** (To-do, Courses, Sport, Boîte à idées, Timer, Agenda) : ceux du PC. L'Agenda montre sur le téléphone une vue jour par jour (glisser pour changer de jour) au lieu de la semaine. Une mise en page mobile est ajoutée par des fichiers CSS à part (`modules/<id>/frontend/<id>.mobile.css`, `src/mobile.css`), chargés seulement par l'appli. Les rares écarts de comportement passent par `onPhone()` du SDK (toujours faux sur le PC) : pas de clavier à l'arrivée sur la To-do, séance ouverte amenée à l'écran (Sport), import JSON remplacé par une phrase et « Prendre une photo… » (Courses).
+- **Barre « Ajouter »** (v0.36.0, ADR 0046) : un « + » flottant au-dessus de la barre du bas ouvre la même barre que sur le PC (`@hub/sdk/quick-add`), avec les destinations des modules présents.
 - **Ce que seule la page peut faire** (`src/page-host.ts`, canal inverse Worker → page) : « Enregistrer sous » = feuille de partage d'Android (greffons Filesystem + Share).
 - **Timer** (`src/timer-notices.ts`, `src/TimerPhone.tsx`) : notifications des fins de phase **programmées à l'avance** (greffon Local Notifications, alarmes exactes si permises), permission demandée avec une phrase, alarmes exactes vérifiées à chaque ouverture, guide Samsung.
 - **Synchro avec le PC** (`src/SyncPage.tsx`, `src/phone-sync.ts`, logique dans `packages/phone/sync-client.ts`) : appairage, première synchro, synchro à la main, Conflits ; le PC retrouvé sur tout réseau (adresses connues, greffon `PcFinder` = NSD, « Nouvelle adresse du PC ») ; photos des recettes ; **synchro automatique** (`src/auto.ts`, `packages/phone/auto-sync.ts`, désactivée par défaut) avec le canal direct (greffon `LiveChannel`, OkHttp). Toutes les requêtes vers le PC passent par un certificat épinglé (`PinnedHttp`).
@@ -63,6 +64,7 @@ versionCode = majeure × 1 000 000 + mineure × 100 + correctif
 | 0.31.0  | 3100        |
 | 0.34.0  | 3400        |
 | 0.35.0  | 3500        |
+| 0.36.0  | 3600        |
 | 1.0.0   | 1000000     |
 
 Il croît toujours tant que le correctif reste sous 100 et la mineure sous 10 000 ; la CI refuse sinon. Deux APK de la même version ont le même versionCode : pour mettre à jour le téléphone, il faut une nouvelle version.
