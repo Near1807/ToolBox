@@ -166,7 +166,8 @@ export function TimerLaunch(props: TimerLaunchProps) {
           )}
         </div>
       )}
-      {message && (
+      {/* Once its timer runs, « Son timer tourne » says it already (one message). */}
+      {message && !mine && (
         <p className="small muted tm-launch__done">
           {message} · <Link to="/m/timer">ouvrir le Timer</Link>
         </p>
