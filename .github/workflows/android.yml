@@ -109,7 +109,7 @@ jobs:
           distribution: temurin
           java-version: 21
 
-      - uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v4
         with:
           # The default (« tools platform-tools ») asks for « tools », which no
           # longer exists; the SDK platforms and build tools are fetched by Gradle.
