@@ -38,3 +38,8 @@ Côté serveur, rien de nouveau dans le socle. Les actions passent par les **ser
 - Le prêteur reste maître de ses données : l'emprunteur ne fait qu'afficher le composant et recevoir un message (avec son « Annuler »).
 - Un nouveau module peut prêter un composant ou déclarer une destination sans toucher au shell.
 - Limite : un composant prêté ne connaît que les props de son contrat. S'il doit évoluer, son contrat évolue par ajouts, comme un service.
+
+## Note du 14/11/2026 (v0.36.1, passe de nettoyage)
+
+- Emprunteurs actuels : `todo.taskEditor` par l'Agenda ; `timer.launch` par l'Agenda, la fiche de tâche de la To-do et le détail d'une séance du Sport (v0.36.0, partie D). Destinations « Ajouter » : To-do, Agenda, Boîte à idées.
+- Prouvé par des tests : `tests/lent.test.ts` (rendu dans le contexte du prêteur, repli quand il est absent), `tests/quick-add.test.ts` (destination absente avec son module), `tests/modules-alone.test.ts` (chaque module du téléphone démarre seul).
