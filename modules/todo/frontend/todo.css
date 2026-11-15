@@ -236,10 +236,27 @@
   gap: 0.4rem;
 }
 .td-sheet__done {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  font-size: 1rem;
+}
+.td-sheet__done label {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
-  font-weight: 600;
+  gap: 0.4rem;
+  cursor: pointer;
+}
+.td-sheet__done input {
+  width: 1.2rem;
+  height: 1.2rem;
+}
+.td-sheet__done--on {
+  color: var(--text-2);
 }
 .td-sheet__meta {
   margin: 0;

@@ -227,8 +227,26 @@ export function ToPlace(props: {
   );
 }
 
-/** A block in the grid (own: its detail; a planned task: its panel; another module's: opens it there). */
-function Block(props: {
+/** Below this height (px) a block is « short »: one line, the title first (30 min and 45 min are). */
+export const SHORT_BLOCK_PX = 36;
+/** Line height of a block's text (0.8rem × 1.2), to know how many lines of title fit. */
+const LINE_PX = 15.4;
+/** Inner margins (top + bottom) of a block, px. */
+const BLOCK_PAD_PX = 4;
+
+/** How many lines of title fit under the time line of a tall block (at least one). */
+export const titleLines = (height: number) =>
+  Math.max(1, Math.floor((height - BLOCK_PAD_PX - LINE_PX) / LINE_PX));
+
+/**
+ * A block in the grid (own: its detail; a planned task: its panel; another
+ * module's: opens it there). v0.38.0: no control on the block (a task is
+ * ticked in its panel); the TITLE first: a short block is one line « Title
+ * [icons] time », the time only when there is room (else in the tooltip); a
+ * tall one shows the time, then the title on the lines left, « … » when it
+ * does not fit. Never a smaller font: the room comes from the margins.
+ */
+export function Block(props: {
   item: Item;
   top: number;
   height: number;
@@ -239,8 +257,6 @@ function Block(props: {
   onOpen: (item: Item) => void;
   wasDrag: () => boolean;
   drag?: (kind: 'move' | 'stretch') => DragHandlers;
-  /** v0.36.0: tick a task here. */
-  onTick?: (item: Item, done: boolean) => void;
   /** v0.36.0: its timer runs now. */
   running?: boolean;
 }) {
@@ -248,49 +264,68 @@ function Block(props: {
   const e = item.event;
   const task = item.source === 'task' ? item.event : null;
   const canMove = Boolean(props.drag);
+  const height = Math.max(18, props.height);
+  const short = height < SHORT_BLOCK_PX;
+  // « Prévue après son échéance » no longer matters once the task is done.
+  const late = Boolean(task?.afterDue && !task.done);
   const fixedTip =
     item.source === 'foreign' ? '\nSe modifie dans son outil (clic pour l’ouvrir)' : '';
+  const icons = (
+    <>
+      {props.running && (
+        <span className="ag-block__timer" title="Son timer tourne">
+          <Icon name="timer" />
+        </span>
+      )}
+      {(props.overlaps || late) && (
+        <span className="ag-block__warn">
+          <Icon name="warning" />
+        </span>
+      )}
+    </>
+  );
   return (
     <div
-      className={`ag-block${props.height < 34 ? ' ag-block--short' : ''}${props.overlaps ? ' ag-block--overlap' : ''}${item.source === 'foreign' ? ' ag-block--foreign ag-block--fixed' : ''}${task ? ' ag-block--task' : ''}${task?.done ? ' ag-block--done' : ''}${canMove ? ' ag-block--movable' : ''}${props.dragging ? ' ag-block--dragging' : ''}`}
+      className={`ag-block${short ? ' ag-block--short' : ''}${props.overlaps ? ' ag-block--overlap' : ''}${item.source === 'foreign' ? ' ag-block--foreign ag-block--fixed' : ''}${task ? ' ag-block--task' : ''}${task?.done ? ' ag-block--done' : ''}${canMove ? ' ag-block--movable' : ''}${props.dragging ? ' ag-block--dragging' : ''}`}
       style={{
         ...colorStyle(e.category),
         top: props.top,
-        height: Math.max(18, props.height),
+        height,
         left: `${(props.lane / props.lanes) * 100}%`,
         width: `${100 / props.lanes}%`,
       }}
     >
-      {task && props.onTick && (
-        <input
-          type="checkbox"
-          className="ag-block__check"
-          checked={task.done}
-          title={task.done ? 'Marquer à faire' : 'Cocher : faite'}
-          aria-label={task.done ? `Marquer « ${task.title} » à faire` : `Cocher « ${task.title} »`}
-          onPointerDown={(e) => e.stopPropagation()}
-          onChange={(e) => props.onTick!(item, e.target.checked)}
-        />
-      )}
       <button
         type="button"
         className="ag-block__body"
-        title={`${e.title}\n${e.start.slice(11)}–${e.end.slice(11)} · ${e.category}${task?.done ? ' · fait' : ''}${task?.afterDue ? '\nPrévue après son échéance' : ''}${props.overlaps ? '\nChevauche un autre élément' : ''}${canMove ? '\nGlisser pour déplacer · tirer le bas pour changer la durée' : fixedTip}`}
+        title={`${e.title}\n${e.start.slice(11)}–${e.end.slice(11)} · ${e.category}${task?.done ? ' · fait' : ''}${late ? '\nPrévue après son échéance' : ''}${props.overlaps ? '\nChevauche un autre élément' : ''}${canMove ? '\nGlisser pour déplacer · tirer le bas pour changer la durée' : fixedTip}`}
         onClick={() => {
           if (!props.wasDrag()) props.onOpen(item);
         }}
         {...props.drag?.('move')}
       >
-        <span className="ag-block__time">
-          {props.running && (
-            <span className="ag-block__timer" title="Son timer tourne">
-              <Icon name="timer" />
+        {short ? (
+          <>
+            <span className="ag-block__head">
+              <span className="ag-block__title">{e.title}</span>
+              {icons}
             </span>
-          )}
-          {e.start.slice(11)}
-          {(props.overlaps || task?.afterDue) && <Icon name="warning" />}
-        </span>
-        <span className="ag-block__title">{e.title}</span>
+            <span className="ag-block__time">{e.start.slice(11)}</span>
+          </>
+        ) : (
+          <>
+            <span className="ag-block__time">
+              {e.start.slice(11)}
+              {icons}
+            </span>
+            <span
+              className="ag-block__title ag-block__title--lines"
+              style={{ WebkitLineClamp: titleLines(height) }}
+            >
+              {e.title}
+            </span>
+          </>
+        )}
       </button>
       {canMove && (
         <span
@@ -311,8 +346,6 @@ export function WeekView(props: {
   onOpen: (item: Item) => void;
   /** PC: a drop (one write by the page, with « Annuler »). */
   onDrop?: (drop: Drop) => void;
-  /** v0.36.0: tick a task from its block. */
-  onTick?: (item: Item, done: boolean) => void;
   /** v0.36.0: a task « à caser » clicked: its sheet. */
   onOpenTask?: (task: ToPlaceDto) => void;
   /** v0.36.0: create in an empty slot (« Tâche » or « Rendez-vous »), one write after the choice. */
@@ -600,7 +633,6 @@ export function WeekView(props: {
                     onOpen={props.onOpen}
                     wasDrag={wasDrag}
                     drag={blockDrag(item)}
-                    onTick={props.onTick}
                     running={timerRuns(data, item)}
                   />
                 );

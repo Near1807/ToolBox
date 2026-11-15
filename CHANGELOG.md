@@ -4,6 +4,16 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.38.0] — 2026-11-15
+
+Agenda : lisibilité des blocs, « Cuisine » séparée des « Repas », titres de l'import d'école. Aucune migration.
+
+### Changé
+
+- **Blocs de la semaine** (PC et téléphone) : plus de case à cocher sur les blocs ni sur les lignes de la vue jour. On coche dans la fiche de la tâche, case « Faite » en haut (« À refaire » quand elle est faite), avec « Annuler ». Le **titre d'abord** : un bloc de 45 min ou moins tient sur une ligne (titre, puis l'heure s'il reste de la place) ; marges réduites, police inchangée ; « … » quand ça déborde. Le ⚠ « prévue après son échéance » n'apparaît plus sur une tâche faite.
+- **Cuisine** : les séances de batch cooking (Courses) sont dans une nouvelle catégorie « Cuisine », allumée par défaut et comptée dans la charge ; les repas restent dans « Repas » (éteint par défaut).
+- **Import d'un horaire d'école** : le titre d'un cours vient de la ligne « Act: » de la description (le SUMMARY devient le code) ; le type d'examen (« · Écrit », « · Oral ») est trouvé dans la description ; note sans la ligne de titre, sans « Ens: » vide, « Rem » → « Remarque ». Un réimport propose les nouveaux titres en « modifiés », sans doublon.
+
 ## [0.37.0] — 2026-11-15
 
 Agenda : importer un calendrier (ICS, puis CSV et Excel) dans une source liée à des catégories. Nouveautés marquées « Expérimental ». Migration 4 de l'Agenda (ajouts seulement).

@@ -219,8 +219,29 @@ describe('batch cooking plans', () => {
         )
       ).body.events.filter((x) => String(x.id).startsWith('batch:'));
     expect(await cal()).toMatchObject([
-      { title: 'Batch cooking : Curry', start: '2026-11-02', durationMin: 0 },
+      { title: 'Batch cooking : Curry', start: '2026-11-02', durationMin: 0, category: 'Cuisine' },
     ]);
+    // v0.38.0: the meals of the same day keep the source's category « Repas » (no category of their own).
+    const all = (
+      await hub.request<{ events: Record<string, unknown>[] }>(
+        'GET',
+        '/api/core/calendar?from=2026-11-02&to=2026-11-02',
+      )
+    ).body.events;
+    const meals = all.filter((x) => !String(x.id).startsWith('batch:'));
+    expect(meals.length).toBeGreaterThan(0);
+    expect(new Set(meals.map((x) => x.category))).toEqual(new Set([undefined]));
+    // As a reader (the Agenda) gets them: the session in « Cuisine », the meals in « Repas ».
+    const view = await hub.hub.calendar.query('2026-11-02', '2026-11-02');
+    expect(
+      [
+        ...new Set(
+          view.events.map(
+            (x) => `${String(x.id).startsWith('batch:') ? 'batch' : 'repas'}:${x.category}`,
+          ),
+        ),
+      ].sort(),
+    ).toEqual(['batch:Cuisine', 'repas:Repas']);
     await hub.request('PATCH', `${API}/batch/sessions/${plan.sessions[0]!.id}`, {
       startTime: '17:30',
       durationMin: 90,

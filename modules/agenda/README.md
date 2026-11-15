@@ -29,7 +29,7 @@ Règles : une **durée avec « ~ »** fait une tâche (une heure qui finit cette
 
 ## Vue de la semaine (PC)
 
-Colonnes par jour, heures de la journée (réglage « Début / Fin de la journée », 7 h – 23 h par défaut), blocs colorés par catégorie (`--series-1…8` des thèmes, `shared/categories.ts`), aujourd'hui mis en avant ; rangée du haut pour les événements sur la journée et sur plusieurs jours ; bande « À caser » (tâches échues cette semaine, rangées par échéance, puis celles sans échéance, repliables) ; sous chaque jour une **barre de charge** découpée par catégorie (heures d'événements + durées estimées des tâches échues ce jour-là) et un état léger / chargé / saturé ; en tête « X h de libre · Y h à caser · + N tâches sans durée » ; chevauchements signalés ; **interrupteurs de catégorie** (v0.35.0, voir plus bas) ; vue mois légère. Calculs purs dans `shared/load.ts`.
+Colonnes par jour, heures de la journée (réglage « Début / Fin de la journée », 7 h – 23 h par défaut), blocs colorés par catégorie (`--series-1…8` des thèmes, `shared/categories.ts`), aujourd'hui mis en avant ; rangée du haut pour les événements sur la journée et sur plusieurs jours ; bande « À caser » (tâches échues cette semaine, rangées par échéance, puis celles sans échéance, repliables) ; sous chaque jour une **barre de charge** découpée par catégorie (heures d'événements + durées estimées des tâches échues ce jour-là) et un état léger / chargé / saturé ; en tête « X h de libre · Y h à caser · + N tâches sans durée » ; chevauchements signalés ; blocs « titre d'abord » (v0.38.0 : un bloc de 45 min ou moins tient sur une ligne, le titre puis l'heure s'il reste de la place, « … » quand ça déborde ; un bloc plus haut montre l'heure puis le titre ; marges de 2 px / 4 px, police inchangée) ; **interrupteurs de catégorie** (v0.35.0, voir plus bas) ; vue mois légère. Calculs purs dans `shared/load.ts`.
 
 **Charge** (catégories allumées seulement) : heures des événements et des tâches prévues dans la plage de la journée, par catégorie, plus les durées estimées des tâches échues ce jour-là (« Tâches » ; une tâche en retard pèse sur aujourd'hui, jamais sur un jour passé ni sur une semaine suivante). Léger sous 50 % de la plage, chargé sous 85 %, saturé au-delà. Les événements sur la journée (un camp, un examen) n'ont pas d'heures : ils ne pèsent pas. **Libre** : la plage moins les événements (chevauchements comptés une fois). **À caser** : les durées estimées des tâches qui pèsent sur un jour de la semaine (celles en retard dans la semaine en cours) ; les tâches sans échéance sont dans la bande, pas dans ce total.
 
@@ -41,7 +41,7 @@ Colonnes par jour, heures de la journée (réglage « Début / Fin de la journé
 
   Chaque changement s'affiche dans la semaine, avec « Annuler » (les valeurs d'avant réécrites).
 
-- **Cocher** : une case sur chaque bloc de tâche (et sur sa ligne dans la vue jour). Cochée, la tâche est barrée ; « Annuler » juste après. Route `PUT /tasks/:id/done` → service `todo`.
+- **Cocher** (v0.38.0) : plus de case sur les blocs ni sur les lignes de la vue jour. Clic sur le bloc → la fiche de la To-do, case **« Faite »** en haut (« À refaire » quand elle est faite) : une écriture, « Annuler » juste après. Une tâche faite reste barrée et atténuée ; le ⚠ « prévue après son échéance » disparaît quand elle est faite (« chevauche » reste). La route `PUT /tasks/:id/done` reste (service `todo`).
 - **Créer dans un trou** :
   - PC : clic sur un créneau vide → saisie ancrée là, jour et heure au quart d'heure, 30 min ; glisser sur une plage vide → cette durée ;
   - téléphone, vue jour : les créneaux libres (30 min au moins) sont listés, toucher l'un d'eux ouvre la même saisie ;
@@ -71,9 +71,9 @@ Destination **« Rendez-vous »** de la barre « Ajouter » du shell (ADR 0046).
 
 Les calques de v0.34 deviennent des **interrupteurs** : une catégorie **allumée** est affichée **et comptée** (charge, temps libre, chevauchements, « à caser » pour « Tâches ») ; **éteinte**, elle n'est ni affichée ni comptée (remplace la règle « la charge compte toujours tout »).
 
-- **Par défaut éteintes** : Sport, Repas (repas et batch), Timer — les choses de tous les jours. **Allumées** : les catégories de l'Agenda, Tâches, Musique. Liste de départ modifiable : réglage « Catégories éteintes par défaut » (`categoriesOff`, « Sport, Repas, Timer »), lu dans `RangeDto.categoriesOff`.
+- **Par défaut éteintes** : Sport, Repas (les repas prêts), Timer — les choses de tous les jours. **Allumées** : les catégories de l'Agenda, Tâches, **Cuisine** (v0.38.0 : les séances de batch cooking des Courses, à caser dans la journée ; un appareil qui a déjà des choix enregistrés la reçoit allumée, ses autres choix ne changent pas), Musique. Liste de départ modifiable : réglage « Catégories éteintes par défaut » (`categoriesOff`, « Sport, Repas, Timer »), lu dans `RangeDto.categoriesOff`.
 - Choix **propre à chaque appareil** (`localStorage`, `toolbox.agenda.categorySwitches`, jamais synchronisé) ; les calques masqués en v0.34 sont repris comme éteints.
-- Le bilan de la semaine dit ce qui n'est pas compté (« hors Sport, Repas »).
+- Le bilan de la semaine dit ce qui n'est pas compté (« hors Sport, Repas, Timer »).
 - Règle pure : `isOn(catégorie, choix, éteintes par défaut)` (`shared/categories.ts`), comptage par `timedBlocks(data, shown)` et `taskLoads(data, shown)` (`frontend/common.ts`), testés (`tests/layers.test.ts`).
 
 ## Tâches prévues et glisser-déposer (v0.35.0, Expérimental)
@@ -85,12 +85,12 @@ Une tâche reste **une donnée de la To-do** : l'Agenda la lit par le calendrier
   - un bloc (tâche prévue ou événement de l'Agenda) → une autre heure ou un autre jour (sa durée gardée) ;
   - le **bas** d'un bloc → sa durée (15 min au moins ; pour une tâche, sa durée estimée) ;
   - une **occurrence de la semaine type** : cette fois-ci seulement (l'exception existante) ;
-  - les éléments des autres modules (Sport, Repas, Timer, Musique) ne se déplacent pas : curseur et infobulle le disent, un clic les ouvre dans leur outil ;
+  - les éléments des autres modules (Sport, Repas, Cuisine, Timer, Musique) ne se déplacent pas : curseur et infobulle le disent, un clic les ouvre dans leur outil ;
   - les événements sur la journée ou sur plusieurs jours : pas dans cette version.
 
   Pendant le glisser : aperçu de l'heure de début et de fin, **Échap** annule. **Rien n'est écrit pendant le glisser : une seule écriture au dépôt**, puis « Annuler » (les valeurs d'avant réécrites).
 
-- **Détail d'une tâche prévue** (clic, PC et téléphone) : jour, heure, durée, « Retirer de l'agenda » (retour dans « À caser »), « Ouvrir dans la To-do ». Cochée : barrée, toujours là. Prévue après son échéance : signalée.
+- **Détail d'une tâche prévue** (clic, PC et téléphone) : jour, heure, durée, « Retirer de l'agenda » (retour dans « À caser »), « Ouvrir dans la To-do ». Cochée : barrée, toujours là. Prévue après son échéance (et pas faite) : signalée.
 - **Téléphone** : pas de glisser ; heure et durée se changent par le détail (tâche et événement).
 - Route : `PUT /tasks/:id/plan { plannedAt?, durationMin? }` (`plannedAt: null` = retirer de l'agenda) → service `todo`.
 
@@ -103,7 +103,7 @@ Agenda › **Importer** (sur le PC ; le lien n'est pas montré sur le téléphon
 - **Aperçu, rien n'est écrit** : à ajouter / identiques / modifiés (avec les différences) / disparus / ignorés (passés) / erreurs (ligne, raison). Les modifiés sont cochés, sauf ceux que tu as changés depuis le dernier import (« modifié par toi », décochés) ; les disparus sont décochés (cochés : suppression logique, restaurable) ; un événement que tu avais supprimé revient décoché.
 - **Importer** : sauvegarde automatique, une transaction, résumé, « Annuler l'import » (20 s à l'écran, possible 10 minutes par la route). Réimporter le même fichier : tout est « identique », rien n'est écrit (pas même la source).
 - **ICS lu** : lignes repliées, échappements `\n \, \;`, TZID (données du système, sinon le VTIMEZONE du fichier), UTC (`Z`), heures flottantes, journées entières (`VALUE=DATE`, fin exclusive → dernier jour inclus), DTEND ou DURATION (sans les deux : 1 h, ou 1 jour), `RRULE` DAILY / WEEKLY (COUNT, UNTIL, BYDAY multiples, INTERVAL, WKST), RDATE, EXDATE, RECURRENCE-ID, STATUS:CANCELLED. Répétitions **dépliées** en événements (clé « UID#AAAAMMJJ ») ; une règle sans fin s'arrête un an après aujourd'hui ; 2 000 occurrences au plus par événement. Tout le reste (mensuel, annuel, BYSETPOS…) : listé en erreur, rien n'est importé pour lui.
-- **Titre et note** : « TH2C:Thermo » → « Thermo » (ou « TH2C · Thermo ») ; « [ECRIT] » / « [ORAL] » → « Thermo · Écrit » / « · Oral » ; la description devient la note (« Activité : … · Groupe : … · Enseignants : … ») ; le lieu tel quel (« 2F51;2E51;2E44 »). Le **texte d'origine** (UID, SUMMARY, DESCRIPTION, LOCATION, CATEGORIES ; ou les colonnes du tableau) est gardé dans l'événement et montré dans son détail.
+- **Titre et note** (v0.38.0, forme réelle de l'export d'école) : un **cours** a un code en SUMMARY (« ®-RE4L-L2-4MEO-4MIN ») et son nom dans la ligne « Act: » de la description → titre « Computer Network Lab », code « RE4L-L2-4MEO-4MIN » (« ® » de tête retiré), montré seulement avec le style « code · titre ». Sans ligne « Act: » : « TH2C:Thermo » → « Thermo » (code « TH2C »), sinon le SUMMARY tel quel. Un **examen** : « [ECRIT] » / « [ORAL] » trouvé dans la description (ou le titre) → « Thermo · Écrit » / « · Oral ». La note reprend les autres lignes (« Groupe : … · Enseignants : … · Remarque : … ») : la ligne « Act: » qui sert de titre, la ligne qui ne fait que répéter le SUMMARY et son type, et une « clé: » sans valeur (« Ens: ») n'y sont pas. Le lieu tel quel (« 2F51;2E51;2E44 »). Le **texte d'origine** (UID, SUMMARY, DESCRIPTION, LOCATION, CATEGORIES ; ou les colonnes du tableau) est gardé dans l'événement et montré dans son détail. Les clés d'origine ne changent pas : un réimport d'un fichier importé en v0.37.0 propose les nouveaux titres en « modifiés », sans doublon (« modifié par toi » respecté).
 
 ### Tableau CSV / Excel
 

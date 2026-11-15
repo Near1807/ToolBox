@@ -2,7 +2,7 @@
 // overlaps); OFF = neither. Sport, Repas and Timer are off by default.
 import { describe, expect, it } from 'vitest';
 import { itemsOf, switchCategories, taskLoads, timedBlocks } from '../frontend/common';
-import { categoryList, DEFAULT_OFF, isOn } from '../shared/categories';
+import { categoryColor, categoryList, DEFAULT_OFF, isOn } from '../shared/categories';
 import { dayLoad, placeDay, weekSummary } from '../shared/load';
 import type { RangeDto } from '../shared/types';
 
@@ -145,5 +145,46 @@ describe('category switches', () => {
     );
     expect(week.toPlaceMin).toBe(0);
     expect(week.days[0]!.totalMin).toBe(120);
+  });
+});
+
+describe('« Cuisine » (v0.38.0): the batch sessions, apart from the meals', () => {
+  it('on by default, « Repas » off; its own colour', () => {
+    expect(isOn('Cuisine', {}, DEFAULT_OFF)).toBe(true);
+    expect(isOn('Repas', {}, DEFAULT_OFF)).toBe(false);
+    expect(categoryColor('Cuisine')).not.toBe(categoryColor('Repas'));
+    expect(categoryColor('Cuisine')).not.toBe(categoryColor('Tâches'));
+  });
+  it('a device with choices saved before: « Cuisine » arrives on, the other choices unchanged', () => {
+    const saved = { Repas: true, Sport: false, Cours: false };
+    expect(isOn('Cuisine', saved, DEFAULT_OFF)).toBe(true);
+    expect(isOn('Repas', saved, DEFAULT_OFF)).toBe(true);
+    expect(isOn('Cours', saved, DEFAULT_OFF)).toBe(false);
+    expect(isOn('Timer', saved, DEFAULT_OFF)).toBe(false);
+  });
+  it('shown and counted: a batch session weighs on the day, a meal does not', () => {
+    const cooking = {
+      id: 'courses:batch:1',
+      moduleId: 'courses',
+      title: 'Batch cooking : Curry',
+      start: '2026-11-16T17:30',
+      end: '2026-11-16T19:00',
+      allDay: false,
+      category: 'Cuisine',
+      open: '/m/courses?tab=batch',
+      status: 'plan validé',
+    };
+    const meal = {
+      ...cooking,
+      id: 'courses:m1',
+      title: 'Soir : Curry',
+      start: '2026-11-16T19:00',
+      end: '2026-11-16T19:30',
+      category: 'Repas',
+    };
+    const week: RangeDto = { ...data, events: [], foreign: [cooking, meal], tasks: [] };
+    const shown = (c: string) => isOn(c, {}, DEFAULT_OFF);
+    expect(itemsOf(week, shown).map((i) => i.event.title)).toEqual(['Batch cooking : Curry']);
+    expect(timedBlocks(week, shown).map((b) => b.category)).toEqual(['Cuisine']);
   });
 });

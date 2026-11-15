@@ -2,7 +2,7 @@
 // the all-day and several-day items in bands, then the timed ones in order,
 // « à caser », and the day's load. The PC has the week (WeekView).
 // v0.36.0: the free slots are listed between them; a tap creates there
-// (« Tâche » or « Rendez-vous »); a task can be ticked from its line.
+// (« Tâche » or « Rendez-vous »); a task is ticked in its panel (v0.38.0).
 import { useRef, useState } from 'react';
 import { Button, Icon } from '@hub/sdk/frontend';
 import { formatDuration } from '@hub/sdk/dates';
@@ -29,8 +29,6 @@ export function DayView(props: {
   shown: (category: string) => boolean;
   onDay: (day: string) => void;
   onOpen: (item: Item) => void;
-  /** v0.36.0: tick a task from its line. */
-  onTick?: (item: Item, done: boolean) => void;
   /** v0.36.0: a task « à caser » touched: its sheet. */
   onOpenTask?: (task: ToPlaceDto) => void;
   /** v0.36.0: create in a free slot, after the choice. */
@@ -184,19 +182,6 @@ export function DayView(props: {
             </li>
           ) : (
             <li key={itemId(row.item)} className="ag-list__row">
-              {row.item.source === 'task' && props.onTick && (
-                <input
-                  type="checkbox"
-                  className="ag-list__check"
-                  checked={row.item.event.done}
-                  aria-label={
-                    row.item.event.done
-                      ? `Marquer « ${row.item.event.title} » à faire`
-                      : `Cocher « ${row.item.event.title} »`
-                  }
-                  onChange={(e) => props.onTick!(row.item, e.target.checked)}
-                />
-              )}
               <button
                 type="button"
                 className="ag-list__item"

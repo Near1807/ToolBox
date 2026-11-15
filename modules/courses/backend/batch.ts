@@ -932,6 +932,8 @@ export function createBatch(d: BatchDeps) {
             durationMin: s.duration_min ?? 0,
             open: '/m/courses?tab=batch',
             status: 'plan validé',
+            // v0.38.0: cooking is something to fit in the day (« Cuisine »), unlike a meal (« Repas »).
+            category: 'Cuisine',
           };
         });
     },
