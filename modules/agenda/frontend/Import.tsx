@@ -1,5 +1,5 @@
 // v0.37.0 (Expérimental): « Importer » a calendar into a source (PC only).
-// 1. The file (.ics) is read here, nothing goes online. 2. The
+// 1. The file (.ics, .csv, .xlsx) is read here, nothing goes online. 2. The
 // choices: new source or update of one (proposed when its name or its UIDs
 // match), the columns of a table, the file's categories → Agenda categories
 // (with their counts), the period, the title. 3. The preview, nothing
@@ -23,7 +23,7 @@ import { eventWhen } from '../shared/time';
 import type { AgendaSourceDto } from '../shared/types';
 
 /** What the page sends for the file: the text (ICS, CSV) or the rows of the sheet (Excel). */
-type FilePart = { format: 'ics'; text: string };
+type FilePart = { format: 'ics' | 'csv'; text: string } | { format: 'xlsx'; rows: string[][] };
 
 interface Analysis {
   format: string;
@@ -57,11 +57,17 @@ type Preview = ImportPreview & { sourceId: string | null };
 const MAX_BYTES = 8 * 1024 * 1024;
 const NEW = 'new';
 
-/** The chosen file, read locally. */
+/** The chosen file, read locally: Excel through xlsx.ts (loaded only then). */
 async function readChosen(file: File): Promise<FilePart> {
   if (file.size > MAX_BYTES) throw new Error('Fichier trop gros (8 Mo au plus).');
   const name = file.name.toLowerCase();
   const bytes = new Uint8Array(await file.arrayBuffer());
+  if (name.endsWith('.xlsx')) {
+    const { readXlsx } = await import('../shared/xlsx');
+    return { format: 'xlsx', rows: readXlsx(bytes) };
+  }
+  if (name.endsWith('.xls'))
+    throw new Error('Ancien format Excel (.xls) : enregistre-le en .xlsx ou en .csv dans Excel.');
   let text: string;
   try {
     text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
@@ -69,9 +75,8 @@ async function readChosen(file: File): Promise<FilePart> {
     // An Excel CSV saved in Windows' encoding.
     text = new TextDecoder('windows-1252').decode(bytes);
   }
-  if (!name.endsWith('.ics') && !/^\uFEFF?\s*BEGIN:VCALENDAR/i.test(text))
-    throw new Error('Ce fichier n’est pas un calendrier .ics.');
-  return { format: 'ics', text };
+  const ics = name.endsWith('.ics') || /^\uFEFF?\s*BEGIN:VCALENDAR/i.test(text);
+  return { format: ics ? 'ics' : 'csv', text };
 }
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n > 1 ? many : one}`;
@@ -301,6 +306,14 @@ export function ImportPage() {
     }
   };
 
+  const template = async (format: 'csv' | 'xlsx') => {
+    try {
+      await module.api.post('/import/template', { format });
+    } catch (e) {
+      setError(errorMessage(e));
+    }
+  };
+
   const changes = preview
     ? preview.add.filter((l) => accept.has(l.key)).length +
       preview.modified.filter((l) => accept.has(l.key)).length +
@@ -323,17 +336,28 @@ export function ImportPage() {
     >
       <Card title="1. Le fichier">
         <p>
-          Un calendrier <strong>.ics</strong> (export d’un horaire, d’Outlook, de Google Agenda…).
-          Le fichier est lu sur ce PC : rien n’est envoyé en ligne, rien n’est écrit avant que tu
-          valides l’aperçu.
+          Un calendrier <strong>.ics</strong> (export d’un horaire, d’Outlook, de Google Agenda…),
+          ou un tableau <strong>.csv</strong> ou <strong>.xlsx</strong>. Le fichier est lu sur ce PC
+          : rien n’est envoyé en ligne, rien n’est écrit avant que tu valides l’aperçu.
         </p>
         <input
           className="input"
           type="file"
-          accept=".ics,text/calendar"
+          accept=".ics,.csv,.xlsx,text/calendar,text/csv"
           aria-label="Choisir le fichier à importer"
           onChange={(e) => void choose(e.target.files?.[0])}
         />
+        <p className="small muted">
+          Un tableau à remplir : modèle{' '}
+          <Button small variant="secondary" onClick={() => void template('csv')}>
+            CSV
+          </Button>{' '}
+          <Button small variant="secondary" onClick={() => void template('xlsx')}>
+            Excel
+          </Button>{' '}
+          (colonnes : titre, date, début, fin ou durée, toute la journée, lieu, note, catégorie,
+          identifiant).
+        </p>
         {busy && <p className="muted">Lecture…</p>}
       </Card>
 

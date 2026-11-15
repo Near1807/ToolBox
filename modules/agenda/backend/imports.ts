@@ -30,6 +30,17 @@ import {
   VALUE_FIELDS,
   valuesOf,
 } from '../shared/importing';
+import {
+  type ColumnMap,
+  guessColumns,
+  parseCsv,
+  TABLE_FIELDS,
+  TABLE_LABELS,
+  tableItems,
+  templateCsv,
+  TEMPLATE_ROWS,
+} from '../shared/table';
+import { writeXlsx } from '../shared/xlsx';
 import { addDays } from '../shared/time';
 import type { AgendaSourceDto } from '../shared/types';
 
@@ -57,10 +68,7 @@ const parseJson = <T>(json: string | null, fallback: T): T => {
   }
 };
 
-/** Which column of a table is what (tables: v0.37.0 C). */
-type ColumnMap = Record<string, number>;
-
-const FORMATS = ['ics'] as const;
+const FORMATS = ['ics', 'csv', 'xlsx'] as const;
 type Format = (typeof FORMATS)[number];
 
 /** A file of a few thousand events; the routes refuse more. */
@@ -112,14 +120,25 @@ export function registerImports(ctx: ModuleContext, store: SyncStore) {
   // --- The file -------------------------------------------------------------
 
   const formatOf = (v: unknown): Format => {
-    if (!FORMATS.includes(v as Format)) throw new HttpError(400, 'Format inconnu (ics)');
+    if (!FORMATS.includes(v as Format))
+      throw new HttpError(400, 'Format inconnu (ics, csv ou xlsx)');
     return v as Format;
+  };
+
+  const columnsFrom = (v: unknown): ColumnMap | null => {
+    if (!v || typeof v !== 'object') return null;
+    const out: ColumnMap = {};
+    for (const f of TABLE_FIELDS) {
+      const i = (v as Record<string, unknown>)[f];
+      if (Number.isInteger(i) && (i as number) >= 0 && (i as number) < 100) out[f] = i as number;
+    }
+    return out;
   };
 
   /** The file of the request, read (nothing written). */
   const readFile = (
     body: Record<string, unknown>,
-    _savedColumns: ColumnMap | null = null,
+    savedColumns: ColumnMap | null = null,
   ): ParsedFile & { format: Format; headers: string[] | null; columns: ColumnMap | null } => {
     const format = formatOf(body.format);
     try {
@@ -131,7 +150,30 @@ export function registerImports(ctx: ModuleContext, store: SyncStore) {
           throw new HttpError(400, 'Trop d’événements dans ce fichier');
         return { ...parsed, format, headers: null, columns: null };
       }
-      throw new HttpError(400, 'Format inconnu (ics)');
+      let rows: string[][];
+      if (format === 'csv') {
+        const text = typeof body.text === 'string' ? body.text : '';
+        if (!text.trim()) throw new HttpError(400, 'Fichier vide');
+        rows = parseCsv(text);
+      } else {
+        if (
+          !Array.isArray(body.rows) ||
+          !body.rows.every((r) => Array.isArray(r) && r.every((c) => typeof c === 'string'))
+        )
+          throw new HttpError(400, 'Feuille illisible');
+        rows = body.rows as string[][];
+      }
+      if (rows.length < 2)
+        throw new HttpError(
+          400,
+          'Aucune ligne à importer (il faut une ligne d’en-tête, puis les événements).',
+        );
+      if (rows.length > MAX_ITEMS) throw new HttpError(400, 'Trop de lignes dans ce fichier');
+      const headers = rows[0]!.map((h) => h.trim());
+      const columns = columnsFrom(body.columns) ?? savedColumns ?? guessColumns(headers);
+      if (columns.title === undefined || columns.date === undefined)
+        return { calendarName: null, items: [], errors: [], format, headers, columns };
+      return { ...tableItems(rows, columns), format, headers, columns };
     } catch (err) {
       if (err instanceof ImportFileError) throw new HttpError(400, err.message);
       throw err;
@@ -253,7 +295,7 @@ export function registerImports(ctx: ModuleContext, store: SyncStore) {
           .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value)),
         headers: file.headers,
         columns: file.columns,
-        fields: [],
+        fields: TABLE_FIELDS.map((f) => ({ field: f, label: TABLE_LABELS[f] })),
         matches,
         codes: file.items.some((i) => i.code !== null),
       };
@@ -415,6 +457,22 @@ export function registerImports(ctx: ModuleContext, store: SyncStore) {
       }
     });
     return { ok: true };
+  });
+
+  /** The template to fill in (CSV or Excel), « Enregistrer sous ». */
+  ctx.routes.post('/import/template', async (request) => {
+    const format = requestBody(request).format === 'xlsx' ? 'xlsx' : 'csv';
+    const saved = await ctx.files.saveAs({
+      title: 'Enregistrer le modèle d’import',
+      defaultName: `Modèle Agenda.${format}`,
+      filters: [
+        format === 'xlsx'
+          ? { name: 'Excel', extensions: ['xlsx'] }
+          : { name: 'CSV', extensions: ['csv'] },
+      ],
+      data: format === 'xlsx' ? writeXlsx(TEMPLATE_ROWS) : templateCsv(),
+    });
+    return saved ? { path: saved } : { cancelled: true };
   });
 
   // --- Sources ---------------------------------------------------------------------
