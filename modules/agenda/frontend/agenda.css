@@ -654,3 +654,95 @@
   display: inline-flex;
   color: var(--accent);
 }
+
+/* v0.37.0: importing a calendar, the sources, the source of an event */
+.ag-import__group {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.6rem 0.8rem;
+  margin: 0 0 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.ag-import__group legend {
+  font-weight: 600;
+  padding: 0 0.3rem;
+}
+.ag-import__group .ag-check,
+.ag-import__list .ag-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+}
+.ag-import__columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  gap: 0.5rem;
+}
+.ag-import__columns label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.ag-import__map td {
+  padding: 0.2rem 0.5rem 0.2rem 0;
+  vertical-align: middle;
+}
+.ag-import__map .input {
+  display: inline-block;
+  width: auto;
+  min-width: 12rem;
+}
+.ag-import__list {
+  list-style: none;
+  margin: 0.3rem 0 0.6rem;
+  padding: 0;
+  max-height: 22rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.ag-import__when {
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.ag-import__changes {
+  margin: 0.1rem 0 0 1rem;
+  padding: 0;
+  color: var(--text-2);
+}
+.ag-import__info {
+  color: var(--text-2);
+}
+.ag-import__section > summary,
+.ag-source details > summary {
+  cursor: pointer;
+}
+.ag-sources h3 {
+  margin: 0.8rem 0 0.4rem;
+}
+.ag-sources__item {
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+.ag-source {
+  border-left: 3px solid var(--border);
+  padding: 0.1rem 0 0.1rem 0.6rem;
+  margin-bottom: 0.6rem;
+}
+.ag-source p {
+  margin: 0.2rem 0;
+}
+.ag-source__original {
+  margin: 0.3rem 0;
+}
+.ag-source__original dt {
+  font-weight: 600;
+}
+.ag-source__original dd {
+  margin: 0 0 0.3rem;
+  white-space: pre-wrap;
+  color: var(--text-2);
+}

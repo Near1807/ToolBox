@@ -1,5 +1,7 @@
 // The Agenda over the synchronisation (v0.34.0): events, the week type and
 // its exceptions travel like the other modules' rows; the same on both.
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { devices, type Devices } from './harness';
 
@@ -45,5 +47,45 @@ describe('the Agenda over the synchronisation', () => {
     ]);
     expect(onPc.events!.find((e) => e.id === lunch.id)!.deleted_at).not.toBeNull();
     expect(onPc.events!.find((e) => e.id === camp.event.id)!.location).toBe('Spa');
+  });
+
+  it('v0.37.0: a calendar imported on the PC arrives on the phone, with its source', async () => {
+    d = await devices();
+    d.first('replace');
+    const text = readFileSync(
+      path.join(
+        __dirname,
+        '..',
+        '..',
+        'modules',
+        'agenda',
+        'tests',
+        'fixtures',
+        'horaire-ecam.ics',
+      ),
+      'utf8',
+    );
+    const choice = {
+      format: 'ics',
+      text,
+      name: 'Horaire ECAM',
+      mapping: { H: 'Cours', X: 'Examens' },
+      period: 'all',
+    };
+    const p = await d.onPc<{ add: { key: string }[] }>('POST', `${API}/import/preview`, choice);
+    await d.onPc('POST', `${API}/import/apply`, { ...choice, accept: p.add.map((l) => l.key) });
+    d.exchange();
+    const phone = d.rows('phone', 'agenda');
+    expect(phone.sources!.map((s) => s.name)).toEqual(['Horaire ECAM']);
+    expect(phone.events!.length).toBe(p.add.length);
+    for (const table of ['events', 'sources'])
+      expect(phone[table], table).toEqual(d.rows('pc', 'agenda')[table]);
+    const first = phone.events!.find((e) => e.category === 'Examens')!;
+    const day = String(first.start_at).slice(0, 10);
+    const range = await d.onPhone<{ events: { id: string; source?: { name: string } }[] }>(
+      'GET',
+      `${API}/range?from=${day}&to=${day}`,
+    );
+    expect(range.events.find((e) => e.id === first.id)!.source!.name).toBe('Horaire ECAM');
   });
 });

@@ -17,6 +17,37 @@ export interface AgendaEventDto {
   weekly: { id: string; date: string; moved: boolean } | null;
   /** v0.36.0: the associated timer (the Timer's TimerChoice; an occurrence: its entry's), or null. */
   timerPref: Record<string, unknown> | null;
+  /** v0.37.0: imported events only: their source and their original text. */
+  source?: EventSourceDto;
+}
+
+/** v0.37.0: where an imported event comes from (shown in its detail). */
+export interface EventSourceDto {
+  id: string;
+  name: string;
+  /** The event as it was in the file, field by field (« SUMMARY », « DESCRIPTION »… or the columns). */
+  original: Record<string, string>;
+}
+
+/** v0.37.0: an imported calendar (Réglages › Agenda › Sources). */
+export interface AgendaSourceDto {
+  id: string;
+  name: string;
+  /** « ics », « csv » or « xlsx ». */
+  format: string;
+  /** Name of the calendar in the file (X-WR-CALNAME), or null. */
+  calendarName: string | null;
+  /** Value of the file → Agenda category. */
+  mapping: Record<string, string>;
+  defaultCategory: string;
+  titleStyle: 'short' | 'code';
+  /** Table import: which column is what (kept for the next import), or null. */
+  columns: Partial<Record<string, number>> | null;
+  lastImportAt: string | null;
+  /** Its events in the Agenda (not deleted). */
+  events: number;
+  /** The Agenda categories of its events. */
+  categories: string[];
 }
 
 /** Something of another module, as the Agenda shows it (read only). */

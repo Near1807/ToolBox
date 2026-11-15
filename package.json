@@ -1,7 +1,7 @@
 {
   "name": "toolbox",
   "productName": "ToolBox",
-  "version": "0.36.2",
+  "version": "0.37.0",
   "description": "Hub d'outils personnel : application de bureau Windows modulaire.",
   "author": "Thomas",
   "license": "UNLICENSED",
@@ -64,6 +64,7 @@
     "eslint": "^10.14.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react-hooks": "^7.1.1",
+    "fflate": "0.8.3",
     "globals": "^17.13.0",
     "jsqr": "1.4.0",
     "lucide-react": "^1.65.0",
