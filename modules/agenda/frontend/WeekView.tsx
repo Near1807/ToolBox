@@ -238,6 +238,40 @@ const BLOCK_PAD_PX = 4;
 export const titleLines = (height: number) =>
   Math.max(1, Math.floor((height - BLOCK_PAD_PX - LINE_PX) / LINE_PX));
 
+/** v0.40.0: what a ghost (move, stretch, create) says: « 08:15 – 09:00 · 45 min ». */
+export const ghostLabel = (span: { start: string; end: string }) =>
+  `${span.start.slice(11)} – ${span.end.slice(11)} · ${hoursText(minutesBetween(span.start, span.end))}`;
+
+/** Below this height (px) the ghost's label sits under it (it would not fit inside). */
+const GHOST_LABEL_INSIDE_PX = 22;
+
+/**
+ * v0.40.0: the ghost of a move, a stretch or a creation: the whole width of
+ * its day column, and its time always readable — inside when it fits, else
+ * just under it — updated at each snap.
+ */
+export function Ghost(props: {
+  span: { start: string; end: string };
+  top: number;
+  height: number;
+  category: string;
+  className?: string;
+}) {
+  const height = Math.max(18, props.height);
+  const inside = height >= GHOST_LABEL_INSIDE_PX;
+  return (
+    <span
+      className={`ag-block ag-block--ghost${props.className ? ` ${props.className}` : ''}`}
+      style={{ ...colorStyle(props.category), top: props.top, height }}
+      aria-live="polite"
+    >
+      <span className={`ag-ghost__label${inside ? '' : ' ag-ghost__label--below'}`}>
+        {ghostLabel(props.span)}
+      </span>
+    </span>
+  );
+}
+
 /**
  * A block in the grid (own: its detail; a planned task: its panel; another
  * module's: opens it there). v0.38.0: no control on the block (a task is
@@ -639,19 +673,14 @@ export function WeekView(props: {
               })}
               {slot && props.onCreate && (
                 <>
-                  <span
-                    className="ag-block ag-block--ghost ag-slot"
-                    style={{
-                      ...colorStyle('Tâches'),
-                      top:
-                        ((minutesOfDay(slot.start.slice(11)) - range.startHour * 60) / 60) *
-                        HOUR_PX,
-                      height: Math.max(
-                        18,
-                        (minutesBetween(slot.start, slot.end) / 60) * HOUR_PX - 2,
-                      ),
-                    }}
-                    aria-hidden="true"
+                  <Ghost
+                    className="ag-slot"
+                    span={slot}
+                    category="Tâches"
+                    top={
+                      ((minutesOfDay(slot.start.slice(11)) - range.startHour * 60) / 60) * HOUR_PX
+                    }
+                    height={(minutesBetween(slot.start, slot.end) / 60) * HOUR_PX - 2}
                   />
                   <CreateSlot
                     key={slot.start + slot.end}
@@ -674,29 +703,23 @@ export function WeekView(props: {
                 </>
               )}
               {ghost && (
-                <span
-                  className="ag-block ag-block--ghost"
-                  style={{
-                    ...colorStyle(ghostCategory),
-                    top:
-                      ((minutesOfDay(ghost.start.slice(11)) - range.startHour * 60) / 60) * HOUR_PX,
-                    height: Math.max(
-                      18,
-                      ((Math.min(
-                        minutesOfDay(ghost.start.slice(11)) +
-                          minutesBetween(ghost.start, ghost.end),
-                        range.endHour * 60,
-                      ) -
-                        minutesOfDay(ghost.start.slice(11))) /
-                        60) *
-                        HOUR_PX -
-                        2,
-                    ),
-                  }}
-                  aria-live="polite"
-                >
-                  {spanLabel(ghost)}
-                </span>
+                <Ghost
+                  span={ghost}
+                  category={ghostCategory}
+                  top={
+                    ((minutesOfDay(ghost.start.slice(11)) - range.startHour * 60) / 60) * HOUR_PX
+                  }
+                  height={
+                    ((Math.min(
+                      minutesOfDay(ghost.start.slice(11)) + minutesBetween(ghost.start, ghost.end),
+                      range.endHour * 60,
+                    ) -
+                      minutesOfDay(ghost.start.slice(11))) /
+                      60) *
+                      HOUR_PX -
+                    2
+                  }
+                />
               )}
               {d === data.today && <NowLine startHour={range.startHour} endHour={range.endHour} />}
             </div>
