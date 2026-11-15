@@ -17,6 +17,7 @@ import {
   uuidParam,
   syncJournalSql,
 } from '@hub/sdk/core';
+import { localToday } from '@hub/sdk/dates';
 import type { MusicLibraryService } from '../../music-library/contract';
 import type { TodoService } from '../../todo/contract';
 import {
@@ -403,7 +404,7 @@ export default defineBackendModule({
       );
       const saved = await ctx.files.saveAs({
         title: 'Exporter les idées',
-        defaultName: `Boîte à idées - ${new Date().toISOString().slice(0, 10)}.md`,
+        defaultName: `Boîte à idées - ${localToday()}.md`,
         filters: [{ name: 'Markdown', extensions: ['md'] }],
         data: markdownOf(rows.map(dto)),
       });
@@ -519,11 +520,12 @@ export default defineBackendModule({
 
 /** The ideas as Markdown: a title per idea, its tags, dates, track, task, then its text. */
 export function markdownOf(list: IdeaDto[]): string {
-  const day = (iso: string) => iso.slice(0, 10);
+  // Dates of the computer's time zone (an idea noted at 00:30 is of that day).
+  const day = (iso: string) => localToday(new Date(iso));
   const lines = [
     `# Boîte à idées`,
     '',
-    `${list.length} idée(s), exportées le ${day(new Date().toISOString())}.`,
+    `${list.length} idée(s), exportées le ${localToday()}.`,
     '',
   ];
   for (const idea of list) {

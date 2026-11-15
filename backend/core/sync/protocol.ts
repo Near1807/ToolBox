@@ -14,11 +14,6 @@ import {
   type SyncEngine,
 } from './engine';
 
-export interface VersionInfo {
-  versions: Record<string, number>;
-  app: string;
-}
-
 export type VersionVerdict = 'same' | 'phone-older' | 'pc-older' | 'mixed';
 
 /** From the PC's side: who has to update. */

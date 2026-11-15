@@ -162,20 +162,13 @@ export default tseslint.config(
       'dist/',
       'node_modules/',
       'coverage/',
-      // Probe app (ADR 0044, step 3a): its build and the generated Android project.
-      'mobile/probe/dist/',
-      'mobile/probe/android/',
+      // Phone app (ADR 0044): its build and the generated Android project.
       'mobile/app/dist/',
       'mobile/app/android/',
     ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
-  {
-    // Probe app: a page and its Worker (browser), its Vite config (Node).
-    files: ['mobile/probe/src/**/*.js'],
-    languageOptions: { globals: { ...globals.browser, ...globals.worker } },
-  },
   {
     // Phone app: its page (browser) and its Worker.
     files: ['mobile/app/src/**/*.{ts,tsx}'],
@@ -185,10 +178,6 @@ export default tseslint.config(
   },
   {
     files: ['mobile/app/*.mjs'],
-    languageOptions: { globals: globals.node },
-  },
-  {
-    files: ['mobile/probe/*.js'],
     languageOptions: { globals: globals.node },
   },
   {

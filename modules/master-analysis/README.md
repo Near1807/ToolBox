@@ -64,7 +64,7 @@ Sans la Bibliothèque : analyses libres seulement. Sans ce module : rien n'est b
 | POST/PUT/DELETE     | `/profiles` · `/profiles/:id` · `/profiles/:id/references` · `/references/:id`                                 | Profils et références                                                                 |
 | GET                 | `/references/compare?version=&profile=`                                                                        | Comparaison à sonie égale, gains A/B                                                  |
 | POST · GET          | `/versions/:id/export` {format html\|data, compareTo, profileId} · `/versions/:id/summary?compareTo=&profile=` | Rapport ou données via « Enregistrer sous » ({path} ou {cancelled}) · résumé Markdown |
-| POST                | `/quick-check` · `/watch/scan`                                                                                 | Vérification rapide · passage du dossier                                              |
+| POST                | `/watch/scan`                                                                                                  | Passage du dossier (la vérification rapide passe par le service `masterAnalysis`)     |
 
 ## Tests
 

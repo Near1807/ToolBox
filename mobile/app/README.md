@@ -30,7 +30,7 @@
   - chaque fiche compte les éléments par module (tâches, idées, séances, recettes…) ;
   - les 7 plus récentes sont gardées, jamais celle d'une base vide ;
   - si la base est vide ou absente et qu'une copie existe, l'appli **propose** de la restaurer, avec une confirmation. Jamais de restauration automatique.
-- **Sauvegarde Android vers le cloud désactivée** (`android:allowBackup="false"`) : rien ne part en ligne.
+- **Aucune sauvegarde Android** (v0.36.2) : `android:allowBackup="false"` (sauvegarde vers le cloud) et `android:dataExtractionRules` (`res/xml/data_extraction_rules.xml`), qui exclut tous les domaines de la sauvegarde cloud **et** du transfert d'appareil à appareil (Android 12 et plus). Rien ne part en ligne ni vers un autre téléphone. Au changement de téléphone, les données reviennent par la synchro avec le PC. La CI le vérifie dans l'APK.
 
 ## Construire
 
@@ -65,6 +65,8 @@ versionCode = majeure × 1 000 000 + mineure × 100 + correctif
 | 0.34.0  | 3400        |
 | 0.35.0  | 3500        |
 | 0.36.0  | 3600        |
+| 0.36.1  | 3601        |
+| 0.36.2  | 3602        |
 | 1.0.0   | 1000000     |
 
 Il croît toujours tant que le correctif reste sous 100 et la mineure sous 10 000 ; la CI refuse sinon. Deux APK de la même version ont le même versionCode : pour mettre à jour le téléphone, il faut une nouvelle version.

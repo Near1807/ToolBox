@@ -4,6 +4,54 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.36.2] — 2026-11-15
+
+Suites de l'audit v0.36.1, décidées par Thomas (B1, B2, B3, B7, B8). Aucune migration.
+
+### Corrigé
+
+- **Date du jour en heure locale** (et non UTC) :
+  - Courses, « Cette semaine » : le lundi entre minuit et 1 h (2 h en été), la bonne semaine ;
+  - Boîte à idées, export : nom du fichier, « exportées le », « créée le » / « modifiée le » ;
+  - nom proposé pour l'export d'une sauvegarde ;
+  - noms des exports de l'assistant.
+
+### Ajouté
+
+- Badge « Expérimental » sur la barre « Ajouter » (PC et téléphone) et sur « Lancer un timer » du Sport.
+- Téléphone : `dataExtractionRules` : rien ne part ni vers le cloud ni vers un autre téléphone par la sauvegarde Android. Au changement de téléphone, les données passent par la synchro avec le PC. La CI le vérifie dans l'APK.
+
+### Retiré
+
+- Routes jamais appelées : assistant `POST /bar/open`, `POST /ollama/open-download` ; Analyse du master `POST /quick-check`.
+- Appli d'essai `mobile/probe/` et son workflow (essai validé le 05/11/2026).
+
+## [0.36.1] — 2026-11-14
+
+Passe de nettoyage et d'audit : aucun changement visible, sauf le petit défaut demandé (un seul message après un lancement de timer). Aucune migration.
+
+### Corrigé
+
+- Fiche de tâche, rendez-vous, séance de Sport : après « Lancer un timer », un seul message (« Son timer tourne · ouvrir le Timer »).
+- `ws` 8.22.0 : faille haute corrigée (GHSA-96hv-2xvq-fx4p) sur le canal direct de la synchro.
+- Tests : le même fuseau horaire partout (UTC). Les références du Timer échouaient sur un PC réglé sur Bruxelles.
+
+### Retiré (code mort, rien de visible)
+
+- Classes CSS jamais utilisées (Agenda, Courses, Analyse du master, Stats YouTube) ; fonctions `sameHotkey`, `cookKey`, `totalPortions`, type `VersionInfo`.
+
+### Ajouté (tests)
+
+- Chaque module du téléphone démarre seul, sur le PC et sur le téléphone (`tests/modules-alone.test.ts`).
+- Composants prêtés : rendu chez le prêteur, repli quand il est absent (`tests/lent.test.ts`).
+- Un lot de synchro forgé est refusé en entier (`tests/sync/forged-batch.test.ts`).
+- Un test sans assertion échoue (`expect.requireAssertions`).
+
+### Modifié
+
+- CI Android : `android-actions/setup-android` v4 (Node 24).
+- Docs alignées sur le code (ARCHITECTURE, MODULES, CLAUDE.md, README du Timer, note datée dans l'ADR 0046).
+
 ## [0.36.0] — 2026-11-13
 
 Session « Interconnexions : agir sur place depuis l'Agenda, Timer depuis l'Agenda, barre « Ajouter » partout ». Nouveautés marquées **Expérimental**.

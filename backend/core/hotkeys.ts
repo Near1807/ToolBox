@@ -43,14 +43,6 @@ export function comboLabel(modifiers: HotkeyModifier[], key: string): string {
   );
 }
 
-/** Same key and same modifiers (order ignored): two bindings that would fire together. */
-export function sameHotkey(a: HotkeySpec | null, b: HotkeySpec | null): boolean {
-  if (!a || !b || a.code !== b.code) return false;
-  const ma = [...(a.modifiers ?? [])].sort().join();
-  const mb = [...(b.modifiers ?? [])].sort().join();
-  return ma === mb;
-}
-
 export class HotkeyManager {
   private readonly bindings = new Map<string, Binding>();
   private readonly captures: ((key: HotkeySpec) => void)[] = [];

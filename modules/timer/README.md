@@ -79,11 +79,11 @@ Pendant une session, sur le téléphone : une notification qui reste (non balaya
 
 ## API
 
-| Méthode       | Route                                                | Rôle                                                               |
-| ------------- | ---------------------------------------------------- | ------------------------------------------------------------------ |
-| GET           | `/state`                                             | Session en cours, préréglages, tâches, historique, temps par tâche |
-| POST          | `/start` `{ config, name?, taskId?, subject? }`      | Lance une session (une seule à la fois)                            |
-| POST          | `/pause` · `/resume` · `/stop` · `/skip` · `/extend` | Pilotage (`/extend { minutes }`)                                   |
-| POST          | `/answer { done }` · `/dismiss`                      | « Tâche terminée ? » · « Plus tard »                               |
-| POST · DELETE | `/presets` · `/presets/:id`                          | Préréglages                                                        |
-| GET           | `/events` (SSE, ticket)                              | Session et changements de phase en direct                          |
+| Méthode       | Route                                                | Rôle                                                                        |
+| ------------- | ---------------------------------------------------- | --------------------------------------------------------------------------- |
+| GET           | `/state`                                             | Session en cours, préréglages, tâches, historique, temps par tâche          |
+| POST          | `/start` `{ config, name?, taskId?, subject? }`      | Lance une session (une seule à la fois)                                     |
+| POST          | `/pause` · `/resume` · `/stop` · `/skip` · `/extend` | Pilotage (`/extend { minutes }`)                                            |
+| POST          | `/answer { done }` · `/answer/undo` · `/dismiss`     | « Tâche terminée ? » · « Annuler » après « Oui, la cocher » · « Plus tard » |
+| POST · DELETE | `/presets` · `/presets/:id`                          | Préréglages                                                                 |
+| GET           | `/events` (SSE, ticket)                              | Session et changements de phase en direct                                   |

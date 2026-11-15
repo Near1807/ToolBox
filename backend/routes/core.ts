@@ -1,6 +1,7 @@
 import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import { AccountError, openEventStream, type JobInfo } from '../../packages/sdk/backend';
+import { localToday } from '../../packages/sdk/dates';
 import { KEPT_BACKUPS, listAutomaticBackups } from '../core/backups';
 import { getSqliteVersion } from '../core/database';
 import { exportBackupZip } from '../core/export';
@@ -295,7 +296,8 @@ export function registerCoreRoutes(app: FastifyInstance, hub: Hub, appVersion: s
   });
 
   app.post('/api/core/backups/export', async () => {
-    const date = new Date().toISOString().slice(0, 10);
+    // The day of the computer (not UTC): a backup at 00:30 is of that day.
+    const date = localToday();
     const target = await hub.host.selectSaveFile({
       title: 'Exporter une sauvegarde',
       defaultPath: path.join(hub.host.getDefaultOutputRoot(), `ToolBox-sauvegarde-${date}.zip`),

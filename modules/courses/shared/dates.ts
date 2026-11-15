@@ -17,6 +17,11 @@ export function mondayOf(day: string): string {
 export function localToday(now = new Date()): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
+/** « Cette semaine » : Monday to Sunday of the local day (not UTC: a Monday at 00:30 is that Monday). */
+export function currentWeek(now = new Date()): [string, string] {
+  const monday = mondayOf(localToday(now));
+  return [monday, addDays(monday, 6)];
+}
 export function daysBetween(from: string, to: string): string[] {
   const days: string[] = [];
   for (let d = from; d <= to; d = addDays(d, 1)) days.push(d);

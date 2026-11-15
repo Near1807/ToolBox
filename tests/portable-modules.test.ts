@@ -1,4 +1,4 @@
-// Portable modules (ADR 0044: the five of the phone, the template, any new
+// Portable modules (ADR 0044: the six of the phone, the template, any new
 // one) import nothing of the PC and use no Node global: ESLint fails on a
 // forbidden import or global in their code, never in their tests nor in the
 // PC-only modules (music, assistant).
@@ -13,7 +13,16 @@ const errorsOf = async (file: string, code: string, rule = 'toolbox/module-bound
   return result!.messages.filter((m) => m.ruleId === rule).map((m) => m.message);
 };
 const globalsOf = (file: string, code: string) => errorsOf(file, code, 'no-restricted-globals');
-const PORTABLE = ['courses', 'sport', 'todo', 'timer', 'ideas', '_template', 'nouveau-module'];
+const PORTABLE = [
+  'courses',
+  'sport',
+  'todo',
+  'timer',
+  'ideas',
+  'agenda',
+  '_template',
+  'nouveau-module',
+];
 
 describe('portable modules (ESLint)', () => {
   const forbidden = [

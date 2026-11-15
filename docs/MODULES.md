@@ -112,7 +112,7 @@ Un handler de route ne lit que `request.params`, `request.query` et `request.bod
 - **images** (`images.normalise`) : décodage et ré-encodage par le navigateur (`createImageBitmap`, `OffscreenCanvas`) avec les mêmes règles que le PC (taille, qualité, poids, fond blanc, messages) ; les octets JPEG peuvent différer de ceux du PC ;
 - **pas encore fournis** : `files.outputDir`, `open`, `reveal`, `assetsDir`, le reste de `ui`, `outputs`, `jobs`, `scheduler`, `events`, `hotkeys`, `accounts`, `binaries`, `db.backup`. Ils lèvent l'erreur explicite « … n'est pas disponible sur le téléphone » (jamais un faux succès). Un module qui en a besoin au démarrage ne se charge pas, et les autres continuent.
 
-La preuve qu'un module se comporte pareil : rejouer sa référence de non-régression sur l'hôte téléphone (`PhoneHub`, `openWasmDatabase`, `phoneRequest`, `dumpWasmTables` de `@hub/sdk/testing`). Exemples : `modules/{todo,ideas,sport,timer,courses}/tests/regression-phone.test.ts` et `modules/courses/tests/image-regression-phone.test.ts` (le scénario est partagé avec le PC dans `tests/scenario.ts`).
+La preuve qu'un module se comporte pareil : rejouer sa référence de non-régression sur l'hôte téléphone (`PhoneHub`, `openWasmDatabase`, `phoneRequest`, `dumpWasmTables` de `@hub/sdk/testing`). Exemples : `modules/{todo,ideas,sport,timer,courses,agenda}/tests/regression-phone.test.ts` et `modules/courses/tests/image-regression-phone.test.ts` (le scénario est partagé avec le PC dans `modules/<id>/tests/scenario.ts`). Chaque module du téléphone doit aussi démarrer seul, sans les modules dont il utilise les services facultatifs (`tests/modules-alone.test.ts`).
 
 ```ts
 import { defineBackendModule, HttpError } from '@hub/sdk/backend';

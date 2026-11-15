@@ -857,11 +857,6 @@ export default defineBackendModule({
         measuredAt: new Date().toISOString(),
       };
     };
-    ctx.routes.post('/quick-check', async (request) => {
-      const { path: file, trackId } = requestBody(request);
-      if (typeof file !== 'string') throw new HttpError(400, 'Chemin manquant');
-      return quickCheck(file, typeof trackId === 'number' ? trackId : null);
-    });
 
     const trackStatus = (trackId: number): MasterTrackStatus | null => {
       const group = store.groupOfTrack(trackId);

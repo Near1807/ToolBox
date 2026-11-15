@@ -347,3 +347,10 @@
   flex: 1 1 160px;
   width: auto;
 }
+
+/* v0.36.2: « Expérimental » above the Timer's button in a session. */
+.sp-timer-badge {
+  justify-self: start;
+  align-self: flex-start;
+  width: fit-content;
+}

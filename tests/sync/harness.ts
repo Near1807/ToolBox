@@ -1,5 +1,5 @@
 // Two devices for the synchronisation's tests: a PC (better-sqlite3, the real
-// hub) and a phone (sqlite-wasm, the phone host), each with the 5 portable
+// hub) and a phone (sqlite-wasm, the phone host), each with the 6 portable
 // modules, and the exchange between them called directly (no network).
 import path from 'node:path';
 import Database from 'better-sqlite3';

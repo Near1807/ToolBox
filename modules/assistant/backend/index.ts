@@ -914,7 +914,6 @@ export default defineBackendModule({
     // The written command bar (floating window): same path as the voice without the
     // transcription (corrections and nicknames, commands, AI if on, same rights and
     // confirmations); the answer is shown, read aloud only with « speakTyped ».
-    ctx.routes.post('/bar/open', () => (setBar(true), { ok: true }));
     ctx.routes.post('/bar/close', () => (setBar(false), { ok: true }));
     ctx.routes.post('/bar/send', async (request) => {
       const text = String(requestBody(request).text ?? '').trim();
@@ -1064,11 +1063,6 @@ export default defineBackendModule({
       });
       child.unref();
       return { ok: true };
-    });
-
-    ctx.routes.post('/ollama/open-download', () => {
-      ctx.ui.open(`/m/${ctx.id}`);
-      return { url: 'https://ollama.com/download' };
     });
 
     // Loads the model in memory at start (AI on only), so the first answer is not the slowest.

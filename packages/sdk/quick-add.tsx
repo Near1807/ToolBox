@@ -84,6 +84,13 @@ export function QuickAddDialog(props: {
             <Icon name={d.icon} /> {d.label}
           </button>
         ))}
+        {/* Not validated by Thomas yet (v0.36.0). */}
+        <span
+          className="badge badge--warning quick-add__experimental"
+          title="Pas encore validé à l’usage"
+        >
+          Expérimental
+        </span>
       </div>
       <input
         ref={input}
