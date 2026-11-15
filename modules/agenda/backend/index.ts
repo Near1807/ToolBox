@@ -25,6 +25,7 @@ import { MIN_BLOCK_MIN } from '../shared/drag';
 import { parseQuick, type Parsed } from '../shared/parse';
 import { occurrences, type OccurrenceException } from '../shared/recurrence';
 import { addDays, addMinutes, daysBetween, minutesBetween } from '../shared/time';
+import { readOrigin } from '../shared/importing';
 import type {
   AgendaEventDto,
   ForeignEventDto,
@@ -45,6 +46,12 @@ interface EventRow {
   category: string;
   /** v0.36.0: the associated timer (the Timer's TimerChoice, as JSON), or null. */
   timer_pref: string | null;
+  /** v0.37.0: the source it was imported from (agenda__sources), or null. */
+  source_id: string | null;
+  /** v0.37.0: its key in the source (UID, « UID#AAAAMMJJ », identifier or titre|début). */
+  origin_key: string | null;
+  /** v0.37.0: JSON { original, raw, imported } (shared/importing.ts), or null. */
+  origin: string | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -137,6 +144,21 @@ export default defineBackendModule({
         ALTER TABLE agenda__weekly ADD COLUMN timer_pref TEXT;
       `,
     },
+    {
+      version: 4,
+      description:
+        'imported calendars (v0.37.0): the sources, and the source and origin of an event (empty by default)',
+      up: `
+        CREATE TABLE agenda__sources (${SYNC_COLUMNS},
+          name TEXT NOT NULL, format TEXT NOT NULL, calendar_name TEXT,
+          mapping TEXT NOT NULL DEFAULT '{}', default_category TEXT NOT NULL,
+          title_style TEXT NOT NULL DEFAULT 'short', columns TEXT, last_import_at TEXT);
+        ALTER TABLE agenda__events ADD COLUMN source_id TEXT;
+        ALTER TABLE agenda__events ADD COLUMN origin_key TEXT;
+        ALTER TABLE agenda__events ADD COLUMN origin TEXT;
+        CREATE INDEX agenda__events_source ON agenda__events (source_id, origin_key);
+      `,
+    },
   ],
   sync: {},
 
@@ -151,7 +173,20 @@ export default defineBackendModule({
 
     // --- Reading ----------------------------------------------------------------
 
-    const eventDto = (row: EventRow): AgendaEventDto => ({
+    /** v0.37.0: the name of each source, for the detail of its events. */
+    const sourceNames = () =>
+      new Map(
+        (
+          ctx.db
+            .prepare(`SELECT id, name FROM ${ctx.db.table('sources')} WHERE deleted_at IS NULL`)
+            .all() as { id: string; name: string }[]
+        ).map((s) => [s.id, s.name]),
+      );
+    /** An event as the pages get it; an imported one with its source (v0.37.0). */
+    const eventDto = (
+      row: EventRow,
+      names = row.source_id ? sourceNames() : null,
+    ): AgendaEventDto => ({
       id: row.id,
       title: row.title,
       start: row.start_at,
@@ -162,6 +197,15 @@ export default defineBackendModule({
       category: row.category,
       weekly: null,
       timerPref: prefOf(row.timer_pref),
+      ...(row.source_id && names?.has(row.source_id)
+        ? {
+            source: {
+              id: row.source_id,
+              name: names.get(row.source_id)!,
+              original: readOrigin(row.origin)?.original ?? {},
+            },
+          }
+        : {}),
     });
     const weeklyDto = (row: WeeklyRow): WeeklyDto => ({
       id: row.id,
@@ -206,9 +250,11 @@ export default defineBackendModule({
           `SELECT * FROM ${events} WHERE deleted_at IS NULL AND substr(start_at, 1, 10) <= ? AND substr(end_at, 1, 10) >= ? ORDER BY start_at, title`,
         )
         .all(to, from) as EventRow[];
-      return [...rows.map(eventDto), ...occurrences(weeklyList(), exceptionList(), from, to)].sort(
-        (a, b) => a.start.localeCompare(b.start) || a.title.localeCompare(b.title),
-      );
+      const names = rows.some((r) => r.source_id) ? sourceNames() : null;
+      return [
+        ...rows.map((r) => eventDto(r, names)),
+        ...occurrences(weeklyList(), exceptionList(), from, to),
+      ].sort((a, b) => a.start.localeCompare(b.start) || a.title.localeCompare(b.title));
     };
 
     const period = (query: unknown): { from: string; to: string } => {

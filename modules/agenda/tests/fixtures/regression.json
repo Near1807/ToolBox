@@ -1037,7 +1037,10 @@
         "location": null,
         "note": null,
         "category": "Rendez-vous",
-        "timer_pref": null
+        "timer_pref": null,
+        "source_id": null,
+        "origin_key": null,
+        "origin": null
       },
       {
         "id": "#2",
@@ -1051,7 +1054,10 @@
         "location": null,
         "note": null,
         "category": "Rendez-vous",
-        "timer_pref": null
+        "timer_pref": null,
+        "source_id": null,
+        "origin_key": null,
+        "origin": null
       },
       {
         "id": "#3",
@@ -1065,7 +1071,10 @@
         "location": "Spa",
         "note": null,
         "category": "Rendez-vous",
-        "timer_pref": null
+        "timer_pref": null,
+        "source_id": null,
+        "origin_key": null,
+        "origin": null
       },
       {
         "id": "#4",
@@ -1079,7 +1088,10 @@
         "location": null,
         "note": null,
         "category": "Examens",
-        "timer_pref": null
+        "timer_pref": null,
+        "source_id": null,
+        "origin_key": null,
+        "origin": null
       },
       {
         "id": "#8",
@@ -1093,7 +1105,10 @@
         "location": "Chez Léon",
         "note": "réserver",
         "category": "Perso",
-        "timer_pref": null
+        "timer_pref": null,
+        "source_id": null,
+        "origin_key": null,
+        "origin": null
       },
       {
         "id": "#9",
@@ -1107,7 +1122,10 @@
         "location": null,
         "note": null,
         "category": "Rendez-vous",
-        "timer_pref": null
+        "timer_pref": null,
+        "source_id": null,
+        "origin_key": null,
+        "origin": null
       }
     ],
     "agenda__exceptions": [
@@ -1145,6 +1163,7 @@
         "duration_min": null
       }
     ],
+    "agenda__sources": [],
     "agenda__weekly": [
       {
         "id": "#5",
