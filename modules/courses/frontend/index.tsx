@@ -25,7 +25,7 @@ import {
   useModule,
   onPhone,
 } from '@hub/sdk/frontend';
-import { addDays, daysBetween, mondayOf, WEEKDAYS, weekdayOf } from '../shared/dates';
+import { addDays, currentWeek, daysBetween, mondayOf, WEEKDAYS, weekdayOf } from '../shared/dates';
 import { fold, UNITS } from '../shared/quantities';
 import {
   defaultNutritionPer,
@@ -149,16 +149,7 @@ function PeriodPicker(props: { list: ListDto; run: Run }) {
       >
         ‹ Semaine
       </Button>
-      <Button
-        variant="secondary"
-        small
-        onClick={() =>
-          set(
-            mondayOf(new Date().toISOString().slice(0, 10)),
-            addDays(mondayOf(new Date().toISOString().slice(0, 10)), 6),
-          )
-        }
-      >
+      <Button variant="secondary" small onClick={() => set(...currentWeek())}>
         Cette semaine
       </Button>
       <Button

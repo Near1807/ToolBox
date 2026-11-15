@@ -4,6 +4,7 @@
 // tools are on the Commands page, those of the tracks on their page.
 import { useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router';
+import { localToday } from '@hub/sdk/dates';
 import {
   Button,
   Card,
@@ -187,7 +188,7 @@ export function WordsPage() {
     const blob = new Blob([JSON.stringify(file, null, 2)], { type: 'application/json' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `mots-et-commandes-assistant-${new Date().toISOString().slice(0, 10)}.json`;
+    link.download = `mots-et-commandes-assistant-${localToday()}.json`;
     link.click();
     setTimeout(() => URL.revokeObjectURL(link.href), 10_000);
   };
