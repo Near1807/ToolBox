@@ -152,6 +152,20 @@ export function GuidePage() {
           événement de l’Agenda ou une tâche prévue montre son détail.
         </p>
       </Card>
+      <Card title="Facultatif (Expérimental)">
+        <p>
+          Un cours ou un rendez-vous où tu n’iras pas, ou qui n’est pas important : ouvre-le et
+          coche <strong>« Facultatif »</strong>. Il reste affiché à sa place, atténué et hachuré,
+          mais il ne compte plus : ni ⚠ ni contour orange quand il en chevauche un autre, et il ne
+          pèse ni dans la charge ni dans le temps libre. Deux éléments qui comptent et se
+          chevauchent restent signalés : ce sont les vrais conflits.
+        </p>
+        <p>
+          C’est un choix par élément (une seule séance d’un cours répété), sur le PC et le
+          téléphone, avec « Annuler ». Un nouvel import de l’horaire ne le change jamais. Pas pour
+          les tâches (on les déplace) ni pour ce qui vient des autres outils.
+        </p>
+      </Card>
       <Card title="Importer un horaire (Expérimental)">
         <p>
           <Link to="/m/agenda/import">Agenda › Importer</Link> (sur le PC) lit un calendrier{' '}

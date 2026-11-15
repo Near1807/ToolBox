@@ -802,3 +802,30 @@
   white-space: pre-wrap;
   color: var(--text-2);
 }
+
+/* v0.40.0: « facultatif »: in its place, dimmed and hatched (the theme's
+   colours), never outlined as a conflict. */
+.ag-block--optional {
+  opacity: 0.7;
+  background: repeating-linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--ag-color) 22%, var(--surface)) 0 6px,
+    color-mix(in srgb, var(--ag-color) 8%, var(--surface)) 6px 12px
+  );
+  border-left-style: dashed;
+}
+.ag-list__item--optional {
+  opacity: 0.7;
+}
+.ag-optional {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin: 0 0 0.6rem;
+}
+.ag-optional label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 600;
+}

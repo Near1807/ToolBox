@@ -189,6 +189,31 @@ export function EventPanel(props: {
         // v0.36.0: every field editable in place; « Annuler » writes the previous values back.
         <>
           {event.source && <SourceNote source={event.source} />}
+          {/* v0.40.0: « facultatif »: one write, « Annuler » after. */}
+          <div className="ag-optional">
+            <label>
+              <input
+                type="checkbox"
+                checked={Boolean(event.optional)}
+                onChange={(e) => {
+                  const optional = e.target.checked;
+                  run(() => module.api.patch(`/events/${event.id}`, { optional }), {
+                    message: optional
+                      ? `« ${event.title} » facultatif : ne compte plus`
+                      : `« ${event.title} » compte de nouveau`,
+                    run: () => module.api.patch(`/events/${event.id}`, { optional: !optional }),
+                  });
+                }}
+              />{' '}
+              Facultatif{' '}
+              <span className="badge badge--warning" title="Pas encore validé à l’usage">
+                Expérimental
+              </span>
+            </label>
+            <span className="small muted">
+              Reste affiché, ne compte ni dans les conflits ni dans la charge.
+            </span>
+          </div>
           <EventForm
             initial={event}
             submitLabel="Enregistrer"

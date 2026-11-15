@@ -22,6 +22,10 @@ export const itemId = (i: Item) =>
       : i.event.id;
 
 /** Can be moved and stretched in the week: the Agenda's events at a time, and the planned tasks. */
+/** v0.40.0: an event of the Agenda marked « facultatif » (never a task, never another module's). */
+export const isOptional = (i: Item) =>
+  i.source === 'own' && Boolean((i.event as { optional?: true }).optional);
+
 export const movable = (i: Item) => !i.event.allDay && (i.source === 'own' || i.source === 'task');
 
 export function useRange(from: string, to: string) {
@@ -93,9 +97,13 @@ export function timedBlocks(
   data: RangeDto,
   shown: (category: string) => boolean = () => true,
 ): TimedBlock[] {
-  return [...data.events, ...data.foreign, ...data.tasks]
-    .filter((e) => !e.allDay && shown(e.category))
-    .map((e) => ({ id: e.id, start: e.start, end: e.end, category: e.category }));
+  return (
+    [...data.events, ...data.foreign, ...data.tasks]
+      .filter((e) => !e.allDay && shown(e.category))
+      // v0.40.0: a « facultatif » event weighs nothing (like a category switched off).
+      .filter((e) => !('optional' in e && e.optional))
+      .map((e) => ({ id: e.id, start: e.start, end: e.end, category: e.category }))
+  );
 }
 
 /** The estimates of the tasks to fit in (none when « Tâches » is switched off). */

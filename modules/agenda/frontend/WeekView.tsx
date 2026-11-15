@@ -28,6 +28,7 @@ import { CreateSlot, type SlotKind } from './CreateSlot';
 import { minutesBetween, minutesOfDay } from '../shared/time';
 import {
   colorStyle,
+  isOptional,
   itemId,
   itemsOf,
   movable,
@@ -302,6 +303,8 @@ export function Block(props: {
   const short = height < SHORT_BLOCK_PX;
   // « Prévue après son échéance » no longer matters once the task is done.
   const late = Boolean(task?.afterDue && !task.done);
+  // v0.40.0: « facultatif »: shown, dimmed and hatched, never a conflict.
+  const optional = isOptional(item);
   const fixedTip =
     item.source === 'foreign' ? '\nSe modifie dans son outil (clic pour l’ouvrir)' : '';
   const icons = (
@@ -320,7 +323,7 @@ export function Block(props: {
   );
   return (
     <div
-      className={`ag-block${short ? ' ag-block--short' : ''}${props.overlaps ? ' ag-block--overlap' : ''}${item.source === 'foreign' ? ' ag-block--foreign ag-block--fixed' : ''}${task ? ' ag-block--task' : ''}${task?.done ? ' ag-block--done' : ''}${canMove ? ' ag-block--movable' : ''}${props.dragging ? ' ag-block--dragging' : ''}`}
+      className={`ag-block${short ? ' ag-block--short' : ''}${props.overlaps ? ' ag-block--overlap' : ''}${item.source === 'foreign' ? ' ag-block--foreign ag-block--fixed' : ''}${task ? ' ag-block--task' : ''}${task?.done ? ' ag-block--done' : ''}${optional ? ' ag-block--optional' : ''}${canMove ? ' ag-block--movable' : ''}${props.dragging ? ' ag-block--dragging' : ''}`}
       style={{
         ...colorStyle(e.category),
         top: props.top,
@@ -332,7 +335,7 @@ export function Block(props: {
       <button
         type="button"
         className="ag-block__body"
-        title={`${e.title}\n${e.start.slice(11)}–${e.end.slice(11)} · ${e.category}${task?.done ? ' · fait' : ''}${late ? '\nPrévue après son échéance' : ''}${props.overlaps ? '\nChevauche un autre élément' : ''}${canMove ? '\nGlisser pour déplacer · tirer le bas pour changer la durée' : fixedTip}`}
+        title={`${e.title}\n${e.start.slice(11)}–${e.end.slice(11)} · ${e.category}${task?.done ? ' · fait' : ''}${optional ? ' · facultatif (ne compte ni dans les conflits ni dans la charge)' : ''}${late ? '\nPrévue après son échéance' : ''}${props.overlaps ? '\nChevauche un autre élément' : ''}${canMove ? '\nGlisser pour déplacer · tirer le bas pour changer la durée' : fixedTip}`}
         onClick={() => {
           if (!props.wasDrag()) props.onOpen(item);
         }}
@@ -630,6 +633,7 @@ export function WeekView(props: {
               start: i.event.start,
               end: i.event.end,
               category: i.event.category,
+              optional: isOptional(i),
             })),
           );
           const ghost =

@@ -17,6 +17,8 @@ export interface TimedBlock {
   start: string;
   end: string;
   category: string;
+  /** v0.40.0: « facultatif »: placed side by side, but never a conflict. */
+  optional?: boolean;
 }
 
 export interface TaskLoad {
@@ -171,11 +173,12 @@ export function placeDay(day: string, blocks: TimedBlock[]): Placed[] {
     .map((b) => {
       const from = Math.max(0, minutesBetween(`${day}T00:00`, b.start));
       const to = Math.min(24 * 60, minutesBetween(`${day}T00:00`, b.end));
-      return { id: b.id, from, to };
+      return { id: b.id, from, to, optional: Boolean(b.optional) };
     })
     .filter((p) => p.to > p.from)
     .sort((a, b) => a.from - b.from || b.to - a.to || a.id.localeCompare(b.id));
   const placed: Placed[] = [];
+  const optional = new Set(parts.filter((p) => p.optional).map((p) => p.id));
   // Groups of blocks that overlap each other (transitively): columns inside a group.
   let group: Placed[] = [];
   let groupEnd = -1;
@@ -183,7 +186,11 @@ export function placeDay(day: string, blocks: TimedBlock[]): Placed[] {
     const lanes = Math.max(1, ...group.map((p) => p.lane + 1));
     for (const p of group) {
       p.lanes = lanes;
-      p.overlaps = group.length > 1 && group.some((q) => q !== p && q.from < p.to && p.from < q.to);
+      // v0.40.0: a conflict needs two blocks that both count (not « facultatif »).
+      p.overlaps =
+        !optional.has(p.id) &&
+        group.length > 1 &&
+        group.some((q) => q !== p && !optional.has(q.id) && q.from < p.to && p.from < q.to);
     }
     placed.push(...group);
     group = [];
@@ -193,7 +200,7 @@ export function placeDay(day: string, blocks: TimedBlock[]): Placed[] {
     const used = new Set(group.filter((p) => p.to > part.from).map((p) => p.lane));
     let lane = 0;
     while (used.has(lane)) lane++;
-    group.push({ ...part, lane, lanes: 1, overlaps: false });
+    group.push({ id: part.id, from: part.from, to: part.to, lane, lanes: 1, overlaps: false });
     groupEnd = Math.max(groupEnd, part.to);
   }
   if (group.length) close();
