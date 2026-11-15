@@ -2,7 +2,7 @@
 // its examples, planning a task (drag, stretch), the load, the category
 // switches.
 import { Link } from 'react-router';
-import { Card, Page } from '@hub/sdk/frontend';
+import { Card, Icon, Page } from '@hub/sdk/frontend';
 
 const EXAMPLES: [string, string][] = [
   ['dentiste jeudi 14h 1h', 'un rendez-vous jeudi de 14:00 à 15:00'],
@@ -156,9 +156,9 @@ export function GuidePage() {
         <p>
           Un cours ou un rendez-vous où tu n’iras pas, ou qui n’est pas important : ouvre-le et
           coche <strong>« Facultatif »</strong>. Il reste affiché à sa place, atténué et hachuré,
-          mais il ne compte plus : ni ⚠ ni contour orange quand il en chevauche un autre, et il ne
-          pèse ni dans la charge ni dans le temps libre. Deux éléments qui comptent et se
-          chevauchent restent signalés : ce sont les vrais conflits.
+          mais il ne compte plus : ni <Icon name="warning" /> ni contour orange quand il en
+          chevauche un autre, et il ne pèse ni dans la charge ni dans le temps libre. Deux éléments
+          qui comptent et se chevauchent restent signalés : ce sont les vrais conflits.
         </p>
         <p>
           C’est un choix par élément (une seule séance d’un cours répété), sur le PC et le
