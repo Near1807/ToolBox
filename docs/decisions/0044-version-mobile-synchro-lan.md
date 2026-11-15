@@ -172,3 +172,9 @@ Sixième module du téléphone, synchronisé dès sa création (`sync: {}`, migr
 - **Inconnue encore à lever** : repérage mDNS du PC sur le Wi-Fi du kot (non vérifié ; les adresses connues et « QR de l'adresse » suffisent sans lui).
 
   Voir la section « Questions ouvertes » de l'étude.
+
+## Note du 15/11/2026 (v0.36.2) : aucune sauvegarde Android, même vers un nouveau téléphone
+
+- `android:allowBackup="false"` arrêtait la sauvegarde vers le cloud, mais, à partir d'Android 12, pas le **transfert d'appareil à appareil** (configuration d'un nouveau téléphone depuis l'ancien). Ajout de `android:dataExtractionRules` (`mobile/app/android/app/src/main/res/xml/data_extraction_rules.xml`) : tous les domaines (`root`, `file`, `database`, `sharedpref`, `external` et leurs équivalents `device_*`) sont exclus de la sauvegarde cloud **et** du transfert. `android:fullBackupContent="false"` pour les Android plus anciens.
+- **Au changement de téléphone, les données passent par la synchro avec le PC** : installer l'APK sur le nouveau téléphone, l'appairer, puis « Partir des données du PC » à la première synchro.
+- La CI vérifie dans chaque APK : `allowBackup` à false, `dataExtractionRules` présent, 18 exclusions (9 domaines × 2).

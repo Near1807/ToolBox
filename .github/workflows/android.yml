@@ -136,7 +136,7 @@ jobs:
             -PtoolboxVersionCode=${{ steps.version.outputs.code }} \
             -PtoolboxVersionName=${{ steps.version.outputs.name }}
 
-      - name: Check the APK (package, versionCode, SDK, certificate)
+      - name: Check the APK (package, versionCode, SDK, certificate, no backup)
         working-directory: mobile/app
         run: |
           TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)
@@ -152,6 +152,20 @@ jobs:
           COLONS=$(echo "$DIGEST" | tr 'a-f' 'A-F' | sed 's/../&:/g; s/:$//')
           echo "Empreinte SHA-256 du certificat (à comparer avec LISEZ-MOI.txt) :"
           echo "  $COLONS"
+          # Nothing leaves the phone through Android's backup (v0.36.2, ADR 0044):
+          # allowBackup false, and rules that exclude every domain from the cloud
+          # backup and from the device-to-device transfer.
+          MANIFEST=$("$TOOLS"aapt dump xmltree "$APK" AndroidManifest.xml)
+          echo "$MANIFEST" | grep -E "allowBackup|dataExtractionRules|fullBackupContent"
+          echo "$MANIFEST" | grep -E "android:allowBackup\(0x[0-9a-f]+\)=\(type 0x12\)0x0$" > /dev/null \
+            || { echo "::error::allowBackup n'est pas à false"; exit 1; }
+          echo "$MANIFEST" | grep -q "android:dataExtractionRules" \
+            || { echo "::error::dataExtractionRules absent"; exit 1; }
+          RULES=$(unzip -Z1 "$APK" | grep -E '^res/.*data_extraction_rules\.xml$' | head -1)
+          [ -n "$RULES" ] || { echo "::error::Règles d'extraction absentes de l'APK"; exit 1; }
+          EXCLUDES=$("$TOOLS"aapt dump xmltree "$APK" "$RULES" | grep -c "E: exclude")
+          echo "Règles d'extraction ($RULES) : $EXCLUDES exclusions"
+          [ "$EXCLUDES" -eq 18 ] || { echo "::error::18 exclusions attendues (9 domaines × 2)"; exit 1; }
           mkdir -p out
           cp "$APK" "out/ToolBox-${{ steps.version.outputs.name }}.apk"
 

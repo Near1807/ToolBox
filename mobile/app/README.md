@@ -30,7 +30,7 @@
   - chaque fiche compte les éléments par module (tâches, idées, séances, recettes…) ;
   - les 7 plus récentes sont gardées, jamais celle d'une base vide ;
   - si la base est vide ou absente et qu'une copie existe, l'appli **propose** de la restaurer, avec une confirmation. Jamais de restauration automatique.
-- **Sauvegarde Android vers le cloud désactivée** (`android:allowBackup="false"`) : rien ne part en ligne.
+- **Aucune sauvegarde Android** (v0.36.2) : `android:allowBackup="false"` (sauvegarde vers le cloud) et `android:dataExtractionRules` (`res/xml/data_extraction_rules.xml`), qui exclut tous les domaines de la sauvegarde cloud **et** du transfert d'appareil à appareil (Android 12 et plus). Rien ne part en ligne ni vers un autre téléphone. Au changement de téléphone, les données reviennent par la synchro avec le PC. La CI le vérifie dans l'APK.
 
 ## Construire
 
