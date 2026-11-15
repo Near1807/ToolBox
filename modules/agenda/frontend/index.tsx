@@ -37,6 +37,7 @@ import { DayView } from './DayView';
 import { EventForm, EventPanel, type Undo } from './EventPanel';
 import { GuidePage } from './Guide';
 import { ImportPage } from './Import';
+import { SourcesPanel } from './Sources';
 import { MonthView, monthGrid, monthTitle } from './MonthView';
 import { QuickBar } from './QuickBar';
 import { CategorySwitches, WeekView, type Drop } from './WeekView';
@@ -503,5 +504,7 @@ export default defineFrontendModule({
     { path: 'guide', component: GuidePage },
     { path: 'import', component: ImportPage },
   ],
+  // v0.37.0: Réglages › Agenda › Sources (the imported calendars).
+  settingsPanel: { label: 'Sources (calendriers importés)', component: SourcesPanel },
   HomeWidget,
 });

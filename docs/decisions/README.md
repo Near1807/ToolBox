@@ -65,3 +65,4 @@ Modèle :
 | 0044 | [Version mobile et synchro LAN (acceptée)](0044-version-mobile-synchro-lan.md)                                                       |
 | 0045 | [Calendrier : catégories, plusieurs jours, éléments à caser](0045-calendrier-categories-a-caser.md)                                  |
 | 0046 | [Entre modules : composants prêtés et destinations « Ajouter »](0046-entre-modules-composants-ajout-rapide.md)                       |
+| 0047 | [Agenda : importer un calendrier dans une source liée à des catégories](0047-agenda-import-sources.md)                               |

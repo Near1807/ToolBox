@@ -65,9 +65,17 @@ export interface FrontendModule {
   /**
    * v0.36.0, optional: this module's destination in the « Ajouter » bar of
    * the shell (PC and phone). The shell knows no module: it lists the
-   * destinations of the modules present. ADR 0046, MODULES.md §7.6.
+   * destinations of the modules present. ADR 0046, MODULES.md §7.5.
    */
   quickAdd?: QuickAddDestination;
+  /**
+   * v0.37.0, optional: the module's own panel in its section of Réglages
+   * (« Réglages › Agenda › Sources »), under its declared settings, rendered
+   * in the module's context (its useModule() and API). `label` is what the
+   * settings search finds. The shell knows no module: it shows the panel of
+   * the module whose section is open. MODULES.md §7.6.
+   */
+  settingsPanel?: { label: string; component: ComponentType };
 }
 
 /** What the « Ajouter » bar shows before validating: one line, or why not. */
@@ -678,6 +686,25 @@ export function Lent<P extends object>(props: { name: string; props: P; fallback
       <Borrowed {...props.props} />
     </ModuleProvider>
   );
+}
+
+/** v0.37.0: the settings panel of a present module (its section of Réglages), in its context. */
+export function ModuleSettingsPanel(props: { moduleId: string }) {
+  const modules = useContext(PresentModulesContext);
+  const m = modules.find((x) => x.manifest.id === props.moduleId);
+  const Panel = m?.frontend.settingsPanel?.component;
+  if (!m || !Panel) return null;
+  return (
+    <ModuleProvider manifest={m.manifest}>
+      <Panel />
+    </ModuleProvider>
+  );
+}
+
+/** v0.37.0: the label of a present module's settings panel (for the settings search), or null. */
+export function useSettingsPanelLabel(): (moduleId: string) => string | null {
+  const modules = useContext(PresentModulesContext);
+  return (id) => modules.find((x) => x.manifest.id === id)?.frontend.settingsPanel?.label ?? null;
 }
 
 /** The quick-add destinations of the present modules, in their order (the default first). */

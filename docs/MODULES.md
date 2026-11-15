@@ -614,6 +614,13 @@ L'interface a plusieurs thèmes (Réglages › Apparence, `docs/THEMES.md`). **A
   - La destination de plus petit `order` est celle par défaut.
 - Le shell fournit la liste des modules chargés (`PresentModulesProvider`), sur le PC comme sur le téléphone : un module absent = composant et destination absents.
 
+### 7.6 Un panneau dans les Réglages (v0.37.0, ADR 0047)
+
+- `defineFrontendModule({ settingsPanel: { label: 'Sources (calendriers importés)', component: SourcesPanel } })` : un panneau à soi dans la section du module de Réglages, sous ses réglages déclarés (`module.json`).
+- Il tourne dans le contexte du module (son `useModule()`, son API) ; `label` est ce que la recherche des Réglages trouve.
+- Pour ce que les réglages simples (`settings`) ne savent pas faire : une liste à gérer (les sources de l'Agenda). Les mêmes règles que les pages : toute action qui modifie est visible, confirmée quand elle supprime, annulable si possible.
+- Le shell ne connaît aucun module : il montre le panneau du module dont la section est ouverte (`ModuleSettingsPanel`). Sur le téléphone, la coquille ne l'affiche pas (pas de Réglages par module).
+
 ## 8. Tests
 
 Chaque module a ses tests dans `modules/<id>/tests/`. `@hub/sdk/testing` démarre un **vrai socle** (base, migrations, routes) dans un dossier temporaire :

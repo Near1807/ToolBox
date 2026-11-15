@@ -4,6 +4,23 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.37.0] — 2026-11-15
+
+Agenda : importer un calendrier (ICS, puis CSV et Excel) dans une source liée à des catégories. Nouveautés marquées « Expérimental ». Migration 4 de l'Agenda (ajouts seulement).
+
+### Ajouté
+
+- **Agenda › Importer** (PC) :
+  - `.ics` lu sur le PC : fuseaux (TZID, VTIMEZONE, UTC), journées entières, répétitions hebdomadaires et quotidiennes dépliées en séances (COUNT, UNTIL, plusieurs jours, INTERVAL, EXDATE, RECURRENCE-ID) ; règle non prise en charge = erreur listée avec sa ligne ;
+  - `.csv` et `.xlsx` : modèle à télécharger, écran des colonnes, dates `JJ/MM/AAAA`, `AAAA-MM-JJ`, heures `8h30`, `08:30`, dates d'Excel ;
+  - correspondance des catégories du fichier (« H » → Cours, « X » → Examens), période (à partir d'aujourd'hui ou tout), titre court ou avec le code ;
+  - **aperçu sans écriture** : à ajouter, identiques, modifiés (avec les différences), disparus, ignorés, erreurs ; « modifié par toi » et disparus décochés ;
+  - sauvegarde avant, une transaction, « Annuler l'import » ; réimporter le même fichier n'écrit rien.
+- **Sources** (Réglages › Agenda) : renommer, changer les catégories (appliqué aux événements), réimporter, supprimer (restaurable).
+- Détail d'un événement importé : sa source et son texte d'origine. Le téléphone reçoit les événements importés par la synchro.
+- Contrat de module : `settingsPanel` (un panneau à soi dans Réglages, MODULES.md §7.6, ADR 0047).
+- Dépendance de build : `fflate` 0.8.3 (lecture et écriture des `.xlsx`).
+
 ## [0.36.2] — 2026-11-15
 
 Suites de l'audit v0.36.1, décidées par Thomas (B1, B2, B3, B7, B8). Aucune migration.

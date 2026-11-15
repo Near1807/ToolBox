@@ -3,10 +3,18 @@
 // without an identifier, and the route with a sheet of other column names.
 process.env.TZ = 'Europe/Brussels';
 
+import { mkdtempSync, readFileSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { strToU8, zipSync } from 'fflate';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createTestHub, dumpTables, loadModuleFolder, type TestHub } from '@hub/sdk/testing';
+import {
+  createTestHost,
+  createTestHub,
+  dumpTables,
+  loadModuleFolder,
+  type TestHub,
+} from '@hub/sdk/testing';
 import {
   guessColumns,
   parseCsv,
@@ -199,5 +207,26 @@ describe('importing a table (route)', () => {
     );
     expect([x.body.add.length, x.body.gone.length, x.body.same]).toEqual([1, 1, 1]);
     expect(dumpTables(hub.dataDir, 'agenda').agenda__events).toHaveLength(2);
+  });
+
+  it('the template, saved through « Enregistrer sous »: CSV and Excel, read back the same', async () => {
+    const dir = mkdtempSync(path.join(os.tmpdir(), 'agenda-template-'));
+    let target = '';
+    hub = await createTestHub({
+      loadExamples: false,
+      host: createTestHost({ selectSaveFile: () => Promise.resolve(target) }),
+      modules: [await loadModuleFolder(path.resolve(__dirname, '..'))],
+    });
+    for (const format of ['csv', 'xlsx'] as const) {
+      target = path.join(dir, `modèle.${format}`);
+      const r = await hub.request<{ path: string }>('POST', '/api/modules/agenda/import/template', {
+        format,
+      });
+      expect(r.body.path).toBe(target);
+      const bytes = readFileSync(target);
+      const rows =
+        format === 'csv' ? parseCsv(bytes.toString('utf8')) : readXlsx(new Uint8Array(bytes));
+      expect(rows).toEqual(TEMPLATE_ROWS);
+    }
   });
 });

@@ -330,7 +330,8 @@ export function ImportPage() {
           <span className="badge badge--warning" title="Pas encore validé à l’usage">
             Expérimental
           </span>{' '}
-          <Link to="/m/agenda">← Retour à l’agenda</Link>
+          <Link to="/m/agenda">← Retour à l’agenda</Link> ·{' '}
+          <Link to="/settings?s=agenda">Gérer les sources</Link>
         </span>
       }
     >

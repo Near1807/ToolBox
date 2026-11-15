@@ -148,6 +148,32 @@ export function GuidePage() {
           événement de l’Agenda ou une tâche prévue montre son détail.
         </p>
       </Card>
+      <Card title="Importer un horaire (Expérimental)">
+        <p>
+          <Link to="/m/agenda/import">Agenda › Importer</Link> (sur le PC) lit un calendrier{' '}
+          <strong>.ics</strong> (l’export d’un horaire d’école, d’Outlook, de Google Agenda) ou un
+          tableau <strong>.csv</strong> / <strong>.xlsx</strong>. Rien ne part en ligne et rien
+          n’est écrit avant l’aperçu.
+        </p>
+        <p>
+          Chaque valeur de catégorie du fichier va dans une catégorie de l’Agenda : par exemple « H
+          » → Cours et « X » → Examens. L’interrupteur « Cours » cache alors les cours, sans les
+          compter. Les cours répétés sont dépliés en séances ordinaires.
+        </p>
+        <p>
+          L’aperçu dit ce qui sera <strong>ajouté</strong>, ce qui est <strong>identique</strong>,
+          ce qui a <strong>changé</strong> (avec les différences), ce qui a <strong>disparu</strong>{' '}
+          du fichier, ce qui est <strong>ignoré</strong> (le passé) et les <strong>erreurs</strong>.
+          Un événement que tu as modifié depuis le dernier import est marqué « modifié par toi » et
+          décoché ; un disparu n’est supprimé (restaurable) que si tu le coches. Réimporter le même
+          fichier ne crée aucun doublon.
+        </p>
+        <p>
+          Les sources se gèrent dans Réglages › Agenda : renommer, changer les catégories,
+          réimporter, supprimer (restaurable). Le téléphone reçoit les événements importés par la
+          synchro.
+        </p>
+      </Card>
     </Page>
   );
 }

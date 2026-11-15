@@ -7,9 +7,11 @@ import {
   ErrorMessage,
   errorMessage,
   Icon,
+  ModuleSettingsPanel,
   Page,
   type FloatingPosition,
   useApi,
+  useSettingsPanelLabel,
 } from '@hub/sdk/frontend';
 import type { SystemInfo } from '../../../../backend/routes/core';
 import { useModules } from '../../modules/ModulesContext';
@@ -484,6 +486,7 @@ export function SettingsPage() {
   const general = settings.data?.find((s) => s.scope === 'core');
   const accountSection = settings.data?.find((s) => s.scope === 'accounts');
   const byScope = new Map((settings.data ?? []).map((s) => [s.scope, s]));
+  const panelLabel = useSettingsPanelLabel();
   const fieldsOf = (scope: string) =>
     (byScope.get(scope)?.fields ?? []).map(({ field }) => ({
       key: `setting-${scope}-${field.key}`,
@@ -557,7 +560,13 @@ export function SettingsPage() {
           title: tool.module.manifest.name,
           group: category.name,
           icon: tool.module.manifest.icon,
-          entries: fieldsOf(tool.id),
+          entries: [
+            ...fieldsOf(tool.id),
+            // v0.37.0: a tool's own panel (« Sources » of the Agenda), found by the search too.
+            ...(panelLabel(tool.id)
+              ? [{ key: `panel-${tool.id}`, label: panelLabel(tool.id)! }]
+              : []),
+          ],
         })),
     ),
   ];
@@ -674,7 +683,14 @@ export function SettingsPage() {
               {scopeSection && scopeSection.fields.length > 0 ? (
                 <SettingsForm key={current.id} section={scopeSection} onSaved={settings.reload} />
               ) : (
-                <p className="muted">Cet outil n’a pas de réglage ici.</p>
+                !panelLabel(current.id) && (
+                  <p className="muted">Cet outil n’a pas de réglage ici.</p>
+                )
+              )}
+              {panelLabel(current.id) && (
+                <div id={`panel-${current.id}`} className="settings-panel">
+                  <ModuleSettingsPanel key={current.id} moduleId={current.id} />
+                </div>
               )}
               <p className="small">
                 <Link to={`/m/${current.id}`}>Ouvrir {current.title}</Link>
