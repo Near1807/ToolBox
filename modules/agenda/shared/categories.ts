@@ -22,6 +22,8 @@ const FIXED: Record<string, number> = {
   examens: 4,
   sport: 5,
   repas: 6,
+  // v0.38.0: the batch cooking sessions (Courses), not the colour of the meals.
+  cuisine: 8,
   tâches: 7,
   musique: 8,
   loisirs: 5,
@@ -59,7 +61,10 @@ export function categoryFromTag(tag: string): string {
 // overlaps); OFF: neither. The everyday things are off by default (setting
 // « Catégories éteintes par défaut »); each device keeps its own choices.
 
-/** Off by default: the things of every day (Sport, the meals and the batch, the Timer). */
+/**
+ * Off by default: the things of every day (Sport, the meals, the Timer).
+ * « Cuisine » (the batch sessions, v0.38.0) is ON: cooking has to be fitted in.
+ */
 export const DEFAULT_OFF = ['Sport', 'Repas', 'Timer'];
 
 /** « Sport, Repas ; Timer » → ['Sport', 'Repas', 'Timer'] (the setting). */

@@ -71,9 +71,9 @@ Destination **« Rendez-vous »** de la barre « Ajouter » du shell (ADR 0046).
 
 Les calques de v0.34 deviennent des **interrupteurs** : une catégorie **allumée** est affichée **et comptée** (charge, temps libre, chevauchements, « à caser » pour « Tâches ») ; **éteinte**, elle n'est ni affichée ni comptée (remplace la règle « la charge compte toujours tout »).
 
-- **Par défaut éteintes** : Sport, Repas (repas et batch), Timer — les choses de tous les jours. **Allumées** : les catégories de l'Agenda, Tâches, Musique. Liste de départ modifiable : réglage « Catégories éteintes par défaut » (`categoriesOff`, « Sport, Repas, Timer »), lu dans `RangeDto.categoriesOff`.
+- **Par défaut éteintes** : Sport, Repas (les repas prêts), Timer — les choses de tous les jours. **Allumées** : les catégories de l'Agenda, Tâches, **Cuisine** (v0.38.0 : les séances de batch cooking des Courses, à caser dans la journée ; un appareil qui a déjà des choix enregistrés la reçoit allumée, ses autres choix ne changent pas), Musique. Liste de départ modifiable : réglage « Catégories éteintes par défaut » (`categoriesOff`, « Sport, Repas, Timer »), lu dans `RangeDto.categoriesOff`.
 - Choix **propre à chaque appareil** (`localStorage`, `toolbox.agenda.categorySwitches`, jamais synchronisé) ; les calques masqués en v0.34 sont repris comme éteints.
-- Le bilan de la semaine dit ce qui n'est pas compté (« hors Sport, Repas »).
+- Le bilan de la semaine dit ce qui n'est pas compté (« hors Sport, Repas, Timer »).
 - Règle pure : `isOn(catégorie, choix, éteintes par défaut)` (`shared/categories.ts`), comptage par `timedBlocks(data, shown)` et `taskLoads(data, shown)` (`frontend/common.ts`), testés (`tests/layers.test.ts`).
 
 ## Tâches prévues et glisser-déposer (v0.35.0, Expérimental)
@@ -85,7 +85,7 @@ Une tâche reste **une donnée de la To-do** : l'Agenda la lit par le calendrier
   - un bloc (tâche prévue ou événement de l'Agenda) → une autre heure ou un autre jour (sa durée gardée) ;
   - le **bas** d'un bloc → sa durée (15 min au moins ; pour une tâche, sa durée estimée) ;
   - une **occurrence de la semaine type** : cette fois-ci seulement (l'exception existante) ;
-  - les éléments des autres modules (Sport, Repas, Timer, Musique) ne se déplacent pas : curseur et infobulle le disent, un clic les ouvre dans leur outil ;
+  - les éléments des autres modules (Sport, Repas, Cuisine, Timer, Musique) ne se déplacent pas : curseur et infobulle le disent, un clic les ouvre dans leur outil ;
   - les événements sur la journée ou sur plusieurs jours : pas dans cette version.
 
   Pendant le glisser : aperçu de l'heure de début et de fin, **Échap** annule. **Rien n'est écrit pendant le glisser : une seule écriture au dépôt**, puis « Annuler » (les valeurs d'avant réécrites).

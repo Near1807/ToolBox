@@ -151,7 +151,7 @@ Tables `courses__ingredients`, `courses__meals`, `courses__meal_items`, `courses
 
 ## Calendrier (« Prêt pour le calendrier », MODULES.md §5.17)
 
-Chaque repas planifié = un événement « Soir : Risotto » à l'heure et pour la durée par défaut de son moment, avec ses portions. Chaque session d'un plan de batch cooking **validé** = un événement « Batch cooking : Curry, Dal » (sur la journée tant qu'aucune heure n'est donnée).
+Chaque repas planifié = un événement « Soir : Risotto » à l'heure et pour la durée par défaut de son moment, avec ses portions. Chaque session d'un plan de batch cooking **validé** = un événement « Batch cooking : Curry, Dal » (sur la journée tant qu'aucune heure n'est donnée), dans la catégorie **« Cuisine »** (v0.38.0) : cuisiner se case dans la journée, alors qu'un repas prêt (« Repas ») ne s'organise pas. Les repas planifiés restent dans « Repas ».
 
 ## API
 

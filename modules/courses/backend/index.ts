@@ -1947,7 +1947,7 @@ export default defineBackendModule({
             status: `${String(p.servings).replace('.', ',')} portion${p.servings > 1 ? 's' : ''}`,
           };
         });
-        // Batch cooking sessions: validated plans only.
+        // Batch cooking sessions: validated plans only, in their own category « Cuisine » (v0.38.0).
         return [...planned, ...batch.calendarEvents(from, to)];
       },
     });

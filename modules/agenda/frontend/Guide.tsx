@@ -140,10 +140,12 @@ export function GuidePage() {
           <strong>Éteinte</strong> : ni affichée, ni comptée.
         </p>
         <p>
-          Au départ, les choses de tous les jours sont <strong>éteintes</strong> : Sport, Repas
-          (repas et batch) et Timer. L’Agenda, les Tâches et la Musique sont allumés. Le bilan de la
-          semaine dit ce qui n’est pas compté (« hors Sport, Repas »). Tes choix restent sur cet
-          appareil ; la liste de départ se change dans Réglages › Agenda.
+          Au départ, les choses de tous les jours sont <strong>éteintes</strong> : Sport, Repas (les
+          repas prêts, qu’on n’organise pas) et Timer. L’Agenda, les Tâches, la{' '}
+          <strong>Cuisine</strong> (les séances de batch cooking des Courses, à caser dans la
+          journée) et la Musique sont allumés. Le bilan de la semaine dit ce qui n’est pas compté («
+          hors Sport, Repas, Timer »). Tes choix restent sur cet appareil ; la liste de départ se
+          change dans Réglages › Agenda.
         </p>
         <p>
           Un élément d’un autre outil (une séance de sport, un repas) s’ouvre dans cet outil ; un
