@@ -178,3 +178,8 @@ Sixième module du téléphone, synchronisé dès sa création (`sync: {}`, migr
 - `android:allowBackup="false"` arrêtait la sauvegarde vers le cloud, mais, à partir d'Android 12, pas le **transfert d'appareil à appareil** (configuration d'un nouveau téléphone depuis l'ancien). Ajout de `android:dataExtractionRules` (`mobile/app/android/app/src/main/res/xml/data_extraction_rules.xml`) : tous les domaines (`root`, `file`, `database`, `sharedpref`, `external` et leurs équivalents `device_*`) sont exclus de la sauvegarde cloud **et** du transfert. `android:fullBackupContent="false"` pour les Android plus anciens.
 - **Au changement de téléphone, les données passent par la synchro avec le PC** : installer l'APK sur le nouveau téléphone, l'appairer, puis « Partir des données du PC » à la première synchro.
 - La CI vérifie dans chaque APK : `allowBackup` à false, `dataExtractionRules` présent, 18 exclusions (9 domaines × 2).
+
+## Note du 15/11/2026 (v0.36.2) : appli d'essai retirée
+
+- L'essai OPFS (étape 3a) a été **validé le 05/11/2026 sur le S21** (section « Résultat de l'essai OPFS » ci-dessus). L'appli d'essai `mobile/probe/` (`be.toolbox.probe`) et son workflow `.github/workflows/android-probe.yml` sont **retirés du dépôt** : la vraie appli `mobile/app/` (`be.toolbox.app`) utilise la même pile depuis la v0.30.0.
+- Ce qui précède dans cet ADR reste la trace de l'essai ; le code de l'appli d'essai reste lisible dans l'historique Git (avant la v0.36.2).

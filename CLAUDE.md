@@ -73,7 +73,6 @@ scripts/         dev, build (esbuild + découverte des modules), smoke test, vé
 tests/           tests Vitest du socle
 docs/            ARCHITECTURE, MODULES (contrat), AJOUTER-UN-MODULE, DIRECTION-ARTISTIQUE (visuels générés), THEMES (interface), ROADMAP, WINDOWS, decisions/ (ADR), rapports/ (rapport de fin de session)
 mobile/app/      appli Android ToolBox (be.toolbox.app, identifiant définitif) : les 6 modules du téléphone (Agenda compris), coquille, Worker sqlite-wasm + OPFS, filet de sauvegarde (copie avant migration), partage, notifications du Timer (et notification permanente), synchro avec le PC (greffons PinnedHttp, PcFinder, LiveChannel, TimerOngoing) ; APK signé par .github/workflows/android.yml (ADR 0044)
-mobile/probe/    appli d'essai Android (SQLite WebAssembly + OPFS sous Capacitor, ADR 0044 étape 3a) : projet à part, jamais dans le .exe ; APK par .github/workflows/android-probe.yml
 site/            site public statique (accueil + confidentialité, exigés par Google OAuth), publié par GitHub Pages depuis hub-v1
 ```
 
