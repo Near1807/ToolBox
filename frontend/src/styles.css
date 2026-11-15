@@ -2130,6 +2130,10 @@ input[type='range'] {
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
+  align-items: center;
+}
+.quick-add__experimental {
+  margin-left: auto;
 }
 .quick-add__target {
   display: inline-flex;
