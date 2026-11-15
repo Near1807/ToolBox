@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ImportFileError, parseIcs, unescapeText } from '../shared/ics';
-import { noteOf, splitTitle } from '../shared/import-item';
+import { describeEvent, noteOf, splitTitle, titleOf } from '../shared/import-item';
 
 const HORIZON = { horizon: '2027-12-31' };
 const cal = (...lines: string[]) =>
@@ -53,12 +53,11 @@ describe('reading an .ics file', () => {
       HORIZON,
     );
     const [item] = p.items;
-    expect(item!.title).toBe('Thermo');
+    // v0.38.0: the « Act: » line is the title, « TH2C » stays the code.
+    expect(item!.title).toBe('Labo, séance 2; groupe B');
     expect(item!.code).toBe('TH2C');
     expect(item!.location).toBe('2F51;2E51;2E44');
-    expect(item!.note).toBe(
-      'Activité : Labo, séance 2; groupe B · Groupe : 4MIN-7a · Enseignants : BRN',
-    );
+    expect(item!.note).toBe('Groupe : 4MIN-7a · Enseignants : BRN');
     expect(item!.original.DESCRIPTION).toBe(
       'Act:Labo, séance 2; groupe B\nGroupe:4MIN-7a\nEns:BRN',
     );
@@ -72,6 +71,46 @@ describe('reading an .ics file', () => {
     expect(noteOf('TH2C:Thermo[ECRIT] \nEns:BRG PCH VDD', 'TH2C:Thermo[ECRIT]')).toBe(
       'Enseignants : BRG PCH VDD',
     );
+  });
+
+  // v0.38.0: the real shape of the school export (invented values).
+  it('a course: SUMMARY is a code, « Act: » is the title, « ® » left out of the code', () => {
+    expect(
+      describeEvent('®-RE4L-L2-4MEO-4MIN', 'Act:Computer Network Lab\nGroupe:4MEO-4MIN\nEns:N3L'),
+    ).toEqual({
+      title: 'Computer Network Lab',
+      code: 'RE4L-L2-4MEO-4MIN',
+      note: 'Groupe : 4MEO-4MIN · Enseignants : N3L',
+    });
+    expect(titleOf(describeEvent('2BSE-H1-2BA', 'Act:Statistique\nEns:'), 'code')).toBe(
+      '2BSE-H1-2BA · Statistique',
+    );
+  });
+  it('a course without « Act: »: as before; « Ens: » empty left out; « Rem: » → Remarque', () => {
+    expect(describeEvent('2BSE-H1-2BA', 'Groupe:2BA-1\nEns:\nRem:Conférence invitée')).toEqual({
+      title: '2BSE-H1-2BA',
+      code: null,
+      note: 'Groupe : 2BA-1 · Remarque : Conférence invitée',
+    });
+    expect(describeEvent('®-RE4L-L2', 'Act:Réseaux\nEns:')).toEqual({
+      title: 'Réseaux',
+      code: 'RE4L-L2',
+      note: null,
+    });
+  });
+  it('exams: [ECRIT] / [ORAL] only in the description; the line repeating the summary left out', () => {
+    expect(describeEvent('TH2C:Thermo', 'TH2C:Thermo[ECRIT]\\ \nEns:BRG PCH VDD')).toEqual({
+      title: 'Thermo · Écrit',
+      code: 'TH2C',
+      note: 'Enseignants : BRG PCH VDD',
+    });
+    expect(describeEvent('AN3L:Anglais', 'AN3L:Anglais[ORAL]\nEns:DSX')).toEqual({
+      title: 'Anglais · Oral',
+      code: 'AN3L',
+      note: 'Enseignants : DSX',
+    });
+    // The old shape (type in the summary) still works.
+    expect(describeEvent('TH2C:Thermo[ECRIT]', '')).toMatchObject({ title: 'Thermo · Écrit' });
   });
 
   it('time zones: TZID (winter, summer), UTC « Z », floating, whole days (end exclusive)', () => {

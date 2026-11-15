@@ -85,24 +85,79 @@ const KEY_LABELS: Record<string, string> = {
   prof: 'Enseignants',
   groupe: 'Groupe',
   grp: 'Groupe',
+  rem: 'Remarque',
 };
 
+/** A line of a description, cleaned (« \ » left by some exports, spaces). */
+const cleanLine = (line: string) => line.replace(/\\/g, ' ').replace(/\s+/g, ' ').trim();
+/** Two texts that say the same thing (spaces, « \ » and the exam type aside). */
+const sameText = (a: string, b: string) => {
+  const k = (s: string) =>
+    s
+      .replace(EXAM, '')
+      .replace(/[\s\\]+/g, '')
+      .toLowerCase();
+  return k(a) === k(b);
+};
+const KEY_VALUE = /^([\p{L}]{1,12})\s*:\s*(.*)$/u;
+
 /**
- * The note from a description: « Act:Non Relational Database\nGroupe:4MIN-7a\nEns:BRN »
- * → « Activité : Non Relational Database · Groupe : 4MIN-7a · Enseignants : BRN ».
- * A line that only repeats the summary is left out.
+ * The title, code and note of an event of a school timetable (v0.38.0):
+ * - a course: SUMMARY is a code (« ®-RE4L-L2-4MEO-4MIN »), its name is the
+ *   « Act: » line of the description → title « Computer Network Lab », code
+ *   « RE4L-L2-4MEO-4MIN » (the « ® » in front left out), shown with the
+ *   « TH2C · Thermo » style only;
+ * - without « Act: »: as before (« TH2C:Thermo » → « Thermo », code « TH2C »);
+ * - an exam: [ECRIT] / [ORAL] in the description (or the summary) →
+ *   « Thermo · Écrit » / « · Oral ».
+ * The note: the other lines (« Groupe : … · Enseignants : … · Remarque : … »),
+ * without the « Act: » line used as title, without a line that only repeats
+ * the summary (and its exam type), without a « clé: » with no value.
  */
-export function noteOf(description: string, summary: string): string | null {
-  const same = (a: string) => a.replace(/[\s\\]+/g, '') === summary.replace(/[\s\\]+/g, '');
-  const parts = description
-    .split('\n')
-    .map((line) => line.replace(/\\/g, ' ').replace(/\s+/g, ' ').trim())
-    .filter((line) => line && !same(line))
-    .map((line) => {
-      const kv = /^([\p{L}]{1,12})\s*:\s*(.+)$/u.exec(line);
-      if (!kv) return line;
-      const label = KEY_LABELS[kv[1]!.toLowerCase()] ?? kv[1]!;
-      return `${label} : ${kv[2]}`;
+export function describeEvent(
+  summary: string,
+  description: string,
+): { title: string; code: string | null; note: string | null } {
+  const lines = description.split('\n').map(cleanLine).filter(Boolean);
+  const act = lines
+    .map((l) => /^act\s*:\s*(.+)$/i.exec(l)?.[1]?.trim() ?? '')
+    .find((v) => v !== '');
+  const examMatch = EXAM.exec(description) ?? EXAM.exec(summary);
+  const exam = examMatch ? (examMatch[1]!.toUpperCase() === 'ORAL' ? 'Oral' : 'Écrit') : '';
+  let title: string;
+  let code: string | null;
+  if (act) {
+    title = act.replace(EXAM, ' ').replace(/\s+/g, ' ').trim();
+    // « TH2C:Thermo » keeps its code « TH2C »; a bare code (« ®-RE4L-… ») is the code.
+    const c =
+      splitTitle(summary.replace(EXAM, ' ')).code ??
+      cleanLine(summary)
+        .replace(/^®\s*[-–]?\s*/, '')
+        .trim();
+    code = c && !sameText(c, title) ? c : null;
+  } else {
+    const split = splitTitle(summary.replace(EXAM, ' '));
+    title = split.title;
+    code = split.code;
+  }
+  const parts = lines
+    .filter((l) => !sameText(l, summary))
+    .flatMap((l) => {
+      const kv = KEY_VALUE.exec(l);
+      if (!kv) return [l];
+      const key = kv[1]!.toLowerCase();
+      const value = kv[2]!.trim();
+      if (!value) return [];
+      if (key === 'act' && act) return [];
+      return [`${KEY_LABELS[key] ?? kv[1]!} : ${value}`];
     });
-  return parts.length ? clip(parts.join(' · ')) : null;
+  return {
+    title: clip(exam ? `${title} · ${exam}` : title),
+    code,
+    note: parts.length ? clip(parts.join(' · ')) : null,
+  };
 }
+
+/** The note alone (see describeEvent). */
+export const noteOf = (description: string, summary: string) =>
+  describeEvent(summary, description).note;

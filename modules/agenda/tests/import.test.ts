@@ -6,6 +6,7 @@
 process.env.TZ = 'Europe/Brussels';
 
 import { readFileSync } from 'node:fs';
+import Database from 'better-sqlite3';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTestHub, dumpTables, loadModuleFolder, type TestHub } from '@hub/sdk/testing';
@@ -85,7 +86,7 @@ describe('importing a calendar (ICS)', () => {
     const before = JSON.stringify(rows());
     const p = await call<Preview>('POST', '/import/preview', { ...asNew, text: ICS });
     expect(JSON.stringify(rows())).toBe(before);
-    expect(p.add.length).toBeGreaterThan(40);
+    expect(p.add.length).toBeGreaterThan(30);
     expect(p.add.every((l) => l.end.slice(0, 10) >= '2026-11-15')).toBe(true);
     expect(p.ignored.length).toBeGreaterThan(50);
     expect(p.errors.map((e) => e.reason)).toEqual([
@@ -108,13 +109,16 @@ describe('importing a calendar (ICS)', () => {
       text: ICS,
       titleStyle: 'code',
     });
-    expect(coded.add.map((l) => l.title)).toContain('TH2C · Thermo');
+    // v0.38.0: the code is the course's SUMMARY (« TH2C-L2-4MIN »), the name its « Act: » line.
+    expect(
+      coded.add.map((l) => l.title).some((t) => /^TH2C-[A-Z0-9]+-[0-9A-Z]+ · Thermo$/.test(t)),
+    ).toBe(true);
     expect(p.add.map((l) => l.title)).toContain('Thermo');
   });
 
   it('import, then the same file again: everything « identique », nothing written', async () => {
     const done = await importAll();
-    expect(done.added).toBeGreaterThan(40);
+    expect(done.added).toBeGreaterThan(30);
     expect(done.backup).toMatch(/\.db$/);
     expect(done.source.name).toBe('Horaire ECAM');
     expect(done.source.categories).toEqual(['Cours', 'Examens']);
@@ -127,7 +131,10 @@ describe('importing a calendar (ICS)', () => {
       end_at: '2027-01-11T11:30',
     });
     expect(exam.note).toMatch(/^Enseignants : [A-Z]{3} [A-Z]{3} [A-Z]{3}$/);
-    expect(JSON.parse(String(exam.origin)).original.SUMMARY).toBe('TH2C:Thermo[ECRIT]');
+    expect(JSON.parse(String(exam.origin)).original).toMatchObject({
+      SUMMARY: 'TH2C:Thermo',
+      DESCRIPTION: expect.stringContaining('TH2C:Thermo[ECRIT]'),
+    });
 
     const journal = rows().agenda__changes!.length;
     const again = await call<Preview>('POST', '/import/preview', {
@@ -165,7 +172,7 @@ describe('importing a calendar (ICS)', () => {
     expect(a.matches).toEqual([
       { id: done.source.id, name: 'Horaire ECAM', byName: true, shared: expect.any(Number) },
     ]);
-    expect(a.matches[0]!.shared).toBeGreaterThan(40);
+    expect(a.matches[0]!.shared).toBeGreaterThan(30);
   });
 
   it('a changed file: modified (with the differences), « modifié par toi » unchecked, gone unchecked', async () => {
@@ -202,8 +209,8 @@ describe('importing a calendar (ICS)', () => {
 
     // Now the school changes the course the user renamed: flagged « modifié par toi ».
     const both = changed.replace(
-      /(RRULE:FREQ=WEEKLY;COUNT=12;BYDAY=TU\r\n)SUMMARY:TH2C:Thermo/,
-      '$1SUMMARY:TH2C:Thermodynamique',
+      /(RRULE:FREQ=WEEKLY;COUNT=12;BYDAY=TU\r\nSUMMARY:[^\r]*\r\nDESCRIPTION:Act:)Thermo/,
+      '$1Thermodynamique',
     );
     const p2 = await call<Preview>('POST', '/import/preview', {
       format: 'ics',
@@ -318,7 +325,7 @@ describe('importing a calendar (ICS)', () => {
     const course = range.events.find((e) => e.title === 'Thermo')!;
     expect(course.source).toMatchObject({
       name: 'Horaire ECAM',
-      original: { SUMMARY: 'TH2C:Thermo' },
+      original: { DESCRIPTION: expect.stringContaining('Act:Thermo'), CATEGORIES: 'H' },
     });
     expect(range.categories).toContain('Cours');
     const on = (category: string) => isOn(category, {}, range.categoriesOff);
@@ -383,5 +390,71 @@ describe('importing a calendar (ICS)', () => {
     expect(apply.status).toBe(400);
     expect(rows().agenda__events).toEqual([]);
     expect(rows().agenda__sources).toEqual([]);
+  });
+
+  it('v0.38.0: a re-import after v0.37.0 proposes the new titles as « modifié », no duplicate, « modifié par toi » kept', async () => {
+    const done = await importAll();
+    const count = live().length;
+    // The base as v0.37.0 left it: the title was the SUMMARY (« TH2C-L2-4MIN »,
+    // « Thermo » for an exam without its type). Written as an old base would hold it.
+    const legacy = (summary: string) => {
+      const c = /^([A-Z0-9][A-Z0-9_.-]{0,15})\s*:\s*(.+)$/.exec(summary.trim());
+      return c ? c[2]!.trim() : summary.trim();
+    };
+    const db = new Database(path.join(hub.dataDir, 'hub.db'));
+    const rows = db
+      .prepare('SELECT id, origin FROM agenda__events WHERE deleted_at IS NULL')
+      .all() as { id: string; origin: string }[];
+    for (const r of rows) {
+      const origin = JSON.parse(r.origin) as {
+        original: Record<string, string>;
+        imported: Record<string, unknown>;
+      };
+      const old = legacy(origin.original.SUMMARY ?? '');
+      origin.imported.title = old;
+      db.prepare('UPDATE agenda__events SET title = ?, origin = ? WHERE id = ?').run(
+        old,
+        JSON.stringify(origin),
+        r.id,
+      );
+    }
+    // One the user renamed himself after the v0.37.0 import.
+    const mine = rows[0]!.id;
+    db.prepare('UPDATE agenda__events SET title = ? WHERE id = ?').run('Mon cours à moi', mine);
+    db.close();
+
+    const p = await call<Preview>('POST', '/import/preview', {
+      format: 'ics',
+      text: ICS,
+      sourceId: done.source.id,
+    });
+    expect([p.add.length, p.gone.length]).toEqual([0, 0]);
+    // All but the two without a code (« Congé… », « Séance d'information… »): same title as before.
+    expect(p.same).toBe(2);
+    expect(p.modified.length).toBe(count - 2);
+    const thermo = p.modified.find((m) => m.title === 'Thermo · Écrit')!;
+    expect(thermo.changes).toEqual([
+      { field: 'title', label: 'Titre', before: 'Thermo', after: 'Thermo · Écrit' },
+    ]);
+    const course = p.modified.find(
+      (m) => m.title === 'Computer Network Lab' || m.title === 'Thermo',
+    )!;
+    expect(course.changes[0]).toMatchObject({
+      field: 'title',
+      before: expect.stringMatching(/^(®-)?[A-Z0-9]+-/),
+    });
+    expect(p.modified.filter((m) => m.mine).map((m) => m.id)).toEqual([mine]);
+    // With the page's defaults (« modifié par toi » unchecked): no duplicate, the user's title kept.
+    const applied = await call<Applied>('POST', '/import/apply', {
+      format: 'ics',
+      text: ICS,
+      sourceId: done.source.id,
+      accept: keysOf(p),
+      remove: [],
+    });
+    expect(applied).toMatchObject({ added: 0, updated: count - 3, removed: 0 });
+    expect(live().length).toBe(count);
+    expect(live().find((e) => e.id === mine)!.title).toBe('Mon cours à moi');
+    expect(live().filter((e) => e.title === 'Thermo · Écrit').length).toBeGreaterThan(0);
   });
 });

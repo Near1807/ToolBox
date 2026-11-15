@@ -13,9 +13,8 @@ import {
   clip,
   type ImportError,
   type ImportItem,
-  noteOf,
   type ParsedFile,
-  splitTitle,
+  describeEvent,
 } from './import-item';
 
 /** The file itself cannot be read: a clear message, nothing is written. */
@@ -477,7 +476,7 @@ export function parseIcs(input: string, options: IcsOptions): ParsedFile {
     const description = text(e, 'DESCRIPTION');
     const location = text(e, 'LOCATION').trim();
     const categories = categoriesOf(e);
-    const { title, code } = splitTitle(summary || '(sans titre)');
+    const { title, code, note } = describeEvent(summary || '(sans titre)', description);
     const original: Record<string, string> = {};
     for (const name of ['UID', 'SUMMARY', 'DESCRIPTION', 'LOCATION', 'CATEGORIES']) {
       const p = e.props.filter((x) => x.name === name);
@@ -506,7 +505,7 @@ export function parseIcs(input: string, options: IcsOptions): ParsedFile {
       end,
       allDay: 'days' in length,
       location: location ? clip(location) : null,
-      note: noteOf(description, summary),
+      note,
       rawCategory: categories[0] ?? '',
       original,
     };
