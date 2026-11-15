@@ -4,6 +4,18 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.40.0] — 2026-11-15
+
+Agenda : correctif du glisser / étirer / créer, événements « facultatifs ». Migration 5 de l'Agenda (ajout seul). Il n'y a pas de version 0.39.
+
+### Corrigé
+
+- **Glisser, étirer, créer dans la semaine** (régression v0.38) : le fantôme était une bande d'environ 14 px collée à gauche de la colonne, sans heure lisible. Il reprend toute la largeur de la colonne et montre toujours « 08:15 – 09:00 · 45 min », dedans ou juste dessous quand il est court.
+
+### Ajouté
+
+- **Facultatif** (Expérimental) : case dans la fiche d'un événement de l'Agenda (PC et téléphone). L'événement reste affiché, atténué et hachuré, mais ne compte plus ni dans les conflits (pas de ⚠ ni de contour) ni dans la charge et le temps libre. Par élément, avec « Annuler » ; jamais touché par un réimport.
+
 ## [0.38.0] — 2026-11-15
 
 Agenda : lisibilité des blocs, « Cuisine » séparée des « Repas », titres de l'import d'école. Aucune migration.
