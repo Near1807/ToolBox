@@ -29,7 +29,7 @@ Règles : une **durée avec « ~ »** fait une tâche (une heure qui finit cette
 
 ## Vue de la semaine (PC)
 
-Colonnes par jour, heures de la journée (réglage « Début / Fin de la journée », 7 h – 23 h par défaut), blocs colorés par catégorie (`--series-1…8` des thèmes, `shared/categories.ts`), aujourd'hui mis en avant ; rangée du haut pour les événements sur la journée et sur plusieurs jours ; bande « À caser » (tâches échues cette semaine, rangées par échéance, puis celles sans échéance, repliables) ; sous chaque jour une **barre de charge** découpée par catégorie (heures d'événements + durées estimées des tâches échues ce jour-là) et un état léger / chargé / saturé ; en tête « X h de libre · Y h à caser · + N tâches sans durée » ; chevauchements signalés ; **interrupteurs de catégorie** (v0.35.0, voir plus bas) ; vue mois légère. Calculs purs dans `shared/load.ts`.
+Colonnes par jour, heures de la journée (réglage « Début / Fin de la journée », 7 h – 23 h par défaut), blocs colorés par catégorie (`--series-1…8` des thèmes, `shared/categories.ts`), aujourd'hui mis en avant ; rangée du haut pour les événements sur la journée et sur plusieurs jours ; bande « À caser » (tâches échues cette semaine, rangées par échéance, puis celles sans échéance, repliables) ; sous chaque jour une **barre de charge** découpée par catégorie (heures d'événements + durées estimées des tâches échues ce jour-là) et un état léger / chargé / saturé ; en tête « X h de libre · Y h à caser · + N tâches sans durée » ; chevauchements signalés ; blocs « titre d'abord » (v0.38.0 : un bloc de 45 min ou moins tient sur une ligne, le titre puis l'heure s'il reste de la place, « … » quand ça déborde ; un bloc plus haut montre l'heure puis le titre ; marges de 2 px / 4 px, police inchangée) ; **interrupteurs de catégorie** (v0.35.0, voir plus bas) ; vue mois légère. Calculs purs dans `shared/load.ts`.
 
 **Charge** (catégories allumées seulement) : heures des événements et des tâches prévues dans la plage de la journée, par catégorie, plus les durées estimées des tâches échues ce jour-là (« Tâches » ; une tâche en retard pèse sur aujourd'hui, jamais sur un jour passé ni sur une semaine suivante). Léger sous 50 % de la plage, chargé sous 85 %, saturé au-delà. Les événements sur la journée (un camp, un examen) n'ont pas d'heures : ils ne pèsent pas. **Libre** : la plage moins les événements (chevauchements comptés une fois). **À caser** : les durées estimées des tâches qui pèsent sur un jour de la semaine (celles en retard dans la semaine en cours) ; les tâches sans échéance sont dans la bande, pas dans ce total.
 
@@ -41,7 +41,7 @@ Colonnes par jour, heures de la journée (réglage « Début / Fin de la journé
 
   Chaque changement s'affiche dans la semaine, avec « Annuler » (les valeurs d'avant réécrites).
 
-- **Cocher** : une case sur chaque bloc de tâche (et sur sa ligne dans la vue jour). Cochée, la tâche est barrée ; « Annuler » juste après. Route `PUT /tasks/:id/done` → service `todo`.
+- **Cocher** (v0.38.0) : plus de case sur les blocs ni sur les lignes de la vue jour. Clic sur le bloc → la fiche de la To-do, case **« Faite »** en haut (« À refaire » quand elle est faite) : une écriture, « Annuler » juste après. Une tâche faite reste barrée et atténuée ; le ⚠ « prévue après son échéance » disparaît quand elle est faite (« chevauche » reste). La route `PUT /tasks/:id/done` reste (service `todo`).
 - **Créer dans un trou** :
   - PC : clic sur un créneau vide → saisie ancrée là, jour et heure au quart d'heure, 30 min ; glisser sur une plage vide → cette durée ;
   - téléphone, vue jour : les créneaux libres (30 min au moins) sont listés, toucher l'un d'eux ouvre la même saisie ;
@@ -90,7 +90,7 @@ Une tâche reste **une donnée de la To-do** : l'Agenda la lit par le calendrier
 
   Pendant le glisser : aperçu de l'heure de début et de fin, **Échap** annule. **Rien n'est écrit pendant le glisser : une seule écriture au dépôt**, puis « Annuler » (les valeurs d'avant réécrites).
 
-- **Détail d'une tâche prévue** (clic, PC et téléphone) : jour, heure, durée, « Retirer de l'agenda » (retour dans « À caser »), « Ouvrir dans la To-do ». Cochée : barrée, toujours là. Prévue après son échéance : signalée.
+- **Détail d'une tâche prévue** (clic, PC et téléphone) : jour, heure, durée, « Retirer de l'agenda » (retour dans « À caser »), « Ouvrir dans la To-do ». Cochée : barrée, toujours là. Prévue après son échéance (et pas faite) : signalée.
 - **Téléphone** : pas de glisser ; heure et durée se changent par le détail (tâche et événement).
 - Route : `PUT /tasks/:id/plan { plannedAt?, durationMin? }` (`plannedAt: null` = retirer de l'agenda) → service `todo`.
 

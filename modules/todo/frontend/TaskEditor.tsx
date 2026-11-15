@@ -58,23 +58,28 @@ export function TaskEditor(props: TaskEditorProps) {
     }
   };
 
+  /** One write, with its undo (the borrower shows « Annuler »). */
+  const setDone = (done: boolean) =>
+    void act(
+      () => module.api.patch(url, { done }),
+      done ? `« ${task.title} » cochée` : `« ${task.title} » de nouveau à faire`,
+      () => module.api.patch(url, { done: !done }),
+    );
+
   return (
     <div className="td-sheet">
-      <label className="td-sheet__done">
-        <input
-          type="checkbox"
-          checked={task.done}
-          onChange={(e) => {
-            const done = e.target.checked;
-            void act(
-              () => module.api.patch(url, { done }),
-              done ? `« ${task.title} » cochée` : `« ${task.title} » de nouveau à faire`,
-              () => module.api.patch(url, { done: !done }),
-            );
-          }}
-        />{' '}
-        Faite
-      </label>
+      {/* v0.38.0: « Faite » on top, well visible (the Agenda's blocks no longer have a box). */}
+      <div className={`td-sheet__done${task.done ? ' td-sheet__done--on' : ''}`}>
+        <label>
+          <input type="checkbox" checked={task.done} onChange={(e) => setDone(e.target.checked)} />{' '}
+          Faite
+        </label>
+        {task.done && (
+          <Button small variant="secondary" onClick={() => setDone(false)}>
+            À refaire
+          </Button>
+        )}
+      </div>
       <p className="small muted td-sheet__meta">
         {task.plannedAt ? `Prévue ${formatPlanned(task.plannedAt, data.today)}` : 'Pas prévue'}
         {task.durationMin ? ` · ${formatDuration(task.durationMin)}` : ''}

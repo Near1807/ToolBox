@@ -149,24 +149,6 @@ function AgendaPage() {
     );
   };
 
-  /** v0.36.0: tick a task from its block (the To-do's service), « Annuler » after. */
-  const tick = (item: Item, done: boolean) => {
-    if (item.source !== 'task') return;
-    const url = `/tasks/${item.event.id}/done`;
-    module.api.put(url, { done }).then(
-      () => {
-        setNotice({
-          message: done
-            ? `« ${item.event.title} » cochée`
-            : `« ${item.event.title} » de nouveau à faire`,
-          run: () => module.api.put(url, { done: !done }),
-        });
-        reload();
-      },
-      (e: unknown) => setNotice({ message: errorMessage(e), run: null }),
-    );
-  };
-
   /** v0.36.0: create in an empty slot, after the choice (« Tâche » / « Rendez-vous »). */
   const create = async (kind: SlotKind, title: string, span: Span) => {
     const where = `${dayLabel(span.start.slice(0, 10), data?.today ?? day)} ${spanLabel(span)}`;
@@ -398,7 +380,6 @@ function AgendaPage() {
           shown={layers.shown}
           onOpen={open}
           onDrop={phone ? undefined : drop}
-          onTick={tick}
           onOpenTask={openToPlace}
           onCreate={create}
         />
@@ -410,7 +391,6 @@ function AgendaPage() {
           shown={layers.shown}
           onDay={setDay}
           onOpen={open}
-          onTick={tick}
           onOpenTask={openToPlace}
           onCreate={create}
         />

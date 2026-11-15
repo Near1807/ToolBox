@@ -78,8 +78,8 @@ export function GuidePage() {
           Clic sur une tâche prévue : son jour, son heure, sa durée, et{' '}
           <strong>« Retirer de l’agenda »</strong> (elle revient dans « À caser »). C’est la même
           tâche que dans la To-do : la changer d’un côté la change de l’autre, sur le PC et le
-          téléphone. Cochée, elle reste visible, barrée. Prévue après son échéance, elle est
-          signalée. Sur le téléphone, on change l’heure et la durée par ce détail.
+          téléphone. Cochée, elle reste visible, barrée. Prévue après son échéance (et pas encore
+          faite), elle est signalée. Sur le téléphone, on change l’heure et la durée par ce détail.
         </p>
       </Card>
       <Card title="Agir sur place (Expérimental)">
@@ -90,7 +90,9 @@ export function GuidePage() {
           Annuler ».
         </p>
         <p>
-          <strong>La case</strong> d’un bloc de tâche la coche (barrée), « Annuler » juste après.
+          <strong>Cocher</strong> : clic sur le bloc, puis la case <strong>« Faite »</strong> en
+          haut de la fiche (« À refaire » pour revenir en arrière), « Annuler » juste après. Les
+          blocs n’ont plus de case : une tâche faite est barrée et atténuée.
         </p>
         <p>
           <strong>Clic sur un créneau vide</strong> (ou glisser sur une plage vide) : écris un

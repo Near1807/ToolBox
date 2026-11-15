@@ -255,7 +255,8 @@
   width: 100%;
   height: 100%;
   margin: 0;
-  padding: 0.15rem 0.3rem;
+  /* v0.38.0: thin margins, the text starts at the top. */
+  padding: 2px 4px;
   border: none;
   background: none;
   color: inherit;
@@ -563,38 +564,70 @@
   transform: none;
 }
 
-/* Half an hour or less: the time and the title on one line. */
+/* v0.38.0: a short block (45 min or less) is ONE line: the title first
+   (« … » when too long), its icons, then the time only when there is room:
+   the time wraps to a second line that the block hides (the tooltip has it). */
 .ag-block--short .ag-block__body {
   flex-direction: row;
-  gap: 0.3rem;
-  align-items: center;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  column-gap: 0.3rem;
   white-space: nowrap;
 }
-
-/* v0.36.0: tick a task from its block / its line. */
-.ag-block__check,
-.ag-list__check {
+.ag-block--short .ag-block__head {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  min-width: 0;
+  max-width: 100%;
+  flex: 0 1 auto;
+}
+.ag-block--short .ag-block__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ag-block--short .ag-block__time {
   flex: none;
-  cursor: pointer;
 }
-.ag-block__check {
-  position: absolute;
-  top: 2px;
-  right: 2px;
-  z-index: 1;
-  margin: 0;
+.ag-block__warn {
+  display: inline-flex;
+  flex: none;
+  color: var(--warning);
 }
-.ag-block--task .ag-block__body {
-  padding-right: 1.3rem;
+/* A tall block: the time line, then the title on the lines left, « … » at the end. */
+.ag-block__time {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.ag-block__title--lines {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  /* A long word is hyphenated (French), not cut anywhere. */
+  hyphens: auto;
+  overflow-wrap: break-word;
+}
+/* A very narrow block (side by side): the title keeps the room; the icons
+   go (the outline and the tooltip still say « chevauche »), thinner margins. */
+.ag-block {
+  container-type: inline-size;
+}
+@container (max-width: 64px) {
+  .ag-block__warn,
+  .ag-block__timer {
+    display: none;
+  }
+  .ag-block__body {
+    padding: 2px 2px;
+  }
 }
 .ag-list__row {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-}
-.ag-list__check {
-  width: 1.2rem;
-  height: 1.2rem;
 }
 
 /* v0.36.0: create in an empty slot. */
