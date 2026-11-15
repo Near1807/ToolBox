@@ -161,8 +161,11 @@ jobs:
             || { echo "::error::allowBackup n'est pas à false"; exit 1; }
           echo "$MANIFEST" | grep -q "android:dataExtractionRules" \
             || { echo "::error::dataExtractionRules absent"; exit 1; }
-          RULES=$(unzip -Z1 "$APK" | grep -E '^res/.*data_extraction_rules\.xml$' | head -1)
-          [ -n "$RULES" ] || { echo "::error::Règles d'extraction absentes de l'APK"; exit 1; }
+          # The release build shortens resource paths: the rules file is found
+          # through the resource id the manifest points to.
+          RULES_ID=$(echo "$MANIFEST" | grep -o "android:dataExtractionRules([^)]*)=@0x[0-9a-f]*" | sed 's/.*=@//')
+          RULES=$("$TOOLS"aapt dump --values resources "$APK" | grep -A2 "resource $RULES_ID " | grep -o '"res/[^"]*"' | head -1 | tr -d '"')
+          [ -n "$RULES" ] || { echo "::error::Règles d'extraction absentes de l'APK ($RULES_ID)"; exit 1; }
           EXCLUDES=$("$TOOLS"aapt dump xmltree "$APK" "$RULES" | grep -c "E: exclude")
           echo "Règles d'extraction ($RULES) : $EXCLUDES exclusions"
           [ "$EXCLUDES" -eq 18 ] || { echo "::error::18 exclusions attendues (9 domaines × 2)"; exit 1; }
