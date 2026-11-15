@@ -36,6 +36,7 @@ import { DEFAULT_OFF } from '../shared/categories';
 import { DayView } from './DayView';
 import { EventForm, EventPanel, type Undo } from './EventPanel';
 import { GuidePage } from './Guide';
+import { ImportPage } from './Import';
 import { MonthView, monthGrid, monthTitle } from './MonthView';
 import { QuickBar } from './QuickBar';
 import { CategorySwitches, WeekView, type Drop } from './WeekView';
@@ -209,6 +210,13 @@ function AgendaPage() {
             Expérimental
           </span>{' '}
           <Link to="/m/agenda/guide">Le guide</Link>
+          {/* v0.37.0: importing happens on the PC; the phone gets the events by the sync. */}
+          {!phone && (
+            <>
+              {' · '}
+              <Link to="/m/agenda/import">Importer</Link>
+            </>
+          )}
         </span>
       }
     >
@@ -493,6 +501,7 @@ export default defineFrontendModule({
   pages: [
     { path: '', component: AgendaPage },
     { path: 'guide', component: GuidePage },
+    { path: 'import', component: ImportPage },
   ],
   HomeWidget,
 });

@@ -26,6 +26,7 @@ import { parseQuick, type Parsed } from '../shared/parse';
 import { occurrences, type OccurrenceException } from '../shared/recurrence';
 import { addDays, addMinutes, daysBetween, minutesBetween } from '../shared/time';
 import { readOrigin } from '../shared/importing';
+import { registerImports } from './imports';
 import type {
   AgendaEventDto,
   ForeignEventDto,
@@ -173,6 +174,7 @@ export default defineBackendModule({
 
     // --- Reading ----------------------------------------------------------------
 
+    registerImports(ctx, store);
     /** v0.37.0: the name of each source, for the detail of its events. */
     const sourceNames = () =>
       new Map(

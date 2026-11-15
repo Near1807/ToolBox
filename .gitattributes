@@ -1,5 +1,7 @@
 # Force LF everywhere (Prettier checks line endings; Windows CI checks out with CRLF otherwise).
 * text=auto eol=lf
+# Calendar files keep their CRLF line ends (RFC 5545), byte for byte.
+*.ics -text
 *.png binary
 *.ico binary
 *.ttf binary

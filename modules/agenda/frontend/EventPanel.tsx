@@ -188,6 +188,7 @@ export function EventPanel(props: {
       {!occurrence ? (
         // v0.36.0: every field editable in place; « Annuler » writes the previous values back.
         <>
+          {event.source && <SourceNote source={event.source} />}
           <EventForm
             initial={event}
             submitLabel="Enregistrer"
@@ -318,5 +319,37 @@ export function EventPanel(props: {
       )}
       {error && <ErrorMessage>{error}</ErrorMessage>}
     </Card>
+  );
+}
+
+/** v0.37.0: where an imported event comes from, and its text as it was in the file. */
+function SourceNote(props: { source: NonNullable<AgendaEventDto['source']> }) {
+  const entries = Object.entries(props.source.original);
+  return (
+    <div className="ag-source small">
+      <p>
+        Importé de <strong>{props.source.name}</strong>{' '}
+        <span className="badge badge--warning" title="Pas encore validé à l’usage">
+          Expérimental
+        </span>
+      </p>
+      {entries.length > 0 && (
+        <details>
+          <summary>Texte d’origine</summary>
+          <dl className="ag-source__original">
+            {entries.map(([k, v]) => (
+              <div key={k}>
+                <dt>{k}</dt>
+                <dd>{v}</dd>
+              </div>
+            ))}
+          </dl>
+        </details>
+      )}
+      <p className="muted">
+        Tes modifications sont gardées : au prochain import, l’aperçu les signale (« modifié par toi
+        ») et ne les remplace que si tu coches.
+      </p>
+    </div>
   );
 }
