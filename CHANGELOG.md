@@ -4,6 +4,18 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.40.1] — 2026-11-16
+
+Synchro : horloge correcte des champs restés à leur valeur par défaut. Aucune migration.
+
+### Corrigé
+
+- **Synchro PC ↔ téléphone** : un champ jamais modifié depuis sa création (« Facultatif » de l'Agenda, timer associé d'une tâche ou d'un événement, colonnes de source d'un import, et toute colonne ajoutée plus tard) pouvait perdre un vrai changement fait sur l'autre appareil quand un autre champ du même élément avait été modifié ici entre deux synchros : un appareil gardait le changement, l'autre non. Les deux changements sont maintenant gardés sur les deux appareils ; si le même champ est changé des deux côtés, le plus récent gagne et l'autre va dans « Conflits », comme pour les autres champs.
+
+### Changé
+
+- **Versions** : le PC et le téléphone doivent être tous deux en 0.40.1 pour se synchroniser (version des règles du moteur comparée avec celles des migrations). En attendant, l'appareil en retard demande la mise à jour et ses changements attendent, intacts.
+
 ## [0.40.0] — 2026-11-15
 
 Agenda : correctif du glisser / étirer / créer, événements « facultatifs ». Migration 5 de l'Agenda (ajout seul). Il n'y a pas de version 0.39.
