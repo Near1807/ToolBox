@@ -1040,7 +1040,8 @@
         "timer_pref": null,
         "source_id": null,
         "origin_key": null,
-        "origin": null
+        "origin": null,
+        "optional": 0
       },
       {
         "id": "#2",
@@ -1057,7 +1058,8 @@
         "timer_pref": null,
         "source_id": null,
         "origin_key": null,
-        "origin": null
+        "origin": null,
+        "optional": 0
       },
       {
         "id": "#3",
@@ -1074,7 +1076,8 @@
         "timer_pref": null,
         "source_id": null,
         "origin_key": null,
-        "origin": null
+        "origin": null,
+        "optional": 0
       },
       {
         "id": "#4",
@@ -1091,7 +1094,8 @@
         "timer_pref": null,
         "source_id": null,
         "origin_key": null,
-        "origin": null
+        "origin": null,
+        "optional": 0
       },
       {
         "id": "#8",
@@ -1108,7 +1112,8 @@
         "timer_pref": null,
         "source_id": null,
         "origin_key": null,
-        "origin": null
+        "origin": null,
+        "optional": 0
       },
       {
         "id": "#9",
@@ -1125,7 +1130,8 @@
         "timer_pref": null,
         "source_id": null,
         "origin_key": null,
-        "origin": null
+        "origin": null,
+        "optional": 0
       }
     ],
     "agenda__exceptions": [

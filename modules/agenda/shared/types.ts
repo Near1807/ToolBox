@@ -19,6 +19,11 @@ export interface AgendaEventDto {
   timerPref: Record<string, unknown> | null;
   /** v0.37.0: imported events only: their source and their original text. */
   source?: EventSourceDto;
+  /**
+   * v0.40.0: « facultatif » (an event of the Agenda only, absent = no): still
+   * shown in its place, but neither in the conflicts nor in the load.
+   */
+  optional?: true;
 }
 
 /** v0.37.0: where an imported event comes from (shown in its detail). */

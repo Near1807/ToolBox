@@ -14,6 +14,7 @@ import { CreateSlot, type SlotKind } from './CreateSlot';
 import {
   colorStyle,
   itemId,
+  isOptional,
   itemsOf,
   taskLoads,
   timedBlocks,
@@ -71,6 +72,7 @@ export function DayView(props: {
         start: i.event.start,
         end: i.event.end,
         category: i.event.category,
+        optional: isOptional(i),
       })),
     )
       .filter((p) => p.overlaps)
@@ -184,7 +186,7 @@ export function DayView(props: {
             <li key={itemId(row.item)} className="ag-list__row">
               <button
                 type="button"
-                className="ag-list__item"
+                className={`ag-list__item${isOptional(row.item) ? ' ag-list__item--optional' : ''}`}
                 style={colorStyle(row.item.event.category)}
                 onClick={() => props.onOpen(row.item)}
               >
@@ -204,6 +206,7 @@ export function DayView(props: {
                 </span>
                 <span className="small muted">
                   {row.item.event.category}
+                  {isOptional(row.item) && ' · facultatif'}
                   {overlapping.has(itemId(row.item)) && (
                     <>
                       {' · '}

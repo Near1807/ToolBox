@@ -305,9 +305,15 @@
 .ag-block--dragging {
   opacity: 0.35;
 }
-.ag-block--ghost {
+.ag-block.ag-block--ghost {
   z-index: 2;
   pointer-events: none;
+  /* v0.40.0: the whole width of its day column (it is never sized by its
+     content, and the blocks' size containment does not apply to it). */
+  left: 0;
+  right: 0;
+  container-type: normal;
+  overflow: visible;
   padding: 0.15rem 0.3rem;
   border-style: dashed;
   border-left-style: solid;
@@ -681,6 +687,23 @@
   right: 0;
   z-index: 4;
 }
+/* v0.40.0: the ghost's time, always readable: inside, or just under a short ghost. */
+.ag-ghost__label {
+  display: block;
+  white-space: nowrap;
+}
+.ag-ghost__label--below {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 2px;
+  padding: 0 0.3rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 0 0 1px var(--border-strong);
+  z-index: 6;
+}
 
 /* v0.36.0: its timer runs. */
 .ag-block__timer {
@@ -778,4 +801,31 @@
   margin: 0 0 0.3rem;
   white-space: pre-wrap;
   color: var(--text-2);
+}
+
+/* v0.40.0: « facultatif »: in its place, dimmed and hatched (the theme's
+   colours), never outlined as a conflict. */
+.ag-block--optional {
+  opacity: 0.7;
+  background: repeating-linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--ag-color) 22%, var(--surface)) 0 6px,
+    color-mix(in srgb, var(--ag-color) 8%, var(--surface)) 6px 12px
+  );
+  border-left-style: dashed;
+}
+.ag-list__item--optional {
+  opacity: 0.7;
+}
+.ag-optional {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin: 0 0 0.6rem;
+}
+.ag-optional label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 600;
 }

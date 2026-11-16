@@ -388,9 +388,12 @@ export class SyncEngine {
 
   // --- Versions -------------------------------------------------------------------
 
-  /** The base's version: the last migration of the core and of each synchronised module. */
+  /**
+   * The base's version: the last migration of the core and of each
+   * synchronised module, and the engine's own rules (SYNC_RULES_KEY).
+   */
   versions(): Record<string, number> {
-    const out: Record<string, number> = {};
+    const out: Record<string, number> = { [SYNC_RULES_KEY]: SYNC_RULES };
     for (const scope of this.scopes()) {
       const row = this.db
         .prepare('SELECT MAX(version) AS v FROM core__migrations WHERE scope = ?')
@@ -511,6 +514,28 @@ export class SyncEngine {
         )
         .get(entity, rowId, field) as Clock | undefined) ?? null
     );
+  }
+  /**
+   * The HLC lent to a field of a row that has no clock of its own (v0.40.1):
+   * a field still at its default value (a column added by a migration, or not
+   * written at the creation). When the row has clocks, the oldest one (its
+   * creation): any real change of that field on the other device is more
+   * recent than the default. A row without any clock (data from before the
+   * synchronisation): its last change, as before.
+   */
+  private rowFallback(
+    scope: string,
+    entity: string,
+    rowId: string,
+    updatedAt: unknown,
+    device: string,
+  ): string {
+    const row = this.db
+      .prepare(
+        `SELECT MIN(hlc) AS hlc FROM ${this.fieldClock(scope)} WHERE entity = ? AND row_id = ?`,
+      )
+      .get(entity, rowId) as { hlc: string | null } | undefined;
+    return row?.hlc ?? hlcFromIso(String(updatedAt), device);
   }
   private setClock(
     scope: string,
@@ -708,8 +733,8 @@ export class SyncEngine {
   }
 
   /**
-   * Field by field: the most recent HLC wins. `rowFallback` is the HLC of a
-   * field that has no clock yet (data from before the synchronisation).
+   * Field by field: the most recent HLC wins. `fallback` is the HLC of a
+   * field that has no clock of its own (see rowFallback).
    */
   private mergeFields(
     scope: string,
@@ -899,7 +924,7 @@ export class SyncEngine {
         peerHas,
         local,
         {
-          local: hlcFromIso(String(local.updated_at), this.device),
+          local: this.rowFallback(c.scope, c.entity, c.entity_id, local.updated_at, this.device),
           incoming: null,
         },
       )
@@ -1298,7 +1323,9 @@ export class SyncEngine {
           for (const row of t.rows) {
             const id = String(row.id);
             const rowClocks = clocks.get(id) ?? {};
-            const fallback = hlcFromIso(String(row.updated_at), peer);
+            // A field without a clock on the other device: its row's oldest clock (see rowFallback).
+            const oldest = Object.values(rowClocks).sort()[0];
+            const fallback = oldest ?? hlcFromIso(String(row.updated_at), peer);
             const local = this.db.prepare(`SELECT * FROM ${table} WHERE id = ?`).get(id) as
               Record<string, unknown> | undefined;
             const fields = Object.fromEntries(
@@ -1369,7 +1396,13 @@ export class SyncEngine {
             const incoming = Object.fromEntries(
               Object.keys(fields).map((f) => [f, rowClocks[f] ?? fallback]),
             );
-            const localFallback = hlcFromIso(String(local.updated_at), this.device);
+            const localFallback = this.rowFallback(
+              scope,
+              entity,
+              id,
+              local.updated_at,
+              this.device,
+            );
             const changed = this.mergeFields(
               scope,
               entity,
@@ -1456,6 +1489,17 @@ export class SyncEngine {
     return { scope: scope!, route: n.merge.route, body: n.merge.body(c.other_id, c.row_id) };
   }
 }
+
+/**
+ * The version of the engine's rules, compared with the bases' versions: two
+ * devices whose engines merge differently never exchange (the PC is the
+ * master of the versions). A device that does not send it counts 0, so an
+ * older app is told to update. Raised when the merge rules change, without a
+ * migration: 1 = v0.40.1 (a field without a clock of its own takes its row's
+ * oldest clock).
+ */
+export const SYNC_RULES_KEY = 'sync-engine';
+export const SYNC_RULES = 1;
 
 /** Two bases' versions: the same, or which device has to update. */
 export function compareVersions(

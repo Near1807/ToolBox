@@ -88,4 +88,28 @@ describe('the Agenda over the synchronisation', () => {
     );
     expect(range.events.find((e) => e.id === first.id)!.source!.name).toBe('Horaire ECAM');
   });
+
+  it('v0.40.0: « facultatif » travels both ways', async () => {
+    d = await devices();
+    d.first('replace');
+    const made = await d.onPc<{ id: string }>('POST', `${API}/events`, {
+      title: 'Cours de thermo',
+      start: '2026-12-01T08:15',
+      end: '2026-12-01T10:00',
+    });
+    d.exchange();
+    expect(d.rows('phone', 'agenda').events![0]!.optional).toBe(0);
+    // Set on the PC → on the phone; the phone changes the room after: both kept.
+    await d.onPc('PATCH', `${API}/events/${made.id}`, { optional: true });
+    d.exchange();
+    expect(d.rows('phone', 'agenda').events![0]!.optional).toBe(1);
+    await d.onPhone('PATCH', `${API}/events/${made.id}`, { location: '2F51' });
+    d.exchange();
+    for (const side of ['pc', 'phone'] as const)
+      expect(d.rows(side, 'agenda').events![0]).toMatchObject({ optional: 1, location: '2F51' });
+    // Unset on the phone → on the PC.
+    await d.onPhone('PATCH', `${API}/events/${made.id}`, { optional: false });
+    d.exchange();
+    expect(d.rows('pc', 'agenda').events![0]!.optional).toBe(0);
+  });
 });

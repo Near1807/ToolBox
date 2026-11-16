@@ -53,6 +53,8 @@ interface EventRow {
   origin_key: string | null;
   /** v0.37.0: JSON { original, raw, imported } (shared/importing.ts), or null. */
   origin: string | null;
+  /** v0.40.0: 1 = « facultatif »: shown, but no conflict and no load. Thomas's, never a file's. */
+  optional: number;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -160,6 +162,12 @@ export default defineBackendModule({
         CREATE INDEX agenda__events_source ON agenda__events (source_id, origin_key);
       `,
     },
+    {
+      version: 5,
+      description:
+        '« facultatif » (v0.40.0): an event shown but neither in the conflicts nor in the load (off by default)',
+      up: `ALTER TABLE agenda__events ADD COLUMN optional INTEGER NOT NULL DEFAULT 0;`,
+    },
   ],
   sync: {},
 
@@ -199,6 +207,7 @@ export default defineBackendModule({
       category: row.category,
       weekly: null,
       timerPref: prefOf(row.timer_pref),
+      ...(row.optional ? { optional: true as const } : {}),
       ...(row.source_id && names?.has(row.source_id)
         ? {
             source: {
@@ -594,6 +603,11 @@ export default defineBackendModule({
       if ('note' in body) fields.note = text(body.note, 'Note');
       if ('category' in body) fields.category = category(body.category);
       if ('timerPref' in body) fields.timer_pref = prefFrom(body.timerPref);
+      if ('optional' in body) {
+        if (typeof body.optional !== 'boolean')
+          throw new HttpError(400, 'Facultatif : oui ou non (true / false)');
+        fields.optional = body.optional ? 1 : 0;
+      }
       if ('start' in body || 'end' in body || 'allDay' in body)
         Object.assign(
           fields,

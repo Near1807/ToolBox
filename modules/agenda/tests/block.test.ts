@@ -8,7 +8,8 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createTestHub, dumpTables, loadModuleFolder, type TestHub } from '@hub/sdk/testing';
-import { Block, SHORT_BLOCK_PX, titleLines } from '../frontend/WeekView';
+import { readFileSync } from 'node:fs';
+import { Block, Ghost, ghostLabel, SHORT_BLOCK_PX, titleLines } from '../frontend/WeekView';
 import type { Item } from '../frontend/common';
 import type { RangeDto } from '../shared/types';
 
@@ -130,5 +131,35 @@ describe('ticking a task in its panel (the To-do’s sheet)', () => {
       await hub.request<RangeDto>('GET', '/api/modules/agenda/range?from=2030-11-18&to=2030-11-24')
     ).body.tasks.find((t) => t.id === made.id)!;
     expect(again.done).toBe(false);
+  });
+});
+
+describe('the ghost of a move, a stretch, a creation (v0.40.0)', () => {
+  const span = { start: '2026-11-18T08:15', end: '2026-11-18T09:00' };
+  it('says the time and the length, inside when tall enough, under it when short', () => {
+    expect(ghostLabel(span)).toBe('08:15 – 09:00 · 45 min');
+    const tall = renderToStaticMarkup(
+      createElement(Ghost, { span, top: 0, height: 31, category: 'Tâches' }),
+    );
+    expect(tall).toContain('08:15 – 09:00 · 45 min');
+    expect(tall).not.toContain('ag-ghost__label--below');
+    const short = renderToStaticMarkup(
+      createElement(Ghost, {
+        span: { ...span, end: '2026-11-18T08:30' },
+        top: 0,
+        height: 9,
+        category: 'Tâches',
+      }),
+    );
+    expect(short).toContain('ag-ghost__label ag-ghost__label--below');
+    expect(short).toContain('08:15 – 08:30 · 15 min');
+    expect(short).toContain('height:18px');
+  });
+  it('the whole column wide: explicit left/right, no size containment (the v0.38 regression)', () => {
+    const css = readFileSync(path.join(__dirname, '..', 'frontend', 'agenda.css'), 'utf8');
+    const rule = /\.ag-block\.ag-block--ghost \{([^}]*)\}/.exec(css)?.[1] ?? '';
+    expect(rule).toMatch(/left: 0;/);
+    expect(rule).toMatch(/right: 0;/);
+    expect(rule).toMatch(/container-type: normal;/);
   });
 });
