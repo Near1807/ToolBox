@@ -26,6 +26,29 @@ export const itemId = (i: Item) =>
 export const isOptional = (i: Item) =>
   i.source === 'own' && Boolean((i.event as { optional?: true }).optional);
 
+/**
+ * v0.41.0: the place of an item, as stored (an event of the Agenda; the
+ * planned tasks and the other tools give none), or null.
+ */
+export const placeOf = (i: Item): string | null =>
+  i.source === 'own' ? (i.event.location?.trim() ?? '') || null : null;
+
+/** The places of an import (« 2F51;2E51;2E44 », or with commas), one by one. */
+export const places = (place: string): string[] =>
+  place
+    .split(/[;,]/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+
+/** v0.41.0: the place in a block: the first two, « … » when there are more. */
+export function shortPlace(place: string): string {
+  const all = places(place);
+  return all.length > 2 ? `${all.slice(0, 2).join(', ')}…` : all.join(', ');
+}
+
+/** The place in full (the preview, the sheet): every one, separated by commas. */
+export const fullPlace = (place: string): string => places(place).join(', ');
+
 export const movable = (i: Item) => !i.event.allDay && (i.source === 'own' || i.source === 'task');
 
 export function useRange(from: string, to: string) {

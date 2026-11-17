@@ -32,6 +32,8 @@ import {
   itemId,
   itemsOf,
   movable,
+  placeOf,
+  shortPlace,
   switchCategories,
   taskLoads,
   timedBlocks,
@@ -305,6 +307,9 @@ export function Block(props: {
   const late = Boolean(task?.afterDue && !task.done);
   // v0.40.0: « facultatif »: shown, dimmed and hatched, never a conflict.
   const optional = isOptional(item);
+  // v0.41.0: « Titre · Lieu » (display only); the place is cut (« … ») before the title.
+  const place = placeOf(item);
+  const placeText = place ? <span className="ag-block__place"> · {shortPlace(place)}</span> : null;
   const fixedTip =
     item.source === 'foreign' ? '\nSe modifie dans son outil (clic pour l’ouvrir)' : '';
   const icons = (
@@ -344,7 +349,10 @@ export function Block(props: {
         {short ? (
           <>
             <span className="ag-block__head">
-              <span className="ag-block__title">{e.title}</span>
+              <span className="ag-block__title">
+                {e.title}
+                {placeText}
+              </span>
               {icons}
             </span>
             <span className="ag-block__time">{e.start.slice(11)}</span>
@@ -360,6 +368,7 @@ export function Block(props: {
               style={{ WebkitLineClamp: titleLines(height) }}
             >
               {e.title}
+              {placeText}
             </span>
           </>
         )}

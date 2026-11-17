@@ -16,6 +16,8 @@ import {
   itemId,
   isOptional,
   itemsOf,
+  placeOf,
+  shortPlace,
   taskLoads,
   timedBlocks,
   timerRuns,
@@ -203,6 +205,9 @@ export function DayView(props: {
                   className={`ag-list__title${row.item.source === 'task' && row.item.event.done ? ' ag-done' : ''}`}
                 >
                   {row.item.event.title}
+                  {placeOf(row.item) && (
+                    <span className="ag-block__place"> · {shortPlace(placeOf(row.item)!)}</span>
+                  )}
                 </span>
                 <span className="small muted">
                   {row.item.event.category}

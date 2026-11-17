@@ -349,6 +349,11 @@
 .ag-block__title {
   font-weight: 600;
 }
+/* v0.41.0: « Titre · Lieu »: the place in the same line, lighter; being
+   last, it is the first cut by the « … » (title, then place, then time). */
+.ag-block__place {
+  font-weight: 400;
+}
 .ag-now {
   position: absolute;
   left: 0;
