@@ -138,4 +138,25 @@ describe('the Agenda over the synchronisation', () => {
     expect(onPc.find((c) => c.name === 'Cours')!.css).toBe('var(--hue-bleu)');
     expect(d.rows('phone', 'agenda').categories).toEqual(d.rows('pc', 'agenda').categories);
   });
+
+  it('v0.42.0: a deadline made on the phone, ticked « faite » on the PC: on both', async () => {
+    d = await devices();
+    d.first('replace');
+    const made = await d.onPhone<{ id: string; end: string; start: string }>(
+      'POST',
+      `${API}/events`,
+      {
+        title: 'Rendu rapport',
+        start: '2026-12-03T23:59',
+        category: 'Deadline',
+      },
+    );
+    expect(made.end).toBe(made.start);
+    d.exchange();
+    await d.onPc('PATCH', `${API}/events/${made.id}`, { done: true });
+    d.exchange();
+    const onPhone = d.rows('phone', 'agenda').events!.find((e) => e.id === made.id)!;
+    expect(onPhone.done_at).not.toBeNull();
+    expect(d.rows('phone', 'agenda').events).toEqual(d.rows('pc', 'agenda').events);
+  });
 });

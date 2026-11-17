@@ -4,7 +4,8 @@
 import { useMemo, useState } from 'react';
 import { Button, ErrorMessage, errorMessage, onPhone, useModule } from '@hub/sdk/frontend';
 import { parseQuick, previewText } from '../shared/parse';
-import { CategorySelect } from './Categories';
+import { CategorySelect, shapeOfChoice } from './Categories';
+import { eventWhen } from '../shared/time';
 
 export interface Added {
   kind: 'event' | 'weekly' | 'task';
@@ -87,7 +88,13 @@ export function QuickBar(props: { today: string; todo: boolean; onAdded: (added:
         >
           {parsed.kind === 'task' && !props.todo
             ? 'Une chose à caser devient une tâche de la To-do, qui n’est pas là. Ajoute une heure ou une date pour en faire un événement.'
-            : previewText(parsed, props.today)}
+            : parsed.kind === 'event' && shapeOfChoice(category || parsed.category) === 'deadline'
+              ? // v0.42.0: a deadline: a moment, no end.
+                `Sera ajouté (deadline) : ${parsed.title} · ${eventWhen(
+                  { ...parsed, end: parsed.start },
+                  props.today,
+                )}`
+              : previewText(parsed, props.today)}
         </p>
       )}
       {error && <ErrorMessage>{error}</ErrorMessage>}

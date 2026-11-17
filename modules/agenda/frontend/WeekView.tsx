@@ -40,7 +40,9 @@ import {
   timerRuns,
   type Item,
   categoryCss,
+  isDeadlineItem,
 } from './common';
+import { DeadlineBand, DeadlineLine, DeadlinesRow, useDeadlinesRow } from './Deadlines';
 
 const HOUR_PX = 44;
 
@@ -446,8 +448,12 @@ export function WeekView(props: {
   );
   const tasksOn = props.shown(TASKS_CATEGORY);
   const items = itemsOf(data, props.shown);
-  const allDay = items.filter((i) => i.event.allDay);
-  const timed = items.filter((i) => !i.event.allDay);
+  // v0.42.0: a deadline is a moment: a line (with a time) or a band (without), never a block.
+  const deadlines = items.filter(isDeadlineItem) as (Item & { source: 'own' })[];
+  const allDay = items.filter((i) => i.event.allDay && !isDeadlineItem(i));
+  const timed = items.filter((i) => !i.event.allDay && !isDeadlineItem(i));
+  const dayDeadlines = deadlines.filter((i) => i.event.allDay);
+  const rowState = useDeadlinesRow();
   const height = (range.endHour - range.startHour) * HOUR_PX;
   const hours = Array.from(
     { length: range.endHour - range.startHour },
@@ -627,6 +633,12 @@ export function WeekView(props: {
           hover={hover}
         />
       )}
+      <DeadlinesRow
+        deadlines={data.deadlines ?? []}
+        shown={rowState.shown}
+        onToggle={rowState.toggle}
+        onOpen={(event) => props.onOpen({ source: 'own', event })}
+      />
       <div
         className={`ag-week${drag?.moved ? ' ag-week--dragging' : ''}`}
         style={{ '--ag-days': 7 } as React.CSSProperties}
@@ -667,6 +679,17 @@ export function WeekView(props: {
               </button>
             );
           })}
+          {dayDeadlines.map((i) => (
+            <DeadlineBand
+              key={itemId(i)}
+              item={i}
+              onOpen={props.onOpen}
+              style={{
+                gridColumn: `${daysBetween(monday, i.event.start.slice(0, 10)) + 1} / span 1`,
+              }}
+              bind={hover?.bind({ kind: 'item', item: i })}
+            />
+          ))}
         </div>
         <div className="ag-week__hours" style={{ height }}>
           {hours.map((h) => (
@@ -734,6 +757,23 @@ export function WeekView(props: {
                   />
                 );
               })}
+              {deadlines
+                .filter((i) => !i.event.allDay && i.event.start.slice(0, 10) === d)
+                .map((i) => {
+                  const at = Math.min(
+                    Math.max(minutesOfDay(i.event.start.slice(11)), range.startHour * 60),
+                    range.endHour * 60,
+                  );
+                  return (
+                    <DeadlineLine
+                      key={itemId(i)}
+                      item={i}
+                      top={((at - range.startHour * 60) / 60) * HOUR_PX}
+                      onOpen={props.onOpen}
+                      bind={hover?.bind({ kind: 'item', item: i })}
+                    />
+                  );
+                })}
               {slot && props.onCreate && (
                 <>
                   <Ghost

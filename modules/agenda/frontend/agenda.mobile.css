@@ -48,3 +48,9 @@
 .ag-weekly__item .ui-actions {
   margin-left: 0;
 }
+
+/* v0.42.0: the category of the bar, its whole width on the phone. */
+.ag-quick__category {
+  max-width: none;
+  width: 100%;
+}

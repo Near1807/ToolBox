@@ -26,6 +26,10 @@ export interface AgendaEventDto {
    * shown in its place, but neither in the conflicts nor in the load.
    */
   optional?: true;
+  /** v0.42.0: its category has the « deadline » shape: a moment (end = start), never counted. */
+  deadline?: true;
+  /** v0.42.0: a deadline ticked « faite » (shown dimmed, struck through). */
+  done?: true;
 }
 
 /** v0.37.0: where an imported event comes from (shown in its detail). */
@@ -142,4 +146,6 @@ export interface RangeDto {
   categoriesOff: string[];
   /** v0.42.0: every category with its colour, shape and defaults, in Thomas's order. */
   categoryInfo: CategoryDto[];
+  /** v0.42.0: the « Deadlines » row: not done, late ones included, up to `to` + 7 days; sorted. */
+  deadlines: AgendaEventDto[];
 }

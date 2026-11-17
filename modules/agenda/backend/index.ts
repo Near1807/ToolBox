@@ -20,7 +20,14 @@ import {
 import { localToday, parseDue } from '@hub/sdk/dates';
 import type { TodoService } from '../../todo/contract';
 import type { TimerService } from '../../timer/contract';
-import { categoryKey, categoryList, DEFAULT_CATEGORY, DEFAULT_OFF } from '../shared/categories';
+import {
+  categoryKey,
+  categoryList,
+  type CategoryDto,
+  DEFAULT_CATEGORY,
+  DEFAULT_OFF,
+} from '../shared/categories';
+import { AHEAD_DAYS, dueMoment, OVERDUE_DAYS } from '../shared/deadline';
 import { MIN_BLOCK_MIN } from '../shared/drag';
 import { parseQuick, type Parsed } from '../shared/parse';
 import { occurrences, type OccurrenceException } from '../shared/recurrence';
@@ -56,6 +63,8 @@ interface EventRow {
   origin: string | null;
   /** v0.40.0: 1 = « facultatif »: shown, but no conflict and no load. Thomas's, never a file's. */
   optional: number;
+  /** v0.42.0: a deadline ticked « faite » (ISO date), or null. */
+  done_at: string | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -208,9 +217,18 @@ export default defineBackendModule({
         ).map((s) => [s.id, s.name]),
       );
     /** An event as the pages get it; an imported one with its source (v0.37.0). */
+    /** v0.42.0: the keys of the categories of the « deadline » shape. */
+    const deadlineKeys = () =>
+      new Set(
+        categories
+          .list()
+          .filter((c) => c.shape === 'deadline')
+          .map((c) => c.key),
+      );
     const eventDto = (
       row: EventRow,
       names = row.source_id ? sourceNames() : null,
+      deadlines = deadlineKeys(),
     ): AgendaEventDto => ({
       id: row.id,
       title: row.title,
@@ -223,6 +241,8 @@ export default defineBackendModule({
       weekly: null,
       timerPref: prefOf(row.timer_pref),
       ...(row.optional ? { optional: true as const } : {}),
+      ...(deadlines.has(categoryKey(row.category)) ? { deadline: true as const } : {}),
+      ...(row.done_at ? { done: true as const } : {}),
       ...(row.source_id && names?.has(row.source_id)
         ? {
             source: {
@@ -277,10 +297,30 @@ export default defineBackendModule({
         )
         .all(to, from) as EventRow[];
       const names = rows.some((r) => r.source_id) ? sourceNames() : null;
+      const deadlines = deadlineKeys();
       return [
-        ...rows.map((r) => eventDto(r, names)),
+        ...rows.map((r) => eventDto(r, names, deadlines)),
         ...occurrences(weeklyList(), exceptionList(), from, to),
       ].sort((a, b) => a.start.localeCompare(b.start) || a.title.localeCompare(b.title));
+    };
+
+    /**
+     * v0.42.0: the « Deadlines » row: the deadlines not done, late ones
+     * included (up to OVERDUE_DAYS back), up to `to` + AHEAD_DAYS; sorted.
+     */
+    const deadlineList = (list: CategoryDto[], today: string, to: string): AgendaEventDto[] => {
+      const keys = list.filter((c) => c.shape === 'deadline').map((c) => c.key);
+      if (!keys.length) return [];
+      const rows = ctx.db
+        .prepare(
+          `SELECT * FROM ${events} WHERE deleted_at IS NULL AND done_at IS NULL AND lower(trim(category)) IN (${keys.map(() => '?').join(', ')}) AND substr(start_at, 1, 10) >= ? AND substr(start_at, 1, 10) <= ? ORDER BY start_at, title`,
+        )
+        .all(...keys, addDays(today, -OVERDUE_DAYS), addDays(to, AHEAD_DAYS)) as EventRow[];
+      const set = new Set(keys);
+      const names = rows.some((r) => r.source_id) ? sourceNames() : null;
+      return rows
+        .map((r) => eventDto(r, names, set))
+        .sort((a, b) => dueMoment(a.start).localeCompare(dueMoment(b.start)));
     };
 
     const period = (query: unknown): { from: string; to: string } => {
@@ -352,6 +392,7 @@ export default defineBackendModule({
         : [];
       // v0.42.0: the list managed by Thomas (colours, shapes, counted), and his own ones get a switch.
       const categoryInfo = categories.list();
+      const deadlines = deadlineList(categoryInfo, today, to);
       const mine = categoryInfo.filter((c) => c.origin === 'mine').map((c) => c.name);
       const seen = [
         ...new Set([
@@ -383,6 +424,7 @@ export default defineBackendModule({
         dayEndHour: setting('dayEndHour', 23),
         categories: switchNames,
         categoryInfo,
+        deadlines,
         categoriesOff: categoryList(
           ctx.settings.get<string>('categoriesOff') ?? DEFAULT_OFF.join(', '),
         ),
@@ -413,10 +455,11 @@ export default defineBackendModule({
     const category = (value: unknown) => text(value, 'Catégorie') ?? DEFAULT_CATEGORY;
 
     /** Start and end of an event, checked (all day: dates, last day inclusive; else date-times). */
-    const when = (body: Record<string, unknown>) => {
+    const when = (body: Record<string, unknown>, moment = false) => {
       const allDay = body.allDay === true;
       const start = String(body.start ?? '');
-      let end = String(body.end ?? '');
+      // v0.42.0: a deadline is a moment: no end of its own (end = start).
+      let end = moment ? start : String(body.end ?? '');
       if (allDay) {
         if (!isDay(start)) throw new HttpError(400, 'Début invalide (AAAA-MM-JJ)');
         if (!end) end = start;
@@ -427,7 +470,8 @@ export default defineBackendModule({
         if (!isDateTime(start)) throw new HttpError(400, 'Début invalide (AAAA-MM-JJTHH:MM)');
         if (!end && typeof body.durationMin === 'number') end = addMinutes(start, body.durationMin);
         if (!isDateTime(end)) throw new HttpError(400, 'Fin invalide (AAAA-MM-JJTHH:MM)');
-        if (minutesBetween(start, end) <= 0) throw new HttpError(400, 'La fin est avant le début.');
+        if (!moment && minutesBetween(start, end) <= 0)
+          throw new HttpError(400, 'La fin est avant le début.');
         if (minutesBetween(start, end) > 14 * 24 * 60)
           throw new HttpError(400, 'Deux semaines au plus');
       }
@@ -445,16 +489,18 @@ export default defineBackendModule({
       return row;
     };
 
-    const createEvent = (body: Record<string, unknown>): AgendaEventDto =>
-      eventDto(
+    const createEvent = (body: Record<string, unknown>): AgendaEventDto => {
+      const cat = category(body.category);
+      return eventDto(
         store.create<EventRow>('events', {
           title: text(body.title, 'Titre', true)!,
-          ...when(body),
+          ...when(body, categories.shapeOf(cat) === 'deadline'),
           location: text(body.location, 'Lieu'),
           note: text(body.note, 'Note'),
-          category: category(body.category),
+          category: cat,
         }),
       );
+    };
 
     const weeklyFields = (body: Record<string, unknown>, partial = false) => {
       const out: Record<string, string | number | null> = {};
@@ -638,18 +684,36 @@ export default defineBackendModule({
           throw new HttpError(400, 'Facultatif : oui ou non (true / false)');
         fields.optional = body.optional ? 1 : 0;
       }
-      if ('start' in body || 'end' in body || 'allDay' in body)
+      if ('done' in body) {
+        if (typeof body.done !== 'boolean')
+          throw new HttpError(400, 'Faite : oui ou non (true / false)');
+        fields.done_at = body.done ? (row.done_at ?? new Date().toISOString()) : null;
+      }
+      // v0.42.0: a deadline (its category's shape) is a moment; back to a block: one hour.
+      const nextCategory = (fields.category as string | undefined) ?? row.category;
+      const moment = categories.shapeOf(nextCategory) === 'deadline';
+      const wasMoment =
+        categories.shapeOf(row.category) === 'deadline' ||
+        (row.all_day === 0 && row.end_at === row.start_at);
+      if ('start' in body || 'end' in body || 'allDay' in body || moment !== wasMoment)
         Object.assign(
           fields,
-          when({
-            allDay: 'allDay' in body ? body.allDay : row.all_day === 1,
-            start: body.start ?? row.start_at,
-            end: body.end ?? ('start' in body || 'allDay' in body ? '' : row.end_at),
-            durationMin:
-              'start' in body && !('end' in body) && row.all_day === 0
-                ? minutesBetween(row.start_at, row.end_at)
-                : body.durationMin,
-          }),
+          when(
+            {
+              allDay: 'allDay' in body ? body.allDay : row.all_day === 1,
+              start: body.start ?? row.start_at,
+              end:
+                body.end ??
+                ('start' in body || 'allDay' in body || (wasMoment && !moment) ? '' : row.end_at),
+              durationMin:
+                wasMoment && !moment && !('end' in body)
+                  ? 60
+                  : 'start' in body && !('end' in body) && row.all_day === 0
+                    ? minutesBetween(row.start_at, row.end_at)
+                    : body.durationMin,
+            },
+            moment,
+          ),
         );
       const changed = Object.fromEntries(
         Object.entries(fields).filter(([k, v]) => row[k as keyof EventRow] !== v),

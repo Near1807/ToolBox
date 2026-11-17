@@ -18,6 +18,7 @@ import {
 import { createPortal } from 'react-dom';
 import { formatDuration } from '@hub/sdk/dates';
 import { describeEvent } from '../shared/import-item';
+import { localNow, untilText } from '../shared/deadline';
 import { dayLabel, eventWhen, hoursText, minutesBetween } from '../shared/time';
 import type { ToPlaceDto } from '../shared/types';
 import { colorStyle, fullPlace, type Item, isOptional } from './common';
@@ -69,7 +70,10 @@ export function previewOf(
   }
   const { item } = target;
   const e = item.event;
-  const length = e.allDay ? '' : ` · ${hoursText(minutesBetween(e.start, e.end))}`;
+  const length =
+    e.allDay || (item.source === 'own' && item.event.deadline)
+      ? ''
+      : ` · ${hoursText(minutesBetween(e.start, e.end))}`;
   const facts: string[] = [];
   let place: string | null = null;
   let note: string | null = null;
@@ -77,6 +81,11 @@ export function previewOf(
     const own = item.event;
     place = own.location?.trim() ? fullPlace(own.location) : null;
     note = own.note?.trim() || null;
+    if (own.deadline) {
+      // v0.42.0: a moment: the time left, done or not; never in the load.
+      facts.push(own.done ? 'Deadline faite' : `Deadline · ${untilText(own.start, localNow())}`);
+      facts.push('Ne compte ni dans la charge ni dans les conflits');
+    }
     if (isOptional(item))
       facts.push('Facultatif : ne compte ni dans les conflits ni dans la charge');
     if (own.weekly)

@@ -115,6 +115,15 @@ Réglages › Agenda › Catégories : la liste de toutes les catégories (celle
 
 Données : table `agenda__categories` (migration 6, ajout seul) qui ne contient **que** ce que Thomas a changé ou créé ; sans ligne, une catégorie garde exactement ses valeurs d'avant (son jeton `--series-N`, comptée, allumée selon le réglage). Rien n'est écrit à l'ouverture. Synchronisée (SyncStore, clé unique `key`, le PC gagne en cas de collision). Routes : `GET/POST /categories`, `PATCH /categories/:key`, `PUT /categories/order`, `POST /categories/:key/rename`, `DELETE /categories/:key?moveTo=…`, `POST /categories/undo`. `RangeDto.categoryInfo` donne la liste avec chaque période ; `/quick` accepte `category` (le choix de la liste gagne sur « #tag »).
 
+## Deadlines (v0.42.0, Expérimental)
+
+Forme « deadline » d'une catégorie : la catégorie fixe **« Deadline »** (rouge `--danger` du thème par défaut) et toute catégorie de Thomas à qui il donne cette forme. Une deadline est un **moment** : une date et une heure facultative, **sans fin** (le serveur écrit fin = début ; ni la fiche ni la barre ne demandent de fin ; repasser à une catégorie normale donne un bloc d'une heure).
+
+- Semaine (PC) : avec une heure, un trait épais à cette heure en travers du jour, étiqueté (icône, titre, heure), au-dessus des blocs sans les cacher (le trait laisse passer les clics ; l'étiquette prend au plus 65 % de la colonne) ; sans heure, une bande dans « Journée ». Téléphone : la même logique dans la liste du jour.
+- Jamais comptée dans la charge ni le temps libre ; aucun chevauchement. En retard et pas faite : reste rouge. **Faite** (case dans la fiche, « Annuler ») : atténuée et barrée (colonne `done_at`, migration 6).
+- Ligne **« Deadlines »** en haut de la semaine (et du jour) : celles pas faites de la semaine affichée et des 7 jours suivants, et celles en retard (60 jours au plus), triées, avec le temps restant (« dans 2 jours », « aujourd'hui 23:59 », « en retard de 1 jour ») ; clic = la fiche ; se masque comme un interrupteur (local à l'appareil). `RangeDto.deadlines`, `shared/deadline.ts` (`untilText`, pur).
+- Aperçu et fiche : temps restant, faite ou non. La couleur se change, la forme reste. Aucune notification (proposé dans la feuille de route, désactivé par défaut).
+
 ## Importer un calendrier (v0.37.0, ADR 0047 ; tableau CSV / Excel encore Expérimental)
 
 Agenda › **Importer** (sur le PC ; le lien n'est pas montré sur le téléphone, qui reçoit les événements par la synchro). Le fichier est lu sur le PC, rien ne part en ligne.

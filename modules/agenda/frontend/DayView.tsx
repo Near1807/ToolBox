@@ -13,6 +13,7 @@ import type { RangeDto, ToPlaceDto } from '../shared/types';
 import { CreateSlot, type SlotKind } from './CreateSlot';
 import {
   colorStyle,
+  isDeadlineItem,
   itemId,
   isOptional,
   itemsOf,
@@ -24,6 +25,7 @@ import {
   type Item,
 } from './common';
 import { LoadBar } from './WeekView';
+import { DeadlineBand, DeadlineLine, DeadlinesRow, useDeadlinesRow } from './Deadlines';
 import { useNavigate } from 'react-router';
 
 export function DayView(props: {
@@ -45,13 +47,24 @@ export function DayView(props: {
   const items = itemsOf(data, props.shown).filter(
     (i) => i.event.start.slice(0, 10) <= day && i.event.end.slice(0, 10) >= day,
   );
-  const bands = items.filter((i) => i.event.allDay);
-  const timed = items.filter((i) => !i.event.allDay);
+  // v0.42.0: a deadline: a band (no time) or a red line among the rows (with a time).
+  const deadlines = items.filter(isDeadlineItem) as (Item & { source: 'own' })[];
+  const bands = items.filter((i) => i.event.allDay && !isDeadlineItem(i));
+  const timed = items.filter((i) => !i.event.allDay && !isDeadlineItem(i));
+  const rowState = useDeadlinesRow();
   // The timed items and (v0.36.0) the free slots, in the order of the day.
   type Row =
     | { kind: 'item'; at: number; item: Item }
+    | { kind: 'deadline'; at: number; item: Item & { source: 'own' } }
     | { kind: 'gap'; at: number; from: number; to: number };
   const rows: Row[] = [
+    ...deadlines
+      .filter((i) => !i.event.allDay && i.event.start.slice(0, 10) === day)
+      .map((item): Row => ({
+        kind: 'deadline',
+        at: minutesOfDay(item.event.start.slice(11)),
+        item,
+      })),
     ...timed.map((item): Row => ({
       kind: 'item',
       at: item.event.start.slice(0, 10) < day ? -1 : minutesOfDay(item.event.start.slice(11)),
@@ -137,6 +150,17 @@ export function DayView(props: {
         </button>
       )}
       <LoadBar load={load} />
+      <DeadlinesRow
+        deadlines={data.deadlines ?? []}
+        shown={rowState.shown}
+        onToggle={rowState.toggle}
+        onOpen={(event) => props.onOpen({ source: 'own', event })}
+      />
+      {deadlines
+        .filter((i) => i.event.allDay)
+        .map((i) => (
+          <DeadlineBand key={itemId(i)} item={i} onOpen={props.onOpen} />
+        ))}
       {bands.map((i) => (
         <button
           key={itemId(i)}
@@ -155,7 +179,11 @@ export function DayView(props: {
       )}
       <ul className="ag-list">
         {rows.map((row) =>
-          row.kind === 'gap' ? (
+          row.kind === 'deadline' ? (
+            <li key={itemId(row.item)} className="ag-list__row">
+              <DeadlineLine item={row.item} top={0} onOpen={props.onOpen} />
+            </li>
+          ) : row.kind === 'gap' ? (
             <li key={`gap:${row.from}`}>
               {slot && slot.start === `${day}T${timeOf(row.from)}` ? (
                 <CreateSlot

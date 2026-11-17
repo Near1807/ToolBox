@@ -225,6 +225,50 @@ export function GuidePage() {
           le propose quand c’est utile ; fermé, il ne revient pas tant que rien ne change.
         </p>
       </Card>
+      <Card title="Catégories : les tiennes, leurs couleurs (Expérimental)">
+        <p>
+          <strong>Réglages › Agenda › Catégories</strong> : toutes les catégories, avec leur
+          pastille et leur nombre d’éléments. « Nouvelle catégorie » (un nom, une couleur) ; aussi
+          depuis la fiche, la barre de saisie et un créneau vide : « Nouvelle catégorie… », sans
+          quitter.
+        </p>
+        <p>
+          <strong>Couleur</strong> : 16 teintes lisibles dans tous les thèmes, ou une couleur libre
+          (un avertissement si le texte devient difficile à lire), et « Revenir à la couleur
+          d’origine ». Elle change partout : semaine, jour, interrupteurs, aperçu, fiche, charge. «
+          Comptée dans la charge » et « Allumée par défaut » se règlent par catégorie ; Monter /
+          Descendre règle l’ordre des listes.
+        </p>
+        <p>
+          Tes catégories se <strong>renomment</strong> (tes événements, la semaine type et les
+          correspondances d’import suivent : un réimport la vise encore) et se{' '}
+          <strong>suppriment</strong> : ses éléments vont dans la catégorie que tu choisis, jamais
+          supprimés. Une sauvegarde est faite avant, « Annuler » remet tout. Les catégories de
+          l’Agenda et des autres outils : la couleur seulement. Tant que tu ne touches à rien, tout
+          reste comme avant.
+        </p>
+      </Card>
+      <Card title="Deadlines (Expérimental)">
+        <p>
+          Une <strong>deadline</strong> est un moment, pas un bloc : une date et, si tu veux, une
+          heure, sans fin. Catégorie « Deadline » (rouge du thème), ou une de tes catégories avec la
+          forme « Deadline » (Réglages). Dans la barre : « rendu rapport jeudi 23h59 #deadline ».
+        </p>
+        <p>
+          Avec une heure : un <strong>trait rouge</strong> en travers du jour, avec{' '}
+          <Icon name="circle-alert" /> le titre et l’heure ; il passe au-dessus des blocs sans les
+          cacher (on clique toujours les blocs dessous). Sans heure : une bande rouge dans « Journée
+          ». Sur le téléphone : la même chose dans la liste du jour.
+        </p>
+        <p>
+          Elle ne compte <strong>jamais</strong> dans la charge ni le temps libre, et ne crée aucun
+          chevauchement. En retard et pas faite : elle reste rouge. Dans sa fiche, la case{' '}
+          <strong>« Faite »</strong> (avec « Annuler ») l’atténue et la barre. La ligne « Deadlines
+          » en haut de la semaine liste celles à venir (la semaine affichée et les 7 jours suivants,
+          et celles en retard) avec le temps restant ; un clic ouvre la fiche ; elle se masque comme
+          un interrupteur. Pas de rappel ni de notification pour l’instant.
+        </p>
+      </Card>
     </Page>
   );
 }

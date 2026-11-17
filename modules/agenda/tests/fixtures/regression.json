@@ -629,6 +629,7 @@
               "events": 0
             }
           ],
+          "deadlines": [],
           "categoriesOff": ["Sport", "Repas", "Timer"]
         }
       }
@@ -889,6 +890,7 @@
               "events": 0
             }
           ],
+          "deadlines": [],
           "categoriesOff": ["Sport", "Repas", "Timer"]
         }
       }
@@ -1129,6 +1131,7 @@
               "events": 0
             }
           ],
+          "deadlines": [],
           "categoriesOff": ["Sport", "Repas", "Timer"]
         }
       }
@@ -1429,6 +1432,7 @@
               "events": 0
             }
           ],
+          "deadlines": [],
           "categoriesOff": ["Sport", "Repas", "Timer"]
         }
       }
@@ -1678,6 +1682,7 @@
               "events": 0
             }
           ],
+          "deadlines": [],
           "categoriesOff": ["Sport", "Repas", "Timer"]
         }
       }

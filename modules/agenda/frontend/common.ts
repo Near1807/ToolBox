@@ -28,6 +28,9 @@ export const itemId = (i: Item) =>
       ? `task:${i.event.id}`
       : i.event.id;
 
+/** v0.42.0: an event of the Agenda whose category has the « deadline » shape (a moment). */
+export const isDeadlineItem = (i: Item): boolean => i.source === 'own' && Boolean(i.event.deadline);
+
 /** Can be moved and stretched in the week: the Agenda's events at a time, and the planned tasks. */
 /** v0.40.0: an event of the Agenda marked « facultatif » (never a task, never another module's). */
 export const isOptional = (i: Item) =>
@@ -56,7 +59,8 @@ export function shortPlace(place: string): string {
 /** The place in full (the preview, the sheet): every one, separated by commas. */
 export const fullPlace = (place: string): string => places(place).join(', ');
 
-export const movable = (i: Item) => !i.event.allDay && (i.source === 'own' || i.source === 'task');
+export const movable = (i: Item) =>
+  !i.event.allDay && !isDeadlineItem(i) && (i.source === 'own' || i.source === 'task');
 
 export function useRange(from: string, to: string) {
   const module = useModule();
