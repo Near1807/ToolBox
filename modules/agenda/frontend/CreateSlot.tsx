@@ -8,6 +8,8 @@ import { useState } from 'react';
 import { Button, ErrorMessage, errorMessage } from '@hub/sdk/frontend';
 import type { Span } from '../shared/drag';
 import { dayLabel } from '../shared/time';
+import { DEFAULT_CATEGORY } from '../shared/categories';
+import { CategorySelect } from './Categories';
 
 export type SlotKind = 'task' | 'event';
 
@@ -16,12 +18,14 @@ export function CreateSlot(props: {
   today: string;
   /** The To-do is there: « Tâche » is offered (and is the default). */
   todo: boolean;
-  onSubmit: (kind: SlotKind, title: string) => Promise<void>;
+  /** v0.42.0: the category of a « Rendez-vous » (a task stays the To-do's). */
+  onSubmit: (kind: SlotKind, title: string, category: string) => Promise<void>;
   onCancel: () => void;
   className?: string;
   style?: React.CSSProperties;
 }) {
   const [title, setTitle] = useState('');
+  const [category, setCategory] = useState(DEFAULT_CATEGORY);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fallback: SlotKind = props.todo ? 'task' : 'event';
@@ -30,7 +34,7 @@ export function CreateSlot(props: {
     if (!title.trim() || busy) return;
     setBusy(true);
     setError(null);
-    props.onSubmit(kind, title.trim()).catch((e: unknown) => {
+    props.onSubmit(kind, title.trim(), category).catch((e: unknown) => {
       setError(errorMessage(e));
       setBusy(false);
     });
@@ -66,6 +70,10 @@ export function CreateSlot(props: {
           ? `${fallback === 'task' ? 'Tâche' : 'Rendez-vous'} « ${title.trim()} » · ${when}`
           : when}
       </p>
+      <label className="small ag-create__category">
+        Catégorie du rendez-vous{' '}
+        <CategorySelect className="input input--small" value={category} onChange={setCategory} />
+      </label>
       <div className="ui-actions">
         {props.todo && (
           <Button small disabled={!title.trim() || busy} onClick={() => submit('task')}>

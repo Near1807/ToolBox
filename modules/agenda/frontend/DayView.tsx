@@ -35,7 +35,7 @@ export function DayView(props: {
   /** v0.36.0: a task « à caser » touched: its sheet. */
   onOpenTask?: (task: ToPlaceDto) => void;
   /** v0.36.0: create in a free slot, after the choice. */
-  onCreate?: (kind: SlotKind, title: string, span: Span) => Promise<void>;
+  onCreate?: (kind: SlotKind, title: string, span: Span, category?: string) => Promise<void>;
 }) {
   const { data, day } = props;
   const [slot, setSlot] = useState<Span | null>(null);
@@ -163,8 +163,8 @@ export function DayView(props: {
                   today={data.today}
                   todo={data.todo}
                   onCancel={() => setSlot(null)}
-                  onSubmit={async (kind, title) => {
-                    await props.onCreate!(kind, title, slot);
+                  onSubmit={async (kind, title, category) => {
+                    await props.onCreate!(kind, title, slot, category);
                     setSlot(null);
                   }}
                 />

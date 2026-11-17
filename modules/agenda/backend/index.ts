@@ -20,13 +20,14 @@ import {
 import { localToday, parseDue } from '@hub/sdk/dates';
 import type { TodoService } from '../../todo/contract';
 import type { TimerService } from '../../timer/contract';
-import { categoryList, DEFAULT_CATEGORY, DEFAULT_OFF } from '../shared/categories';
+import { categoryKey, categoryList, DEFAULT_CATEGORY, DEFAULT_OFF } from '../shared/categories';
 import { MIN_BLOCK_MIN } from '../shared/drag';
 import { parseQuick, type Parsed } from '../shared/parse';
 import { occurrences, type OccurrenceException } from '../shared/recurrence';
 import { addDays, addMinutes, daysBetween, minutesBetween } from '../shared/time';
 import { readOrigin } from '../shared/importing';
 import { registerImports } from './imports';
+import { registerCategories } from './categories';
 import type {
   AgendaEventDto,
   ForeignEventDto,
@@ -168,6 +169,19 @@ export default defineBackendModule({
         '« facultatif » (v0.40.0): an event shown but neither in the conflicts nor in the load (off by default)',
       up: `ALTER TABLE agenda__events ADD COLUMN optional INTEGER NOT NULL DEFAULT 0;`,
     },
+    {
+      version: 6,
+      description:
+        'categories managed by Thomas (v0.42.0): only his changes and his own ones (empty: every category as before), and « faite » for a deadline (empty by default)',
+      up: `
+        CREATE TABLE agenda__categories (${SYNC_COLUMNS},
+          key TEXT NOT NULL, name TEXT NOT NULL, color TEXT,
+          shape TEXT NOT NULL DEFAULT 'normal', counted INTEGER NOT NULL DEFAULT 1,
+          shown INTEGER NOT NULL DEFAULT 1, sort INTEGER, mine INTEGER NOT NULL DEFAULT 0);
+        CREATE UNIQUE INDEX agenda__categories_key ON agenda__categories (key) WHERE deleted_at IS NULL;
+        ALTER TABLE agenda__events ADD COLUMN done_at TEXT;
+      `,
+    },
   ],
   sync: {},
 
@@ -183,6 +197,7 @@ export default defineBackendModule({
     // --- Reading ----------------------------------------------------------------
 
     registerImports(ctx, store);
+    const categories = registerCategories(ctx, store);
     /** v0.37.0: the name of each source, for the detail of its events. */
     const sourceNames = () =>
       new Map(
@@ -335,13 +350,20 @@ export default defineBackendModule({
             late: i.due !== null && i.due < today,
           }))
         : [];
-      const categories = [
+      // v0.42.0: the list managed by Thomas (colours, shapes, counted), and his own ones get a switch.
+      const categoryInfo = categories.list();
+      const mine = categoryInfo.filter((c) => c.origin === 'mine').map((c) => c.name);
+      const seen = [
         ...new Set([
           ...own.map((e) => e.category),
           ...foreign.map((e) => e.category),
           ...tasks.map((e) => e.category),
+          ...mine,
         ]),
-      ].sort((a, b) => a.localeCompare(b));
+      ];
+      const switchNames = seen
+        .filter((c, i) => seen.findIndex((x) => categoryKey(x) === categoryKey(c)) === i)
+        .sort((a, b) => a.localeCompare(b));
       return {
         today,
         from,
@@ -359,7 +381,8 @@ export default defineBackendModule({
         weekly: weeklyList(),
         dayStartHour: setting('dayStartHour', 7),
         dayEndHour: setting('dayEndHour', 23),
-        categories,
+        categories: switchNames,
+        categoryInfo,
         categoriesOff: categoryList(
           ctx.settings.get<string>('categoriesOff') ?? DEFAULT_OFF.join(', '),
         ),
@@ -474,8 +497,12 @@ export default defineBackendModule({
     };
 
     /** The bar: an event, an entry of the week type, or a task of the To-do (« à caser »). */
-    const quickAdd = (input: unknown) => {
+    const quickAdd = (input: unknown, chosen?: unknown) => {
       const parsed: Parsed = parseQuick(typeof input === 'string' ? input : '', localToday());
+      // v0.42.0: a category chosen in the list wins over the text's (« #cours »).
+      const override = typeof chosen === 'string' && chosen.trim() ? category(chosen) : null;
+      if (override && (parsed.kind === 'event' || parsed.kind === 'weekly'))
+        parsed.category = override;
       switch (parsed.kind) {
         case 'empty':
           throw new HttpError(400, 'Rien à ajouter');
@@ -520,7 +547,10 @@ export default defineBackendModule({
       return range(from, to);
     });
 
-    ctx.routes.post('/quick', (request) => quickAdd(requestBody(request).text));
+    ctx.routes.post('/quick', (request) => {
+      const body = requestBody(request);
+      return quickAdd(body.text, body.category);
+    });
 
     ctx.routes.post('/events', (request) => createEvent(requestBody(request)));
 

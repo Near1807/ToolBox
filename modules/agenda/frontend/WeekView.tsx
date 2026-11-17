@@ -11,7 +11,6 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } f
 import { useNavigate } from 'react-router';
 import { Icon, onPhone, StateBadge, useModuleNames } from '@hub/sdk/frontend';
 import { formatDuration } from '@hub/sdk/dates';
-import { categoryColor } from '../shared/categories';
 import { placeDay, TASKS_CATEGORY, weekSummary, weighsOn, type DayLoad } from '../shared/load';
 import { addDays, dayLabel, daysBetween, hoursText } from '../shared/time';
 import type { RangeDto, ToPlaceDto } from '../shared/types';
@@ -40,6 +39,7 @@ import {
   timedBlocks,
   timerRuns,
   type Item,
+  categoryCss,
 } from './common';
 
 const HOUR_PX = 44;
@@ -105,7 +105,7 @@ export function LoadBar(props: { load: DayLoad }) {
             className="ag-load__part"
             style={{
               width: `${(c.minutes / scale) * 100}%`,
-              background: categoryColor(c.category),
+              background: categoryCss(c.category),
             }}
           />
         ))}
@@ -429,7 +429,7 @@ export function WeekView(props: {
   /** v0.36.0: a task « à caser » clicked: its sheet. */
   onOpenTask?: (task: ToPlaceDto) => void;
   /** v0.36.0: create in an empty slot (« Tâche » or « Rendez-vous »), one write after the choice. */
-  onCreate?: (kind: SlotKind, title: string, span: Span) => Promise<void>;
+  onCreate?: (kind: SlotKind, title: string, span: Span, category?: string) => Promise<void>;
 }) {
   const { data, monday } = props;
   const days = Array.from({ length: 7 }, (_, i) => addDays(monday, i));
@@ -758,8 +758,8 @@ export function WeekView(props: {
                         Math.max(18, (minutesBetween(slot.start, slot.end) / 60) * HOUR_PX),
                     }}
                     onCancel={() => setCreating(null)}
-                    onSubmit={async (kind, title) => {
-                      await props.onCreate!(kind, title, slot);
+                    onSubmit={async (kind, title, category) => {
+                      await props.onCreate!(kind, title, slot, category);
                       setCreating(null);
                     }}
                   />

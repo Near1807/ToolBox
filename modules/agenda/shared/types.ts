@@ -1,3 +1,5 @@
+import type { CategoryDto } from './categories';
+
 // Shapes shared by the Agenda's backend and its pages (PC and phone).
 
 /** An event of the Agenda itself, or an occurrence of the week type. */
@@ -138,4 +140,6 @@ export interface RangeDto {
   categories: string[];
   /** v0.35.0: the categories off by default (setting), until switched on on this device. */
   categoriesOff: string[];
+  /** v0.42.0: every category with its colour, shape and defaults, in Thomas's order. */
+  categoryInfo: CategoryDto[];
 }

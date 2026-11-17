@@ -1,7 +1,7 @@
 // The Agenda's pages: the bar on top, then the week (PC) or the day
 // (phone), the month, the week type; layers, the detail of an event, a
 // short guide. « Expérimental » until Thomas validates it.
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import {
   Button,
@@ -25,6 +25,7 @@ import type { SlotKind } from './CreateSlot';
 import { TaskPanel, type OpenTask } from './TaskPanel';
 import {
   colorStyle,
+  rememberCategories,
   switchCategories,
   timerSubject,
   useRange,
@@ -40,6 +41,7 @@ import { ImportPage } from './Import';
 import { TitleBanner } from './TitleBanner';
 import { Dock, useDocked } from './Dock';
 import { SourcesPanel } from './Sources';
+import { CategoriesPanel } from './Categories';
 import { MonthView, monthGrid, monthTitle } from './MonthView';
 import { QuickBar } from './QuickBar';
 import { CategorySwitches, WeekView, type Drop } from './WeekView';
@@ -66,6 +68,8 @@ function AgendaPage() {
   const period =
     view === 'month' ? monthGrid(day.slice(0, 7)) : { from: monday, to: addDays(monday, 6) };
   const { data, error, reload } = useRange(period.from, period.to);
+  // v0.42.0: the colours and shapes chosen by Thomas, for every block drawn below.
+  rememberCategories(data?.categoryInfo);
   // v0.36.0: while a timer runs, the blocks follow it (a light refresh each minute).
   const timerOn = Boolean(data?.timer);
   useEffect(() => {
@@ -73,7 +77,16 @@ function AgendaPage() {
     const every = window.setInterval(reload, 60_000);
     return () => window.clearInterval(every);
   }, [timerOn, reload]);
-  const layers = useSwitches(data?.categoriesOff ?? DEFAULT_OFF);
+  // v0.42.0: « allumée par défaut » of each category (Réglages), else the setting of before.
+  const info = data?.categoryInfo;
+  const offByDefault = useMemo(
+    () =>
+      info?.length
+        ? info.filter((c) => !c.shownByDefault).map((c) => c.name)
+        : (data?.categoriesOff ?? DEFAULT_OFF),
+    [info, data?.categoriesOff],
+  );
+  const layers = useSwitches(offByDefault);
   const [selected, setSelected] = useState<AgendaEventDto | null>(null);
   const [selectedTask, setSelectedTask] = useState<OpenTask | null>(null);
   // v0.41.0: the sheet in a side panel (PC, wide window): the page leaves it the room.
@@ -154,7 +167,7 @@ function AgendaPage() {
   };
 
   /** v0.36.0: create in an empty slot, after the choice (« Tâche » / « Rendez-vous »). */
-  const create = async (kind: SlotKind, title: string, span: Span) => {
+  const create = async (kind: SlotKind, title: string, span: Span, category?: string) => {
     const where = `${dayLabel(span.start.slice(0, 10), data?.today ?? day)} ${spanLabel(span)}`;
     if (kind === 'task') {
       const made = await module.api.post<{ id: string; title: string }>('/tasks', {
@@ -171,6 +184,7 @@ function AgendaPage() {
         title,
         start: span.start,
         end: span.end,
+        ...(category ? { category } : {}),
       });
       setNotice({
         message: `Rendez-vous « ${made.title} » ${where}`,
@@ -473,6 +487,18 @@ function HomeWidget() {
   );
 }
 
+/** Réglages › Agenda: the categories (v0.42.0), then the imported calendars (v0.37.0). */
+function AgendaSettings() {
+  return (
+    <>
+      <h3 className="ag-settings__title">Catégories</h3>
+      <CategoriesPanel />
+      <h3 className="ag-settings__title">Sources (calendriers importés)</h3>
+      <SourcesPanel />
+    </>
+  );
+}
+
 export default defineFrontendModule({
   // v0.36.0 (ADR 0046): « Rendez-vous » in the shell's « Ajouter » bar (the Agenda bar's rules).
   quickAdd: {
@@ -507,7 +533,7 @@ export default defineFrontendModule({
     { path: 'guide', component: GuidePage },
     { path: 'import', component: ImportPage },
   ],
-  // v0.37.0: Réglages › Agenda › Sources (the imported calendars).
-  settingsPanel: { label: 'Sources (calendriers importés)', component: SourcesPanel },
+  // v0.37.0: Réglages › Agenda › Sources; v0.42.0: and the categories.
+  settingsPanel: { label: 'Catégories et sources', component: AgendaSettings },
   HomeWidget,
 });

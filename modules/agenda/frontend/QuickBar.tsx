@@ -4,6 +4,7 @@
 import { useMemo, useState } from 'react';
 import { Button, ErrorMessage, errorMessage, onPhone, useModule } from '@hub/sdk/frontend';
 import { parseQuick, previewText } from '../shared/parse';
+import { CategorySelect } from './Categories';
 
 export interface Added {
   kind: 'event' | 'weekly' | 'task';
@@ -16,6 +17,8 @@ export interface Added {
 export function QuickBar(props: { today: string; todo: boolean; onAdded: (added: Added) => void }) {
   const module = useModule();
   const [text, setText] = useState('');
+  /** v0.42.0: the category chosen in the list ('' = from the text: « #cours », else Rendez-vous). */
+  const [category, setCategory] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const parsed = useMemo(() => parseQuick(text, props.today), [text, props.today]);
@@ -31,7 +34,7 @@ export function QuickBar(props: { today: string; todo: boolean; onAdded: (added:
         event?: { id: string; title: string };
         weekly?: { id: string; title: string };
         task?: { id: string; title: string; plannedAt?: string | null };
-      }>('/quick', { text });
+      }>('/quick', { text, ...(category ? { category } : {}) });
       const made = r.event ?? r.weekly ?? r.task!;
       props.onAdded({
         kind: r.kind,
@@ -65,6 +68,13 @@ export function QuickBar(props: { today: string; todo: boolean; onAdded: (added:
             setText(e.target.value);
             setError(null);
           }}
+        />
+        <CategorySelect
+          className="input ag-quick__category"
+          label="Catégorie (sinon selon le texte)"
+          value={category}
+          onChange={setCategory}
+          empty="Catégorie : selon le texte"
         />
         <Button type="submit" disabled={blocked || busy}>
           Ajouter

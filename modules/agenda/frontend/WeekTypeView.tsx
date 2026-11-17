@@ -3,7 +3,7 @@
 // the weeks; one occurrence is cancelled or moved from the week view.
 import { useState } from 'react';
 import { Button, Card, EmptyState, ErrorMessage, errorMessage, useModule } from '@hub/sdk/frontend';
-import { OWN_CATEGORIES } from '../shared/categories';
+import { CategorySelect } from './Categories';
 import { dayLabel, timeOf, WEEKDAYS } from '../shared/time';
 import type { WeeklyDto } from '../shared/types';
 import { colorStyle } from './common';
@@ -95,17 +95,7 @@ function WeeklyForm(props: {
       <div className="ag-form__row">
         <label>
           Catégorie
-          <input
-            className="input"
-            list="ag-week-categories"
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-          />
-          <datalist id="ag-week-categories">
-            {OWN_CATEGORIES.map((c) => (
-              <option key={c} value={c} />
-            ))}
-          </datalist>
+          <CategorySelect value={category} onChange={setCategory} />
         </label>
         <label>
           Lieu

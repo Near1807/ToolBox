@@ -112,4 +112,30 @@ describe('the Agenda over the synchronisation', () => {
     d.exchange();
     expect(d.rows('pc', 'agenda').events![0]!.optional).toBe(0);
   });
+
+  it('v0.42.0: a category created on the PC and a colour changed on the phone: on both', async () => {
+    d = await devices();
+    d.first('replace');
+    await d.onPc('POST', `${API}/categories`, { name: 'Soirée', color: 'p:violet' });
+    await d.onPc('POST', `${API}/events`, {
+      title: 'Ciné',
+      start: '2026-12-04T20:00',
+      end: '2026-12-04T22:00',
+      category: 'Soirée',
+    });
+    d.exchange();
+    const onPhone = await d.onPhone<{ name: string; css: string; events: number }[]>(
+      'GET',
+      `${API}/categories`,
+    );
+    expect(onPhone.find((c) => c.name === 'Soirée')).toMatchObject({
+      css: 'var(--hue-violet)',
+      events: 1,
+    });
+    await d.onPhone('PATCH', `${API}/categories/Cours`, { color: 'p:bleu' });
+    d.exchange();
+    const onPc = await d.onPc<{ name: string; css: string }[]>('GET', `${API}/categories`);
+    expect(onPc.find((c) => c.name === 'Cours')!.css).toBe('var(--hue-bleu)');
+    expect(d.rows('phone', 'agenda').categories).toEqual(d.rows('pc', 'agenda').categories);
+  });
 });

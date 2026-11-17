@@ -3,7 +3,10 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const dir = path.resolve(__dirname, '../frontend/src/themes');
-const themes = readdirSync(dir).filter((f) => f.endsWith('.css'));
+// palette.css (v0.42.0) holds the categories' hues, not a theme.
+const themes = readdirSync(dir).filter(
+  (f) => f.endsWith('.css') && readFileSync(path.join(dir, f), 'utf8').includes('@theme'),
+);
 const tokens = (css: string) =>
   new Set([...css.matchAll(/^\s*(--[a-z0-9-]+)\s*:/gm)].map((m) => m[1]));
 /** Optional tokens: defaults in styles.css (docs/THEMES.md), a theme may set them. */

@@ -214,7 +214,7 @@
   border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--ag-color) 28%, var(--surface));
   border-left: 3px solid var(--ag-color);
-  color: var(--text);
+  color: var(--ag-ink, var(--text));
   text-align: left;
   font-size: 0.85rem;
   cursor: pointer;
@@ -245,7 +245,7 @@
   border-left: 3px solid var(--ag-color);
   border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--ag-color) 30%, var(--surface));
-  color: var(--text);
+  color: var(--ag-ink, var(--text));
   font-size: 0.8rem;
   line-height: 1.2;
   overflow: hidden;
@@ -931,4 +931,102 @@
 .ag-dock-inline {
   scroll-margin-top: 16px;
   outline: none;
+}
+
+/* v0.42.0: the categories (Réglages › Agenda), their colours, the choice of one. */
+.ag-settings__title {
+  margin: 1rem 0 0.4rem;
+  font-size: 1rem;
+}
+.ag-cats__list {
+  margin-top: 0.6rem;
+}
+.ag-cats__item {
+  flex-direction: column;
+  align-items: stretch;
+}
+.ag-cats__main {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+}
+.ag-cats__main > div:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+}
+.ag-cats__flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 1rem;
+  margin-top: 0.25rem;
+}
+.ag-cats__actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.ag-cats__delete {
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+}
+.ag-dot {
+  flex: none;
+  width: 0.9rem;
+  height: 0.9rem;
+  margin-top: 0.2rem;
+  border-radius: 50%;
+  background: var(--ag-color);
+}
+.ag-colors {
+  margin-top: 0.5rem;
+  display: grid;
+  gap: 0.4rem;
+}
+.ag-colors__swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.ag-colors__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+.ag-colors__warn {
+  color: var(--warning);
+}
+.ag-swatch {
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+  border: 2px solid var(--surface);
+  border-radius: var(--radius-sm);
+  background: var(--ag-color);
+  box-shadow: 0 0 0 1px var(--border);
+  cursor: pointer;
+}
+.ag-swatch--on {
+  box-shadow: 0 0 0 2px var(--text);
+}
+.ag-swatch--preview {
+  display: inline-block;
+  cursor: default;
+}
+.ag-newcat {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0.4rem 0;
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.ag-quick__category {
+  flex: none;
+  max-width: 13rem;
+}
+.ag-create__category {
+  display: block;
+  margin: 0.25rem 0;
 }

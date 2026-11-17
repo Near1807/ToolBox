@@ -7,7 +7,6 @@
 // during a drag. One component for the week and « À caser ». It replaces the
 // blocks' native tooltip (their aria-label keeps the whole text).
 import {
-  type CSSProperties,
   type FocusEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
@@ -18,11 +17,10 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { formatDuration } from '@hub/sdk/dates';
-import { categoryColor } from '../shared/categories';
 import { describeEvent } from '../shared/import-item';
 import { dayLabel, eventWhen, hoursText, minutesBetween } from '../shared/time';
 import type { ToPlaceDto } from '../shared/types';
-import { fullPlace, type Item, isOptional } from './common';
+import { colorStyle, fullPlace, type Item, isOptional } from './common';
 
 /** What a card is about: a block of the week, or a task to fit in. */
 export type PreviewTarget =
@@ -155,11 +153,7 @@ function Card(props: { content: PreviewContent; anchor: DOMRect }) {
       {c.place && <p>{c.place}</p>}
       {c.category && (
         <p className="ag-preview__category">
-          <span
-            className="ag-preview__dot"
-            style={{ '--ag-color': categoryColor(c.category) } as CSSProperties}
-            aria-hidden="true"
-          />
+          <span className="ag-preview__dot" style={colorStyle(c.category)} aria-hidden="true" />
           {c.category}
         </p>
       )}

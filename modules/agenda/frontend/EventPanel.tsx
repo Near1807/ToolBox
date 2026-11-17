@@ -5,7 +5,8 @@
 import { useState } from 'react';
 import { Button, Card, ErrorMessage, errorMessage, useModule } from '@hub/sdk/frontend';
 import { SheetClose } from './Dock';
-import { OWN_CATEGORIES } from '../shared/categories';
+import { DEFAULT_CATEGORY } from '../shared/categories';
+import { CategorySelect } from './Categories';
 import { addMinutes, eventWhen, minutesBetween } from '../shared/time';
 import type { AgendaEventDto } from '../shared/types';
 import { colorStyle } from './common';
@@ -31,7 +32,7 @@ export function EventForm(props: {
   const [endTime, setEndTime] = useState((i.end ?? '').slice(11) || '10:00');
   const [location, setLocation] = useState(i.location ?? '');
   const [note, setNote] = useState(i.note ?? '');
-  const [category, setCategory] = useState(i.category ?? OWN_CATEGORIES[0]);
+  const [category, setCategory] = useState(i.category ?? DEFAULT_CATEGORY);
   const [error, setError] = useState<string | null>(null);
   return (
     <form
@@ -118,17 +119,7 @@ export function EventForm(props: {
         </label>
         <label>
           Catégorie
-          <input
-            className="input"
-            list="ag-categories"
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-          />
-          <datalist id="ag-categories">
-            {OWN_CATEGORIES.map((c) => (
-              <option key={c} value={c} />
-            ))}
-          </datalist>
+          <CategorySelect value={category} onChange={setCategory} />
         </label>
       </div>
       <label>

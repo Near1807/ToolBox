@@ -103,6 +103,18 @@ Case **« Facultatif »** dans la fiche d'un événement de l'Agenda (rendez-vou
 
 Par élément : une occurrence importée est un événement à part. Il appartient à Thomas, jamais au fichier : un réimport ne le lit pas, ne l'écrit pas et ne le compte pas comme « modifié par toi ». Pas pour les tâches ni pour les éléments des autres outils, ni pour les occurrences de la semaine type. Donnée : colonne `optional` (0 / 1) de `agenda__events` (migration 5, ajout seul), synchronisée ; `PATCH /events/:id { optional: true | false }` ; `AgendaEventDto.optional` présent seulement quand vrai.
 
+## Catégories gérées par Thomas (v0.42.0, Expérimental)
+
+Réglages › Agenda › Catégories : la liste de toutes les catégories (celles de l'Agenda, « Deadline », celles des autres outils, les tiennes, et toutes celles trouvées dans tes événements, ta semaine type et tes correspondances d'import), avec leur pastille, leur forme et leur nombre d'éléments.
+
+- **Nouvelle catégorie** : un nom et une couleur (aussi depuis la fiche, la barre et un créneau vide : « Nouvelle catégorie… », sans quitter).
+- **Couleur** : 16 teintes de la palette (définies pour les thèmes clairs ET sombres, contraste du texte vérifié dans tous les thèmes, `tests/palette-contrast.test.ts`), ou une **couleur libre** (le texte du bloc prend l'encre qui se lit le mieux ; un avertissement si le contraste reste faible), et « Revenir à la couleur d'origine ». Elle s'applique partout : blocs, vue jour, interrupteurs, aperçu, fiche, résumé.
+- **Comptée dans la charge** et **Allumée par défaut** (remplace, pour cette catégorie, le réglage « Catégories éteintes par défaut »), l'**ordre** (Monter / Descendre, l'ordre des listes de choix).
+- **Tes catégories seulement** : renommer (une transaction : événements, semaine type, correspondances et catégorie par défaut des sources, catégorie « importée » des événements importés pour qu'un réimport la vise encore, le réglage ; sauvegarde avant ; « Annuler »), changer la forme, supprimer (ses éléments vont dans la catégorie choisie, **jamais supprimés** ; sauvegarde ; « Annuler »).
+- Les catégories fixes et celles des autres outils : la couleur seulement (l'interface le dit).
+
+Données : table `agenda__categories` (migration 6, ajout seul) qui ne contient **que** ce que Thomas a changé ou créé ; sans ligne, une catégorie garde exactement ses valeurs d'avant (son jeton `--series-N`, comptée, allumée selon le réglage). Rien n'est écrit à l'ouverture. Synchronisée (SyncStore, clé unique `key`, le PC gagne en cas de collision). Routes : `GET/POST /categories`, `PATCH /categories/:key`, `PUT /categories/order`, `POST /categories/:key/rename`, `DELETE /categories/:key?moveTo=…`, `POST /categories/undo`. `RangeDto.categoryInfo` donne la liste avec chaque période ; `/quick` accepte `category` (le choix de la liste gagne sur « #tag »).
+
 ## Importer un calendrier (v0.37.0, ADR 0047 ; tableau CSV / Excel encore Expérimental)
 
 Agenda › **Importer** (sur le PC ; le lien n'est pas montré sur le téléphone, qui reçoit les événements par la synchro). Le fichier est lu sur le PC, rien ne part en ligne.
