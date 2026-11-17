@@ -834,3 +834,18 @@
   gap: 0.4rem;
   font-weight: 600;
 }
+
+/* v0.41.0: « De meilleurs titres sont disponibles » (discreet, closable). */
+.ag-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0 0 0.6rem;
+  padding: 0.3rem 0.3rem 0.3rem 0.7rem;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-size: 0.9rem;
+}

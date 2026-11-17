@@ -185,6 +185,9 @@ export function ImportPage() {
   const [info, setInfo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // v0.41.0: « Recalculer les titres » of a source: no file, the same preview.
+  const recompute = params.get('recompute');
+  const recomputed = sources.find((s) => s.id === recompute) ?? null;
   const today = useMemo(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -270,7 +273,9 @@ export function ImportPage() {
     setBusy(true);
     setError(null);
     try {
-      const p = await module.api.post<Preview>('/import/preview', choices());
+      const p = recompute
+        ? await module.api.get<Preview>(`/sources/${recompute}/titles`)
+        : await module.api.post<Preview>('/import/preview', choices());
       setPreview(p);
       // The defaults: added and modified checked, except « supprimé avant » and « modifié par toi »; gone unchecked.
       setAccept(
@@ -291,11 +296,15 @@ export function ImportPage() {
     setBusy(true);
     setError(null);
     try {
-      const r = await module.api.post<Applied>('/import/apply', {
-        ...choices(),
-        accept: [...accept],
-        remove: [...remove],
-      });
+      const r = recompute
+        ? await module.api.post<Applied>(`/sources/${recompute}/titles/apply`, {
+            accept: [...accept],
+          })
+        : await module.api.post<Applied>('/import/apply', {
+            ...choices(),
+            accept: [...accept],
+            remove: [...remove],
+          });
       setDone(r);
       setUndo(r.importId);
       setPreview(null);
@@ -305,6 +314,23 @@ export function ImportPage() {
       setBusy(false);
     }
   };
+
+  // « Recalculer les titres »: the preview straight away (nothing written before « Appliquer »).
+  useEffect(() => {
+    if (!recompute) return;
+    let live = true;
+    module.api.get<Preview>(`/sources/${recompute}/titles`).then(
+      (p) => {
+        if (!live) return;
+        setPreview(p);
+        setAccept(new Set(p.modified.filter((l) => !l.mine).map((l) => l.key)));
+      },
+      (e: unknown) => live && setError(errorMessage(e)),
+    );
+    return () => {
+      live = false;
+    };
+  }, [recompute, module.api]);
 
   const template = async (format: 'csv' | 'xlsx') => {
     try {
@@ -324,7 +350,7 @@ export function ImportPage() {
 
   return (
     <Page
-      title="Agenda : importer un calendrier"
+      title={recompute ? 'Agenda : recalculer les titres' : 'Agenda : importer un calendrier'}
       subtitle={
         <span className="ag-subtitle">
           <span className="badge badge--warning" title="Pas encore validé à l’usage">
@@ -335,37 +361,53 @@ export function ImportPage() {
         </span>
       }
     >
-      <Card title="1. Le fichier">
-        <p>
-          Un calendrier <strong>.ics</strong> (export d’un horaire, d’Outlook, de Google Agenda…),
-          ou un tableau <strong>.csv</strong> ou <strong>.xlsx</strong>. Le fichier est lu sur ce PC
-          : rien n’est envoyé en ligne, rien n’est écrit avant que tu valides l’aperçu.
-        </p>
-        <input
-          className="input"
-          type="file"
-          accept=".ics,.csv,.xlsx,text/calendar,text/csv"
-          aria-label="Choisir le fichier à importer"
-          onChange={(e) => void choose(e.target.files?.[0])}
-        />
-        <p className="small muted">
-          Un tableau à remplir : modèle{' '}
-          <Button small variant="secondary" onClick={() => void template('csv')}>
-            CSV
-          </Button>{' '}
-          <Button small variant="secondary" onClick={() => void template('xlsx')}>
-            Excel
-          </Button>{' '}
-          (colonnes : titre, date, début, fin ou durée, toute la journée, lieu, note, catégorie,
-          identifiant).
-        </p>
-        {busy && <p className="muted">Lecture…</p>}
-      </Card>
+      {recompute && (
+        <Card
+          title={recomputed ? `Les titres de « ${recomputed.name} »` : 'Les titres d’une source'}
+        >
+          <p>
+            Les titres refaits à partir du texte gardé à l’import (la ligne « Act: » d’un horaire
+            d’école, le type d’examen), sans le fichier. Seul le titre change ; un titre que tu as
+            changé toi-même est décoché. Rien n’est écrit avant « Appliquer », une sauvegarde est
+            faite avant, et « Annuler » reste possible un moment.
+          </p>
+          {!preview && !error && !done && <p className="muted">Calcul…</p>}
+        </Card>
+      )}
+
+      {!recompute && (
+        <Card title="1. Le fichier">
+          <p>
+            Un calendrier <strong>.ics</strong> (export d’un horaire, d’Outlook, de Google Agenda…),
+            ou un tableau <strong>.csv</strong> ou <strong>.xlsx</strong>. Le fichier est lu sur ce
+            PC : rien n’est envoyé en ligne, rien n’est écrit avant que tu valides l’aperçu.
+          </p>
+          <input
+            className="input"
+            type="file"
+            accept=".ics,.csv,.xlsx,text/calendar,text/csv"
+            aria-label="Choisir le fichier à importer"
+            onChange={(e) => void choose(e.target.files?.[0])}
+          />
+          <p className="small muted">
+            Un tableau à remplir : modèle{' '}
+            <Button small variant="secondary" onClick={() => void template('csv')}>
+              CSV
+            </Button>{' '}
+            <Button small variant="secondary" onClick={() => void template('xlsx')}>
+              Excel
+            </Button>{' '}
+            (colonnes : titre, date, début, fin ou durée, toute la journée, lieu, note, catégorie,
+            identifiant).
+          </p>
+          {busy && <p className="muted">Lecture…</p>}
+        </Card>
+      )}
 
       {error && <ErrorMessage>{error}</ErrorMessage>}
       {info && <p className="ag-import__info">{info}</p>}
 
-      {analysis && file && !done && (
+      {!recompute && analysis && file && !done && (
         <Card title="2. Les choix">
           <p>
             {analysis.calendarName ? `« ${analysis.calendarName} » : ` : `${fileName} : `}
@@ -575,16 +617,28 @@ export function ImportPage() {
       )}
 
       {preview && (
-        <Card title="3. L’aperçu (rien n’est encore écrit)">
+        <Card
+          title={
+            recompute
+              ? 'L’aperçu (rien n’est encore écrit)'
+              : '3. L’aperçu (rien n’est encore écrit)'
+          }
+        >
           <p>
-            {[
-              `${preview.add.length} à ajouter`,
-              `${preview.same} identique${preview.same > 1 ? 's' : ''}`,
-              `${preview.modified.length} modifié${preview.modified.length > 1 ? 's' : ''}`,
-              `${preview.gone.length} disparu${preview.gone.length > 1 ? 's' : ''}`,
-              `${preview.ignored.length} ignoré${preview.ignored.length > 1 ? 's' : ''}`,
-              plural(preview.errors.length, 'erreur'),
-            ].join(' · ')}
+            {(recompute
+              ? [
+                  plural(preview.modified.length, 'titre à changer', 'titres à changer'),
+                  `${preview.same} identique${preview.same > 1 ? 's' : ''}`,
+                ]
+              : [
+                  `${preview.add.length} à ajouter`,
+                  `${preview.same} identique${preview.same > 1 ? 's' : ''}`,
+                  `${preview.modified.length} modifié${preview.modified.length > 1 ? 's' : ''}`,
+                  `${preview.gone.length} disparu${preview.gone.length > 1 ? 's' : ''}`,
+                  `${preview.ignored.length} ignoré${preview.ignored.length > 1 ? 's' : ''}`,
+                  plural(preview.errors.length, 'erreur'),
+                ]
+            ).join(' · ')}
           </p>
           {preview.add.length > 0 && (
             <details className="ag-import__section" open>
@@ -604,7 +658,10 @@ export function ImportPage() {
           )}
           {preview.modified.length > 0 && (
             <details className="ag-import__section" open>
-              <summary>Modifiés dans le fichier ({preview.modified.length})</summary>
+              <summary>
+                {recompute ? 'Titres à changer' : 'Modifiés dans le fichier'} (
+                {preview.modified.length})
+              </summary>
               <Checklist
                 lines={preview.modified}
                 checked={accept}
@@ -677,7 +734,9 @@ export function ImportPage() {
           )}
           <div className="ui-actions">
             <Button disabled={busy || changes === 0} onClick={() => void apply()}>
-              {changes === 0 ? 'Rien à écrire' : `Importer (${plural(changes, 'changement')})`}
+              {changes === 0
+                ? 'Rien à écrire'
+                : `${recompute ? 'Appliquer' : 'Importer'} (${plural(changes, 'changement')})`}
             </Button>
             {changes > 0 && <span className="small muted">Une sauvegarde est faite avant.</span>}
           </div>
@@ -685,7 +744,7 @@ export function ImportPage() {
       )}
 
       {done && (
-        <Card title="Import terminé">
+        <Card title={recompute ? 'Titres recalculés' : 'Import terminé'}>
           <p>
             {done.source && <>« {done.source.name} » : </>}
             {plural(done.added, 'ajouté')}, {plural(done.updated, 'mis à jour', 'mis à jour')},{' '}
@@ -703,7 +762,11 @@ export function ImportPage() {
       )}
       {undo && (
         <UndoToast
-          message="Import terminé : tu peux encore l’annuler"
+          message={
+            recompute
+              ? 'Titres recalculés : tu peux encore annuler'
+              : 'Import terminé : tu peux encore l’annuler'
+          }
           timeoutMs={20_000}
           onUndo={() => {
             const id = undo;
@@ -712,7 +775,11 @@ export function ImportPage() {
               () => {
                 setDone(null);
                 setError(null);
-                setInfo('Import annulé : l’agenda est revenu à son état d’avant.');
+                setInfo(
+                  recompute
+                    ? 'Recalcul annulé : les titres sont revenus à leur état d’avant.'
+                    : 'Import annulé : l’agenda est revenu à son état d’avant.',
+                );
               },
               (e: unknown) => setError(errorMessage(e)),
             );

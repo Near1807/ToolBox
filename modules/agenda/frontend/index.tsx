@@ -37,6 +37,7 @@ import { DayView } from './DayView';
 import { EventForm, EventPanel, type Undo } from './EventPanel';
 import { GuidePage } from './Guide';
 import { ImportPage } from './Import';
+import { TitleBanner } from './TitleBanner';
 import { SourcesPanel } from './Sources';
 import { MonthView, monthGrid, monthTitle } from './MonthView';
 import { QuickBar } from './QuickBar';
@@ -203,6 +204,8 @@ function AgendaPage() {
         </span>
       }
     >
+      {/* v0.41.0: better titles for an imported source (PC: offered, never applied). */}
+      {!phone && <TitleBanner />}
       {data && (
         <QuickBar
           today={data.today}

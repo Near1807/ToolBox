@@ -116,6 +116,15 @@ function SourceRow(props: {
         >
           Réimporter
         </Link>
+        {s.format === 'ics' && (
+          <Link
+            className="button button--secondary button--small"
+            to={`/m/agenda/import?recompute=${s.id}`}
+            title="Les titres refaits à partir du texte gardé à l’import (ligne « Act: »…), sans le fichier : aperçu d’abord, rien n’est écrit avant « Appliquer »."
+          >
+            Recalculer les titres
+          </Link>
+        )}
         <Button
           small
           variant="danger"

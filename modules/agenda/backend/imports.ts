@@ -21,12 +21,14 @@ import { clip, type ParsedFile } from '../shared/import-item';
 import {
   categoryOf,
   comparePreview,
+  compareTitles,
   type ExistingImported,
   type ImportedValues,
   type ImportPeriod,
   type Origin,
   readOrigin,
   type SourceSettings,
+  type StoredImported,
   VALUE_FIELDS,
   valuesOf,
 } from '../shared/importing';
@@ -439,6 +441,113 @@ export function registerImports(ctx: ModuleContext, store: SyncStore) {
       };
     },
     { bodyLimit: MAX_IMPORT_BYTES },
+  );
+
+  // --- v0.41.0: « Recalculer les titres » (no file: the original text kept) -----------
+
+  const storedOf = (sourceId: string): StoredImported[] =>
+    (
+      ctx.db
+        .prepare(
+          `SELECT * FROM ${events} WHERE source_id = ? AND origin_key IS NOT NULL AND deleted_at IS NULL`,
+        )
+        .all(sourceId) as (ImportedValues & {
+        id: string;
+        origin_key: string;
+        origin: string | null;
+      })[]
+    ).flatMap((r) => {
+      const origin = readOrigin(r.origin);
+      if (!origin) return [];
+      return [
+        {
+          id: r.id,
+          key: r.origin_key,
+          current: Object.fromEntries(
+            VALUE_FIELDS.map((f) => [f, r[f]]),
+          ) as unknown as ImportedValues,
+          origin,
+        },
+      ];
+    });
+
+  const titlesPreview = (source: SourceRow) => {
+    const settings = settingsOf({}, source);
+    const rows = storedOf(source.id);
+    return { settings, rows, result: compareTitles(rows, settings.titleStyle) };
+  };
+
+  /** The preview: the same shape as an import's (only « Modifiés »). Nothing is written. */
+  ctx.routes.get('/sources/:id/titles', (request) => {
+    const source = getSource(uuidParam(request.params));
+    const p = titlesPreview(source);
+    return { sourceId: source.id, settings: p.settings, period: 'all', ...p.result };
+  });
+
+  /**
+   * The checked titles written (`accept`: keys), nothing else: backup first,
+   * one transaction, « Annuler » like an import. What the import wrote
+   * (origin.imported.title) follows, so the next import sees no change of the user.
+   */
+  ctx.routes.post('/sources/:id/titles/apply', (request) => {
+    const source = getSource(uuidParam(request.params));
+    const body = requestBody(request);
+    const accept = new Set(Array.isArray(body.accept) ? body.accept.map(String) : []);
+    const p = titlesPreview(source);
+    const lines = p.result.modified.filter((l) => accept.has(l.key));
+    const summary = {
+      same: p.result.same,
+      left: { add: 0, modified: p.result.modified.length - lines.length, gone: 0 },
+      errors: 0,
+      ignored: 0,
+      added: 0,
+      removed: 0,
+    };
+    if (!lines.length)
+      return { importId: null, backup: null, source: sourceDto(source), updated: 0, ...summary };
+    const rows = new Map(p.rows.map((r) => [r.id, r]));
+    const backup = ctx.db.backup('avant recalcul des titres Agenda');
+    const ops: Op[] = [];
+    ctx.db.transaction(() => {
+      for (const line of lines) {
+        const r = rows.get(line.id)!;
+        const origin: Origin = {
+          ...r.origin,
+          imported: { ...r.origin.imported, title: line.title },
+        };
+        const fields = { title: line.title, origin: JSON.stringify(origin) };
+        const row = store.get('events', line.id) as unknown as Record<string, unknown>;
+        ops.push({
+          kind: 'updated',
+          table: 'events',
+          id: line.id,
+          before: { title: row.title as string, origin: row.origin as string | null },
+        });
+        store.update('events', line.id, fields);
+      }
+    });
+    const importId = newId();
+    const at = Date.now();
+    for (const [id, u] of undo) if (at - u.at > UNDO_MS) undo.delete(id);
+    undo.set(importId, { ops, at });
+    return {
+      importId,
+      backup,
+      source: sourceDto(getSource(source.id)),
+      updated: lines.length,
+      ...summary,
+    };
+  });
+
+  /**
+   * The sources whose titles would change (not counting the events whose
+   * title the user changed): the Agenda offers « Voir », never applies.
+   */
+  ctx.routes.get('/title-updates', () =>
+    sourceRows().flatMap((s) => {
+      const count = titlesPreview(s).result.modified.filter((l) => !l.mine).length;
+      return count ? [{ id: s.id, name: s.name, count }] : [];
+    }),
   );
 
   /** « Annuler l'import »: everything it did, undone (in the reverse order). */
