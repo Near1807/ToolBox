@@ -353,9 +353,14 @@ export function ImportPage() {
       title={recompute ? 'Agenda : recalculer les titres' : 'Agenda : importer un calendrier'}
       subtitle={
         <span className="ag-subtitle">
-          <span className="badge badge--warning" title="Pas encore validé à l’usage">
-            Expérimental
-          </span>{' '}
+          {/* v0.41.0: the ICS import is validated; the tables (CSV, Excel) and the recompute are not. */}
+          {(recompute || (analysis && analysis.format !== 'ics')) && (
+            <>
+              <span className="badge badge--warning" title="Pas encore validé à l’usage">
+                Expérimental
+              </span>{' '}
+            </>
+          )}
           <Link to="/m/agenda">← Retour à l’agenda</Link> ·{' '}
           <Link to="/settings?s=agenda">Gérer les sources</Link>
         </span>
@@ -379,8 +384,12 @@ export function ImportPage() {
         <Card title="1. Le fichier">
           <p>
             Un calendrier <strong>.ics</strong> (export d’un horaire, d’Outlook, de Google Agenda…),
-            ou un tableau <strong>.csv</strong> ou <strong>.xlsx</strong>. Le fichier est lu sur ce
-            PC : rien n’est envoyé en ligne, rien n’est écrit avant que tu valides l’aperçu.
+            ou un tableau <strong>.csv</strong> ou <strong>.xlsx</strong> (
+            <span className="badge badge--warning" title="Pas encore validé à l’usage">
+              Expérimental
+            </span>
+            ). Le fichier est lu sur ce PC : rien n’est envoyé en ligne, rien n’est écrit avant que
+            tu valides l’aperçu.
           </p>
           <input
             className="input"

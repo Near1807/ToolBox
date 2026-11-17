@@ -176,7 +176,7 @@ export function SyncSection() {
   );
 }
 
-export function SyncCard() {
+function SyncCard() {
   const status = useApi<Status>('/api/core/sync');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

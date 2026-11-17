@@ -575,6 +575,11 @@ export default defineFrontendModule({
 | `TextFields`                     | titre, description, légende, tags d'un élément, **modifiables sous l'élément** (§7.3)                                                                                                                                                                                                                                    |
 | `usePrecheck`                    | vérification rapide du master avant une génération (avec `precheckTrack` côté backend) : rien à signaler → génère tout de suite (avec la `note` éventuelle affichée en petit) ; sinon les faits et « Générer quand même » / « Voir l'analyse » / « Annuler ». Jamais bloquant, rien sans le module « Analyse du master » |
 
+| `Tabs` | v0.41.0 : une page en onglets (« Synchro » / « Réseaux et adresses »), même aspect sur le PC et le téléphone, flèches du clavier |
+| `useModuleNames()` | v0.41.0 : le nom lisible d'un module présent (« Sport »), pour dire d'où vient un élément d'un autre outil ; `null` s'il n'est pas là |
+
+**Boutons-icônes** (v0.41.0) : `className="icon-button"` (30 × 30, icône de 16 px centrée, sans remplissage du navigateur) ; la règle est commune (`frontend/src/styles.css`), jamais un réglage par module.
+
 Un besoin non couvert : enrichir le composant du SDK (pour tous), pas en écrire un autre dans le module.
 
 **Icônes : pas d'emoji dans l'interface.** Toutes les icônes (barre latérale, accueil, cartes, titres, réglages, badges, boutons, fenêtre flottante…) viennent du jeu unique du SDK : `<Icon name="…" />` (`@hub/sdk/frontend`, lucide-react, même trait, taille du texte, couleur du thème ; `label` quand l'icône porte un sens sans texte à côté). Le manifest nomme son icône de la même façon (§2). `npm run lint` échoue sur un emoji dans un frontend (`scripts/check-ui-emoji.mjs`). Ce qui sort de l'app n'est pas l'interface : une légende Instagram, un export Markdown peuvent en contenir.

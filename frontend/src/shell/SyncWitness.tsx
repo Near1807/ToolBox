@@ -22,7 +22,7 @@ export function SyncWitness() {
     <Link
       to={w.state === 'blocked' ? '/settings?s=sync&tab=networks' : '/settings?s=sync'}
       className={`nav-link sync-witness sync-witness--${w.state}`}
-      title={[w.text, w.detail].filter(Boolean).join('\n')}
+      title={[w.text, w.detail, '(témoin Expérimental)'].filter(Boolean).join('\n')}
       aria-label={`Synchro avec le téléphone : ${[w.text, w.detail].filter(Boolean).join('. ')}`}
     >
       <RefreshCw size={16} />

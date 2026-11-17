@@ -88,7 +88,16 @@ export function NetworksPage(props: { client: WorkerClient; currentUrl: string |
   if (!data) return <Card title="Réseaux et adresses">{error ?? 'Chargement…'}</Card>;
   return (
     <>
-      <Card title="Où le téléphone trouve le PC">
+      <Card
+        title={
+          <>
+            Où le téléphone trouve le PC{' '}
+            <span className="badge badge--warning" title="Pas encore validé à l’usage">
+              Expérimental
+            </span>
+          </>
+        }
+      >
         <p className="small muted">
           Les adresses du PC que ce téléphone connaît (maison, kot, école…). Donne-leur un nom pour
           t’y retrouver. « Oublier » retire seulement l’adresse : l’appairage et les données ne

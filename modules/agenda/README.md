@@ -1,6 +1,6 @@
 # Agenda (`agenda`)
 
-La semaine d'un coup d'œil, rapide à remplir, reliée aux autres outils. Portable (PC et téléphone), « Prêt pour la synchro », « Prêt pour le calendrier ». **Expérimental** (v0.34.0).
+La semaine d'un coup d'œil, rapide à remplir, reliée aux autres outils. Portable (PC et téléphone), « Prêt pour la synchro », « Prêt pour le calendrier ». Validé à l'usage par Thomas (v0.41.0) ; seules les nouveautés de la v0.41.0 et l'import en tableau (CSV, Excel) restent **Expérimental**.
 
 ## Deux types d'éléments, chacun à sa place
 
@@ -33,7 +33,7 @@ Colonnes par jour, heures de la journée (réglage « Début / Fin de la journé
 
 **Charge** (catégories allumées seulement) : heures des événements et des tâches prévues dans la plage de la journée, par catégorie, plus les durées estimées des tâches échues ce jour-là (« Tâches » ; une tâche en retard pèse sur aujourd'hui, jamais sur un jour passé ni sur une semaine suivante). Léger sous 50 % de la plage, chargé sous 85 %, saturé au-delà. Les événements sur la journée (un camp, un examen) n'ont pas d'heures : ils ne pèsent pas. **Libre** : la plage moins les événements (chevauchements comptés une fois). **À caser** : les durées estimées des tâches qui pèsent sur un jour de la semaine (celles en retard dans la semaine en cours) ; les tâches sans échéance sont dans la bande, pas dans ce total.
 
-## Agir sur place (v0.36.0, Expérimental)
+## Agir sur place (v0.36.0)
 
 - **Fiche complète d'une tâche** : un clic sur une tâche prévue (semaine, jour, mois) ou à caser ouvre la fiche **prêtée par la To-do** (`todo.taskEditor`, ADR 0046). Elle contient :
   - tous les champs (titre, tags, échéance, durée estimée, heure prévue, morceau), avec le formulaire et les vérifications de la To-do, sans copie ;
@@ -52,7 +52,7 @@ Colonnes par jour, heures de la journée (réglage « Début / Fin de la journé
 
 - **Panneau d'un événement** : tous les champs modifiables directement (plus d'étape « Modifier »), « Enregistrer » avec « Annuler ». Une occurrence de la semaine type garde ses actions « cette fois-ci ».
 
-## Timer depuis l'Agenda (v0.36.0, Expérimental)
+## Timer depuis l'Agenda (v0.36.0)
 
 - « Lancer un timer » (composant prêté par le Timer, absent sans lui) :
   - dans la fiche d'une tâche : la session est liée à la tâche ;
@@ -67,7 +67,7 @@ Colonnes par jour, heures de la journée (réglage « Début / Fin de la journé
 
 Destination **« Rendez-vous »** de la barre « Ajouter » du shell (ADR 0046). Elle suit les règles de la barre de l'Agenda (`appointmentPreview`, `shared/parse.ts`) : un événement ou une entrée de la semaine type. Une phrase de tâche (« ~ », ou rien de daté) est refusée avec « Tab pour choisir Tâche ». « Annuler » supprime l'ajout, « Ouvrir » montre son jour.
 
-## Interrupteurs de catégorie (v0.35.0, Expérimental)
+## Interrupteurs de catégorie (v0.35.0)
 
 Les calques de v0.34 deviennent des **interrupteurs** : une catégorie **allumée** est affichée **et comptée** (charge, temps libre, chevauchements, « à caser » pour « Tâches ») ; **éteinte**, elle n'est ni affichée ni comptée (remplace la règle « la charge compte toujours tout »).
 
@@ -76,7 +76,7 @@ Les calques de v0.34 deviennent des **interrupteurs** : une catégorie **allumé
 - Le bilan de la semaine dit ce qui n'est pas compté (« hors Sport, Repas, Timer »).
 - Règle pure : `isOn(catégorie, choix, éteintes par défaut)` (`shared/categories.ts`), comptage par `timedBlocks(data, shown)` et `taskLoads(data, shown)` (`frontend/common.ts`), testés (`tests/layers.test.ts`).
 
-## Tâches prévues et glisser-déposer (v0.35.0, Expérimental)
+## Tâches prévues et glisser-déposer (v0.35.0)
 
 Une tâche reste **une donnée de la To-do** : l'Agenda la lit par le calendrier (un événement de la To-do avec `itemId`, ADR 0045) et la modifie **par le service `todo`** (`planTask`), jamais par une copie. Tout changement d'un côté se voit de l'autre, sur le PC et le téléphone (champs synchronisés de la To-do).
 
@@ -94,7 +94,7 @@ Une tâche reste **une donnée de la To-do** : l'Agenda la lit par le calendrier
 - **Téléphone** : pas de glisser ; heure et durée se changent par le détail (tâche et événement).
 - Route : `PUT /tasks/:id/plan { plannedAt?, durationMin? }` (`plannedAt: null` = retirer de l'agenda) → service `todo`.
 
-## Facultatif (v0.40.0, Expérimental)
+## Facultatif (v0.40.0)
 
 Case **« Facultatif »** dans la fiche d'un événement de l'Agenda (rendez-vous, événement importé ; PC et téléphone), une écriture et « Annuler ». Un événement facultatif reste affiché à sa place (côte à côte avec ce qu'il chevauche), atténué et hachuré (jetons du thème), « facultatif » dans l'info-bulle et la fiche. Il ne compte pas :
 
@@ -103,7 +103,7 @@ Case **« Facultatif »** dans la fiche d'un événement de l'Agenda (rendez-vou
 
 Par élément : une occurrence importée est un événement à part. Il appartient à Thomas, jamais au fichier : un réimport ne le lit pas, ne l'écrit pas et ne le compte pas comme « modifié par toi ». Pas pour les tâches ni pour les éléments des autres outils, ni pour les occurrences de la semaine type. Donnée : colonne `optional` (0 / 1) de `agenda__events` (migration 5, ajout seul), synchronisée ; `PATCH /events/:id { optional: true | false }` ; `AgendaEventDto.optional` présent seulement quand vrai.
 
-## Importer un calendrier (v0.37.0, Expérimental, ADR 0047)
+## Importer un calendrier (v0.37.0, ADR 0047 ; tableau CSV / Excel encore Expérimental)
 
 Agenda › **Importer** (sur le PC ; le lien n'est pas montré sur le téléphone, qui reçoit les événements par la synchro). Le fichier est lu sur le PC, rien ne part en ligne.
 

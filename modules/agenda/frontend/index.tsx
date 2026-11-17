@@ -193,8 +193,11 @@ function AgendaPage() {
       title="Agenda"
       subtitle={
         <span className="ag-subtitle">
-          <span className="badge badge--warning" title="Pas encore validé à l’usage">
-            Expérimental
+          <span
+            className="badge badge--warning"
+            title="Pas encore validé à l’usage : le nom · lieu dans les blocs, l’aperçu au survol, la fiche à droite, le recalcul des titres (voir le guide)"
+          >
+            Nouveautés : Expérimental
           </span>{' '}
           <Link to="/m/agenda/guide">Le guide</Link>
           {/* v0.37.0: importing happens on the PC; the phone gets the events by the sync. */}

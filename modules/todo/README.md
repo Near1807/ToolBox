@@ -25,7 +25,7 @@ Tes tâches, simples : titre, tags, échéance facultative en langage naturel, c
 
 Champ facultatif d'une tâche, en minutes, affiché discrètement (« ~2 h ») à côté de l'échéance ; modifiable dans le détail (crayon : « 2h », « 30min », « 1h30 »). Dans la saisie rapide, elle s'écrit **toujours avec « ~ » devant**, pour ne jamais se confondre avec une heure : « réviser les maths ~2h vendredi », « ranger le studio ~30min ». « 14h » reste du texte (une heure, pas une durée). Formes comprises après « ~ » : `2h`, `2 h`, `1h30`, `1 h 30`, `1,5h`, `45min`, `45 min`, `90 minutes`, `2 heures` (5 jours au plus). L'aperçu montre « Sera ajouté : … · ~2 h ». Donnée par l'API (`durationMin`), le service `todo` (`TodoTask.durationMin`, `createTask({ durationMin })`) ; colonne synchronisée comme les autres. Fonctions pures : `parseDuration`, `formatDuration`, `takeDuration` (`dates.ts`).
 
-## Heure prévue (v0.35.0, Expérimental)
+## Heure prévue (v0.35.0)
 
 Champ facultatif « **prévu le … à …** » (`planned_at`, « AAAA-MM-JJTHH:MM ») : quand faire la tâche, distinct de l'échéance (« avant vendredi ») ; une tâche peut avoir l'un, l'autre, les deux ou aucun. Une tâche prévue est un bloc dans la semaine de l'Agenda, de la longueur de sa durée estimée ; placée **sans** durée estimée, elle prend **30 min**, et sa durée estimée prend cette valeur (modifiable).
 

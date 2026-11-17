@@ -2058,6 +2058,10 @@ input[type='range'] {
 }
 .page__settings-link {
   text-decoration: none;
+  /* v0.41.0: square, like the other icon buttons. */
+  width: 36px;
+  padding: 0;
+  justify-content: center;
 }
 
 /* Réglages › Synchro avec le téléphone */
@@ -2094,8 +2098,8 @@ input[type='range'] {
   margin-left: auto;
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--accent-soft);
@@ -2298,4 +2302,18 @@ input[type='range'] {
     grid-template-columns: 1fr;
     gap: 0;
   }
+}
+
+/* v0.41.0: every icon button the same: no padding from the browser (it pushed
+   the « + » of the side bar 3 px to the right), the icon centred, one icon size. */
+.icon-button,
+.sidebar__add {
+  padding: 0;
+}
+.icon-button > svg,
+.sidebar__add > svg,
+.page__settings-link > svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
 }

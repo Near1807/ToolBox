@@ -122,7 +122,7 @@ function SourceRow(props: {
             to={`/m/agenda/import?recompute=${s.id}`}
             title="Les titres refaits à partir du texte gardé à l’import (ligne « Act: »…), sans le fichier : aperçu d’abord, rien n’est écrit avant « Appliquer »."
           >
-            Recalculer les titres
+            Recalculer les titres <span className="badge badge--warning">Expérimental</span>
           </Link>
         )}
         <Button
@@ -162,12 +162,7 @@ export function SourcesPanel() {
 
   return (
     <div className="ag-sources">
-      <h3>
-        Sources (calendriers importés){' '}
-        <span className="badge badge--warning" title="Pas encore validé à l’usage">
-          Expérimental
-        </span>
-      </h3>
+      <h3>Sources (calendriers importés)</h3>
       <p className="small muted">
         Un horaire importé (ICS, CSV, Excel) est une source : ses événements sont des événements
         ordinaires de l’Agenda, rangés dans les catégories que tu as choisies. Un nouvel import de

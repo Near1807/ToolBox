@@ -114,7 +114,16 @@ export function NetworksCard() {
   if (!data) return <Card title="Réseaux et adresses">{error ?? 'Chargement…'}</Card>;
   return (
     <>
-      <Card title="Ce PC maintenant">
+      <Card
+        title={
+          <>
+            Ce PC maintenant{' '}
+            <span className="badge badge--warning" title="Pas encore validé à l’usage">
+              Expérimental
+            </span>
+          </>
+        }
+      >
         {data.publicNetwork && <p className="error">{PUBLIC_NETWORK}</p>}
         {error && <p className="error">{error}</p>}
         {data.current.length === 0 ? (

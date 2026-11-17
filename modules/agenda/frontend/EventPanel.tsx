@@ -202,10 +202,7 @@ export function EventPanel(props: {
                   });
                 }}
               />{' '}
-              Facultatif{' '}
-              <span className="badge badge--warning" title="Pas encore validé à l’usage">
-                Expérimental
-              </span>
+              Facultatif
             </label>
             <span className="small muted">
               Reste affiché, ne compte ni dans les conflits ni dans la charge.
@@ -350,10 +347,7 @@ function SourceNote(props: { source: NonNullable<AgendaEventDto['source']> }) {
   return (
     <div className="ag-source small">
       <p>
-        Importé de <strong>{props.source.name}</strong>{' '}
-        <span className="badge badge--warning" title="Pas encore validé à l’usage">
-          Expérimental
-        </span>
+        Importé de <strong>{props.source.name}</strong>
       </p>
       {entries.length > 0 && (
         <details>

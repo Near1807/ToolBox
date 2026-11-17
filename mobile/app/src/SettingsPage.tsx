@@ -21,16 +21,7 @@ import { ongoingEnabled, setOngoingEnabled } from './timer-ongoing';
 function TimerOngoingCard() {
   const [on, setOn] = useState(ongoingEnabled);
   return (
-    <Card
-      title={
-        <>
-          Timer dans les notifications{' '}
-          <span className="badge badge--warning" title="Pas encore validé à l’usage">
-            Expérimental
-          </span>
-        </>
-      }
-    >
+    <Card title={<>Timer dans les notifications</>}>
       <label className="m-check">
         <input
           type="checkbox"

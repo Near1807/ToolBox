@@ -195,16 +195,7 @@ function AutoCard(props: { client: WorkerClient }) {
   const status = useAutoStatus(props.client);
   const [busy, setBusy] = useState(false);
   return (
-    <Card
-      title={
-        <>
-          Synchro automatique{' '}
-          <span className="badge badge--warning" title="Pas encore validé à l’usage">
-            Expérimental
-          </span>
-        </>
-      }
-    >
+    <Card title={<>Synchro automatique</>}>
       <label className="m-check">
         <input
           type="checkbox"
