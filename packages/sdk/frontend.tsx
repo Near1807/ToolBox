@@ -701,6 +701,18 @@ export function ModuleSettingsPanel(props: { moduleId: string }) {
   );
 }
 
+/**
+ * v0.41.0: the readable name of a present module (« Sport », « Courses »), or
+ * null when it is not there: to say where something of another tool comes from.
+ */
+export function useModuleNames(): (moduleId: string) => string | null {
+  const modules = useContext(PresentModulesContext);
+  return useCallback(
+    (id: string) => modules.find((x) => x.manifest.id === id)?.manifest.name ?? null,
+    [modules],
+  );
+}
+
 /** v0.37.0: the label of a present module's settings panel (for the settings search), or null. */
 export function useSettingsPanelLabel(): (moduleId: string) => string | null {
   const modules = useContext(PresentModulesContext);

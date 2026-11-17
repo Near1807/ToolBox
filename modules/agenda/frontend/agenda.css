@@ -849,3 +849,54 @@
   background: var(--surface);
   font-size: 0.9rem;
 }
+
+/* v0.41.0: the preview on hover (PC): a small read-only card next to the block. */
+.ag-preview {
+  position: fixed;
+  z-index: 50;
+  box-sizing: border-box;
+  width: max-content;
+  max-width: min(320px, calc(100vw - 16px));
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-solid);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  font-size: 0.85rem;
+  line-height: 1.35;
+  pointer-events: none;
+}
+.ag-preview p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.ag-preview p + p {
+  margin-top: 0.15rem;
+}
+.ag-preview__title {
+  font-weight: 600;
+}
+.ag-preview__when {
+  font-variant-numeric: tabular-nums;
+}
+.ag-preview__category {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.ag-preview__dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  flex: none;
+  border-radius: 50%;
+  background: var(--ag-color);
+}
+.ag-preview__note,
+.ag-preview__fact {
+  color: var(--text-2);
+}
+.ag-preview__hint {
+  color: var(--text-3);
+  font-size: 0.78rem;
+}
