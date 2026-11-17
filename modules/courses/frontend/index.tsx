@@ -142,23 +142,26 @@ function PeriodPicker(props: { list: ListDto; run: Run }) {
         aria-label="Au"
         onChange={(e) => e.target.value && set(props.list.from, e.target.value)}
       />
-      <Button
-        variant="secondary"
-        small
-        onClick={() => set(addDays(monday, -7), addDays(monday, -1))}
-      >
-        ‹ Semaine
-      </Button>
-      <Button variant="secondary" small onClick={() => set(...currentWeek())}>
-        Cette semaine
-      </Button>
-      <Button
-        variant="secondary"
-        small
-        onClick={() => set(addDays(monday, 7), addDays(monday, 13))}
-      >
-        Semaine ›
-      </Button>
+      {/* v0.42.0: one group (a single line on the phone; « display: contents » on the PC). */}
+      <span className="cs-period__weeks">
+        <Button
+          variant="secondary"
+          small
+          onClick={() => set(addDays(monday, -7), addDays(monday, -1))}
+        >
+          ‹ Semaine
+        </Button>
+        <Button variant="secondary" small onClick={() => set(...currentWeek())}>
+          Cette semaine
+        </Button>
+        <Button
+          variant="secondary"
+          small
+          onClick={() => set(addDays(monday, 7), addDays(monday, 13))}
+        >
+          Semaine ›
+        </Button>
+      </span>
     </div>
   );
 }

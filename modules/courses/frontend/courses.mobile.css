@@ -4,11 +4,53 @@
    shopping list in the store — big boxes, readable aisles, one hand, nothing
    moves when an article is ticked (ticking only strikes it through). */
 
-/* Tabs: one line scrolled sideways. */
+/* Tabs: one line scrolled sideways. v0.42.0: a fade at the edge says there
+   is more (right while not at the end, left once scrolled), driven by the
+   scroll itself where the WebView knows it; else a fixed fade on the right. */
+@property --cs-fade-right {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+@property --cs-fade-left {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
 .cs-tabs {
   flex-wrap: nowrap;
   overflow-x: auto;
   scrollbar-width: none;
+  --cs-fade-right: 28px;
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    var(--text) var(--cs-fade-left),
+    var(--text) calc(100% - var(--cs-fade-right)),
+    transparent 100%
+  );
+}
+@supports (animation-timeline: scroll(x self)) {
+  .cs-tabs {
+    animation: cs-tabs-fade linear both;
+    animation-timeline: scroll(x self);
+  }
+}
+@keyframes cs-tabs-fade {
+  0% {
+    --cs-fade-left: 0px;
+    --cs-fade-right: 28px;
+  }
+  8% {
+    --cs-fade-left: 28px;
+  }
+  92% {
+    --cs-fade-right: 28px;
+  }
+  100% {
+    --cs-fade-left: 28px;
+    --cs-fade-right: 0px;
+  }
 }
 
 .cs-tabs button {
@@ -30,8 +72,17 @@
   min-width: 0;
 }
 
-.cs-period > .button {
-  grid-column: span 2;
+/* v0.42.0: « ‹ Semaine · Cette semaine · Semaine › » on one line (412 px). */
+.cs-period__weeks {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 6px;
+}
+.cs-period__weeks > .button {
+  flex: 1 1 0;
+  min-width: 0;
+  padding-inline: 6px;
+  white-space: nowrap;
 }
 
 /* --- The shopping list, in the store ------------------------------------ */
