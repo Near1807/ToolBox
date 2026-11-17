@@ -66,3 +66,4 @@ Modèle :
 | 0045 | [Calendrier : catégories, plusieurs jours, éléments à caser](0045-calendrier-categories-a-caser.md)                                  |
 | 0046 | [Entre modules : composants prêtés et destinations « Ajouter »](0046-entre-modules-composants-ajout-rapide.md)                       |
 | 0047 | [Agenda : importer un calendrier dans une source liée à des catégories](0047-agenda-import-sources.md)                               |
+| 0048 | [Menu contextuel commun (clic droit, clavier, appui long)](0048-menu-contextuel-commun.md)                                           |

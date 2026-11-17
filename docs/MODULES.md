@@ -628,6 +628,28 @@ L'interface a plusieurs thèmes (Réglages › Apparence, `docs/THEMES.md`). **A
 - Pour ce que les réglages simples (`settings`) ne savent pas faire : une liste à gérer (les sources de l'Agenda). Les mêmes règles que les pages : toute action qui modifie est visible, confirmée quand elle supprime, annulable si possible.
 - Le shell ne connaît aucun module : il montre le panneau du module dont la section est ouverte (`ModuleSettingsPanel`). Sur le téléphone, la coquille ne l'affiche pas (pas de Réglages par module).
 
+### 7.7 Menu contextuel (v0.42.0, ADR 0048, Expérimental)
+
+Un seul menu pour tout le monde : `useContextMenu()` de `@hub/sdk/frontend`, jamais un menu fait maison.
+
+```tsx
+const menu = useContextMenu();
+// sur chaque élément (clic droit, touche Menu / Maj+F10, appui long sur le téléphone) :
+<button {...menu.bind(() => itemsOf(task), task.title)} onClick={open}>
+  …
+</button>;
+// une fois dans la page :
+{
+  menu.node;
+}
+```
+
+- Éléments (`MenuItem`) : `{ label, icon?, shortcut?, disabled?: true | 'raison', onSelect }`, `{ separator: true }`, `{ title }`, `{ label, submenu: [...] }` (un seul niveau), et une action dangereuse `{ ..., danger: true, confirm: 'Supprimer « … » ?' }` : la question est toujours posée avant.
+- Les éléments sont construits à l'ouverture (toujours à jour) ; `cleanItems` retire les séparateurs en trop ; un menu vide ne s'ouvre pas (le menu du navigateur reste).
+- **Seulement des actions qui existent déjà ailleurs** dans l'interface ; une action qui modifie reste visible et annulable comme ailleurs (son « Annuler ») ; une dangereuse garde sa confirmation. Pas d'action « en douce ».
+- Si l'élément a ses propres gestionnaires (glisser, clavier), les fusionner avec `mergeHandlers(own, menu.bind(...))`.
+- Fermeture : Échap, clic ailleurs, défilement ; le menu reste dans la fenêtre. Style : `.ui-menu` (jetons du thème).
+
 ## 8. Tests
 
 Chaque module a ses tests dans `modules/<id>/tests/`. `@hub/sdk/testing` démarre un **vrai socle** (base, migrations, routes) dans un dossier temporaire :

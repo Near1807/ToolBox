@@ -1,27 +1,21 @@
-import { useEffect, useRef, useState, type DragEvent, type MouseEvent } from 'react';
-import { Icon } from '@hub/sdk/frontend';
+import { useEffect, useRef, useState, type DragEvent } from 'react';
+import { Icon, type MenuItem, useContextMenu } from '@hub/sdk/frontend';
 import { NavLink } from 'react-router';
 import {
   Activity,
-  ArrowDown,
-  ArrowUp,
   ChevronDown,
   ChevronRight,
   ChevronsDownUp,
   ChevronsUpDown,
-  FolderInput,
   FolderOpen,
   FolderPlus,
   House,
-  Pencil,
   ScrollText,
   Search,
   Settings,
-  Trash2,
   Wrench,
   X,
 } from 'lucide-react';
-import { ContextMenu, type MenuEntry } from './ContextMenu';
 import { useNavigation, type NavModule } from './NavigationContext';
 import {
   createCategory,
@@ -42,7 +36,6 @@ import { QUICK_ADD_EVENT, useQuickAddShortcut } from './QuickAdd';
 const TOOL_TYPE = 'application/x-toolbox-tool';
 const CATEGORY_TYPE = 'application/x-toolbox-category';
 
-type Menu = { x: number; y: number; entries: MenuEntry[] };
 type DropTarget = { category: string; before: string | null } | { beforeCategory: string | null };
 
 /**
@@ -53,7 +46,6 @@ type DropTarget = { category: string; before: string | null } | { beforeCategory
 export function Sidebar(props: { fullscreen: boolean }) {
   const { sidebar, change, error } = useNavigation();
   const [query, setQuery] = useState('');
-  const [menu, setMenu] = useState<Menu | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [drop, setDrop] = useState<DropTarget | null>(null);
   const search = useRef<HTMLInputElement>(null);
@@ -93,87 +85,82 @@ export function Sidebar(props: { fullscreen: boolean }) {
     change((layout, nav) => deleteCategory(layout, nav, category.id));
   };
 
-  const categoryMenu = (event: MouseEvent, category: NavCategory<NavModule>, index: number) => {
-    event.preventDefault();
-    setMenu({
-      x: event.clientX,
-      y: event.clientY,
-      entries: [
-        { title: category.name },
-        { label: 'Renommer', icon: <Pencil size={14} />, onClick: () => setRenaming(category.id) },
-        {
-          label: 'Monter',
-          icon: <ArrowUp size={14} />,
-          disabled: index === 0,
-          onClick: () => change((l, n) => moveCategory(l, n, category.id, { delta: -1 })),
-        },
-        {
-          label: 'Descendre',
-          icon: <ArrowDown size={14} />,
-          disabled: index === sidebar.length - 1,
-          onClick: () => change((l, n) => moveCategory(l, n, category.id, { delta: 1 })),
-        },
-        { separator: true },
-        { label: 'Nouvelle catégorie', icon: <FolderPlus size={14} />, onClick: newCategory },
-        {
-          label: 'Supprimer la catégorie',
-          icon: <Trash2 size={14} />,
-          onClick: () => removeCategory(category),
-        },
-      ],
-    });
-  };
+  // v0.42.0: the shared context menu (SDK, ADR 0048): right click, Menu key / Shift+F10.
+  const menu = useContextMenu();
+  const categoryItems = (category: NavCategory<NavModule>, index: number): MenuItem[] => [
+    { title: category.name },
+    { label: 'Renommer', icon: 'pencil', onSelect: () => setRenaming(category.id) },
+    {
+      label: 'Monter',
+      icon: 'arrow-up',
+      disabled: index === 0 && 'Déjà en haut',
+      onSelect: () => change((l, n) => moveCategory(l, n, category.id, { delta: -1 })),
+    },
+    {
+      label: 'Descendre',
+      icon: 'arrow-down',
+      disabled: index === sidebar.length - 1 && 'Déjà en bas',
+      onSelect: () => change((l, n) => moveCategory(l, n, category.id, { delta: 1 })),
+    },
+    { separator: true },
+    { label: 'Nouvelle catégorie', icon: 'folder-plus', onSelect: newCategory },
+    {
+      label: 'Supprimer la catégorie',
+      icon: 'trash',
+      onSelect: () => removeCategory(category),
+    },
+  ];
 
-  const toolMenu = (event: MouseEvent, tool: NavModule, category: NavCategory<NavModule>) => {
-    event.preventDefault();
+  const toolItems = (tool: NavModule, category: NavCategory<NavModule>): MenuItem[] => {
     const index = category.tools.findIndex((t) => t.id === tool.id);
-    setMenu({
-      x: event.clientX,
-      y: event.clientY,
-      entries: [
-        { title: tool.name },
-        {
-          label: 'Monter',
-          icon: <ArrowUp size={14} />,
-          disabled: index === 0,
-          onClick: () => change((l, n) => shiftTool(l, n, tool.id, -1)),
-        },
-        {
-          label: 'Descendre',
-          icon: <ArrowDown size={14} />,
-          disabled: index === category.tools.length - 1,
-          onClick: () => change((l, n) => shiftTool(l, n, tool.id, 1)),
-        },
-        { separator: true },
-        { title: 'Déplacer vers' },
-        ...sidebar
-          .filter((c) => c.id !== category.id)
-          .map((target) => ({
-            label: target.name,
-            icon: <FolderInput size={14} />,
-            onClick: () => change((l, n) => moveTool(l, n, tool.id, target.id)),
-          })),
-        {
-          label: 'Nouvelle catégorie…',
-          icon: <FolderPlus size={14} />,
-          onClick: () => {
-            const id = newCategoryId();
-            change((l, n) => {
-              const created = createCategory(l, n, 'Nouvelle catégorie', id);
-              const nav = n.concat({
-                id,
-                name: 'Nouvelle catégorie',
-                collapsed: false,
-                isSection: false,
-                tools: [],
+    return [
+      { title: tool.name },
+      {
+        label: 'Monter',
+        icon: 'arrow-up',
+        disabled: index === 0 && 'Déjà en haut',
+        onSelect: () => change((l, n) => shiftTool(l, n, tool.id, -1)),
+      },
+      {
+        label: 'Descendre',
+        icon: 'arrow-down',
+        disabled: index === category.tools.length - 1 && 'Déjà en bas',
+        onSelect: () => change((l, n) => shiftTool(l, n, tool.id, 1)),
+      },
+      { separator: true },
+      {
+        label: 'Déplacer vers',
+        icon: 'folder-input',
+        submenu: [
+          ...sidebar
+            .filter((c) => c.id !== category.id)
+            .map((target): MenuItem => ({
+              label: target.name,
+              onSelect: () => change((l, n) => moveTool(l, n, tool.id, target.id)),
+            })),
+          { separator: true },
+          {
+            label: 'Nouvelle catégorie…',
+            icon: 'folder-plus',
+            onSelect: () => {
+              const id = newCategoryId();
+              change((l, n) => {
+                const created = createCategory(l, n, 'Nouvelle catégorie', id);
+                const nav = n.concat({
+                  id,
+                  name: 'Nouvelle catégorie',
+                  collapsed: false,
+                  isSection: false,
+                  tools: [],
+                });
+                return moveTool(created, nav, tool.id, id);
               });
-              return moveTool(created, nav, tool.id, id);
-            });
-            setRenaming(id);
+              setRenaming(id);
+            },
           },
-        },
-      ],
-    });
+        ],
+      },
+    ];
   };
 
   // Drag and drop ------------------------------------------------------------
@@ -301,7 +288,7 @@ export function Sidebar(props: { fullscreen: boolean }) {
                 draggable={!searching && renaming !== category.id}
                 onDragStart={(e) => dragCategory(e, category)}
                 onDragOver={(e) => overItem(e, category.id, null)}
-                onContextMenu={(e) => categoryMenu(e, category, index)}
+                {...menu.bind(() => categoryItems(category, index), category.name)}
               >
                 {renaming === category.id ? (
                   <RenameField
@@ -339,7 +326,7 @@ export function Sidebar(props: { fullscreen: boolean }) {
                     draggable={!searching}
                     onDragStart={(e) => dragTool(e, tool)}
                     onDragOver={(e) => overItem(e, category.id, tool.id)}
-                    onContextMenu={(e) => toolMenu(e, tool, category)}
+                    {...menu.bind(() => toolItems(tool, category), tool.name)}
                   >
                     <span className="nav-link__icon">
                       <Icon name={tool.module.manifest.icon} />
@@ -389,7 +376,7 @@ export function Sidebar(props: { fullscreen: boolean }) {
         <FullscreenButton fullscreen={props.fullscreen} />
       </div>
 
-      {menu && <ContextMenu {...menu} onClose={() => setMenu(null)} />}
+      {menu.node}
     </nav>
   );
 }
