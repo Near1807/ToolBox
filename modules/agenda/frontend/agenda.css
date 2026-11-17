@@ -900,3 +900,35 @@
   color: var(--text-3);
   font-size: 0.78rem;
 }
+
+/* v0.41.0: the sheet in a side panel (PC, window of 900 px or more), fixed on
+   the right whatever the scroll; the page leaves it the room. */
+.ag-page {
+  --ag-dock-w: 380px;
+}
+.ag-page--docked {
+  margin-right: calc(var(--ag-dock-w) + 8px);
+}
+.ag-dock {
+  position: fixed;
+  z-index: 40;
+  top: 16px;
+  right: 16px;
+  bottom: 16px;
+  box-sizing: border-box;
+  width: var(--ag-dock-w);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  outline: none;
+}
+.ag-dock > .card {
+  min-height: 100%;
+  box-sizing: border-box;
+  margin: 0;
+}
+.ag-dock-inline {
+  scroll-margin-top: 16px;
+  outline: none;
+}

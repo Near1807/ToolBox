@@ -4,10 +4,11 @@
 // stays the To-do's: the sheet writes only through the To-do's API. Opened
 // from a block (week, day, month) or a task « à caser »; PC and phone.
 import type { ReactNode } from 'react';
-import { Button, Card, Lent } from '@hub/sdk/frontend';
+import { Card, Lent } from '@hub/sdk/frontend';
 import type { TaskEditorProps } from '../../todo/contract';
 import { colorStyle } from './common';
 import type { Undo } from './EventPanel';
+import { SheetClose } from './Dock';
 
 export interface OpenTask {
   id: string;
@@ -29,11 +30,7 @@ export function TaskPanel(props: {
           <span className="ag-dot" aria-hidden="true" /> {props.task.title}
         </span>
       }
-      actions={
-        <Button small variant="secondary" onClick={props.onClose}>
-          Fermer
-        </Button>
-      }
+      actions={<SheetClose onClose={props.onClose} />}
     >
       <Lent<TaskEditorProps>
         name="todo.taskEditor"

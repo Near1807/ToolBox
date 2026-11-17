@@ -4,6 +4,7 @@
 // back as usual; the entry itself is changed in « Semaine type ».
 import { useState } from 'react';
 import { Button, Card, ErrorMessage, errorMessage, useModule } from '@hub/sdk/frontend';
+import { SheetClose } from './Dock';
 import { OWN_CATEGORIES } from '../shared/categories';
 import { addMinutes, eventWhen, minutesBetween } from '../shared/time';
 import type { AgendaEventDto } from '../shared/types';
@@ -179,11 +180,7 @@ export function EventPanel(props: {
           <span className="ag-dot" aria-hidden="true" /> {event.title}
         </span>
       }
-      actions={
-        <Button small variant="secondary" onClick={props.onClose}>
-          Fermer
-        </Button>
-      }
+      actions={<SheetClose onClose={props.onClose} />}
     >
       {!occurrence ? (
         // v0.36.0: every field editable in place; « Annuler » writes the previous values back.
