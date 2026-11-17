@@ -15,6 +15,7 @@ import {
   UndoToast,
   useApi,
   useModule,
+  useModuleNames,
 } from '@hub/sdk/frontend';
 import { addDays, dayLabel, mondayOf } from '../shared/time';
 import type { AgendaEventDto, RangeDto } from '../shared/types';
@@ -42,6 +43,7 @@ import { TitleBanner } from './TitleBanner';
 import { Dock, useDocked } from './Dock';
 import { SourcesPanel } from './Sources';
 import { CategoriesPanel } from './Categories';
+import { useAgendaMenus } from './Menus';
 import { MonthView, monthGrid, monthTitle } from './MonthView';
 import { QuickBar } from './QuickBar';
 import { CategorySwitches, WeekView, type Drop } from './WeekView';
@@ -193,6 +195,16 @@ function AgendaPage() {
     }
     reload();
   };
+  // v0.42.0: the right-click / long-press menu of the blocks (SDK, ADR 0048).
+  const toolName = useModuleNames();
+  const menus = useAgendaMenus({
+    data: data ?? null,
+    timer: toolName('timer') !== null,
+    onOpen: (item) => open(item),
+    onOpenTask: (t) => openToPlace(t),
+    onChanged: changed,
+    onError: (message) => setNotice({ message, run: null }),
+  });
   const openToPlace = (t: { id: string; title: string }) =>
     setSelectedTask({ id: t.id, title: t.title, category: 'Tâches' });
 
@@ -418,6 +430,7 @@ function AgendaPage() {
             onDrop={phone ? undefined : drop}
             onOpenTask={openToPlace}
             onCreate={create}
+            menu={menus.bind}
           />
         )}
         {data && view === 'day' && (
@@ -429,6 +442,7 @@ function AgendaPage() {
             onOpen={open}
             onOpenTask={openToPlace}
             onCreate={create}
+            menu={menus.bind}
           />
         )}
         {data && view === 'month' && (
@@ -447,6 +461,7 @@ function AgendaPage() {
           <WeekTypeView weekly={data.weekly} today={data.today} onChanged={changed} />
         )}
       </div>
+      {menus.node}
     </Page>
   );
 }

@@ -72,7 +72,14 @@ export function NavigationProvider(props: { children: ReactNode }) {
         .map(toTool),
     [modules],
   );
-  const sidebar = useMemo(() => buildNavigation(sidebarTools, layout), [sidebarTools, layout]);
+  // v0.42.0: the tools hidden from the bar are left out of it (not of the home page).
+  const sidebar = useMemo(() => {
+    const hidden = new Set(layout.hidden ?? []);
+    return buildNavigation(
+      sidebarTools.filter((t) => !hidden.has(t.id)),
+      layout,
+    );
+  }, [sidebarTools, layout]);
   const home = useMemo(() => buildNavigation(homeTools, layout), [homeTools, layout]);
 
   const change = useCallback<NavigationState['change']>(

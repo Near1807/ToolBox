@@ -10,6 +10,7 @@ import { Icon } from '@hub/sdk/frontend';
 import { isLate, localNow, untilText } from '../shared/deadline';
 import type { AgendaEventDto } from '../shared/types';
 import { colorStyle, type Item } from './common';
+import type { BindMenu } from './Menus';
 
 const ROW_KEY = 'toolbox.agenda.deadlinesRow';
 
@@ -52,7 +53,7 @@ export function DeadlineLine(props: {
   item: Item & { source: 'own' };
   top: number;
   onOpen: (item: Item) => void;
-  bind?: Record<string, unknown>;
+  bind?: object;
 }) {
   const e = props.item.event;
   return (
@@ -79,7 +80,7 @@ export function DeadlineBand(props: {
   item: Item & { source: 'own' };
   onOpen: (item: Item) => void;
   style?: React.CSSProperties;
-  bind?: Record<string, unknown>;
+  bind?: object;
 }) {
   const e = props.item.event;
   return (
@@ -102,6 +103,8 @@ export function DeadlinesRow(props: {
   shown: boolean;
   onToggle: () => void;
   onOpen: (event: AgendaEventDto) => void;
+  /** v0.42.0: the right-click / long-press menu. */
+  menu?: BindMenu;
 }) {
   if (!props.deadlines.length) return null;
   const now = localNow();
@@ -127,6 +130,7 @@ export function DeadlinesRow(props: {
             className={`${deadlineClass(d, now)} ag-deadline--chip`}
             style={colorStyle(d.category)}
             onClick={() => props.onOpen(d)}
+            {...props.menu?.({ kind: 'item', item: { source: 'own', event: d } })}
           >
             <Icon name="circle-alert" /> <strong>{d.title}</strong>{' '}
             <span className="small">{untilText(d.start, now)}</span>

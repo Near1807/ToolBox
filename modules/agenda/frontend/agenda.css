@@ -1145,3 +1145,22 @@
   font-size: 0.85rem;
   padding: 0.15rem 0.45rem;
 }
+
+/* v0.42.0: the small dialogs of the menu (colour of a category, new category). */
+.ag-dialog {
+  position: fixed;
+  z-index: 1050;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(420px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  display: grid;
+  gap: 0.5rem;
+  padding: 1rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface-solid);
+  box-shadow: var(--elev-popover);
+}

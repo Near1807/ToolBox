@@ -26,7 +26,7 @@ import { Icon, type IconName } from './icons';
 export interface MenuAction {
   label: string;
   icon?: IconName;
-  /** Shown on the right (« Suppr », « Ctrl+D »): the shortcut that does the same elsewhere. */
+  /** Shown on the right (« Entrée »): the shortcut that does the same elsewhere. */
   shortcut?: string;
   /** Disabled: `true`, or the reason, shown to the user (« Déjà faite »). */
   disabled?: boolean | string;

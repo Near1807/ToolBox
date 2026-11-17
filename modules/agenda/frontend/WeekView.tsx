@@ -43,6 +43,7 @@ import {
   isDeadlineItem,
 } from './common';
 import { DeadlineBand, DeadlineLine, DeadlinesRow, useDeadlinesRow } from './Deadlines';
+import type { BindMenu } from './Menus';
 
 const HOUR_PX = 44;
 
@@ -174,6 +175,8 @@ export function ToPlace(props: {
   onOpenTask?: (task: ToPlaceDto) => void;
   /** v0.41.0 (PC): the preview on hover. */
   hover?: Hover;
+  /** v0.42.0: the right-click / long-press menu. */
+  menu?: BindMenu;
 }) {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -204,6 +207,7 @@ export function ToPlace(props: {
         }}
         {...props.hover?.bind({ kind: 'task', task: t, draggable: Boolean(props.dragProps) })}
         {...withHide(props.dragProps?.(t), props.hover?.hide)}
+        {...props.menu?.({ kind: 'task', task: t })}
       >
         <span className="ag-task__title">{t.title}</span>
         <span className="small muted">
@@ -326,6 +330,8 @@ export function Block(props: {
   hover?: Hover;
   /** v0.41.0: the day the preview counts from (« demain »…); the aria-label is written with it. */
   today?: string;
+  /** v0.42.0: the right-click / long-press menu. */
+  menu?: BindMenu;
 }) {
   const { item } = props;
   const e = item.event;
@@ -381,6 +387,7 @@ export function Block(props: {
         }}
         {...props.hover?.bind({ kind: 'item', item, overlaps: props.overlaps, movable: canMove })}
         {...withHide(props.drag?.('move'), props.hover?.hide)}
+        {...props.menu?.({ kind: 'item', item })}
       >
         {short ? (
           <>
@@ -432,6 +439,8 @@ export function WeekView(props: {
   onOpenTask?: (task: ToPlaceDto) => void;
   /** v0.36.0: create in an empty slot (« Tâche » or « Rendez-vous »), one write after the choice. */
   onCreate?: (kind: SlotKind, title: string, span: Span, category?: string) => Promise<void>;
+  /** v0.42.0: the right-click / long-press menu of its elements. */
+  menu?: BindMenu;
 }) {
   const { data, monday } = props;
   const days = Array.from({ length: 7 }, (_, i) => addDays(monday, i));
@@ -631,6 +640,7 @@ export function WeekView(props: {
           wasDrag={wasDrag}
           onOpenTask={props.onOpenTask}
           hover={hover}
+          menu={props.menu}
         />
       )}
       <DeadlinesRow
@@ -638,6 +648,7 @@ export function WeekView(props: {
         shown={rowState.shown}
         onToggle={rowState.toggle}
         onOpen={(event) => props.onOpen({ source: 'own', event })}
+        menu={props.menu}
       />
       <div
         className={`ag-week${drag?.moved ? ' ag-week--dragging' : ''}`}
@@ -672,6 +683,7 @@ export function WeekView(props: {
                 onClick={() => props.onOpen(i)}
                 {...hover?.bind({ kind: 'item', item: i })}
                 onPointerDown={hover?.hide}
+                {...props.menu?.({ kind: 'item', item: i })}
               >
                 {i.event.start.slice(0, 10) < monday && '← '}
                 {i.event.title}
@@ -687,7 +699,10 @@ export function WeekView(props: {
               style={{
                 gridColumn: `${daysBetween(monday, i.event.start.slice(0, 10)) + 1} / span 1`,
               }}
-              bind={hover?.bind({ kind: 'item', item: i })}
+              bind={{
+                ...hover?.bind({ kind: 'item', item: i }),
+                ...props.menu?.({ kind: 'item', item: i }),
+              }}
             />
           ))}
         </div>
@@ -754,6 +769,7 @@ export function WeekView(props: {
                     running={timerRuns(data, item)}
                     hover={hover}
                     today={data.today}
+                    menu={props.menu}
                   />
                 );
               })}
@@ -770,7 +786,10 @@ export function WeekView(props: {
                       item={i}
                       top={((at - range.startHour * 60) / 60) * HOUR_PX}
                       onOpen={props.onOpen}
-                      bind={hover?.bind({ kind: 'item', item: i })}
+                      bind={{
+                        ...hover?.bind({ kind: 'item', item: i }),
+                        ...props.menu?.({ kind: 'item', item: i }),
+                      }}
                     />
                   );
                 })}

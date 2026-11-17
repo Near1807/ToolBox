@@ -248,6 +248,16 @@ export function GuidePage() {
           reste comme avant.
         </p>
       </Card>
+      <Card title="Clic droit (Expérimental)">
+        <p>
+          <strong>Clic droit</strong> sur un bloc (sur le téléphone : <strong>appui long</strong>,
+          au clavier : touche Menu ou Maj+F10) : les actions de sa fiche, sans l’ouvrir — Ouvrir la
+          fiche, Facultatif, Faite, Lancer le timer…, Changer de catégorie, Couleur de cette
+          catégorie…, Supprimer (toujours une question avant). Chaque changement a son « Annuler ».
+          Un élément d’un autre outil : « Ouvrir dans son outil » seulement. Échap, un clic ailleurs
+          ou un défilement ferme le menu.
+        </p>
+      </Card>
       <Card title="Deadlines (Expérimental)">
         <p>
           Une <strong>deadline</strong> est un moment, pas un bloc : une date et, si tu veux, une

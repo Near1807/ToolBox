@@ -645,6 +645,7 @@ const menu = useContextMenu();
 ```
 
 - Éléments (`MenuItem`) : `{ label, icon?, shortcut?, disabled?: true | 'raison', onSelect }`, `{ separator: true }`, `{ title }`, `{ label, submenu: [...] }` (un seul niveau), et une action dangereuse `{ ..., danger: true, confirm: 'Supprimer « … » ?' }` : la question est toujours posée avant.
+- `shortcut` : seulement un raccourci qui fait vraiment la même chose ailleurs (jamais un raccourci inventé pour le menu).
 - Les éléments sont construits à l'ouverture (toujours à jour) ; `cleanItems` retire les séparateurs en trop ; un menu vide ne s'ouvre pas (le menu du navigateur reste).
 - **Seulement des actions qui existent déjà ailleurs** dans l'interface ; une action qui modifie reste visible et annulable comme ailleurs (son « Annuler ») ; une dangereuse garde sa confirmation. Pas d'action « en douce ».
 - Si l'élément a ses propres gestionnaires (glisser, clavier), les fusionner avec `mergeHandlers(own, menu.bind(...))`.

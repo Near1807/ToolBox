@@ -124,6 +124,17 @@ Forme « deadline » d'une catégorie : la catégorie fixe **« Deadline »** (r
 - Ligne **« Deadlines »** en haut de la semaine (et du jour) : celles pas faites de la semaine affichée et des 7 jours suivants, et celles en retard (60 jours au plus), triées, avec le temps restant (« dans 2 jours », « aujourd'hui 23:59 », « en retard de 1 jour ») ; clic = la fiche ; se masque comme un interrupteur (local à l'appareil). `RangeDto.deadlines`, `shared/deadline.ts` (`untilText`, pur).
 - Aperçu et fiche : temps restant, faite ou non. La couleur se change, la forme reste. Aucune notification (proposé dans la feuille de route, désactivé par défaut).
 
+## Clic droit (v0.42.0, Expérimental, ADR 0048)
+
+Menu commun du SDK (`useContextMenu`, MODULES.md §7.7) sur les blocs de la semaine (PC), la liste du jour (téléphone : appui long), « À caser », les deadlines (trait, bande, ligne « Deadlines »). `frontend/Menus.tsx`, `agendaMenuItems` (pur, testé) : seulement les actions déjà possibles dans la fiche.
+
+- Événement : Ouvrir la fiche, Facultatif / Obligatoire, Lancer le timer…, Changer de catégorie (sous-menu, « Nouvelle catégorie… »), Couleur de cette catégorie…, Supprimer (question, puis « Annuler »).
+- Deadline : Ouvrir la fiche, Faite / À refaire, Changer de catégorie, Couleur…, Supprimer.
+- Occurrence de la semaine type : Ouvrir la fiche, Lancer le timer…, Couleur… (le reste se fait dans la fiche ou la semaine type).
+- Tâche prévue / à caser : Ouvrir la fiche, Faite / À refaire, Lancer le timer…, Couleur de « Tâches »… (prévue).
+- Élément d'un autre outil : « Ouvrir dans son outil » seulement.
+- « Lancer le timer… » ouvre la fiche, où le Timer prête son bouton (l'Agenda n'appelle jamais le Timer lui-même) ; désactivé avec sa raison sans le Timer. Chaque écriture a son « Annuler ».
+
 ## Importer un calendrier (v0.37.0, ADR 0047 ; tableau CSV / Excel encore Expérimental)
 
 Agenda › **Importer** (sur le PC ; le lien n'est pas montré sur le téléphone, qui reçoit les événements par la synchro). Le fichier est lu sur le PC, rien ne part en ligne.

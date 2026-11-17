@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type DragEvent } from 'react';
-import { Icon, type MenuItem, useContextMenu } from '@hub/sdk/frontend';
-import { NavLink } from 'react-router';
+import { Icon, type MenuItem, UndoToast, useContextMenu } from '@hub/sdk/frontend';
+import { NavLink, useNavigate } from 'react-router';
 import {
   Activity,
   ChevronDown,
@@ -21,12 +21,14 @@ import {
   createCategory,
   deleteCategory,
   filterNavigation,
+  hideTool,
   moveCategory,
   moveTool,
   newCategoryId,
   renameCategory,
   setCollapsed,
   shiftTool,
+  showTool,
   type NavCategory,
 } from './navigation';
 import { FullscreenButton } from './WindowControls';
@@ -87,6 +89,9 @@ export function Sidebar(props: { fullscreen: boolean }) {
 
   // v0.42.0: the shared context menu (SDK, ADR 0048): right click, Menu key / Shift+F10.
   const menu = useContextMenu();
+  const navigate = useNavigate();
+  /** v0.42.0: the tool just hidden (« Annuler » shows it again). */
+  const [hidden, setHidden] = useState<NavModule | null>(null);
   const categoryItems = (category: NavCategory<NavModule>, index: number): MenuItem[] => [
     { title: category.name },
     { label: 'Renommer', icon: 'pencil', onSelect: () => setRenaming(category.id) },
@@ -115,6 +120,8 @@ export function Sidebar(props: { fullscreen: boolean }) {
     const index = category.tools.findIndex((t) => t.id === tool.id);
     return [
       { title: tool.name },
+      { label: 'Ouvrir', icon: 'external-link', onSelect: () => navigate(`/m/${tool.id}`) },
+      { separator: true },
       {
         label: 'Monter',
         icon: 'arrow-up',
@@ -159,6 +166,20 @@ export function Sidebar(props: { fullscreen: boolean }) {
             },
           },
         ],
+      },
+      { separator: true },
+      {
+        label: 'Masquer de la barre',
+        icon: 'eye-off',
+        onSelect: () => {
+          change((l, n) => hideTool(l, n, tool.id));
+          setHidden(tool);
+        },
+      },
+      {
+        label: 'Réglages de l’outil',
+        icon: 'settings',
+        onSelect: () => navigate(`/settings?s=${encodeURIComponent(tool.id)}`),
       },
     ];
   };
@@ -377,6 +398,13 @@ export function Sidebar(props: { fullscreen: boolean }) {
       </div>
 
       {menu.node}
+      {hidden && (
+        <UndoToast
+          message={`« ${hidden.name} » masqué de la barre (Réglages › Modules pour l’afficher)`}
+          onUndo={() => change((l) => showTool(l, hidden.id))}
+          onDismiss={() => setHidden(null)}
+        />
+      )}
     </nav>
   );
 }
