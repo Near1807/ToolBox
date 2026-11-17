@@ -36,6 +36,7 @@ import {
   type NavCategory,
 } from './navigation';
 import { FullscreenButton } from './WindowControls';
+import { SyncWitness } from './SyncWitness';
 import { QUICK_ADD_EVENT, useQuickAddShortcut } from './QuickAdd';
 
 const TOOL_TYPE = 'application/x-toolbox-tool';
@@ -384,6 +385,7 @@ export function Sidebar(props: { fullscreen: boolean }) {
           <Settings size={16} />
           <span className="nav-link__label">Réglages</span>
         </NavLink>
+        <SyncWitness />
         <FullscreenButton fullscreen={props.fullscreen} />
       </div>
 

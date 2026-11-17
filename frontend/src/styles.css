@@ -2196,3 +2196,106 @@ input[type='range'] {
   cursor: pointer;
   display: grid;
 }
+
+/* v0.41.0: tabs (SDK Tabs), the same on the PC and the phone. */
+.ui-tabs {
+  display: inline-flex;
+  max-width: 100%;
+  margin: 0 0 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.ui-tab {
+  min-height: 34px;
+  padding: 0.35rem 0.9rem;
+  border: none;
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ui-tab + .ui-tab {
+  border-left: 1px solid var(--border);
+}
+.ui-tab--on {
+  background: var(--accent-soft);
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* v0.41.0: the PC's synchronisation witness (side bar) and « Réseaux et adresses ». */
+.sync-witness__dot {
+  width: 8px;
+  height: 8px;
+  margin-left: auto;
+  flex: none;
+  border-radius: 50%;
+  background: var(--text-3);
+}
+.sync-witness--synced .sync-witness__dot {
+  background: var(--success);
+}
+.sync-witness--waiting .sync-witness__dot {
+  background: var(--accent);
+}
+.sync-witness--blocked {
+  color: var(--warning);
+}
+.sync-witness--blocked .sync-witness__dot {
+  background: var(--warning);
+}
+.sync-networks {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sync-networks > li + li {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.sync-network p {
+  margin: 4px 0 0;
+}
+.sync-network__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.sync-network__fail {
+  color: var(--warning);
+}
+.sync-attempts {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.85rem;
+}
+.sync-attempt {
+  display: grid;
+  grid-template-columns: 8.5em minmax(6em, 12em) 1fr;
+  gap: 8px;
+  padding: 3px 0;
+  border-bottom: 1px solid var(--border);
+}
+.sync-attempt__when {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+}
+.sync-attempt__where {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sync-attempt--fail .sync-attempt__what {
+  color: var(--warning);
+}
+@media (max-width: 520px) {
+  .sync-attempt {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+}

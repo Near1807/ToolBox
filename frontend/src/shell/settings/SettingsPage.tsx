@@ -18,7 +18,7 @@ import { useModules } from '../../modules/ModulesContext';
 import { formatDateTime, formatSize } from '../format';
 import { useNavigation } from '../NavigationContext';
 import { AppearanceCard } from './AppearanceCard';
-import { SyncCard } from './SyncCard';
+import { SyncSection } from './SyncCard';
 import { SettingsForm, type SettingsSectionData } from './SettingsForm';
 
 const STATUS_LABELS = {
@@ -532,6 +532,11 @@ export function SettingsPage() {
       group: GENERAL_GROUP,
       entries: [
         { key: 'sync', label: 'Synchro avec le téléphone', description: 'appairage, conflits' },
+        {
+          key: 'sync-networks',
+          label: 'Réseaux et adresses',
+          description: 'réseau Privé / Public, réseaux connus, derniers essais',
+        },
       ],
     },
     {
@@ -668,7 +673,7 @@ export function SettingsPage() {
           {current.id === 'accounts' && (
             <AccountsCard section={accountSection} onSaved={settings.reload} />
           )}
-          {current.id === 'sync' && <SyncCard />}
+          {current.id === 'sync' && <SyncSection />}
           {current.id === 'modules' && <ModulesCard />}
           {current.id === 'backups' && <BackupsCard />}
           {current.id === 'about' && <AboutCard />}

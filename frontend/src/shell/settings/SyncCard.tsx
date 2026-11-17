@@ -6,7 +6,8 @@
 // conflicts (value kept, value set aside), with « Fusionner » for two names.
 import { useEffect, useState } from 'react';
 import qrcode from 'qrcode-generator';
-import { api, Button, Card, errorMessage, useApi } from '@hub/sdk/frontend';
+import { api, Button, Card, errorMessage, Tabs, useApi } from '@hub/sdk/frontend';
+import { NetworksCard } from './NetworksCard';
 
 interface Status {
   enabled: boolean;
@@ -148,6 +149,29 @@ function Conflicts(props: { status: Status; onChange: () => void }) {
           ))}
         </ul>
       )}
+    </>
+  );
+}
+
+/** v0.41.0: the section in two tabs: « Synchro » and « Réseaux et adresses ». */
+export function SyncSection() {
+  const [tab, setTab] = useState<'sync' | 'networks'>(() =>
+    new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('tab') === 'networks'
+      ? 'networks'
+      : 'sync',
+  );
+  return (
+    <>
+      <Tabs
+        label="Synchro avec le téléphone"
+        tabs={[
+          { id: 'sync', label: 'Synchro' },
+          { id: 'networks', label: 'Réseaux et adresses' },
+        ]}
+        value={tab}
+        onChange={setTab}
+      />
+      {tab === 'sync' ? <SyncCard /> : <NetworksCard />}
     </>
   );
 }

@@ -24,15 +24,57 @@ import { encodeAddress, encodePairing, pinOf } from './pairing-code';
 import { mdnsAnnouncer, type Announcer } from './announce';
 import { SyncFiles, type FileChunk, type FileRef } from './files';
 import {
+  cleanLabel,
+  type KnownNetwork,
+  pcWitness,
+  pendingFailure,
+  type SyncAttempt,
+  type Witness,
+  withAttempt,
+  withNetworkAttempt,
+} from './diagnostics';
+import {
+  allPublic,
+  localInterfaces,
+  type NetworkProfile,
+  type PcNetwork,
+  pcNetworks,
+  readWindowsProfiles,
+} from './network';
+import {
   serveExchange,
   serveFirst,
   versionMessage,
   VersionMismatch,
+  versionVerdict,
   type ExchangeRequest,
   type FirstRequest,
 } from './protocol';
 
 export const DEFAULT_SYNC_PORT = 47400;
+/** v0.41.0: emitted on the hub's bus when the witness may have changed (the page and the witness read it again). */
+export const SYNC_CHANGED_EVENT = 'core:sync.changed';
+/** How often the PC looks whether its network changed, while it listens (local, no traffic). */
+const NETWORK_WATCH_MS = 60_000;
+
+/** v0.41.0: « Réseaux et adresses » of the PC (read only). */
+export interface SyncNetworks {
+  enabled: boolean;
+  listening: boolean;
+  announced: boolean;
+  port: number;
+  /** The PC's local addresses, with the network's name and Windows profile when known. */
+  current: PcNetwork[];
+  /** Every local network is « Public » (Windows blocks the listener). */
+  publicNetwork: boolean;
+  /** The networks where an exchange was tried (named by Thomas). */
+  known: KnownNetwork[];
+  /** The last 50 attempts, newest first. */
+  attempts: SyncAttempt[];
+}
+
+/** The PC's own address of a request (« ::ffff:192.168.1.5 » → « 192.168.1.5 »). */
+const localOf = (address: string | undefined) => (address ?? '').replace(/^::ffff:/, '');
 const PAIRING_MINUTES = 10;
 const PAIRING_TRIES = 5;
 
@@ -101,7 +143,167 @@ export class SyncServer {
     private readonly addresses: () => string[] = localAddresses,
     /** The announcement on the local network (mDNS; the tests give their own). */
     private readonly announcer: Announcer | null = mdnsAnnouncer,
+    /** v0.41.0: the PC's networks, read only (the tests give their own). */
+    private readonly network: {
+      interfaces: () => { alias: string; address: string }[];
+      profiles: () => Promise<NetworkProfile[]>;
+    } = { interfaces: localInterfaces, profiles: readWindowsProfiles },
   ) {}
+
+  /** v0.41.0: the Windows profiles last read (empty: unknown), and what the interfaces were then. */
+  private profiles: NetworkProfile[] = [];
+  private interfacesSeen = '';
+  private networkTimer: ReturnType<typeof setInterval> | null = null;
+
+  /** Something the witness shows changed: the page and the witness read it again. */
+  private changed() {
+    this.hub.bus.emit(SYNC_CHANGED_EVENT);
+  }
+
+  private readJson<T>(key: string, fallback: T): T {
+    const v = this.meta(key);
+    if (!v) return fallback;
+    try {
+      return JSON.parse(v) as T;
+    } catch {
+      return fallback;
+    }
+  }
+  /** The last 50 attempts (local to the PC, never synchronised). */
+  attempts(): SyncAttempt[] {
+    return this.readJson<SyncAttempt[]>('attempts', []);
+  }
+  /** The networks where an exchange was tried, with the names Thomas gave them. */
+  knownNetworks(): KnownNetwork[] {
+    return this.readJson<KnownNetwork[]>('networks', []);
+  }
+
+  /** The networks the PC is on now (the profiles last read). */
+  currentNetworks(): PcNetwork[] {
+    return pcNetworks(this.network.interfaces(), this.profiles);
+  }
+
+  /** Reads the Windows profiles again (read only: the page's opening, a change of network). */
+  async refreshNetwork(): Promise<PcNetwork[]> {
+    this.profiles = await this.network.profiles();
+    this.interfacesSeen = JSON.stringify(this.network.interfaces());
+    this.changed();
+    return this.currentNetworks();
+  }
+
+  /** While listening: the interfaces looked at now and then; a change reads the profiles again. */
+  private watchNetwork() {
+    if (this.networkTimer) return;
+    this.networkTimer = setInterval(() => {
+      const now = JSON.stringify(this.network.interfaces());
+      if (now !== this.interfacesSeen) void this.refreshNetwork();
+    }, NETWORK_WATCH_MS);
+    this.networkTimer.unref?.();
+  }
+
+  /** One attempt of a phone, recorded (the history of 50, the network's last success / failure). */
+  recordAttempt(a: { ok: boolean; reason: string | null; local: string; peer: string | null }) {
+    const at = new Date().toISOString();
+    const net = this.currentNetworks().find((n) => n.address === a.local);
+    const network = net?.name ?? null;
+    const attempt: SyncAttempt = {
+      at,
+      ok: a.ok,
+      where: network ?? (a.local || 'adresse inconnue'),
+      reason: a.ok ? null : a.reason,
+      peer: a.peer,
+    };
+    this.setMeta('attempts', JSON.stringify(withAttempt(this.attempts(), attempt)));
+    if (a.local)
+      this.setMeta(
+        'networks',
+        JSON.stringify(
+          withNetworkAttempt(this.knownNetworks(), { network, address: a.local }, attempt),
+        ),
+      );
+    this.changed();
+  }
+
+  /** « Réseaux et adresses » : a name given by Thomas (null: none). */
+  renameNetwork(key: string, label: unknown): KnownNetwork[] {
+    const list = this.knownNetworks();
+    if (!list.some((n) => n.key === key)) throw new SyncError('Réseau inconnu');
+    const next = list.map((n) => (n.key === key ? { ...n, label: cleanLabel(label) } : n));
+    this.setMeta('networks', JSON.stringify(next));
+    this.changed();
+    return next;
+  }
+
+  /** « Oublier » : the network leaves the list (never the pairing nor the data); returned for « Annuler ». */
+  forgetNetwork(key: string): KnownNetwork {
+    const list = this.knownNetworks();
+    const gone = list.find((n) => n.key === key);
+    if (!gone) throw new SyncError('Réseau inconnu');
+    this.setMeta('networks', JSON.stringify(list.filter((n) => n.key !== key)));
+    this.changed();
+    return gone;
+  }
+
+  /** « Annuler » after « Oublier » : the network back, as it was. */
+  restoreNetwork(entry: unknown): KnownNetwork[] {
+    const e = entry as KnownNetwork | null;
+    if (!e || typeof e.key !== 'string' || !/^(net|ip):/.test(e.key) || !Array.isArray(e.addresses))
+      throw new SyncError('Réseau invalide');
+    const list = this.knownNetworks().filter((n) => n.key !== e.key);
+    const next = [
+      ...list,
+      {
+        key: e.key,
+        label: cleanLabel(e.label),
+        network: typeof e.network === 'string' ? e.network : null,
+        addresses: e.addresses.filter((x) => typeof x === 'string').slice(0, 5),
+        firstOk: typeof e.firstOk === 'string' ? e.firstOk : null,
+        lastOk: typeof e.lastOk === 'string' ? e.lastOk : null,
+        lastFail:
+          e.lastFail && typeof e.lastFail.at === 'string' && typeof e.lastFail.reason === 'string'
+            ? { at: e.lastFail.at, reason: e.lastFail.reason }
+            : null,
+      },
+    ];
+    this.setMeta('networks', JSON.stringify(next));
+    this.changed();
+    return next;
+  }
+
+  /** « Réseaux et adresses » of the PC. */
+  networks(): SyncNetworks {
+    const current = this.currentNetworks();
+    return {
+      enabled: this.enabled,
+      listening: this.listening,
+      announced: this.announced,
+      port: this.port,
+      current,
+      publicNetwork: allPublic(current),
+      known: this.knownNetworks(),
+      attempts: this.attempts(),
+    };
+  }
+
+  /** The witness (Réglages, the side bar): read only. */
+  witness(now = Date.now()): Witness {
+    const peers = this.hub.handle.db
+      .prepare(
+        "SELECT name, last_sync_at FROM core__sync_peers WHERE revoked_at IS NULL AND role = 'phone' AND last_sync_at IS NOT NULL ORDER BY last_sync_at DESC LIMIT 1",
+      )
+      .get() as { name: string; last_sync_at: string } | undefined;
+    return pcWitness(
+      {
+        enabled: this.enabled,
+        error: this.error,
+        publicNetwork: this.listening && allPublic(this.currentNetworks()),
+        refusal: this.refusal,
+        failure: pendingFailure(this.attempts()),
+        lastOk: peers ? { at: peers.last_sync_at, peer: peers.name } : null,
+      },
+      now,
+    );
+  }
 
   /** Whether the PC is announced on the local network right now (mDNS). */
   get announced(): boolean {
@@ -220,6 +422,9 @@ export class SyncServer {
       this.hub.logger.info(`Synchro : écoute sur le réseau local, port ${this.port}`);
       this.openLive(app);
       this.announce();
+      this.watchTls(app);
+      this.watchNetwork();
+      void this.refreshNetwork();
     } catch (error) {
       this.error =
         (error as NodeJS.ErrnoException).code === 'EADDRINUSE'
@@ -227,6 +432,27 @@ export class SyncServer {
           : `L’écoute n’a pas pu démarrer : ${(error as Error).message}`;
       await app.close().catch(() => undefined);
     }
+    this.changed();
+  }
+
+  /**
+   * A connection whose TLS handshake failed (a phone that refused the PC's
+   * certificate, or something else than the app): one attempt « refusé »,
+   * at most one a minute.
+   */
+  private watchTls(app: FastifyInstance) {
+    let last = 0;
+    app.server.on('tlsClientError', (_error, socket) => {
+      if (Date.now() - last < 60_000) return;
+      last = Date.now();
+      this.recordAttempt({
+        ok: false,
+        reason:
+          'Connexion refusée : le certificat du PC n’a pas été accepté (téléphone appairé à un autre PC, ou autre appareil).',
+        local: localOf(socket.localAddress),
+        peer: null,
+      });
+    });
   }
 
   /** Announces the PC on the local network (only while listening). Never blocks the listener. */
@@ -325,6 +551,8 @@ export class SyncServer {
     const app = this.app;
     this.app = null;
     this.pairing = null;
+    if (this.networkTimer) clearInterval(this.networkTimer);
+    this.networkTimer = null;
     if (this.liveTimer) clearInterval(this.liveTimer);
     this.liveTimer = null;
     for (const entry of this.live) entry.socket.terminate();
@@ -335,6 +563,7 @@ export class SyncServer {
     this.unannounce = null;
     if (unannounce) await unannounce().catch(() => undefined);
     if (app) await app.close();
+    this.changed();
   }
 
   /** The PC's addresses for the phone (https://ip:port), best first. */
@@ -404,7 +633,43 @@ export class SyncServer {
 
   private routes(app: FastifyInstance) {
     const engine = () => this.hub.sync;
-    app.setErrorHandler((error: Error & { statusCode?: number }, _request, reply) => {
+    // v0.41.0: every synchronisation of a phone (first, exchange; a refusal at « hello » too)
+    // is one attempt in the history, with its network: done, or why not.
+    const failures = new WeakMap<object, string>();
+    const peers = new WeakMap<object, string>();
+    const ATTEMPTS = new Set(['/sync/exchange', '/sync/first', '/sync/hello']);
+    app.addHook('onResponse', async (request, reply) => {
+      const route = request.routeOptions.url ?? '';
+      if (!ATTEMPTS.has(route)) return;
+      const ok = reply.statusCode < 400;
+      // « hello » alone is not a synchronisation; its refusal is (unknown device, versions).
+      if (ok && route === '/sync/hello') return;
+      if (
+        ok &&
+        route === '/sync/first' &&
+        (request.body as FirstRequest | undefined)?.mode === 'preview'
+      )
+        return;
+      const peer = peers.get(request) ?? null;
+      const name = peer
+        ? ((
+            this.hub.handle.db
+              .prepare('SELECT name FROM core__sync_peers WHERE device_id = ?')
+              .get(peer) as { name: string } | undefined
+          )?.name ?? null)
+        : null;
+      this.recordAttempt({
+        ok,
+        reason: ok ? null : (failures.get(request) ?? `Erreur ${reply.statusCode}`),
+        local: localOf(request.socket.localAddress),
+        peer: name,
+      });
+    });
+    app.setErrorHandler((error: Error & { statusCode?: number }, request, reply) => {
+      failures.set(
+        request,
+        error instanceof VersionMismatch ? versionMessage(error.verdict, 'pc') : error.message,
+      );
       if (error instanceof VersionMismatch) {
         this.refusal = versionMessage(error.verdict, 'pc');
         return reply
@@ -422,6 +687,7 @@ export class SyncServer {
     });
     const auth = (request: { headers: Record<string, unknown> }) => {
       const peer = this.peerOf(request.headers.authorization as string | undefined);
+      if (peer) peers.set(request, peer);
       if (!peer) {
         const e = new Error('Appareil inconnu ou oublié : appaire-le de nouveau.') as Error & {
           statusCode: number;
@@ -488,6 +754,13 @@ export class SyncServer {
 
     app.post<{ Body: { versions?: Record<string, number> } }>('/sync/hello', async (request) => {
       const peer = auth(request);
+      // v0.41.0: the phone gives its versions: different, the PC says so here too (its witness).
+      const theirs = request.body?.versions;
+      if (theirs && typeof theirs === 'object') {
+        const verdict = versionVerdict(engine().versions(), theirs);
+        if (verdict !== 'same')
+          throw new VersionMismatch(verdict, engine().versions(), theirs, 'pc');
+      }
       const row = this.hub.handle.db
         .prepare('SELECT first_sync_at FROM core__sync_peers WHERE device_id = ?')
         .get(peer) as { first_sync_at: string | null };

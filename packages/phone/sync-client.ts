@@ -18,6 +18,7 @@ import {
   type FirstResponse,
 } from '../../backend/core/sync/protocol';
 import { FILE_CHUNK, SyncFiles, type FileChunk, type FileRef } from '../../backend/core/sync/files';
+import { cleanLabel, type SyncAttempt, withAttempt } from '../../backend/core/sync/diagnostics';
 import type { PhoneHub } from './host';
 
 export interface PcPeer {
@@ -71,7 +72,29 @@ export type SyncWorkerCall =
   | { op: 'fileWrite'; ref: FileRef; chunk: FileChunk }
   | { op: 'conflicts' }
   | { op: 'dismiss'; id: string }
-  | { op: 'merge'; id: string };
+  | { op: 'merge'; id: string }
+  // v0.41.0: « Réseaux et adresses » (local to this phone, never synchronised).
+  | { op: 'attempt'; ok: boolean; reason: string | null; url: string | null }
+  | { op: 'diagnostics' }
+  | { op: 'labelAddress'; url: string; label: string | null }
+  | { op: 'forgetAddress'; url: string }
+  | { op: 'restoreAddress'; address: AddressInfo };
+
+/** v0.41.0: what the phone keeps of an address besides the table (its name, first success, last failure). */
+interface AddressNote {
+  label: string | null;
+  firstOk: string | null;
+  lastFail: { at: string; reason: string } | null;
+}
+
+/** An address of the PC, as « Réseaux et adresses » shows it on the phone. */
+export interface AddressInfo extends KnownAddress, AddressNote {}
+
+/** The phone's « Réseaux et adresses » : the PC's addresses it knows, and its last 50 attempts. */
+export interface PhoneDiagnostics {
+  addresses: AddressInfo[];
+  attempts: SyncAttempt[];
+}
 
 const phoneFiles = new WeakMap<PhoneHub, SyncFiles>();
 
@@ -123,7 +146,90 @@ export async function syncWorkerCall(hub: PhoneHub, call: SyncWorkerCall): Promi
     );
     db.prepare("UPDATE core__sync_peers SET url = ? WHERE role = 'pc'").run(url);
   };
+  // v0.41.0: local notes (core__meta, JSON), never synchronised; added only.
+  const readMeta = <T>(key: string, fallback: T): T => {
+    const row = db.prepare('SELECT value FROM core__meta WHERE key = ?').get(key) as
+      { value: string } | undefined;
+    if (!row) return fallback;
+    try {
+      return JSON.parse(row.value) as T;
+    } catch {
+      return fallback;
+    }
+  };
+  const writeMeta = (key: string, value: unknown) =>
+    db
+      .prepare(
+        'INSERT INTO core__meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value',
+      )
+      .run(key, JSON.stringify(value));
+  const notes = () => readMeta<Record<string, AddressNote>>('sync.addressNotes', {});
+  const note = (url: string): AddressNote =>
+    notes()[url] ?? { label: null, firstOk: null, lastFail: null };
+  const setNote = (url: string, change: Partial<AddressNote>) =>
+    writeMeta('sync.addressNotes', { ...notes(), [url]: { ...note(url), ...change } });
+  /** « 192.168.1.20:47400 », or its name. */
+  const whereOf = (url: string | null) => {
+    if (!url) return 'PC introuvable';
+    return note(url).label ?? url.replace(/^https:\/\//, '');
+  };
   switch (call.op) {
+    case 'attempt': {
+      const at = now();
+      const attempt: SyncAttempt = {
+        at,
+        ok: call.ok,
+        where: whereOf(call.url),
+        reason: call.ok ? null : (call.reason ?? 'Erreur inconnue'),
+      };
+      writeMeta(
+        'sync.attempts',
+        withAttempt(readMeta<SyncAttempt[]>('sync.attempts', []), attempt),
+      );
+      if (call.url)
+        setNote(
+          call.url,
+          call.ok
+            ? { firstOk: note(call.url).firstOk ?? at }
+            : { lastFail: { at, reason: attempt.reason! } },
+        );
+      return null;
+    }
+    case 'diagnostics': {
+      const p = peer();
+      return {
+        addresses: p ? addresses(p.device_id).map((a) => ({ ...a, ...note(a.url) })) : [],
+        attempts: readMeta<SyncAttempt[]>('sync.attempts', []),
+      } satisfies PhoneDiagnostics;
+    }
+    case 'labelAddress':
+      setNote(call.url, { label: cleanLabel(call.label) });
+      return null;
+    case 'forgetAddress': {
+      // Only the address (never the pairing nor the data); given back for « Annuler ».
+      const p = pc();
+      const row = addresses(p.device_id).find((a) => a.url === call.url);
+      if (!row) return null;
+      db.prepare('DELETE FROM core__sync_addresses WHERE peer = ? AND url = ?').run(
+        p.device_id,
+        call.url,
+      );
+      return { ...row, ...note(call.url) } satisfies AddressInfo;
+    }
+    case 'restoreAddress': {
+      const p = pc();
+      const a = call.address;
+      if (!/^https:\/\/\d{1,3}(\.\d{1,3}){3}:\d{1,5}$/.test(a.url)) return null;
+      db.prepare(
+        'INSERT INTO core__sync_addresses (peer, url, source, added_at, last_ok_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT (peer, url) DO NOTHING',
+      ).run(p.device_id, a.url, String(a.source), String(a.added_at), a.last_ok_at ?? null);
+      setNote(a.url, {
+        label: cleanLabel(a.label),
+        firstOk: a.firstOk ?? null,
+        lastFail: a.lastFail ?? null,
+      });
+      return null;
+    }
     case 'state':
       return {
         device: engine.device,
@@ -375,6 +481,10 @@ export class PhoneSync {
     if (!state) throw new SyncFailure('Ce téléphone n’est appairé à aucun PC.', 'auth');
     const token = (await this.worker<string | null>({ op: 'token' })) ?? undefined;
     const known = await this.worker<KnownAddress[]>({ op: 'addresses' });
+    // v0.41.0: the versions travel with « hello »: different, the PC knows it too (its witness).
+    const helloBody = JSON.stringify({
+      versions: await this.worker<Record<string, number>>({ op: 'versions' }),
+    });
     const tried: string[] = [];
     const wrong: string[] = [];
     const attempt = async (
@@ -389,7 +499,7 @@ export class PhoneSync {
         for (const url of fresh)
           this.http({
             url: `${url}/sync/hello`,
-            body: '{}',
+            body: helloBody,
             pin: state.pin,
             token,
             connectTimeout: PROBE_TIMEOUT,
@@ -512,6 +622,13 @@ export class PhoneSync {
     mode: 'merge' | 'replace',
     copyFirst: () => Promise<void>,
   ): Promise<{ conflicts: number; files: FilesResult }> {
+    return this.recorded(() => this.firstSync(mode, copyFirst));
+  }
+
+  private async firstSync(
+    mode: 'merge' | 'replace',
+    copyFirst: () => Promise<void>,
+  ): Promise<{ conflicts: number; files: FilesResult }> {
     await this.hello();
     await copyFirst();
     const versions = await this.worker<Record<string, number>>({ op: 'versions' });
@@ -596,8 +713,27 @@ export class PhoneSync {
     return result;
   }
 
+  /** v0.41.0: one attempt in the phone's history (done, or why not), with the address used. */
+  private async recorded<T>(task: () => Promise<T>): Promise<T> {
+    try {
+      const result = await task();
+      await this.worker({ op: 'attempt', ok: true, reason: null, url: this.url }).catch(
+        () => undefined,
+      );
+      return result;
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      await this.worker({ op: 'attempt', ok: false, reason, url: this.url }).catch(() => undefined);
+      throw error;
+    }
+  }
+
   /** « Synchroniser » : both ways, the data then the files. */
   async now(): Promise<ExchangeResult & { files: FilesResult; scopes: string[] }> {
+    return this.recorded(() => this.exchange());
+  }
+
+  private async exchange(): Promise<ExchangeResult & { files: FilesResult; scopes: string[] }> {
     const { firstDone } = await this.hello();
     if (!firstDone)
       throw new SyncFailure('Fais d’abord la première synchro (avec son aperçu).', 'first');
