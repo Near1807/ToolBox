@@ -4,6 +4,28 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.42.0] — 2026-11-17
+
+Agenda : catégories gérées par Thomas et forme « Deadline » ; menu contextuel commun (clic droit, clavier, appui long) ; deux retouches de Courses sur le téléphone. Migration 6 de l'Agenda (ajouts seulement, sauvegarde avant). Tout est marqué « Expérimental ».
+
+### Ajouté
+
+- **Agenda — catégories** (Réglages › Agenda › Catégories) : la liste de toutes les catégories (pastille, forme, nombre d'éléments) ; « Nouvelle catégorie » (aussi depuis la fiche, la barre de saisie, un créneau vide et la semaine type : « Nouvelle catégorie… », sans quitter) ; **couleur** parmi 16 teintes définies pour les thèmes clairs et sombres (contraste vérifié dans tous les thèmes) ou couleur libre (encre lisible calculée, avertissement si le contraste reste faible), « Revenir à la couleur d'origine » ; comptée dans la charge ; allumée par défaut ; ordre. Tes catégories : renommer (événements, semaine type, correspondances d'import et réimport suivent ; sauvegarde ; « Annuler ») et supprimer (éléments déplacés, jamais supprimés ; sauvegarde ; « Annuler »). Fixes et autres outils : la couleur seulement. Sans action de Thomas, tout reste comme avant (grille identique au pixel).
+- **Agenda — Deadline** : un moment (date, heure facultative, pas de fin) ; trait rouge en travers du jour avec icône, titre et heure (au-dessus des blocs sans les cacher), bande dans « Journée » sans heure ; téléphone : la même logique dans la liste du jour ; jamais dans la charge ni les chevauchements ; « Faite » (atténuée, barrée, « Annuler ») ; ligne « Deadlines » (semaine + 7 jours, en retard comprises, temps restant, masquable) ; temps restant dans l'aperçu et la fiche.
+- **Menu contextuel commun** (`@hub/sdk`, ADR 0048, MODULES.md §7.7) : clic droit, touche Menu / Maj+F10, appui long (500 ms) sur le téléphone ; flèches, Entrée, Échap, sous-menu ; action désactivée avec sa raison ; action dangereuse toujours confirmée.
+- **Clic droit sur l'Agenda** : Ouvrir la fiche, Facultatif / Obligatoire, Faite / À refaire, Lancer le timer…, Changer de catégorie, Couleur de cette catégorie…, Supprimer (question, « Annuler ») ; un élément d'un autre outil : « Ouvrir dans son outil ».
+- **Clic droit sur la barre des outils** : Ouvrir, Monter / Descendre, Déplacer vers, **Masquer de la barre** (« Annuler » ; « Afficher les outils masqués » dans Réglages › Modules), Réglages de l'outil.
+
+### Changé
+
+- La barre des outils utilise le menu commun (l'ancien menu du shell est retiré ; « Déplacer vers » est un sous-menu).
+- **Courses (téléphone)** : la barre d'onglets se fond au bord quand elle défile ; « ‹ Semaine · Cette semaine · Semaine › » sur une seule ligne à 412 px.
+
+### Données
+
+- Migration 6 de l'Agenda (ajouts) : table `agenda__categories` (seulement les changements et les catégories de Thomas, synchronisée) et colonne `done_at` des événements. Sauvegarde automatique avant ; aucune donnée existante réécrite.
+- Disposition de la barre : champ facultatif `hidden` (outils masqués), propre au PC.
+
 ## [0.41.0] — 2026-11-17
 
 Agenda : « Nom · lieu », aperçu au survol, fiche à portée de vue, titres d'école recalculés ; témoin de synchro sur le PC et « Réseaux et adresses » ; check-up de l'app. Aucune migration.
