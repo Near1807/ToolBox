@@ -4,6 +4,25 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.41.0] — 2026-11-17
+
+Agenda : « Nom · lieu », aperçu au survol, fiche à portée de vue, titres d'école recalculés ; témoin de synchro sur le PC et « Réseaux et adresses » ; check-up de l'app. Aucune migration.
+
+### Ajouté
+
+- **Agenda — « Titre · Lieu »** dans les blocs (semaine PC, vue jour téléphone) ; le lieu est coupé avant le titre, les lieux multiples d'un import en abrégé (« 2F51, 2E51… »). Affichage seul.
+- **Agenda — « Recalculer les titres »** d'une source importée (Réglages › Agenda › Sources), sans le fichier : même aperçu que l'import, écriture sur « Appliquer » (sauvegarde avant, « Annuler »). Bandeau discret quand de meilleurs titres sont disponibles.
+- **Agenda — aperçu au survol** (PC) : une carte de lecture après 400 ms sur un bloc ou une tâche « À caser » (titre, heures, lieu complet, catégorie, note, code et source d'un import, état d'une tâche…). Remplace l'info-bulle.
+- **Agenda — la fiche s'ouvre à droite** (PC, fenêtre de 900 px ou plus), visible quel que soit le défilement ; fenêtre étroite : la page défile jusqu'à elle et revient au bloc.
+- **Témoin de synchro sur le PC** (barre latérale) : arrêtée, en attente, synchronisé il y a …, bloquée et pourquoi.
+- **« Réseaux et adresses »** (PC et téléphone) : profil Windows du réseau (Privé / Public, lecture seule), réseaux / adresses connus et nommés, dernier échec, « Oublier » avec « Annuler », 50 derniers essais.
+
+### Changé
+
+- **Badges « Expérimental »** retirés de ce que Thomas a validé (Agenda, import ICS et Sources, « Facultatif », synchro, Timer et sa notification) ; ajoutés aux nouveautés.
+- **Boutons-icônes** : le « + » de la barre latérale est centré ; mêmes tailles partout (30 × 30, icône de 16 px).
+- Le téléphone envoie ses versions dès « hello » : une différence est aussi refusée par le PC, qui le montre dans son témoin.
+
 ## [0.40.1] — 2026-11-16
 
 Synchro : horloge correcte des champs restés à leur valeur par défaut. Aucune migration.
