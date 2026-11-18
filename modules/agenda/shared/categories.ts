@@ -164,6 +164,11 @@ export interface CategoryDto {
   /** Switched on when this device has no choice of its own. */
   shownByDefault: boolean;
   origin: CategoryOrigin;
+  /**
+   * v0.43.0: created by Thomas (« Nouvelle catégorie »), not only found in his
+   * data: it gets a switch even without an element in the period (as in v0.42).
+   */
+  created: boolean;
   /** Events and week-type entries in it. */
   events: number;
 }
@@ -182,6 +187,7 @@ export interface CategoryRowLike {
   default_duration?: number | null;
   default_location?: string | null;
   builtin?: number;
+  found?: number;
 }
 
 const FOLD_FIXED = new Map(FIXED_CATEGORIES.map((c) => [foldName(c), c]));
@@ -237,6 +243,7 @@ export function mergeCategories(input: {
         defaultLocation: r.default_location ?? null,
         shownByDefault: r.shown === 1,
         origin: originOf(r.name),
+        created: originOf(r.name) === 'mine' && (r.found ?? 0) === 0,
         events: input.counts.get(fold) ?? 0,
       },
       sort: r.sort,
@@ -264,6 +271,7 @@ export function mergeCategories(input: {
         defaultLocation: null,
         shownByDefault: !off.has(fold),
         origin: originOf(clean),
+        created: false,
         events: input.counts.get(fold) ?? 0,
       },
       sort: null,

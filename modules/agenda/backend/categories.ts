@@ -84,6 +84,7 @@ export function migrateCategoriesToObjects(db: MigrationDatabase): void {
     ALTER TABLE agenda__categories ADD COLUMN default_duration INTEGER;
     ALTER TABLE agenda__categories ADD COLUMN default_location TEXT;
     ALTER TABLE agenda__categories ADD COLUMN builtin INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE agenda__categories ADD COLUMN found INTEGER NOT NULL DEFAULT 0;
     ALTER TABLE agenda__events ADD COLUMN category_id TEXT;
     ALTER TABLE agenda__events ADD COLUMN kind TEXT NOT NULL DEFAULT 'rendez-vous';
     ALTER TABLE agenda__weekly ADD COLUMN category_id TEXT;
@@ -128,13 +129,16 @@ export function migrateCategoriesToObjects(db: MigrationDatabase): void {
 
   // The rows v0.42 wrote keep their id; the others are seeded.
   const existing = db
-    .prepare('SELECT id, name, shape FROM agenda__categories WHERE deleted_at IS NULL')
-    .all() as { id: string; name: string; shape: string }[];
+    .prepare('SELECT id, name, shape, mine FROM agenda__categories WHERE deleted_at IS NULL')
+    .all() as { id: string; name: string; shape: string; mine: number }[];
   const byFold = new Map<string, { id: string; shape: string }>();
   for (const r of existing) byFold.set(foldName(r.name), { id: r.id, shape: r.shape });
   for (const r of existing)
     if (builtinFold.has(foldName(r.name)))
       db.prepare('UPDATE agenda__categories SET builtin = 1 WHERE id = ?').run(r.id);
+    // A v0.42 row of a name only found in his data (« used »): found, as before (no switch of its own).
+    else if (r.mine === 0)
+      db.prepare('UPDATE agenda__categories SET found = 1 WHERE id = ?').run(r.id);
 
   // Variants of one name (« Réunions », « reunions »): one category, its name
   // the fixed one, else the smallest variant (the same choice on every device).
@@ -150,8 +154,9 @@ export function migrateCategoriesToObjects(db: MigrationDatabase): void {
   const now = '2026-11-18T00:00:00.000Z';
   const insert = db.prepare(
     `INSERT INTO agenda__categories (id, created_at, updated_at, deleted_at, key, name, color,
-       shape, counted, shown, sort, mine, conflicts, default_duration, default_location, builtin)
-     VALUES (?, ?, ?, NULL, ?, ?, NULL, ?, 1, ?, NULL, ?, 1, NULL, NULL, ?)`,
+       shape, counted, shown, sort, mine, conflicts, default_duration, default_location, builtin,
+       found)
+     VALUES (?, ?, ?, NULL, ?, ?, NULL, ?, 1, ?, NULL, ?, 1, NULL, NULL, ?, ?)`,
   );
   for (const [fold, list] of [...variants].sort(([a], [b]) => a.localeCompare(b))) {
     if (byFold.has(fold)) continue;
@@ -169,6 +174,8 @@ export function migrateCategoriesToObjects(db: MigrationDatabase): void {
       off.has(fold) ? 0 : 1,
       1 - builtin,
       builtin,
+      // Found in his data, never created (v0.42 « used »): no switch outside its period.
+      1 - builtin,
     );
     byFold.set(fold, { id, shape });
   }
@@ -309,6 +316,8 @@ export function registerCategories(ctx: ModuleContext, store: SyncStore) {
         default_duration: null,
         default_location: null,
         builtin: c.origin === 'mine' ? 0 : 1,
+        // A name found in his data (not created): no switch outside its period, as before.
+        found: c.origin === 'mine' ? 1 : 0,
       },
       c.id,
     );

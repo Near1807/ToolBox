@@ -102,6 +102,9 @@ describe('the categories of v0.42 become objects (each device alone, then a sync
       name: 'Cours',
       color: 'p:bleu',
     });
+    // One he created (no element), one only coloured (found in no element of the week).
+    await d.onPc('POST', `${API}/categories`, { name: 'Projets', mine: true });
+    await d.onPc('POST', `${API}/categories`, { name: 'Vieux', color: 'p:gris' });
     d.exchange();
     // Each alone before the upgrade: the phone a « Foot », the PC a « Scouts ».
     await d.onPhone('POST', `${API}/events`, {
@@ -149,6 +152,13 @@ describe('the categories of v0.42 become objects (each device alone, then a sync
         categoryIdOf('Réunions'),
       );
     }
+    // The switches, as in v0.42: the one he created, not the one only found in his data.
+    const switches = await d.onPc<{ categories: string[] }>(
+      'GET',
+      `${API}/range?from=2026-11-16&to=2026-11-22`,
+    );
+    expect(switches.categories).toContain('Projets');
+    expect(switches.categories).not.toContain('Vieux');
     const result = d.exchange();
     expect(Number(result.conflicts ?? 0)).toBe(0);
     expect(d.pcEngine.conflicts()).toEqual([]);

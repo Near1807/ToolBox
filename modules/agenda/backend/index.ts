@@ -435,7 +435,8 @@ export default defineBackendModule({
       // v0.42.0: the list managed by Thomas (colours, shapes, counted), and his own ones get a switch.
       const categoryInfo = categories.list();
       const deadlines = deadlineList(categoryInfo, today, to);
-      const mine = categoryInfo.filter((c) => c.origin === 'mine').map((c) => c.name);
+      // v0.43.0: as in v0.42, only the ones he created (not the names found in his data).
+      const mine = categoryInfo.filter((c) => c.created).map((c) => c.name);
       const seen = [
         ...new Set([
           ...own.map((e) => e.category),

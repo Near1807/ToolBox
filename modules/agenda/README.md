@@ -134,7 +134,7 @@ Réglages › Agenda › Catégories : toutes les catégories (celles de l'Agend
 
 Données (migration 7, ajouts seuls, sauvegarde avant comme toute migration) :
 
-- `agenda__categories` gagne `conflicts`, `default_duration`, `default_location`, `builtin` ; la colonne `shape` reste et sert de type par défaut.
+- `agenda__categories` gagne `conflicts`, `default_duration`, `default_location`, `builtin`, `found` (nom seulement trouvé dans ses données, jamais créé : pas d'interrupteur hors de sa période, comme en v0.42) ; la colonne `shape` reste et sert de type par défaut.
 - `agenda__events` gagne `category_id` et `kind` (`rendez-vous` par défaut, `deadline` pour les événements d'une catégorie de forme Deadline) ; `agenda__weekly` gagne `category_id` ; `agenda__sources` gagne `mapping_ids` et `default_category_id` (un réimport suit un renommage).
 - Une ligne par catégorie connue. Les lignes déjà écrites en v0.42 gardent leur identifiant et leurs valeurs ; les autres reçoivent un **identifiant déterministe** (UUID v5 du nom replié, `shared/category-id.ts`) : le PC et le téléphone, migrés chacun de leur côté, écrivent les mêmes lignes ; la synchro ne voit ni doublon ni conflit (`tests/sync/agenda-categories-upgrade.test.ts`). Ces lignes semées ne passent pas par le journal (identiques des deux côtés).
 - Aucune colonne existante n'est réécrite ; la colonne texte `category` reste écrite à chaque changement (lisible par une version d'avant). Elle peut garder un ancien nom après un renommage : on lit d'abord `category_id`, puis le nom en secours (jamais un élément sans catégorie à l'écran). Un nom arrivé plus tard (synchro) s'affiche avec l'identifiant tiré de son nom ; sa ligne est écrite avec cet identifiant au premier changement.
