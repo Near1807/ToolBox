@@ -4,6 +4,29 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.43.0] — 2026-11-18
+
+Agenda : les catégories deviennent de vrais objets (identifiant, réglages qui agissent) et le type (Rendez-vous, Deadline) est porté par chaque élément ; correctif prévu en v0.41.1 (Rendez-vous par défaut, jamais de tâche par la destination Rendez-vous, « Convertir »). Migration 7 de l'Agenda (ajouts seulement, sauvegarde avant). Tout est marqué « Expérimental ».
+
+### Ajouté
+
+- **Agenda — Convertir** : « Convertir en tâche » (fiche et clic droit d'un rendez-vous) et « Convertir en rendez-vous » (fiche et clic droit d'une tâche prévue ou avec échéance) ; une action, « Annuler » remet exactement l'état d'avant, le timer associé suit.
+- **Agenda — réglages de catégorie qui agissent** : « Chevauchements signalés », type par défaut, durée et lieu par défaut (pré-remplis dans la fiche et dans un créneau vide).
+- **Agenda — catégorie d'une tâche** : « Catégorie dans l'Agenda » dans la fiche de tâche (table de l'Agenda ; la To-do ne change pas).
+- **Agenda — type** : « Type » dans la fiche (Rendez-vous / Deadline), « En faire une deadline / un rendez-vous » au clic droit (« Annuler ») ; une deadline peut être dans n'importe quelle catégorie (couleur de la catégorie) ; « deadline rendu rapport jeudi 23h59 » (ou « échéance : … ») dans la barre et dans la destination Rendez-vous de la barre « Ajouter ».
+
+### Changé
+
+- **Créneau vide** : « Rendez-vous » est le bouton principal et le choix de la touche Entrée ; « Tâche » seulement par son propre clic.
+- **Destination « Rendez-vous »** de la barre « Ajouter » : ne crée jamais de tâche (sans date ni heure, ou « ~1h » sans heure : rien n'est écrit, message clair).
+- **Renommer une catégorie** ne touche que la catégorie (les éléments la désignent par son identifiant) ; un réimport suit le renommage.
+- **Changer de catégorie ne change plus le type** d'un élément (en v0.42, la forme de la catégorie le décidait).
+
+### Données
+
+- Migration 7 de l'Agenda (ajouts) : colonnes de réglage des catégories, `category_id` et `kind` des événements, `category_id` de la semaine type, `mapping_ids` et `default_category_id` des sources, table `agenda__task_categories`, colonne `found` (catégorie seulement trouvée dans les données : pas d'interrupteur hors de sa période, comme en v0.42) ; une ligne par catégorie connue (identifiant tiré du nom, le même sur le PC et le téléphone ; les lignes de la v0.42 gardent les leurs). Sauvegarde automatique avant ; aucune colonne existante réécrite (md5 vérifié), semaine et charge identiques au pixel.
+- To-do : `restoreTask` et `timerPref` dans le service (pour « Convertir »), sans migration.
+
 ## [0.42.0] — 2026-11-17
 
 Agenda : catégories gérées par Thomas et forme « Deadline » ; menu contextuel commun (clic droit, clavier, appui long) ; deux retouches de Courses sur le téléphone. Migration 6 de l'Agenda (ajouts seulement, sauvegarde avant). Tout est marqué « Expérimental ».
