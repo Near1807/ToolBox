@@ -9,9 +9,8 @@
 // on the drop only (the page does it, with « Annuler »).
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useNavigate } from 'react-router';
-import { Icon, StateBadge } from '@hub/sdk/frontend';
+import { Icon, onPhone, StateBadge, useModuleNames } from '@hub/sdk/frontend';
 import { formatDuration } from '@hub/sdk/dates';
-import { categoryColor } from '../shared/categories';
 import { placeDay, TASKS_CATEGORY, weekSummary, weighsOn, type DayLoad } from '../shared/load';
 import { addDays, dayLabel, daysBetween, hoursText } from '../shared/time';
 import type { RangeDto, ToPlaceDto } from '../shared/types';
@@ -25,6 +24,7 @@ import {
   type Span,
 } from '../shared/drag';
 import { CreateSlot, type SlotKind } from './CreateSlot';
+import { previewOf, previewText, useHoverPreview } from './Preview';
 import { minutesBetween, minutesOfDay } from '../shared/time';
 import {
   colorStyle,
@@ -32,12 +32,19 @@ import {
   itemId,
   itemsOf,
   movable,
+  placeOf,
+  shortPlace,
   switchCategories,
   taskLoads,
   timedBlocks,
   timerRuns,
   type Item,
+  categoryCss,
+  isDeadlineItem,
+  conflictsOn,
 } from './common';
+import { DeadlineBand, DeadlineLine, DeadlinesRow, useDeadlinesRow } from './Deadlines';
+import type { BindMenu } from './Menus';
 
 const HOUR_PX = 44;
 
@@ -102,7 +109,7 @@ export function LoadBar(props: { load: DayLoad }) {
             className="ag-load__part"
             style={{
               width: `${(c.minutes / scale) * 100}%`,
-              background: categoryColor(c.category),
+              background: categoryCss(c.category),
             }}
           />
         ))}
@@ -167,6 +174,10 @@ export function ToPlace(props: {
   wasDrag?: () => boolean;
   /** v0.36.0: a click opens the task's sheet here (else: the To-do). */
   onOpenTask?: (task: ToPlaceDto) => void;
+  /** v0.41.0 (PC): the preview on hover. */
+  hover?: Hover;
+  /** v0.42.0: the right-click / long-press menu. */
+  menu?: BindMenu;
 }) {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -180,19 +191,24 @@ export function ToPlace(props: {
       <button
         type="button"
         className={`ag-task${t.late ? ' ag-task--late' : ''}${props.dragProps ? ' ag-task--draggable' : ''}${props.dragging === t.id ? ' ag-block--dragging' : ''}`}
+        // v0.41.0: the preview card replaces the native tooltip on the PC.
         title={
-          props.dragProps
-            ? 'Glisser dans la semaine pour la prévoir · clic : sa fiche'
-            : props.onOpenTask
-              ? 'Sa fiche'
-              : 'Ouvrir dans la To-do'
+          props.hover
+            ? undefined
+            : props.dragProps
+              ? 'Glisser dans la semaine pour la prévoir · clic : sa fiche'
+              : props.onOpenTask
+                ? 'Sa fiche'
+                : 'Ouvrir dans la To-do'
         }
         onClick={() => {
           if (props.wasDrag?.()) return;
           if (props.onOpenTask) props.onOpenTask(t);
           else navigate(t.open);
         }}
-        {...props.dragProps?.(t)}
+        {...props.hover?.bind({ kind: 'task', task: t, draggable: Boolean(props.dragProps) })}
+        {...withHide(props.dragProps?.(t), props.hover?.hide)}
+        {...props.menu?.({ kind: 'task', task: t })}
       >
         <span className="ag-task__title">{t.title}</span>
         <span className="small muted">
@@ -281,6 +297,23 @@ export function Ghost(props: {
  * tall one shows the time, then the title on the lines left, « … » when it
  * does not fit. Never a smaller font: the room comes from the margins.
  */
+/** v0.41.0: the hover preview of the week, given to its blocks and tasks (PC). */
+type Hover = Pick<ReturnType<typeof useHoverPreview>, 'bind' | 'hide'> & {
+  toolName: (moduleId: string) => string | null;
+};
+
+/** Drag handlers whose pointer down also hides the preview (a click, a drag that starts). */
+function withHide(handlers: DragHandlers | undefined, hide: (() => void) | undefined) {
+  if (!hide) return handlers ?? {};
+  return {
+    ...handlers,
+    onPointerDown: (e: ReactPointerEvent<HTMLElement>) => {
+      hide();
+      handlers?.onPointerDown(e);
+    },
+  };
+}
+
 export function Block(props: {
   item: Item;
   top: number;
@@ -294,6 +327,12 @@ export function Block(props: {
   drag?: (kind: 'move' | 'stretch') => DragHandlers;
   /** v0.36.0: its timer runs now. */
   running?: boolean;
+  /** v0.41.0 (PC): the preview on hover; its text is the block's aria-label. */
+  hover?: Hover;
+  /** v0.41.0: the day the preview counts from (« demain »…); the aria-label is written with it. */
+  today?: string;
+  /** v0.42.0: the right-click / long-press menu. */
+  menu?: BindMenu;
 }) {
   const { item } = props;
   const e = item.event;
@@ -305,8 +344,9 @@ export function Block(props: {
   const late = Boolean(task?.afterDue && !task.done);
   // v0.40.0: « facultatif »: shown, dimmed and hatched, never a conflict.
   const optional = isOptional(item);
-  const fixedTip =
-    item.source === 'foreign' ? '\nSe modifie dans son outil (clic pour l’ouvrir)' : '';
+  // v0.41.0: « Titre · Lieu » (display only); the place is cut (« … ») before the title.
+  const place = placeOf(item);
+  const placeText = place ? <span className="ag-block__place"> · {shortPlace(place)}</span> : null;
   const icons = (
     <>
       {props.running && (
@@ -335,16 +375,28 @@ export function Block(props: {
       <button
         type="button"
         className="ag-block__body"
-        title={`${e.title}\n${e.start.slice(11)}–${e.end.slice(11)} · ${e.category}${task?.done ? ' · fait' : ''}${optional ? ' · facultatif (ne compte ni dans les conflits ni dans la charge)' : ''}${late ? '\nPrévue après son échéance' : ''}${props.overlaps ? '\nChevauche un autre élément' : ''}${canMove ? '\nGlisser pour déplacer · tirer le bas pour changer la durée' : fixedTip}`}
+        // v0.41.0: no native tooltip (the preview card says it all); the whole text for a screen reader.
+        aria-label={previewText(
+          previewOf(
+            { kind: 'item', item, overlaps: props.overlaps, movable: canMove },
+            props.today ?? e.start.slice(0, 10),
+            props.hover?.toolName,
+          ),
+        )}
         onClick={() => {
           if (!props.wasDrag()) props.onOpen(item);
         }}
-        {...props.drag?.('move')}
+        {...props.hover?.bind({ kind: 'item', item, overlaps: props.overlaps, movable: canMove })}
+        {...withHide(props.drag?.('move'), props.hover?.hide)}
+        {...props.menu?.({ kind: 'item', item })}
       >
         {short ? (
           <>
             <span className="ag-block__head">
-              <span className="ag-block__title">{e.title}</span>
+              <span className="ag-block__title">
+                {e.title}
+                {placeText}
+              </span>
               {icons}
             </span>
             <span className="ag-block__time">{e.start.slice(11)}</span>
@@ -360,6 +412,7 @@ export function Block(props: {
               style={{ WebkitLineClamp: titleLines(height) }}
             >
               {e.title}
+              {placeText}
             </span>
           </>
         )}
@@ -386,7 +439,9 @@ export function WeekView(props: {
   /** v0.36.0: a task « à caser » clicked: its sheet. */
   onOpenTask?: (task: ToPlaceDto) => void;
   /** v0.36.0: create in an empty slot (« Tâche » or « Rendez-vous »), one write after the choice. */
-  onCreate?: (kind: SlotKind, title: string, span: Span) => Promise<void>;
+  onCreate?: (kind: SlotKind, title: string, span: Span, category?: string) => Promise<void>;
+  /** v0.42.0: the right-click / long-press menu of its elements. */
+  menu?: BindMenu;
 }) {
   const { data, monday } = props;
   const days = Array.from({ length: 7 }, (_, i) => addDays(monday, i));
@@ -403,8 +458,12 @@ export function WeekView(props: {
   );
   const tasksOn = props.shown(TASKS_CATEGORY);
   const items = itemsOf(data, props.shown);
-  const allDay = items.filter((i) => i.event.allDay);
-  const timed = items.filter((i) => !i.event.allDay);
+  // v0.42.0: a deadline is a moment: a line (with a time) or a band (without), never a block.
+  const deadlines = items.filter(isDeadlineItem) as (Item & { source: 'own' })[];
+  const allDay = items.filter((i) => i.event.allDay && !isDeadlineItem(i));
+  const timed = items.filter((i) => !i.event.allDay && !isDeadlineItem(i));
+  const dayDeadlines = deadlines.filter((i) => i.event.allDay);
+  const rowState = useDeadlinesRow();
   const height = (range.endHour - range.startHour) * HOUR_PX;
   const hours = Array.from(
     { length: range.endHour - range.startHour },
@@ -541,6 +600,16 @@ export function WeekView(props: {
     ? () => handlers(() => ({ kind: 'create' as const }))
     : undefined;
   const [creating, setCreating] = useState<Span | null>(null);
+  // v0.41.0: the preview on hover (PC; never during a drag, nor while creating).
+  const toolName = useModuleNames();
+  const hoverPreview = useHoverPreview({
+    today: data.today,
+    disabled: onPhone() || Boolean(drag),
+    toolName,
+  });
+  const hover: Hover | undefined = onPhone()
+    ? undefined
+    : { bind: hoverPreview.bind, hide: hoverPreview.hide, toolName };
   const draggingId = drag?.moved ? (drag.item ? itemId(drag.item) : (drag.task?.id ?? null)) : null;
 
   return (
@@ -571,8 +640,17 @@ export function WeekView(props: {
           dragging={draggingId}
           wasDrag={wasDrag}
           onOpenTask={props.onOpenTask}
+          hover={hover}
+          menu={props.menu}
         />
       )}
+      <DeadlinesRow
+        deadlines={data.deadlines ?? []}
+        shown={rowState.shown}
+        onToggle={rowState.toggle}
+        onOpen={(event) => props.onOpen({ source: 'own', event })}
+        menu={props.menu}
+      />
       <div
         className={`ag-week${drag?.moved ? ' ag-week--dragging' : ''}`}
         style={{ '--ag-days': 7 } as React.CSSProperties}
@@ -601,8 +679,12 @@ export function WeekView(props: {
                   ...colorStyle(i.event.category),
                   gridColumn: `${daysBetween(monday, first) + 1} / ${daysBetween(monday, last) + 2}`,
                 }}
-                title={`${i.event.title} · ${i.event.category}`}
+                title={hover ? undefined : `${i.event.title} · ${i.event.category}`}
+                aria-label={previewText(previewOf({ kind: 'item', item: i }, data.today, toolName))}
                 onClick={() => props.onOpen(i)}
+                {...hover?.bind({ kind: 'item', item: i })}
+                onPointerDown={hover?.hide}
+                {...props.menu?.({ kind: 'item', item: i })}
               >
                 {i.event.start.slice(0, 10) < monday && '← '}
                 {i.event.title}
@@ -610,6 +692,20 @@ export function WeekView(props: {
               </button>
             );
           })}
+          {dayDeadlines.map((i) => (
+            <DeadlineBand
+              key={itemId(i)}
+              item={i}
+              onOpen={props.onOpen}
+              style={{
+                gridColumn: `${daysBetween(monday, i.event.start.slice(0, 10)) + 1} / span 1`,
+              }}
+              bind={{
+                ...hover?.bind({ kind: 'item', item: i }),
+                ...props.menu?.({ kind: 'item', item: i }),
+              }}
+            />
+          ))}
         </div>
         <div className="ag-week__hours" style={{ height }}>
           {hours.map((h) => (
@@ -633,7 +729,7 @@ export function WeekView(props: {
               start: i.event.start,
               end: i.event.end,
               category: i.event.category,
-              optional: isOptional(i),
+              optional: isOptional(i) || !conflictsOn(i.event.category),
             })),
           );
           const ghost =
@@ -672,9 +768,32 @@ export function WeekView(props: {
                     wasDrag={wasDrag}
                     drag={blockDrag(item)}
                     running={timerRuns(data, item)}
+                    hover={hover}
+                    today={data.today}
+                    menu={props.menu}
                   />
                 );
               })}
+              {deadlines
+                .filter((i) => !i.event.allDay && i.event.start.slice(0, 10) === d)
+                .map((i) => {
+                  const at = Math.min(
+                    Math.max(minutesOfDay(i.event.start.slice(11)), range.startHour * 60),
+                    range.endHour * 60,
+                  );
+                  return (
+                    <DeadlineLine
+                      key={itemId(i)}
+                      item={i}
+                      top={((at - range.startHour * 60) / 60) * HOUR_PX}
+                      onOpen={props.onOpen}
+                      bind={{
+                        ...hover?.bind({ kind: 'item', item: i }),
+                        ...props.menu?.({ kind: 'item', item: i }),
+                      }}
+                    />
+                  );
+                })}
               {slot && props.onCreate && (
                 <>
                   <Ghost
@@ -699,8 +818,8 @@ export function WeekView(props: {
                         Math.max(18, (minutesBetween(slot.start, slot.end) / 60) * HOUR_PX),
                     }}
                     onCancel={() => setCreating(null)}
-                    onSubmit={async (kind, title) => {
-                      await props.onCreate!(kind, title, slot);
+                    onSubmit={async (kind, title, category) => {
+                      await props.onCreate!(kind, title, slot, category);
                       setCreating(null);
                     }}
                   />
@@ -742,6 +861,7 @@ export function WeekView(props: {
           · Échap pour annuler
         </p>
       )}
+      {hoverPreview.card}
     </>
   );
 }

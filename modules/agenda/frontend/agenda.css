@@ -214,7 +214,7 @@
   border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--ag-color) 28%, var(--surface));
   border-left: 3px solid var(--ag-color);
-  color: var(--text);
+  color: var(--ag-ink, var(--text));
   text-align: left;
   font-size: 0.85rem;
   cursor: pointer;
@@ -245,7 +245,7 @@
   border-left: 3px solid var(--ag-color);
   border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--ag-color) 30%, var(--surface));
-  color: var(--text);
+  color: var(--ag-ink, var(--text));
   font-size: 0.8rem;
   line-height: 1.2;
   overflow: hidden;
@@ -348,6 +348,11 @@
 }
 .ag-block__title {
   font-weight: 600;
+}
+/* v0.41.0: « Titre · Lieu »: the place in the same line, lighter; being
+   last, it is the first cut by the « … » (title, then place, then time). */
+.ag-block__place {
+  font-weight: 400;
 }
 .ag-now {
   position: absolute;
@@ -828,4 +833,334 @@
   align-items: center;
   gap: 0.4rem;
   font-weight: 600;
+}
+
+/* v0.41.0: « De meilleurs titres sont disponibles » (discreet, closable). */
+.ag-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0 0 0.6rem;
+  padding: 0.3rem 0.3rem 0.3rem 0.7rem;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-size: 0.9rem;
+}
+
+/* v0.41.0: the preview on hover (PC): a small read-only card next to the block. */
+.ag-preview {
+  position: fixed;
+  z-index: 50;
+  box-sizing: border-box;
+  width: max-content;
+  max-width: min(320px, calc(100vw - 16px));
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-solid);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  font-size: 0.85rem;
+  line-height: 1.35;
+  pointer-events: none;
+}
+.ag-preview p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.ag-preview p + p {
+  margin-top: 0.15rem;
+}
+.ag-preview__title {
+  font-weight: 600;
+}
+.ag-preview__when {
+  font-variant-numeric: tabular-nums;
+}
+.ag-preview__category {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.ag-preview__dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  flex: none;
+  border-radius: 50%;
+  background: var(--ag-color);
+}
+.ag-preview__note,
+.ag-preview__fact {
+  color: var(--text-2);
+}
+.ag-preview__hint {
+  color: var(--text-3);
+  font-size: 0.78rem;
+}
+
+/* v0.41.0: the sheet in a side panel (PC, window of 900 px or more), fixed on
+   the right whatever the scroll; the page leaves it the room. */
+.ag-page {
+  --ag-dock-w: 380px;
+}
+.ag-page--docked {
+  margin-right: calc(var(--ag-dock-w) + 8px);
+}
+.ag-dock {
+  position: fixed;
+  z-index: 40;
+  top: 16px;
+  right: 16px;
+  bottom: 16px;
+  box-sizing: border-box;
+  width: var(--ag-dock-w);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  outline: none;
+}
+.ag-dock > .card {
+  min-height: 100%;
+  box-sizing: border-box;
+  margin: 0;
+}
+.ag-dock-inline {
+  scroll-margin-top: 16px;
+  outline: none;
+}
+
+/* v0.42.0: the categories (Réglages › Agenda), their colours, the choice of one. */
+.ag-settings__title {
+  margin: 1rem 0 0.4rem;
+  font-size: 1rem;
+}
+.ag-cats__list {
+  margin-top: 0.6rem;
+}
+.ag-cats__item {
+  flex-direction: column;
+  align-items: stretch;
+}
+.ag-cats__main {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+}
+.ag-cats__main > div:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+}
+.ag-cats__flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 1rem;
+  margin-top: 0.25rem;
+}
+.ag-cats__actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.ag-cats__delete {
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+}
+.ag-dot {
+  flex: none;
+  width: 0.9rem;
+  height: 0.9rem;
+  margin-top: 0.2rem;
+  border-radius: 50%;
+  background: var(--ag-color);
+}
+.ag-colors {
+  margin-top: 0.5rem;
+  display: grid;
+  gap: 0.4rem;
+}
+.ag-colors__swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.ag-colors__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+.ag-colors__warn {
+  color: var(--warning);
+}
+.ag-swatch {
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+  border: 2px solid var(--surface);
+  border-radius: var(--radius-sm);
+  background: var(--ag-color);
+  box-shadow: 0 0 0 1px var(--border);
+  cursor: pointer;
+}
+.ag-swatch--on {
+  box-shadow: 0 0 0 2px var(--text);
+}
+.ag-swatch--preview {
+  display: inline-block;
+  cursor: default;
+}
+.ag-newcat {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0.4rem 0;
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.ag-quick__category {
+  flex: none;
+  max-width: 13rem;
+}
+.ag-create__category {
+  display: block;
+  margin: 0.25rem 0;
+}
+
+/* v0.42.0: the deadlines: a moment, never a block. The line lets the clicks
+   through to the blocks under it; only its label is clickable. */
+.ag-deadline--line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 0;
+  border-top: 3px solid var(--ag-color);
+  z-index: 4;
+  pointer-events: none;
+}
+.ag-deadline__label {
+  position: absolute;
+  right: 2px;
+  bottom: 1px;
+  /* Never the whole column: the blocks under it stay readable and clickable. */
+  max-width: 65%;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0 0.3rem;
+  border: 1px solid var(--ag-color);
+  border-radius: var(--radius-sm);
+  background: var(--surface-solid);
+  color: var(--text);
+  font-size: 0.72rem;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.ag-deadline__label svg,
+.ag-deadline--band svg,
+.ag-deadline--chip svg,
+.ag-optional .ag-deadline svg {
+  flex: none;
+  color: var(--ag-color);
+}
+.ag-deadline__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+}
+.ag-deadline__time {
+  color: var(--text-2);
+}
+.ag-deadline--late .ag-deadline__label,
+.ag-deadline--late.ag-deadline--chip {
+  border-width: 2px;
+}
+.ag-deadline--done {
+  opacity: 0.55;
+}
+.ag-deadline--done.ag-deadline--line {
+  border-top-style: dashed;
+}
+.ag-deadline--done .ag-deadline__title,
+.ag-deadline--done.ag-deadline--band,
+.ag-deadline--done.ag-deadline--chip strong {
+  text-decoration: line-through;
+}
+.ag-deadline--band {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-left-width: 4px;
+  font-weight: 600;
+}
+.ag-deadlines {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0.4rem 0;
+}
+.ag-deadline--chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--ag-color);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--ag-color) 14%, var(--surface));
+  color: var(--text);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+/* The phone: the line is a row of the day, at its time: the label, then the line. */
+.ag-list__row > .ag-deadline--line {
+  position: relative;
+  flex: 1;
+  width: 100%;
+  height: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.2rem 0;
+  border-top: none;
+}
+.ag-list__row > .ag-deadline--line::after {
+  content: '';
+  flex: 1;
+  border-top: 3px solid var(--ag-color);
+}
+.ag-list__row > .ag-deadline--done.ag-deadline--line::after {
+  border-top-style: dashed;
+}
+.ag-list__row > .ag-deadline--line .ag-deadline__label {
+  position: static;
+  max-width: 75%;
+  font-size: 0.85rem;
+  padding: 0.15rem 0.45rem;
+}
+
+/* v0.42.0: the small dialogs of the menu (colour of a category, new category). */
+.ag-dialog {
+  position: fixed;
+  z-index: 1050;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(420px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  display: grid;
+  gap: 0.5rem;
+  padding: 1rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface-solid);
+  box-shadow: var(--elev-popover);
 }

@@ -5,6 +5,7 @@ import {
   deleteCategory,
   EMPTY_LAYOUT,
   filterNavigation,
+  hideTool,
   moveCategory,
   moveTool,
   parseLayout,
@@ -12,6 +13,7 @@ import {
   serializeLayout,
   setCollapsed,
   shiftTool,
+  showTool,
   type NavLayout,
   type NavTool,
 } from '../frontend/src/shell/navigation';
@@ -110,5 +112,42 @@ describe('sidebar navigation', () => {
   it('ignores an invalid stored layout', () => {
     expect(parseLayout('not json')).toEqual(EMPTY_LAYOUT);
     expect(parseLayout('{"categories":[{"id":1}]}')).toEqual(EMPTY_LAYOUT);
+  });
+});
+
+describe('v0.42.0: tools hidden from the bar', () => {
+  const tools = [
+    { id: 'agenda', name: 'Agenda', section: 'Outils', order: 5 },
+    { id: 'todo', name: 'To-do', section: 'Outils', order: 6 },
+    { id: 'timer', name: 'Timer', section: 'Outils', order: 9 },
+  ];
+  it('hidden: out of the bar, its place kept; shown again at the same place; layout of before untouched', () => {
+    expect(parseLayout(JSON.stringify({ categories: [] }))).toEqual({ categories: [] });
+    const nav = buildNavigation(tools, EMPTY_LAYOUT);
+    const hiddenLayout = hideTool(EMPTY_LAYOUT, nav, 'todo');
+    expect(hiddenLayout.hidden).toEqual(['todo']);
+    // What the shell shows: the tools not hidden.
+    const shown = buildNavigation(
+      tools.filter((t) => !hiddenLayout.hidden!.includes(t.id)),
+      hiddenLayout,
+    );
+    expect(shown[0]!.tools.map((t) => t.id)).toEqual(['agenda', 'timer']);
+    // A move while it is hidden keeps it in its category (and hidden).
+    const moved = shiftTool(hiddenLayout, shown, 'timer', -1);
+    expect(moved.hidden).toEqual(['todo']);
+    expect(moved.categories[0]!.tools).toEqual(['timer', 'agenda', 'todo']);
+    // Shown again: back in the bar.
+    const back = showTool(moved, 'todo');
+    expect(back.hidden).toBeUndefined();
+    expect(buildNavigation(tools, back)[0]!.tools.map((t) => t.id)).toEqual([
+      'timer',
+      'agenda',
+      'todo',
+    ]);
+    // Stored and read back; junk ignored.
+    expect(parseLayout(serializeLayout(hiddenLayout)).hidden).toEqual(['todo']);
+    expect(
+      parseLayout(JSON.stringify({ categories: [], hidden: ['a', 3, 'a', null] })).hidden,
+    ).toEqual(['a']);
   });
 });

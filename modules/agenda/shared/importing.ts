@@ -5,7 +5,13 @@
 // since the last import is flagged « modifié par toi » (unchecked by default);
 // a gone event is never deleted unless its box is checked.
 import { daysBetween } from './time';
-import { type ImportError, type ImportItem, titleOf, type TitleStyle } from './import-item';
+import {
+  describeEvent,
+  type ImportError,
+  type ImportItem,
+  titleOf,
+  type TitleStyle,
+} from './import-item';
 import { minutesBetween } from './time';
 
 /** How a source turns its items into Agenda events. */
@@ -248,5 +254,64 @@ export function comparePreview(
   out.categories = [...counts]
     .map(([value, count]) => ({ value, count, category: categoryOf(value, settings) }))
     .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value));
+  return out;
+}
+
+// --- v0.41.0: the titles of a source computed again, without the file ----------------
+
+/**
+ * The title an event of an ICS import would get now (describeEvent, v0.38.0),
+ * from its original text; null for a table import (its title is a column,
+ * nothing to compute).
+ */
+export function titleFromOriginal(
+  original: Record<string, string>,
+  style: TitleStyle,
+): string | null {
+  if (!('SUMMARY' in original)) return null;
+  const summary = original.SUMMARY!.trim() || '(sans titre)';
+  return titleOf(describeEvent(summary, original.DESCRIPTION ?? ''), style);
+}
+
+/** A live imported event of a source, as stored. */
+export interface StoredImported {
+  id: string;
+  key: string;
+  current: ImportedValues;
+  origin: Origin;
+}
+
+/**
+ * « Recalculer les titres » (v0.41.0): the same preview as an import, with
+ * the title only. An event whose title the user changed since the import is
+ * « modifié par toi » (unchecked by default); nothing else is compared, and
+ * nothing else would be written.
+ */
+export function compareTitles(rows: StoredImported[], style: TitleStyle): ImportPreview {
+  const out: ImportPreview = {
+    add: [],
+    same: 0,
+    modified: [],
+    gone: [],
+    ignored: [],
+    errors: [],
+    categories: [],
+  };
+  for (const r of rows) {
+    const title = titleFromOriginal(r.origin.original, style);
+    if (title === null || title === r.current.title) {
+      out.same++;
+      continue;
+    }
+    out.modified.push({
+      ...lineOf(r.key, 0, { ...r.current, title }),
+      id: r.id,
+      changes: [
+        { field: 'title', label: FIELD_LABELS.title, before: r.current.title, after: title },
+      ],
+      mine: r.current.title !== r.origin.imported.title,
+    });
+  }
+  out.modified.sort((a, b) => a.start.localeCompare(b.start) || a.title.localeCompare(b.title));
   return out;
 }

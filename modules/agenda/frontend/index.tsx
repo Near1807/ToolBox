@@ -1,7 +1,7 @@
 // The Agenda's pages: the bar on top, then the week (PC) or the day
 // (phone), the month, the week type; layers, the detail of an event, a
 // short guide. « Expérimental » until Thomas validates it.
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import {
   Button,
@@ -15,16 +15,19 @@ import {
   UndoToast,
   useApi,
   useModule,
+  useModuleNames,
 } from '@hub/sdk/frontend';
 import { addDays, dayLabel, mondayOf } from '../shared/time';
 import type { AgendaEventDto, RangeDto } from '../shared/types';
-import { minutesBetween } from '../shared/time';
+import { addMinutes, minutesBetween } from '../shared/time';
 import { spanLabel, type Span } from '../shared/drag';
 import { appointmentPreview } from '../shared/parse';
 import type { SlotKind } from './CreateSlot';
 import { TaskPanel, type OpenTask } from './TaskPanel';
 import {
+  categoryInfo,
   colorStyle,
+  rememberCategories,
   switchCategories,
   timerSubject,
   useRange,
@@ -37,7 +40,11 @@ import { DayView } from './DayView';
 import { EventForm, EventPanel, type Undo } from './EventPanel';
 import { GuidePage } from './Guide';
 import { ImportPage } from './Import';
+import { TitleBanner } from './TitleBanner';
+import { Dock, useDocked } from './Dock';
 import { SourcesPanel } from './Sources';
+import { CategoriesPanel } from './Categories';
+import { useAgendaMenus } from './Menus';
 import { MonthView, monthGrid, monthTitle } from './MonthView';
 import { QuickBar } from './QuickBar';
 import { CategorySwitches, WeekView, type Drop } from './WeekView';
@@ -64,6 +71,8 @@ function AgendaPage() {
   const period =
     view === 'month' ? monthGrid(day.slice(0, 7)) : { from: monday, to: addDays(monday, 6) };
   const { data, error, reload } = useRange(period.from, period.to);
+  // v0.42.0: the colours and shapes chosen by Thomas, for every block drawn below.
+  rememberCategories(data?.categoryInfo);
   // v0.36.0: while a timer runs, the blocks follow it (a light refresh each minute).
   const timerOn = Boolean(data?.timer);
   useEffect(() => {
@@ -71,9 +80,20 @@ function AgendaPage() {
     const every = window.setInterval(reload, 60_000);
     return () => window.clearInterval(every);
   }, [timerOn, reload]);
-  const layers = useSwitches(data?.categoriesOff ?? DEFAULT_OFF);
+  // v0.42.0: « allumée par défaut » of each category (Réglages), else the setting of before.
+  const info = data?.categoryInfo;
+  const offByDefault = useMemo(
+    () =>
+      info?.length
+        ? info.filter((c) => !c.shownByDefault).map((c) => c.name)
+        : (data?.categoriesOff ?? DEFAULT_OFF),
+    [info, data?.categoriesOff],
+  );
+  const layers = useSwitches(offByDefault);
   const [selected, setSelected] = useState<AgendaEventDto | null>(null);
   const [selectedTask, setSelectedTask] = useState<OpenTask | null>(null);
+  // v0.41.0: the sheet in a side panel (PC, wide window): the page leaves it the room.
+  const docked = useDocked();
   const [creating, setCreating] = useState(false);
   /** The last change: its message, and « Annuler » when it can be undone. */
   const [notice, setNotice] = useState<Undo | { message: string; run: null } | null>(null);
@@ -150,7 +170,7 @@ function AgendaPage() {
   };
 
   /** v0.36.0: create in an empty slot, after the choice (« Tâche » / « Rendez-vous »). */
-  const create = async (kind: SlotKind, title: string, span: Span) => {
+  const create = async (kind: SlotKind, title: string, span: Span, category?: string) => {
     const where = `${dayLabel(span.start.slice(0, 10), data?.today ?? day)} ${spanLabel(span)}`;
     if (kind === 'task') {
       const made = await module.api.post<{ id: string; title: string }>('/tasks', {
@@ -163,10 +183,14 @@ function AgendaPage() {
         run: () => module.api.delete(`/tasks/${made.id}`),
       });
     } else {
+      // v0.43.0: the category's defaults (its duration, its place) prefill the slot's.
+      const info = category ? categoryInfo(category) : null;
       const made = await module.api.post<{ id: string; title: string }>('/events', {
         title,
         start: span.start,
-        end: span.end,
+        end: info?.defaultDuration ? addMinutes(span.start, info.defaultDuration) : span.end,
+        ...(info?.defaultLocation ? { location: info.defaultLocation } : {}),
+        ...(category ? { category } : {}),
       });
       setNotice({
         message: `Rendez-vous « ${made.title} » ${where}`,
@@ -175,6 +199,17 @@ function AgendaPage() {
     }
     reload();
   };
+  // v0.42.0: the right-click / long-press menu of the blocks (SDK, ADR 0048).
+  const toolName = useModuleNames();
+  const menus = useAgendaMenus({
+    data: data ?? null,
+    timer: toolName('timer') !== null,
+    todo: Boolean(data?.todo),
+    onOpen: (item) => open(item),
+    onOpenTask: (t) => openToPlace(t),
+    onChanged: changed,
+    onError: (message) => setNotice({ message, run: null }),
+  });
   const openToPlace = (t: { id: string; title: string }) =>
     setSelectedTask({ id: t.id, title: t.title, category: 'Tâches' });
 
@@ -189,8 +224,11 @@ function AgendaPage() {
       title="Agenda"
       subtitle={
         <span className="ag-subtitle">
-          <span className="badge badge--warning" title="Pas encore validé à l’usage">
-            Expérimental
+          <span
+            className="badge badge--warning"
+            title="Pas encore validé à l’usage : le nom · lieu dans les blocs, l’aperçu au survol, la fiche à droite, le recalcul des titres (voir le guide)"
+          >
+            Nouveautés : Expérimental
           </span>{' '}
           <Link to="/m/agenda/guide">Le guide</Link>
           {/* v0.37.0: importing happens on the PC; the phone gets the events by the sync. */}
@@ -203,213 +241,234 @@ function AgendaPage() {
         </span>
       }
     >
-      {data && (
-        <QuickBar
-          today={data.today}
-          todo={data.todo}
-          onAdded={(a) => {
-            setNotice(
-              a.kind === 'task'
-                ? {
-                    message: a.plannedAt
-                      ? `« ${a.title} » ajouté à la To-do, prévu ${dayLabel(a.plannedAt.slice(0, 10), data.today)} ${a.plannedAt.slice(11, 16)}`
-                      : `« ${a.title} » ajouté à la To-do (à caser)`,
-                    run: null,
-                  }
-                : {
-                    message:
-                      a.kind === 'weekly'
-                        ? `« ${a.title} » ajouté à la semaine type`
-                        : `« ${a.title} » ajouté`,
-                    run: () =>
-                      module.api.delete(
-                        a.kind === 'weekly' ? `/weekly/${a.id}` : `/events/${a.id}`,
-                      ),
-                  },
-            );
-            reload();
-          }}
-        />
-      )}
-      <div className="ag-toolbar">
-        <div className="ag-tabs" role="tablist">
-          {(phone
-            ? (['day', 'month', 'weekly'] as View[])
-            : (['week', 'month', 'weekly'] as View[])
-          ).map((v) => (
-            <button
-              key={v}
-              type="button"
-              role="tab"
-              aria-selected={view === v}
-              className={`ag-tab${view === v ? ' ag-tab--on' : ''}`}
-              onClick={() => {
-                setSelected(null);
-                setSelectedTask(null);
-                setView(v);
-              }}
-            >
-              {{ week: 'Semaine', day: 'Jour', month: 'Mois', weekly: 'Semaine type' }[v]}
-            </button>
-          ))}
-        </div>
-        {view !== 'weekly' && view !== 'day' && (
-          <div className="ui-actions">
-            <Button small variant="secondary" onClick={() => shift(-1)} aria-label="Précédent">
-              ‹
-            </Button>
-            <Button small variant="secondary" onClick={() => setDay(today())}>
-              Aujourd’hui
-            </Button>
-            <Button small variant="secondary" onClick={() => shift(1)} aria-label="Suivant">
-              ›
-            </Button>
-            <strong className="ag-period">
-              {view === 'month'
-                ? monthTitle(day.slice(0, 7))
-                : data &&
-                  `Semaine du ${dayLabel(monday, data.today)} au ${dayLabel(addDays(monday, 6), data.today)}`}
-            </strong>
-          </div>
-        )}
-        {!phone && view !== 'weekly' && (
-          <Button small variant="secondary" onClick={() => setCreating(!creating)}>
-            {creating ? 'Fermer le formulaire' : 'Formulaire détaillé'}
-          </Button>
-        )}
-      </div>
-      {notice?.run && (
-        <UndoToast
-          message={notice.message}
-          onUndo={() => {
-            const run = notice.run!;
-            setNotice(null);
-            void run().then(reload);
-          }}
-          onDismiss={() => setNotice(null)}
-        />
-      )}
-      {notice && !notice.run && (
-        <p className="small ag-notice" role="status">
-          {notice.message}{' '}
-          <button type="button" className="ag-link" onClick={() => setNotice(null)}>
-            OK
-          </button>
-        </p>
-      )}
-      {error && <ErrorMessage>{error}</ErrorMessage>}
-      {creating && data && (
-        <Card title="Nouvel événement">
-          <EventForm
-            initial={{ start: `${day}T09:00`, end: `${day}T10:00`, allDay: false }}
-            submitLabel="Ajouter"
-            onCancel={() => setCreating(false)}
-            onSubmit={async (fields) => {
-              await module.api.post('/events', fields);
-              setCreating(false);
+      <div className={docked && (selected || selectedTask) ? 'ag-page ag-page--docked' : 'ag-page'}>
+        {/* v0.41.0: better titles for an imported source (PC: offered, never applied). */}
+        {!phone && <TitleBanner />}
+        {data && (
+          <QuickBar
+            today={data.today}
+            todo={data.todo}
+            onAdded={(a) => {
+              setNotice(
+                a.kind === 'task'
+                  ? {
+                      message: a.plannedAt
+                        ? `« ${a.title} » ajouté à la To-do, prévu ${dayLabel(a.plannedAt.slice(0, 10), data.today)} ${a.plannedAt.slice(11, 16)}`
+                        : `« ${a.title} » ajouté à la To-do (à caser)`,
+                      run: null,
+                    }
+                  : {
+                      message:
+                        a.kind === 'weekly'
+                          ? `« ${a.title} » ajouté à la semaine type`
+                          : `« ${a.title} » ajouté`,
+                      run: () =>
+                        module.api.delete(
+                          a.kind === 'weekly' ? `/weekly/${a.id}` : `/events/${a.id}`,
+                        ),
+                    },
+              );
               reload();
             }}
           />
-        </Card>
-      )}
-      {selected && data && (
-        <EventPanel
-          // v0.36.0: « Lancer un timer » (lent by the Timer, absent without it)
-          children={
-            !selected.allDay && (
-              <Lent<TimerLaunchProps>
-                name="timer.launch"
-                props={{
-                  title: selected.title,
-                  blockMin: minutesBetween(selected.start, selected.end),
-                  subject: timerSubject(selected),
-                  preferred: (selected.timerPref as TimerChoice | null) ?? null,
-                  onPreferredChange: async (choice) => {
-                    const url = selected.weekly
-                      ? `/weekly/${selected.weekly.id}`
-                      : `/events/${selected.id}`;
-                    await module.api.patch(url, { timerPref: choice });
-                    setSelected({ ...selected, timerPref: choice });
-                    setNotice({
-                      message: choice
-                        ? `Timer associé à « ${selected.title} »${selected.weekly ? ' (toutes les semaines)' : ''}`
-                        : 'Plus de timer associé',
-                      run: () => module.api.patch(url, { timerPref: selected.timerPref }),
-                    });
-                    reload();
-                  },
-                  onStarted: reload,
+        )}
+        <div className="ag-toolbar">
+          <div className="ag-tabs" role="tablist">
+            {(phone
+              ? (['day', 'month', 'weekly'] as View[])
+              : (['week', 'month', 'weekly'] as View[])
+            ).map((v) => (
+              <button
+                key={v}
+                type="button"
+                role="tab"
+                aria-selected={view === v}
+                className={`ag-tab${view === v ? ' ag-tab--on' : ''}`}
+                onClick={() => {
+                  setSelected(null);
+                  setSelectedTask(null);
+                  setView(v);
                 }}
-              />
-            )
-          }
-          key={`${selected.id}:${selected.start}`}
-          event={selected}
-          today={data.today}
-          onClose={() => setSelected(null)}
-          onChanged={changed}
-          onWeekType={() => {
-            setSelected(null);
-            setView('weekly');
-          }}
-        />
-      )}
-      {selectedTask && data && (
-        <TaskPanel
-          key={selectedTask.id}
-          task={selectedTask}
-          onClose={() => setSelectedTask(null)}
-          // The sheet stays open: the change shows in the week, with « Annuler ».
-          onChanged={(u) => {
-            setNotice(u);
-            reload();
-          }}
-        />
-      )}
-      {data && view !== 'weekly' && (
-        <CategorySwitches
-          categories={switchCategories(data)}
-          shown={layers.shown}
-          onToggle={layers.toggle}
-        />
-      )}
-      {data && view === 'week' && (
-        <WeekView
-          data={data}
-          monday={monday}
-          shown={layers.shown}
-          onOpen={open}
-          onDrop={phone ? undefined : drop}
-          onOpenTask={openToPlace}
-          onCreate={create}
-        />
-      )}
-      {data && view === 'day' && (
-        <DayView
-          data={data}
-          day={day}
-          shown={layers.shown}
-          onDay={setDay}
-          onOpen={open}
-          onOpenTask={openToPlace}
-          onCreate={create}
-        />
-      )}
-      {data && view === 'month' && (
-        <MonthView
-          data={data}
-          month={day.slice(0, 7)}
-          shown={layers.shown}
-          onOpen={open}
-          onDay={(d) => {
-            setDay(d);
-            setView(phone ? 'day' : 'week');
-          }}
-        />
-      )}
-      {data && view === 'weekly' && (
-        <WeekTypeView weekly={data.weekly} today={data.today} onChanged={changed} />
-      )}
+              >
+                {{ week: 'Semaine', day: 'Jour', month: 'Mois', weekly: 'Semaine type' }[v]}
+              </button>
+            ))}
+          </div>
+          {view !== 'weekly' && view !== 'day' && (
+            <div className="ui-actions">
+              <Button small variant="secondary" onClick={() => shift(-1)} aria-label="Précédent">
+                ‹
+              </Button>
+              <Button small variant="secondary" onClick={() => setDay(today())}>
+                Aujourd’hui
+              </Button>
+              <Button small variant="secondary" onClick={() => shift(1)} aria-label="Suivant">
+                ›
+              </Button>
+              <strong className="ag-period">
+                {view === 'month'
+                  ? monthTitle(day.slice(0, 7))
+                  : data &&
+                    `Semaine du ${dayLabel(monday, data.today)} au ${dayLabel(addDays(monday, 6), data.today)}`}
+              </strong>
+            </div>
+          )}
+          {!phone && view !== 'weekly' && (
+            <Button small variant="secondary" onClick={() => setCreating(!creating)}>
+              {creating ? 'Fermer le formulaire' : 'Formulaire détaillé'}
+            </Button>
+          )}
+        </div>
+        {notice?.run && (
+          <UndoToast
+            message={notice.message}
+            onUndo={() => {
+              const run = notice.run!;
+              setNotice(null);
+              void run().then(reload);
+            }}
+            onDismiss={() => setNotice(null)}
+          />
+        )}
+        {notice && !notice.run && (
+          <p className="small ag-notice" role="status">
+            {notice.message}{' '}
+            <button type="button" className="ag-link" onClick={() => setNotice(null)}>
+              OK
+            </button>
+          </p>
+        )}
+        {error && <ErrorMessage>{error}</ErrorMessage>}
+        {creating && data && (
+          <Card title="Nouvel événement">
+            <EventForm
+              initial={{ start: `${day}T09:00`, end: `${day}T10:00`, allDay: false }}
+              submitLabel="Ajouter"
+              onCancel={() => setCreating(false)}
+              onSubmit={async (fields) => {
+                await module.api.post('/events', fields);
+                setCreating(false);
+                reload();
+              }}
+            />
+          </Card>
+        )}
+        {selected && data && (
+          <Dock
+            key={`${selected.id}:${selected.start}`}
+            label={`Fiche : ${selected.title}`}
+            onClose={() => setSelected(null)}
+          >
+            <EventPanel
+              // v0.36.0: « Lancer un timer » (lent by the Timer, absent without it)
+              children={
+                !selected.allDay && (
+                  <Lent<TimerLaunchProps>
+                    name="timer.launch"
+                    props={{
+                      title: selected.title,
+                      blockMin: minutesBetween(selected.start, selected.end),
+                      subject: timerSubject(selected),
+                      preferred: (selected.timerPref as TimerChoice | null) ?? null,
+                      onPreferredChange: async (choice) => {
+                        const url = selected.weekly
+                          ? `/weekly/${selected.weekly.id}`
+                          : `/events/${selected.id}`;
+                        await module.api.patch(url, { timerPref: choice });
+                        setSelected({ ...selected, timerPref: choice });
+                        setNotice({
+                          message: choice
+                            ? `Timer associé à « ${selected.title} »${selected.weekly ? ' (toutes les semaines)' : ''}`
+                            : 'Plus de timer associé',
+                          run: () => module.api.patch(url, { timerPref: selected.timerPref }),
+                        });
+                        reload();
+                      },
+                      onStarted: reload,
+                    }}
+                  />
+                )
+              }
+              key={`${selected.id}:${selected.start}`}
+              event={selected}
+              today={data.today}
+              onClose={() => setSelected(null)}
+              onChanged={changed}
+              todo={data.todo}
+              onWeekType={() => {
+                setSelected(null);
+                setView('weekly');
+              }}
+            />
+          </Dock>
+        )}
+        {selectedTask && data && (
+          <Dock
+            key={selectedTask.id}
+            label={`Fiche : ${selectedTask.title}`}
+            onClose={() => setSelectedTask(null)}
+          >
+            <TaskPanel
+              key={selectedTask.id}
+              task={selectedTask}
+              onClose={() => setSelectedTask(null)}
+              onConverted={changed}
+              // The sheet stays open: the change shows in the week, with « Annuler ».
+              onChanged={(u) => {
+                setNotice(u);
+                reload();
+              }}
+            />
+          </Dock>
+        )}
+        {data && view !== 'weekly' && (
+          <CategorySwitches
+            categories={switchCategories(data)}
+            shown={layers.shown}
+            onToggle={layers.toggle}
+          />
+        )}
+        {data && view === 'week' && (
+          <WeekView
+            data={data}
+            monday={monday}
+            shown={layers.shown}
+            onOpen={open}
+            onDrop={phone ? undefined : drop}
+            onOpenTask={openToPlace}
+            onCreate={create}
+            menu={menus.bind}
+          />
+        )}
+        {data && view === 'day' && (
+          <DayView
+            data={data}
+            day={day}
+            shown={layers.shown}
+            onDay={setDay}
+            onOpen={open}
+            onOpenTask={openToPlace}
+            onCreate={create}
+            menu={menus.bind}
+          />
+        )}
+        {data && view === 'month' && (
+          <MonthView
+            data={data}
+            month={day.slice(0, 7)}
+            shown={layers.shown}
+            onOpen={open}
+            onDay={(d) => {
+              setDay(d);
+              setView(phone ? 'day' : 'week');
+            }}
+          />
+        )}
+        {data && view === 'weekly' && (
+          <WeekTypeView weekly={data.weekly} today={data.today} onChanged={changed} />
+        )}
+      </div>
+      {menus.node}
     </Page>
   );
 }
@@ -450,6 +509,18 @@ function HomeWidget() {
   );
 }
 
+/** Réglages › Agenda: the categories (v0.42.0), then the imported calendars (v0.37.0). */
+function AgendaSettings() {
+  return (
+    <>
+      <h3 className="ag-settings__title">Catégories</h3>
+      <CategoriesPanel />
+      <h3 className="ag-settings__title">Sources (calendriers importés)</h3>
+      <SourcesPanel />
+    </>
+  );
+}
+
 export default defineFrontendModule({
   // v0.36.0 (ADR 0046): « Rendez-vous » in the shell's « Ajouter » bar (the Agenda bar's rules).
   quickAdd: {
@@ -461,9 +532,9 @@ export default defineFrontendModule({
     add: async (text, { api }) => {
       const r = await api.post<{
         kind: 'event' | 'weekly' | 'task';
-        event?: { id: string; title: string; start: string };
+        event?: { id: string; title: string; start: string; deadline?: true };
         weekly?: { id: string; title: string };
-      }>('/quick', { text });
+      }>('/quick', { text, mode: 'appointment' });
       if (r.kind === 'weekly' && r.weekly)
         return {
           message: `« ${r.weekly.title} » ajouté à la semaine type`,
@@ -472,7 +543,9 @@ export default defineFrontendModule({
         };
       if (r.kind === 'event' && r.event)
         return {
-          message: `« ${r.event.title} » ajouté à l’agenda`,
+          message: r.event.deadline
+            ? `Deadline « ${r.event.title} » ajoutée à l’agenda`
+            : `« ${r.event.title} » ajouté à l’agenda`,
           open: `/m/agenda?date=${r.event.start.slice(0, 10)}`,
           undo: () => api.delete(`/events/${r.event!.id}`),
         };
@@ -484,7 +557,7 @@ export default defineFrontendModule({
     { path: 'guide', component: GuidePage },
     { path: 'import', component: ImportPage },
   ],
-  // v0.37.0: Réglages › Agenda › Sources (the imported calendars).
-  settingsPanel: { label: 'Sources (calendriers importés)', component: SourcesPanel },
+  // v0.37.0: Réglages › Agenda › Sources; v0.42.0: and the categories.
+  settingsPanel: { label: 'Catégories et sources', component: AgendaSettings },
   HomeWidget,
 });

@@ -17,8 +17,9 @@ import type { SystemInfo } from '../../../../backend/routes/core';
 import { useModules } from '../../modules/ModulesContext';
 import { formatDateTime, formatSize } from '../format';
 import { useNavigation } from '../NavigationContext';
+import { showTool } from '../navigation';
 import { AppearanceCard } from './AppearanceCard';
-import { SyncCard } from './SyncCard';
+import { SyncSection } from './SyncCard';
 import { SettingsForm, type SettingsSectionData } from './SettingsForm';
 
 const STATUS_LABELS = {
@@ -27,6 +28,39 @@ const STATUS_LABELS = {
   'missing-dependencies': 'Dépendance manquante',
   disabled: 'Désactivé',
 };
+
+/**
+ * v0.42.0 (Expérimental): the tools hidden from the bar (« Masquer de la
+ * barre », its right-click menu), shown again here. Local to this PC.
+ */
+function HiddenToolsCard() {
+  const { layout, home, change } = useNavigation();
+  const hidden = layout.hidden ?? [];
+  const name = (id: string) => home.flatMap((c) => c.tools).find((t) => t.id === id)?.name ?? id;
+  return (
+    <Card title="Afficher les outils masqués">
+      <p className="small muted">
+        <span className="badge badge--warning">Expérimental</span> Un outil masqué (clic droit sur
+        lui dans la barre › « Masquer de la barre ») reste sur l’accueil et dans les Réglages ; il
+        revient à sa place. Propre à ce PC.
+      </p>
+      {hidden.length === 0 ? (
+        <p className="small muted">Aucun outil masqué.</p>
+      ) : (
+        <ul className="list">
+          {hidden.map((id) => (
+            <li key={id} className="list__item">
+              <span>{name(id)}</span>
+              <Button small variant="secondary" onClick={() => change((l) => showTool(l, id))}>
+                Afficher
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
 
 function ModulesCard() {
   const { modules, reload } = useModules();
@@ -532,13 +566,25 @@ export function SettingsPage() {
       group: GENERAL_GROUP,
       entries: [
         { key: 'sync', label: 'Synchro avec le téléphone', description: 'appairage, conflits' },
+        {
+          key: 'sync-networks',
+          label: 'Réseaux et adresses',
+          description: 'réseau Privé / Public, réseaux connus, derniers essais',
+        },
       ],
     },
     {
       id: 'modules',
       title: 'Modules',
       group: GENERAL_GROUP,
-      entries: [{ key: 'modules', label: 'Activer ou désactiver un module' }],
+      entries: [
+        { key: 'modules', label: 'Activer ou désactiver un module' },
+        {
+          key: 'hidden-tools',
+          label: 'Afficher les outils masqués',
+          description: 'barre latérale',
+        },
+      ],
     },
     {
       id: 'backups',
@@ -668,8 +714,13 @@ export function SettingsPage() {
           {current.id === 'accounts' && (
             <AccountsCard section={accountSection} onSaved={settings.reload} />
           )}
-          {current.id === 'sync' && <SyncCard />}
-          {current.id === 'modules' && <ModulesCard />}
+          {current.id === 'sync' && <SyncSection />}
+          {current.id === 'modules' && (
+            <>
+              <HiddenToolsCard />
+              <ModulesCard />
+            </>
+          )}
           {current.id === 'backups' && <BackupsCard />}
           {current.id === 'about' && <AboutCard />}
           {current.group !== GENERAL_GROUP && (

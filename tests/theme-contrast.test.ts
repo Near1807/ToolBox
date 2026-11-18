@@ -3,7 +3,7 @@
 // read on, text on the accent, discreet and disabled text, accent and focus
 // marks, chart series on the cards; series told apart from each other, also
 // with deuteranopia; controls visible without hover.
-import { readdirSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
@@ -17,7 +17,10 @@ import {
 } from './helpers/contrast';
 
 const dir = path.resolve(__dirname, '../frontend/src/themes');
-const themes = readdirSync(dir).filter((f) => f.endsWith('.css'));
+// v0.42.0: palette.css (the categories' colours) is not a theme: only the files with an @theme header.
+const themes = readdirSync(dir).filter(
+  (f) => f.endsWith('.css') && readFileSync(path.join(dir, f), 'utf8').includes('@theme'),
+);
 
 describe.each(themes)('lisibilité de %s', (file) => {
   const tokens = themeTokens(path.join(dir, file));

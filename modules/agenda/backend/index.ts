@@ -20,13 +20,21 @@ import {
 import { localToday, parseDue } from '@hub/sdk/dates';
 import type { TodoService } from '../../todo/contract';
 import type { TimerService } from '../../timer/contract';
-import { categoryList, DEFAULT_CATEGORY, DEFAULT_OFF } from '../shared/categories';
+import {
+  categoryKey,
+  categoryList,
+  type CategoryDto,
+  DEFAULT_CATEGORY,
+  DEFAULT_OFF,
+} from '../shared/categories';
+import { AHEAD_DAYS, dueMoment, OVERDUE_DAYS } from '../shared/deadline';
 import { MIN_BLOCK_MIN } from '../shared/drag';
 import { parseQuick, type Parsed } from '../shared/parse';
 import { occurrences, type OccurrenceException } from '../shared/recurrence';
 import { addDays, addMinutes, daysBetween, minutesBetween } from '../shared/time';
 import { readOrigin } from '../shared/importing';
 import { registerImports } from './imports';
+import { type CategoryLookup, migrateCategoriesToObjects, registerCategories } from './categories';
 import type {
   AgendaEventDto,
   ForeignEventDto,
@@ -55,6 +63,12 @@ interface EventRow {
   origin: string | null;
   /** v0.40.0: 1 = « facultatif »: shown, but no conflict and no load. Thomas's, never a file's. */
   optional: number;
+  /** v0.42.0: a deadline ticked « faite » (ISO date), or null. */
+  done_at: string | null;
+  /** v0.43.0: its category (agenda__categories); the `category` text stays readable. */
+  category_id: string | null;
+  /** v0.43.0: its type, « rendez-vous » or « deadline ». */
+  kind: string;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -72,6 +86,8 @@ interface WeeklyRow {
   valid_until: string | null;
   /** v0.36.0: the associated timer, as JSON, or null. */
   timer_pref: string | null;
+  /** v0.43.0: its category (agenda__categories). */
+  category_id: string | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -168,6 +184,25 @@ export default defineBackendModule({
         '« facultatif » (v0.40.0): an event shown but neither in the conflicts nor in the load (off by default)',
       up: `ALTER TABLE agenda__events ADD COLUMN optional INTEGER NOT NULL DEFAULT 0;`,
     },
+    {
+      version: 6,
+      description:
+        'categories managed by Thomas (v0.42.0): only his changes and his own ones (empty: every category as before), and « faite » for a deadline (empty by default)',
+      up: `
+        CREATE TABLE agenda__categories (${SYNC_COLUMNS},
+          key TEXT NOT NULL, name TEXT NOT NULL, color TEXT,
+          shape TEXT NOT NULL DEFAULT 'normal', counted INTEGER NOT NULL DEFAULT 1,
+          shown INTEGER NOT NULL DEFAULT 1, sort INTEGER, mine INTEGER NOT NULL DEFAULT 0);
+        CREATE UNIQUE INDEX agenda__categories_key ON agenda__categories (key) WHERE deleted_at IS NULL;
+        ALTER TABLE agenda__events ADD COLUMN done_at TEXT;
+      `,
+    },
+    {
+      version: 7,
+      description:
+        'categories as objects (v0.43.0, ADR 0049): their settings, the category_id and the type (kind) of the elements, a category for a task; every category in use seeded with an identifier derived from its name (the same on the PC and the phone), with its values of now',
+      up: (db) => migrateCategoriesToObjects(db),
+    },
   ],
   sync: {},
 
@@ -182,7 +217,8 @@ export default defineBackendModule({
 
     // --- Reading ----------------------------------------------------------------
 
-    registerImports(ctx, store);
+    const categories = registerCategories(ctx, store);
+    registerImports(ctx, store, categories);
     /** v0.37.0: the name of each source, for the detail of its events. */
     const sourceNames = () =>
       new Map(
@@ -192,52 +228,86 @@ export default defineBackendModule({
             .all() as { id: string; name: string }[]
         ).map((s) => [s.id, s.name]),
       );
+    /** Is this event a deadline (a moment)? v0.43.0: its own type (`kind`), whatever its category. */
+    const isDeadlineRow = (row: EventRow) => row.kind === 'deadline';
+    /**
+     * v0.43.0: the type asked (`kind`: « rendez-vous » or « deadline »), else
+     * the default type of its category (its v0.42 « forme »).
+     */
+    const kindOf = (
+      body: Record<string, unknown>,
+      cat: { category: string; category_id: string },
+    ) => {
+      if ('kind' in body && body.kind !== undefined && body.kind !== null) {
+        if (body.kind !== 'deadline' && body.kind !== 'rendez-vous')
+          throw new HttpError(400, 'Type invalide (« rendez-vous » ou « deadline »)');
+        return body.kind;
+      }
+      return categories.shapeOf(cat.category, cat.category_id) === 'deadline'
+        ? 'deadline'
+        : 'rendez-vous';
+    };
+
     /** An event as the pages get it; an imported one with its source (v0.37.0). */
+    /**
+     * v0.43.0: its category by its identifier (a renamed category: the new
+     * name), else by its name; `deadline` from its own type (v0.43.0).
+     */
     const eventDto = (
       row: EventRow,
       names = row.source_id ? sourceNames() : null,
-    ): AgendaEventDto => ({
-      id: row.id,
-      title: row.title,
-      start: row.start_at,
-      end: row.end_at,
-      allDay: row.all_day === 1,
-      location: row.location,
-      note: row.note,
-      category: row.category,
-      weekly: null,
-      timerPref: prefOf(row.timer_pref),
-      ...(row.optional ? { optional: true as const } : {}),
-      ...(row.source_id && names?.has(row.source_id)
-        ? {
-            source: {
-              id: row.source_id,
-              name: names.get(row.source_id)!,
-              original: readOrigin(row.origin)?.original ?? {},
-            },
-          }
-        : {}),
-    });
-    const weeklyDto = (row: WeeklyRow): WeeklyDto => ({
+      l: CategoryLookup = categories.lookup(),
+    ): AgendaEventDto => {
+      const cat = l.of(row.category, row.category_id);
+      return {
+        id: row.id,
+        title: row.title,
+        start: row.start_at,
+        end: row.end_at,
+        allDay: row.all_day === 1,
+        location: row.location,
+        note: row.note,
+        category: cat?.name ?? row.category,
+        ...(cat ? { categoryId: cat.id } : {}),
+        weekly: null,
+        timerPref: prefOf(row.timer_pref),
+        ...(row.optional ? { optional: true as const } : {}),
+        ...(isDeadlineRow(row) ? { deadline: true as const } : {}),
+        ...(row.done_at ? { done: true as const } : {}),
+        ...(row.source_id && names?.has(row.source_id)
+          ? {
+              source: {
+                id: row.source_id,
+                name: names.get(row.source_id)!,
+                original: readOrigin(row.origin)?.original ?? {},
+              },
+            }
+          : {}),
+      };
+    };
+    const weeklyDto = (row: WeeklyRow, l: CategoryLookup = categories.lookup()): WeeklyDto => ({
       id: row.id,
       title: row.title,
       weekday: row.weekday,
       time: row.time,
       durationMin: row.duration_min,
-      category: row.category,
+      category: l.nameOf(row.category, row.category_id),
+      ...(l.of(row.category, row.category_id)
+        ? { categoryId: l.of(row.category, row.category_id)!.id }
+        : {}),
       location: row.location,
       from: row.valid_from,
       until: row.valid_until,
       timerPref: prefOf(row.timer_pref),
     });
-    const weeklyList = () =>
+    const weeklyList = (l: CategoryLookup = categories.lookup()) =>
       (
         ctx.db
           .prepare(
             `SELECT * FROM ${weeklyTable} WHERE deleted_at IS NULL ORDER BY weekday, time, title`,
           )
           .all() as WeeklyRow[]
-      ).map(weeklyDto);
+      ).map((r) => weeklyDto(r, l));
     /** The live exception of each occurrence (the latest one if two were written on two devices). */
     const exceptionList = (): OccurrenceException[] => {
       const rows = ctx.db
@@ -262,10 +332,29 @@ export default defineBackendModule({
         )
         .all(to, from) as EventRow[];
       const names = rows.some((r) => r.source_id) ? sourceNames() : null;
+      const l = categories.lookup();
       return [
-        ...rows.map((r) => eventDto(r, names)),
-        ...occurrences(weeklyList(), exceptionList(), from, to),
+        ...rows.map((r) => eventDto(r, names, l)),
+        ...occurrences(weeklyList(l), exceptionList(), from, to),
       ].sort((a, b) => a.start.localeCompare(b.start) || a.title.localeCompare(b.title));
+    };
+
+    /**
+     * v0.42.0: the « Deadlines » row: the deadlines not done, late ones
+     * included (up to OVERDUE_DAYS back), up to `to` + AHEAD_DAYS; sorted.
+     */
+    const deadlineList = (list: CategoryDto[], today: string, to: string): AgendaEventDto[] => {
+      const l = categories.lookup(list);
+      const rows = ctx.db
+        .prepare(
+          `SELECT * FROM ${events} WHERE deleted_at IS NULL AND done_at IS NULL AND substr(start_at, 1, 10) >= ? AND substr(start_at, 1, 10) <= ? ORDER BY start_at, title`,
+        )
+        .all(addDays(today, -OVERDUE_DAYS), addDays(to, AHEAD_DAYS)) as EventRow[];
+      const mine = rows.filter(isDeadlineRow);
+      const names = mine.some((r) => r.source_id) ? sourceNames() : null;
+      return mine
+        .map((r) => eventDto(r, names, l))
+        .sort((a, b) => dueMoment(a.start).localeCompare(dueMoment(b.start)));
     };
 
     const period = (query: unknown): { from: string; to: string } => {
@@ -286,6 +375,9 @@ export default defineBackendModule({
       const service = todo();
       // v0.35.0: the planned tasks (events of a source of items, with `itemId`).
       const tasks: PlannedTaskDto[] = [];
+      // v0.43.0: a task with a category of the Agenda (its own table; the To-do is unchanged).
+      const links = categories.taskLinks();
+      const lookupAll = categories.lookup();
       for (const e of view.events) {
         if (
           !e.itemId ||
@@ -302,7 +394,12 @@ export default defineBackendModule({
           start: e.start,
           end: addMinutes(e.start, e.durationMin),
           allDay: false,
-          category: e.category,
+          ...(links.has(task.id) && lookupAll.byId.has(links.get(task.id)!)
+            ? {
+                category: lookupAll.byId.get(links.get(task.id)!)!.name,
+                categoryId: links.get(task.id)!,
+              }
+            : { category: e.category }),
           done: task.done,
           due: task.due,
           afterDue: task.due !== null && e.start.slice(0, 10) > task.due,
@@ -335,13 +432,22 @@ export default defineBackendModule({
             late: i.due !== null && i.due < today,
           }))
         : [];
-      const categories = [
+      // v0.42.0: the list managed by Thomas (colours, shapes, counted), and his own ones get a switch.
+      const categoryInfo = categories.list();
+      const deadlines = deadlineList(categoryInfo, today, to);
+      // v0.43.0: as in v0.42, only the ones he created (not the names found in his data).
+      const mine = categoryInfo.filter((c) => c.created).map((c) => c.name);
+      const seen = [
         ...new Set([
           ...own.map((e) => e.category),
           ...foreign.map((e) => e.category),
           ...tasks.map((e) => e.category),
+          ...mine,
         ]),
-      ].sort((a, b) => a.localeCompare(b));
+      ];
+      const switchNames = seen
+        .filter((c, i) => seen.findIndex((x) => categoryKey(x) === categoryKey(c)) === i)
+        .sort((a, b) => a.localeCompare(b));
       return {
         today,
         from,
@@ -359,7 +465,9 @@ export default defineBackendModule({
         weekly: weeklyList(),
         dayStartHour: setting('dayStartHour', 7),
         dayEndHour: setting('dayEndHour', 23),
-        categories,
+        categories: switchNames,
+        categoryInfo,
+        deadlines,
         categoriesOff: categoryList(
           ctx.settings.get<string>('categoriesOff') ?? DEFAULT_OFF.join(', '),
         ),
@@ -387,13 +495,21 @@ export default defineBackendModule({
       if (!t && required) throw new HttpError(400, `${label} : obligatoire`);
       return t || null;
     };
-    const category = (value: unknown) => text(value, 'Catégorie') ?? DEFAULT_CATEGORY;
+    /** v0.43.0: the category written: { category_id, category (its name, readable) }. */
+    const categoryFields = (body: Record<string, unknown>) => {
+      const c = categories.resolve(
+        { categoryId: body.categoryId, category: text(body.category, 'Catégorie') },
+        DEFAULT_CATEGORY,
+      );
+      return { category_id: c.id, category: c.name };
+    };
 
     /** Start and end of an event, checked (all day: dates, last day inclusive; else date-times). */
-    const when = (body: Record<string, unknown>) => {
+    const when = (body: Record<string, unknown>, moment = false) => {
       const allDay = body.allDay === true;
       const start = String(body.start ?? '');
-      let end = String(body.end ?? '');
+      // v0.42.0: a deadline is a moment: no end of its own (end = start).
+      let end = moment ? start : String(body.end ?? '');
       if (allDay) {
         if (!isDay(start)) throw new HttpError(400, 'Début invalide (AAAA-MM-JJ)');
         if (!end) end = start;
@@ -404,7 +520,8 @@ export default defineBackendModule({
         if (!isDateTime(start)) throw new HttpError(400, 'Début invalide (AAAA-MM-JJTHH:MM)');
         if (!end && typeof body.durationMin === 'number') end = addMinutes(start, body.durationMin);
         if (!isDateTime(end)) throw new HttpError(400, 'Fin invalide (AAAA-MM-JJTHH:MM)');
-        if (minutesBetween(start, end) <= 0) throw new HttpError(400, 'La fin est avant le début.');
+        if (!moment && minutesBetween(start, end) <= 0)
+          throw new HttpError(400, 'La fin est avant le début.');
         if (minutesBetween(start, end) > 14 * 24 * 60)
           throw new HttpError(400, 'Deux semaines au plus');
       }
@@ -422,16 +539,20 @@ export default defineBackendModule({
       return row;
     };
 
-    const createEvent = (body: Record<string, unknown>): AgendaEventDto =>
-      eventDto(
+    const createEvent = (body: Record<string, unknown>): AgendaEventDto => {
+      const cat = categoryFields(body);
+      const deadline = kindOf(body, cat) === 'deadline';
+      return eventDto(
         store.create<EventRow>('events', {
           title: text(body.title, 'Titre', true)!,
-          ...when(body),
+          ...when(body, deadline),
           location: text(body.location, 'Lieu'),
           note: text(body.note, 'Note'),
-          category: category(body.category),
+          ...cat,
+          kind: deadline ? 'deadline' : 'rendez-vous',
         }),
       );
+    };
 
     const weeklyFields = (body: Record<string, unknown>, partial = false) => {
       const out: Record<string, string | number | null> = {};
@@ -452,7 +573,8 @@ export default defineBackendModule({
           throw new HttpError(400, 'Durée invalide (en minutes)');
         out.duration_min = d;
       }
-      if (!partial || 'category' in body) out.category = category(body.category);
+      if (!partial || 'category' in body || 'categoryId' in body)
+        Object.assign(out, categoryFields(body));
       if (partial && 'timerPref' in body) out.timer_pref = prefFrom(body.timerPref);
       if (!partial || 'location' in body) out.location = text(body.location, 'Lieu');
       for (const [key, column] of [
@@ -474,15 +596,36 @@ export default defineBackendModule({
     };
 
     /** The bar: an event, an entry of the week type, or a task of the To-do (« à caser »). */
-    const quickAdd = (input: unknown) => {
+    /**
+     * `appointment` (v0.43.0): the « Rendez-vous » destination of the « Ajouter »
+     * bar: it NEVER creates a task — a text without a date and a time (or
+     * « ~1h » without a time) is refused, nothing is written.
+     */
+    const quickAdd = (input: unknown, chosen?: unknown, appointment = false) => {
       const parsed: Parsed = parseQuick(typeof input === 'string' ? input : '', localToday());
+      if (appointment && parsed.kind === 'task')
+        throw new HttpError(
+          400,
+          'Un rendez-vous a besoin d’une date et d’une heure (« dentiste jeudi 14h »). Rien n’a été ajouté ; pour une tâche, choisis « Tâche ».',
+        );
+      // v0.42.0: a category chosen in the list wins over the text's (« #cours »).
+      const override =
+        typeof chosen === 'string' && chosen.trim()
+          ? categories.resolve({ categoryId: chosen, category: chosen }, DEFAULT_CATEGORY).name
+          : null;
+      if (override && (parsed.kind === 'event' || parsed.kind === 'weekly'))
+        parsed.category = override;
       switch (parsed.kind) {
         case 'empty':
           throw new HttpError(400, 'Rien à ajouter');
         case 'error':
           throw new HttpError(400, parsed.message);
         case 'event':
-          return { kind: 'event' as const, event: createEvent(parsed) };
+          // v0.43.0: « deadline … »: a deadline, whatever its category.
+          return {
+            kind: 'event' as const,
+            event: createEvent({ ...parsed, kind: parsed.deadline ? 'deadline' : undefined }),
+          };
         case 'weekly':
           return {
             kind: 'weekly' as const,
@@ -520,7 +663,10 @@ export default defineBackendModule({
       return range(from, to);
     });
 
-    ctx.routes.post('/quick', (request) => quickAdd(requestBody(request).text));
+    ctx.routes.post('/quick', (request) => {
+      const body = requestBody(request);
+      return quickAdd(body.text, body.category, body.mode === 'appointment');
+    });
 
     ctx.routes.post('/events', (request) => createEvent(requestBody(request)));
 
@@ -601,25 +747,47 @@ export default defineBackendModule({
       if ('title' in body) fields.title = text(body.title, 'Titre', true);
       if ('location' in body) fields.location = text(body.location, 'Lieu');
       if ('note' in body) fields.note = text(body.note, 'Note');
-      if ('category' in body) fields.category = category(body.category);
+      if ('category' in body || 'categoryId' in body) Object.assign(fields, categoryFields(body));
       if ('timerPref' in body) fields.timer_pref = prefFrom(body.timerPref);
       if ('optional' in body) {
         if (typeof body.optional !== 'boolean')
           throw new HttpError(400, 'Facultatif : oui ou non (true / false)');
         fields.optional = body.optional ? 1 : 0;
       }
-      if ('start' in body || 'end' in body || 'allDay' in body)
+      if ('done' in body) {
+        if (typeof body.done !== 'boolean')
+          throw new HttpError(400, 'Faite : oui ou non (true / false)');
+        fields.done_at = body.done ? (row.done_at ?? new Date().toISOString()) : null;
+      }
+      // v0.43.0: the type is the element's own: it changes only when asked
+      // (`kind`), never with its category. A deadline is a moment; back to a
+      // block: one hour.
+      const moment =
+        'kind' in body
+          ? kindOf(body, { category: row.category, category_id: row.category_id ?? '' }) ===
+            'deadline'
+          : isDeadlineRow(row);
+      const wasMoment = isDeadlineRow(row) || (row.all_day === 0 && row.end_at === row.start_at);
+      if (moment !== isDeadlineRow(row)) fields.kind = moment ? 'deadline' : 'rendez-vous';
+      if ('start' in body || 'end' in body || 'allDay' in body || moment !== wasMoment)
         Object.assign(
           fields,
-          when({
-            allDay: 'allDay' in body ? body.allDay : row.all_day === 1,
-            start: body.start ?? row.start_at,
-            end: body.end ?? ('start' in body || 'allDay' in body ? '' : row.end_at),
-            durationMin:
-              'start' in body && !('end' in body) && row.all_day === 0
-                ? minutesBetween(row.start_at, row.end_at)
-                : body.durationMin,
-          }),
+          when(
+            {
+              allDay: 'allDay' in body ? body.allDay : row.all_day === 1,
+              start: body.start ?? row.start_at,
+              end:
+                body.end ??
+                ('start' in body || 'allDay' in body || (wasMoment && !moment) ? '' : row.end_at),
+              durationMin:
+                wasMoment && !moment && !('end' in body)
+                  ? 60
+                  : 'start' in body && !('end' in body) && row.all_day === 0
+                    ? minutesBetween(row.start_at, row.end_at)
+                    : body.durationMin,
+            },
+            moment,
+          ),
         );
       const changed = Object.fromEntries(
         Object.entries(fields).filter(([k, v]) => row[k as keyof EventRow] !== v),
@@ -628,6 +796,70 @@ export default defineBackendModule({
         Object.keys(changed).length ? store.update<EventRow>('events', id, changed) : row,
       );
     });
+    // --- v0.43.0: « Convertir en tâche / en rendez-vous » -------------------------
+    // One action each, on a click; « Annuler » (the page) undoes it exactly:
+    // the element converted is a tombstone brought back, the one made is
+    // deleted again. The associated timer follows.
+
+    /** An event of the Agenda becomes a task of the To-do (planned at its time, or due on its day). */
+    ctx.routes.post('/events/:id/to-task', (request) => {
+      const service = todoOrFail();
+      const row = getEvent(uuidParam(request.params));
+      const timed = row.all_day === 0 && row.end_at !== row.start_at;
+      const task = ctx.db.transaction(() => {
+        const made = service.createTask({
+          title: row.title,
+          ...(timed
+            ? {
+                plannedAt: row.start_at,
+                durationMin: Math.max(MIN_BLOCK_MIN, minutesBetween(row.start_at, row.end_at)),
+              }
+            : { due: row.start_at.slice(0, 10) }),
+          timerPref: prefOf(row.timer_pref),
+        });
+        store.remove('events', row.id);
+        return made;
+      });
+      return { task, eventId: row.id };
+    });
+
+    /** A task of the To-do becomes an event (at its planned time, or all day on its due date). */
+    ctx.routes.post('/tasks/:id/to-event', (request) => {
+      const service = todoOrFail();
+      const id = uuidParam(request.params);
+      const task = service.getTask(id);
+      if (!task) throw new HttpError(404, 'Tâche introuvable');
+      if (!task.plannedAt && !task.due)
+        throw new HttpError(
+          409,
+          'Cette tâche n’a ni heure ni échéance : prévois-la d’abord dans la semaine.',
+        );
+      const event = ctx.db.transaction(() => {
+        const made = store.create<EventRow>('events', {
+          title: task.title,
+          ...(task.plannedAt
+            ? {
+                start_at: task.plannedAt,
+                end_at: addMinutes(task.plannedAt, task.durationMin ?? MIN_BLOCK_MIN),
+                all_day: 0,
+              }
+            : { start_at: task.due!, end_at: task.due!, all_day: 1 }),
+          location: null,
+          note: null,
+          ...categoryFields({}),
+          ...(task.timerPref ? { timer_pref: JSON.stringify(task.timerPref) } : {}),
+        });
+        service.deleteTask(id);
+        return made;
+      });
+      return { event: eventDto(event), taskId: id };
+    });
+
+    /** « Annuler » of « Convertir en rendez-vous »: the task comes back as it was. */
+    ctx.routes.post('/tasks/:id/restore', (request) =>
+      todoOrFail().restoreTask(uuidParam(request.params)),
+    );
+
     // A tombstone (« Annuler » brings it back), after the page's confirmation.
     ctx.routes.delete('/events/:id', (request) => {
       store.remove('events', getEvent(uuidParam(request.params)).id);

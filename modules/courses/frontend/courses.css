@@ -26,6 +26,10 @@
   gap: 8px;
   margin-bottom: 8px;
 }
+/* v0.42.0: the three week buttons, one group (on the PC: as before, in the row). */
+.cs-period__weeks {
+  display: contents;
+}
 .cs-grow {
   flex: 1;
   min-width: 200px;

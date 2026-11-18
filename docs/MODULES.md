@@ -575,6 +575,11 @@ export default defineFrontendModule({
 | `TextFields`                     | titre, description, légende, tags d'un élément, **modifiables sous l'élément** (§7.3)                                                                                                                                                                                                                                    |
 | `usePrecheck`                    | vérification rapide du master avant une génération (avec `precheckTrack` côté backend) : rien à signaler → génère tout de suite (avec la `note` éventuelle affichée en petit) ; sinon les faits et « Générer quand même » / « Voir l'analyse » / « Annuler ». Jamais bloquant, rien sans le module « Analyse du master » |
 
+| `Tabs` | v0.41.0 : une page en onglets (« Synchro » / « Réseaux et adresses »), même aspect sur le PC et le téléphone, flèches du clavier |
+| `useModuleNames()` | v0.41.0 : le nom lisible d'un module présent (« Sport »), pour dire d'où vient un élément d'un autre outil ; `null` s'il n'est pas là |
+
+**Boutons-icônes** (v0.41.0) : `className="icon-button"` (30 × 30, icône de 16 px centrée, sans remplissage du navigateur) ; la règle est commune (`frontend/src/styles.css`), jamais un réglage par module.
+
 Un besoin non couvert : enrichir le composant du SDK (pour tous), pas en écrire un autre dans le module.
 
 **Icônes : pas d'emoji dans l'interface.** Toutes les icônes (barre latérale, accueil, cartes, titres, réglages, badges, boutons, fenêtre flottante…) viennent du jeu unique du SDK : `<Icon name="…" />` (`@hub/sdk/frontend`, lucide-react, même trait, taille du texte, couleur du thème ; `label` quand l'icône porte un sens sans texte à côté). Le manifest nomme son icône de la même façon (§2). `npm run lint` échoue sur un emoji dans un frontend (`scripts/check-ui-emoji.mjs`). Ce qui sort de l'app n'est pas l'interface : une légende Instagram, un export Markdown peuvent en contenir.
@@ -622,6 +627,29 @@ L'interface a plusieurs thèmes (Réglages › Apparence, `docs/THEMES.md`). **A
 - Il tourne dans le contexte du module (son `useModule()`, son API) ; `label` est ce que la recherche des Réglages trouve.
 - Pour ce que les réglages simples (`settings`) ne savent pas faire : une liste à gérer (les sources de l'Agenda). Les mêmes règles que les pages : toute action qui modifie est visible, confirmée quand elle supprime, annulable si possible.
 - Le shell ne connaît aucun module : il montre le panneau du module dont la section est ouverte (`ModuleSettingsPanel`). Sur le téléphone, la coquille ne l'affiche pas (pas de Réglages par module).
+
+### 7.7 Menu contextuel (v0.42.0, ADR 0048, Expérimental)
+
+Un seul menu pour tout le monde : `useContextMenu()` de `@hub/sdk/frontend`, jamais un menu fait maison.
+
+```tsx
+const menu = useContextMenu();
+// sur chaque élément (clic droit, touche Menu / Maj+F10, appui long sur le téléphone) :
+<button {...menu.bind(() => itemsOf(task), task.title)} onClick={open}>
+  …
+</button>;
+// une fois dans la page :
+{
+  menu.node;
+}
+```
+
+- Éléments (`MenuItem`) : `{ label, icon?, shortcut?, disabled?: true | 'raison', onSelect }`, `{ separator: true }`, `{ title }`, `{ label, submenu: [...] }` (un seul niveau), et une action dangereuse `{ ..., danger: true, confirm: 'Supprimer « … » ?' }` : la question est toujours posée avant.
+- `shortcut` : seulement un raccourci qui fait vraiment la même chose ailleurs (jamais un raccourci inventé pour le menu).
+- Les éléments sont construits à l'ouverture (toujours à jour) ; `cleanItems` retire les séparateurs en trop ; un menu vide ne s'ouvre pas (le menu du navigateur reste).
+- **Seulement des actions qui existent déjà ailleurs** dans l'interface ; une action qui modifie reste visible et annulable comme ailleurs (son « Annuler ») ; une dangereuse garde sa confirmation. Pas d'action « en douce ».
+- Si l'élément a ses propres gestionnaires (glisser, clavier), les fusionner avec `mergeHandlers(own, menu.bind(...))`.
+- Fermeture : Échap, clic ailleurs, défilement ; le menu reste dans la fenêtre. Style : `.ui-menu` (jetons du thème).
 
 ## 8. Tests
 

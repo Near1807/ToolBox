@@ -18,7 +18,6 @@ import {
   useModule,
   Icon,
   Lent,
-  useLentAvailable,
   onPhone,
 } from '@hub/sdk/frontend';
 import type { TimerLaunchProps } from '../../timer/contract';
@@ -303,7 +302,6 @@ function SessionEditor(props: {
   onDeleted: (s: Session) => void;
 }) {
   const module = useModule();
-  const timerLent = useLentAvailable('timer.launch');
   const { session: s } = props;
   const [lines, setLines] = useState<ExerciseLineInput[] | null>(null);
   const [comment, setComment] = useState(s.comment);
@@ -470,12 +468,7 @@ function SessionEditor(props: {
           Heure, durée et jour changés ici valent pour cette séance seulement ; la semaine type n’y
           touche plus.
         </p>
-        {/* v0.36.0 (Expérimental): the Timer's own button, when the Timer is there. */}
-        {timerLent && (
-          <span className="badge badge--warning sp-timer-badge" title="Pas encore validé à l’usage">
-            Expérimental
-          </span>
-        )}
+        {/* v0.36.0: the Timer's own button, when the Timer is there. */}
         <Lent<TimerLaunchProps>
           name="timer.launch"
           props={{

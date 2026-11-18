@@ -6,7 +6,7 @@
 // nothing is lost: the changes wait.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
-import { Button, Card, Page, errorMessage, notifyDataChanged } from '@hub/sdk/frontend';
+import { Button, Card, Page, Tabs, errorMessage, notifyDataChanged } from '@hub/sdk/frontend';
 import type { ConflictRow, Preview } from '../../../backend/core/sync/engine';
 import type { ExchangeResult } from '../../../backend/core/sync/protocol';
 import {
@@ -21,6 +21,7 @@ import { takeCopy } from './backup';
 import { autoLabel, autoSync, exclusive, setAutoSync, useAutoStatus } from './auto';
 import { phoneSync } from './phone-sync';
 import { readQrFromPhoto } from './qr-photo';
+import { NetworksPage } from './NetworksPage';
 
 export const MODULE_NAMES: Record<string, string> = {
   todo: 'To-do',
@@ -194,16 +195,7 @@ function AutoCard(props: { client: WorkerClient }) {
   const status = useAutoStatus(props.client);
   const [busy, setBusy] = useState(false);
   return (
-    <Card
-      title={
-        <>
-          Synchro automatique{' '}
-          <span className="badge badge--warning" title="Pas encore validé à l’usage">
-            Expérimental
-          </span>
-        </>
-      }
-    >
+    <Card title={<>Synchro automatique</>}>
       <label className="m-check">
         <input
           type="checkbox"
@@ -456,11 +448,26 @@ export function SyncPage(props: { shell: Shell }) {
       .then(setAsked, (e: unknown) => setError(errorMessage(e)));
   }, [paired, done, shell.client]);
   const first = done ? false : asked;
+  // v0.41.0: « Réseaux et adresses » (once paired).
+  const [tab, setTab] = useState<'sync' | 'networks'>('sync');
 
   if (!state) return <Page title="Synchro avec le PC">{null}</Page>;
   return (
     <Page title="Synchro avec le PC">
-      {!state.peer ? (
+      {state.peer && (
+        <Tabs
+          label="Synchro avec le PC"
+          tabs={[
+            { id: 'sync', label: 'Synchro' },
+            { id: 'networks', label: 'Réseaux et adresses' },
+          ]}
+          value={tab}
+          onChange={setTab}
+        />
+      )}
+      {state.peer && tab === 'networks' ? (
+        <NetworksPage client={shell.client} currentUrl={state.peer.url} />
+      ) : !state.peer ? (
         <PairCard client={shell.client} onPaired={() => void reload()} />
       ) : (
         <>

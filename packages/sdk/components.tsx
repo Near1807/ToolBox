@@ -776,6 +776,45 @@ export function TrackList<T extends TrackListEntry>(props: {
 // ---------------------------------------------------------------------------
 
 /**
+ * v0.41.0: tabs (a page in parts: « Synchro » / « Réseaux et adresses »). One
+ * look on the PC and on the phone; the arrows move between the tabs.
+ */
+export function Tabs<T extends string>(props: {
+  tabs: readonly { id: T; label: string }[];
+  value: T;
+  onChange: (id: T) => void;
+  label: string;
+}) {
+  return (
+    <div className="ui-tabs" role="tablist" aria-label={props.label}>
+      {props.tabs.map((t, i) => (
+        <button
+          key={t.id}
+          type="button"
+          role="tab"
+          aria-selected={props.value === t.id}
+          tabIndex={props.value === t.id ? 0 : -1}
+          className={`ui-tab${props.value === t.id ? ' ui-tab--on' : ''}`}
+          onClick={() => props.onChange(t.id)}
+          onKeyDown={(e) => {
+            const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+            if (!step) return;
+            const next = props.tabs[(i + step + props.tabs.length) % props.tabs.length]!;
+            props.onChange(next.id);
+            (
+              e.currentTarget.parentElement?.children[props.tabs.indexOf(next)] as
+                HTMLElement | undefined
+            )?.focus();
+          }}
+        >
+          {t.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
  * Bar shown after an addition or a deletion (« Tâche supprimée — Annuler »).
  * Disappears by itself after `timeoutMs`; the assistant's history and the
  * modules use the same one.

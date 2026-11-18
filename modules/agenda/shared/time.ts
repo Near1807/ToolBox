@@ -103,6 +103,8 @@ export function eventWhen(
   }
   const d1 = e.start.slice(0, 10);
   const d2 = e.end.slice(0, 10);
+  // v0.42.0: a moment (a deadline): its day and its time only.
+  if (e.start === e.end) return `${dayLabel(d1, today)} ${e.start.slice(11)}`;
   if (d1 === d2 || (daysBetween(d1, d2) === 1 && e.end.slice(11) === '00:00'))
     return `${dayLabel(d1, today)} ${e.start.slice(11)}–${d1 === d2 ? e.end.slice(11) : '24:00'}`;
   return `${dayLabel(d1, today)} ${e.start.slice(11)} → ${dayLabel(d2, today)} ${e.end.slice(11)}`;

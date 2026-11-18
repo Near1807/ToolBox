@@ -3,11 +3,15 @@
 // occurrence of the week type: cancel or move this one only, or bring it
 // back as usual; the entry itself is changed in « Semaine type ».
 import { useState } from 'react';
-import { Button, Card, ErrorMessage, errorMessage, useModule } from '@hub/sdk/frontend';
-import { OWN_CATEGORIES } from '../shared/categories';
+import { Button, Card, ErrorMessage, errorMessage, Icon, useModule } from '@hub/sdk/frontend';
+import { deadlineClass, deadlineState } from './Deadlines';
+import { convertEventToTask } from './Convert';
+import { SheetClose } from './Dock';
+import { DEFAULT_CATEGORY } from '../shared/categories';
+import { CategorySelect, shapeOfChoice } from './Categories';
 import { addMinutes, eventWhen, minutesBetween } from '../shared/time';
 import type { AgendaEventDto } from '../shared/types';
-import { colorStyle } from './common';
+import { categoryInfo, colorStyle } from './common';
 
 export interface Undo {
   message: string;
@@ -30,8 +34,15 @@ export function EventForm(props: {
   const [endTime, setEndTime] = useState((i.end ?? '').slice(11) || '10:00');
   const [location, setLocation] = useState(i.location ?? '');
   const [note, setNote] = useState(i.note ?? '');
-  const [category, setCategory] = useState(i.category ?? OWN_CATEGORIES[0]);
+  const [category, setCategory] = useState(i.category ?? DEFAULT_CATEGORY);
   const [error, setError] = useState<string | null>(null);
+  // v0.43.0: its type is its own (Rendez-vous or Deadline); choosing a category
+  // prefills it from the category's default type (still changeable). A deadline
+  // is a moment: a date, an optional time, no end.
+  const [kind, setKind] = useState<'rendez-vous' | 'deadline'>(
+    i.deadline || (!i.id && shapeOfChoice(category) === 'deadline') ? 'deadline' : 'rendez-vous',
+  );
+  const moment = kind === 'deadline';
   return (
     <form
       className="ag-form"
@@ -42,10 +53,17 @@ export function EventForm(props: {
           title,
           allDay,
           start: allDay ? startDay : `${startDay}T${startTime}`,
-          end: allDay ? endDay || startDay : `${endDay || startDay}T${endTime}`,
+          end: moment
+            ? allDay
+              ? startDay
+              : `${startDay}T${startTime}`
+            : allDay
+              ? endDay || startDay
+              : `${endDay || startDay}T${endTime}`,
           location,
           note,
           category,
+          kind,
         };
         props.onSubmit(fields).catch((err: unknown) => setError(errorMessage(err)));
       }}
@@ -59,13 +77,24 @@ export function EventForm(props: {
           required
         />
       </label>
+      <label>
+        Type
+        <select
+          className="input"
+          value={kind}
+          onChange={(e) => setKind(e.target.value === 'deadline' ? 'deadline' : 'rendez-vous')}
+        >
+          <option value="rendez-vous">Rendez-vous (un bloc de temps)</option>
+          <option value="deadline">Deadline (un moment, sans fin)</option>
+        </select>
+      </label>
       <label className="ag-check">
         <input type="checkbox" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} />{' '}
-        Toute la journée
+        {moment ? 'Sans heure (la fin de la journée)' : 'Toute la journée'}
       </label>
       <div className="ag-form__row">
         <label>
-          {allDay ? 'Premier jour' : 'Début'}
+          {moment ? 'Date' : allDay ? 'Premier jour' : 'Début'}
           <input
             className="input"
             type="date"
@@ -87,29 +116,31 @@ export function EventForm(props: {
           </label>
         )}
       </div>
-      <div className="ag-form__row">
-        <label>
-          {allDay ? 'Dernier jour' : 'Fin'}
-          <input
-            className="input"
-            type="date"
-            value={endDay}
-            onChange={(e) => setEndDay(e.target.value)}
-          />
-        </label>
-        {!allDay && (
+      {!moment && (
+        <div className="ag-form__row">
           <label>
-            Heure
+            {allDay ? 'Dernier jour' : 'Fin'}
             <input
               className="input"
-              type="time"
-              value={endTime}
-              onChange={(e) => setEndTime(e.target.value)}
-              required
+              type="date"
+              value={endDay}
+              onChange={(e) => setEndDay(e.target.value)}
             />
           </label>
-        )}
-      </div>
+          {!allDay && (
+            <label>
+              Heure
+              <input
+                className="input"
+                type="time"
+                value={endTime}
+                onChange={(e) => setEndTime(e.target.value)}
+                required
+              />
+            </label>
+          )}
+        </div>
+      )}
       <div className="ag-form__row">
         <label>
           Lieu
@@ -117,17 +148,21 @@ export function EventForm(props: {
         </label>
         <label>
           Catégorie
-          <input
-            className="input"
-            list="ag-categories"
+          <CategorySelect
             value={category}
-            onChange={(e) => setCategory(e.target.value)}
+            onChange={(name) => {
+              setCategory(name);
+              // v0.43.0: choosing a category prefills its defaults (still changeable).
+              const info = categoryInfo(name);
+              setKind(shapeOfChoice(name) === 'deadline' ? 'deadline' : 'rendez-vous');
+              if (info?.defaultLocation && !location.trim()) setLocation(info.defaultLocation);
+              if (info?.defaultDuration && !allDay && startDay) {
+                const end = addMinutes(`${startDay}T${startTime}`, info.defaultDuration);
+                setEndDay(end.slice(0, 10));
+                setEndTime(end.slice(11));
+              }
+            }}
           />
-          <datalist id="ag-categories">
-            {OWN_CATEGORIES.map((c) => (
-              <option key={c} value={c} />
-            ))}
-          </datalist>
         </label>
       </div>
       <label>
@@ -158,6 +193,8 @@ export function EventPanel(props: {
   onClose: () => void;
   onChanged: (undo?: Undo) => void;
   onWeekType: () => void;
+  /** v0.43.0: the To-do is there (« Convertir en tâche »). */
+  todo?: boolean;
 }) {
   const module = useModule();
   const { event } = props;
@@ -179,41 +216,59 @@ export function EventPanel(props: {
           <span className="ag-dot" aria-hidden="true" /> {event.title}
         </span>
       }
-      actions={
-        <Button small variant="secondary" onClick={props.onClose}>
-          Fermer
-        </Button>
-      }
+      actions={<SheetClose onClose={props.onClose} />}
     >
       {!occurrence ? (
         // v0.36.0: every field editable in place; « Annuler » writes the previous values back.
         <>
           {event.source && <SourceNote source={event.source} />}
-          {/* v0.40.0: « facultatif »: one write, « Annuler » after. */}
-          <div className="ag-optional">
-            <label>
-              <input
-                type="checkbox"
-                checked={Boolean(event.optional)}
-                onChange={(e) => {
-                  const optional = e.target.checked;
-                  run(() => module.api.patch(`/events/${event.id}`, { optional }), {
-                    message: optional
-                      ? `« ${event.title} » facultatif : ne compte plus`
-                      : `« ${event.title} » compte de nouveau`,
-                    run: () => module.api.patch(`/events/${event.id}`, { optional: !optional }),
-                  });
-                }}
-              />{' '}
-              Facultatif{' '}
-              <span className="badge badge--warning" title="Pas encore validé à l’usage">
-                Expérimental
+          {event.deadline ? (
+            // v0.42.0: a deadline: the time left, and « Faite » (one write, « Annuler »).
+            <div className="ag-optional">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={Boolean(event.done)}
+                  onChange={(e) => {
+                    const done = e.target.checked;
+                    run(() => module.api.patch(`/events/${event.id}`, { done }), {
+                      message: done
+                        ? `Deadline « ${event.title} » faite`
+                        : `Deadline « ${event.title} » à refaire`,
+                      run: () => module.api.patch(`/events/${event.id}`, { done: !done }),
+                    });
+                  }}
+                />{' '}
+                Faite
+              </label>
+              <span className={`small ${deadlineClass(event)}`}>
+                <Icon name="circle-alert" /> Deadline · {deadlineState(event)}
               </span>
-            </label>
-            <span className="small muted">
-              Reste affiché, ne compte ni dans les conflits ni dans la charge.
-            </span>
-          </div>
+            </div>
+          ) : (
+            /* v0.40.0: « facultatif »: one write, « Annuler » after. */
+            <div className="ag-optional">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={Boolean(event.optional)}
+                  onChange={(e) => {
+                    const optional = e.target.checked;
+                    run(() => module.api.patch(`/events/${event.id}`, { optional }), {
+                      message: optional
+                        ? `« ${event.title} » facultatif : ne compte plus`
+                        : `« ${event.title} » compte de nouveau`,
+                      run: () => module.api.patch(`/events/${event.id}`, { optional: !optional }),
+                    });
+                  }}
+                />{' '}
+                Facultatif
+              </label>
+              <span className="small muted">
+                Reste affiché, ne compte ni dans les conflits ni dans la charge.
+              </span>
+            </div>
+          )}
           <EventForm
             initial={event}
             submitLabel="Enregistrer"
@@ -231,12 +286,13 @@ export function EventPanel(props: {
                     location: event.location ?? '',
                     note: event.note ?? '',
                     category: event.category,
+                    kind: event.deadline ? 'deadline' : 'rendez-vous',
                   }),
               });
             }}
           />
           <div className="ui-actions ag-panel__more">
-            {!event.allDay && (
+            {!event.allDay && !event.deadline && (
               <Button
                 small
                 variant="secondary"
@@ -255,6 +311,21 @@ export function EventPanel(props: {
                 }
               >
                 Dupliquer la semaine suivante
+              </Button>
+            )}
+            {props.todo && (
+              <Button
+                small
+                variant="secondary"
+                title="Une tâche de la To-do, à la même heure (ou pour ce jour) ; « Annuler » remet le rendez-vous"
+                onClick={() => {
+                  setError(null);
+                  convertEventToTask(module.api, event).then(props.onChanged, (e: unknown) =>
+                    setError(errorMessage(e)),
+                  );
+                }}
+              >
+                Convertir en tâche
               </Button>
             )}
             <Button
@@ -353,10 +424,7 @@ function SourceNote(props: { source: NonNullable<AgendaEventDto['source']> }) {
   return (
     <div className="ag-source small">
       <p>
-        Importé de <strong>{props.source.name}</strong>{' '}
-        <span className="badge badge--warning" title="Pas encore validé à l’usage">
-          Expérimental
-        </span>
+        Importé de <strong>{props.source.name}</strong>
       </p>
       {entries.length > 0 && (
         <details>

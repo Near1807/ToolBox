@@ -1,6 +1,6 @@
 # Agenda (`agenda`)
 
-La semaine d'un coup d'œil, rapide à remplir, reliée aux autres outils. Portable (PC et téléphone), « Prêt pour la synchro », « Prêt pour le calendrier ». **Expérimental** (v0.34.0).
+La semaine d'un coup d'œil, rapide à remplir, reliée aux autres outils. Portable (PC et téléphone), « Prêt pour la synchro », « Prêt pour le calendrier ». Validé à l'usage par Thomas (v0.41.0) ; seules les nouveautés de la v0.41.0 et l'import en tableau (CSV, Excel) restent **Expérimental**.
 
 ## Deux types d'éléments, chacun à sa place
 
@@ -33,7 +33,7 @@ Colonnes par jour, heures de la journée (réglage « Début / Fin de la journé
 
 **Charge** (catégories allumées seulement) : heures des événements et des tâches prévues dans la plage de la journée, par catégorie, plus les durées estimées des tâches échues ce jour-là (« Tâches » ; une tâche en retard pèse sur aujourd'hui, jamais sur un jour passé ni sur une semaine suivante). Léger sous 50 % de la plage, chargé sous 85 %, saturé au-delà. Les événements sur la journée (un camp, un examen) n'ont pas d'heures : ils ne pèsent pas. **Libre** : la plage moins les événements (chevauchements comptés une fois). **À caser** : les durées estimées des tâches qui pèsent sur un jour de la semaine (celles en retard dans la semaine en cours) ; les tâches sans échéance sont dans la bande, pas dans ce total.
 
-## Agir sur place (v0.36.0, Expérimental)
+## Agir sur place (v0.36.0)
 
 - **Fiche complète d'une tâche** : un clic sur une tâche prévue (semaine, jour, mois) ou à caser ouvre la fiche **prêtée par la To-do** (`todo.taskEditor`, ADR 0046). Elle contient :
   - tous les champs (titre, tags, échéance, durée estimée, heure prévue, morceau), avec le formulaire et les vérifications de la To-do, sans copie ;
@@ -52,7 +52,7 @@ Colonnes par jour, heures de la journée (réglage « Début / Fin de la journé
 
 - **Panneau d'un événement** : tous les champs modifiables directement (plus d'étape « Modifier »), « Enregistrer » avec « Annuler ». Une occurrence de la semaine type garde ses actions « cette fois-ci ».
 
-## Timer depuis l'Agenda (v0.36.0, Expérimental)
+## Timer depuis l'Agenda (v0.36.0)
 
 - « Lancer un timer » (composant prêté par le Timer, absent sans lui) :
   - dans la fiche d'une tâche : la session est liée à la tâche ;
@@ -67,7 +67,7 @@ Colonnes par jour, heures de la journée (réglage « Début / Fin de la journé
 
 Destination **« Rendez-vous »** de la barre « Ajouter » du shell (ADR 0046). Elle suit les règles de la barre de l'Agenda (`appointmentPreview`, `shared/parse.ts`) : un événement ou une entrée de la semaine type. Une phrase de tâche (« ~ », ou rien de daté) est refusée avec « Tab pour choisir Tâche ». « Annuler » supprime l'ajout, « Ouvrir » montre son jour.
 
-## Interrupteurs de catégorie (v0.35.0, Expérimental)
+## Interrupteurs de catégorie (v0.35.0)
 
 Les calques de v0.34 deviennent des **interrupteurs** : une catégorie **allumée** est affichée **et comptée** (charge, temps libre, chevauchements, « à caser » pour « Tâches ») ; **éteinte**, elle n'est ni affichée ni comptée (remplace la règle « la charge compte toujours tout »).
 
@@ -76,7 +76,7 @@ Les calques de v0.34 deviennent des **interrupteurs** : une catégorie **allumé
 - Le bilan de la semaine dit ce qui n'est pas compté (« hors Sport, Repas, Timer »).
 - Règle pure : `isOn(catégorie, choix, éteintes par défaut)` (`shared/categories.ts`), comptage par `timedBlocks(data, shown)` et `taskLoads(data, shown)` (`frontend/common.ts`), testés (`tests/layers.test.ts`).
 
-## Tâches prévues et glisser-déposer (v0.35.0, Expérimental)
+## Tâches prévues et glisser-déposer (v0.35.0)
 
 Une tâche reste **une donnée de la To-do** : l'Agenda la lit par le calendrier (un événement de la To-do avec `itemId`, ADR 0045) et la modifie **par le service `todo`** (`planTask`), jamais par une copie. Tout changement d'un côté se voit de l'autre, sur le PC et le téléphone (champs synchronisés de la To-do).
 
@@ -94,7 +94,7 @@ Une tâche reste **une donnée de la To-do** : l'Agenda la lit par le calendrier
 - **Téléphone** : pas de glisser ; heure et durée se changent par le détail (tâche et événement).
 - Route : `PUT /tasks/:id/plan { plannedAt?, durationMin? }` (`plannedAt: null` = retirer de l'agenda) → service `todo`.
 
-## Facultatif (v0.40.0, Expérimental)
+## Facultatif (v0.40.0)
 
 Case **« Facultatif »** dans la fiche d'un événement de l'Agenda (rendez-vous, événement importé ; PC et téléphone), une écriture et « Annuler ». Un événement facultatif reste affiché à sa place (côte à côte avec ce qu'il chevauche), atténué et hachuré (jetons du thème), « facultatif » dans l'info-bulle et la fiche. Il ne compte pas :
 
@@ -103,7 +103,70 @@ Case **« Facultatif »** dans la fiche d'un événement de l'Agenda (rendez-vou
 
 Par élément : une occurrence importée est un événement à part. Il appartient à Thomas, jamais au fichier : un réimport ne le lit pas, ne l'écrit pas et ne le compte pas comme « modifié par toi ». Pas pour les tâches ni pour les éléments des autres outils, ni pour les occurrences de la semaine type. Donnée : colonne `optional` (0 / 1) de `agenda__events` (migration 5, ajout seul), synchronisée ; `PATCH /events/:id { optional: true | false }` ; `AgendaEventDto.optional` présent seulement quand vrai.
 
-## Importer un calendrier (v0.37.0, Expérimental, ADR 0047)
+## Rendez-vous ou tâche (v0.43.0, correctif prévu en v0.41.1)
+
+Chemins de création, et ce que chacun crée :
+
+| Chemin                                                            | Crée                                                                                                                                                                              |
+| ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Créneau vide (clic, glissé, trou du téléphone)                    | **Rendez-vous** par défaut et avec Entrée ; « Tâche » seulement par son propre clic                                                                                               |
+| Barre « Ajouter » › Rendez-vous                                   | un rendez-vous (ou une entrée de la semaine type) ; **jamais une tâche** : sans date et heure, ou « ~1h » sans heure → refusé, rien d'écrit (`/quick` avec `mode: 'appointment'`) |
+| Barre « Ajouter » › Tâche                                         | une tâche (To-do)                                                                                                                                                                 |
+| Barre de saisie de l'Agenda                                       | rendez-vous, semaine type, ou tâche « à caser » (son rôle, inchangé), aperçu avant                                                                                                |
+| « Formulaire détaillé », fiche, « Dupliquer la semaine suivante » | un rendez-vous                                                                                                                                                                    |
+| Semaine type                                                      | une entrée de la semaine type                                                                                                                                                     |
+| Import                                                            | des rendez-vous                                                                                                                                                                   |
+
+**Convertir** (fiche et clic droit) : « Convertir en tâche » (un rendez-vous → une tâche prévue à la même heure et pour la même durée ; sur la journée : une tâche pour ce jour) et « Convertir en rendez-vous » (une tâche prévue → un rendez-vous à son heure ; seulement une échéance → sur la journée ; ni l'un ni l'autre : refusé). Une action ; « Annuler » remet exactement l'état d'avant (l'élément converti revient de sa suppression logique, celui créé est supprimé). Le timer associé suit. Routes : `POST /events/:id/to-task`, `POST /tasks/:id/to-event`, `POST /tasks/:id/restore` (service `todo` : `restoreTask`, `timerPref`).
+
+## Catégories : de vrais objets (v0.43.0, Expérimental, ADR 0049)
+
+Une **catégorie** est ce à quoi un élément est rattaché (Cours, Scouts…) ; elle a un identifiant et des réglages qui agissent. Son **type par défaut** (l'ancienne « forme » de la v0.42) pré-remplit les nouveaux éléments ; le type lui-même est porté par l'élément (partie Deadline ci-dessous).
+
+Réglages › Agenda › Catégories : toutes les catégories (celles de l'Agenda, « Deadline », celles des autres outils, les tiennes, et toutes celles trouvées dans tes événements, ta semaine type et tes correspondances d'import), avec leur pastille, leur type par défaut et leur nombre d'éléments.
+
+- **Nouvelle catégorie** : un nom (unique, sans tenir compte des majuscules ni des accents) et une couleur, aussi depuis la fiche, la barre et un créneau vide (« Nouvelle catégorie… »).
+- **Couleur** : 16 teintes de la palette (thèmes clairs et sombres, `tests/palette-contrast.test.ts`), une **couleur libre** (avertissement si le contraste est faible), « Revenir à la couleur d'origine ». Partout : blocs, vue jour, interrupteurs, aperçu, fiche.
+- **Réglages qui agissent** : _Comptée_ (charge), _Chevauchements signalés_ (éteint : ses éléments ne sont jamais signalés en conflit, ils restent comptés), _Allumée par défaut_ (valeur de départ de son interrupteur), **durée et lieu par défaut** (pré-remplis quand on la choisit dans la fiche ou dans un créneau vide), **type par défaut** (tes catégories), ordre.
+- **Tes catégories seulement** : renommer (ne touche **que** la ligne de la catégorie : les éléments la désignent par son identifiant ; « Annuler »), supprimer (ses éléments vont dans la catégorie choisie, **jamais supprimés** ; sauvegarde ; « Annuler »).
+- Les catégories fixes et celles des autres outils : couleur et réglages seulement (l'interface le dit).
+- **Tâches** : la fiche de tâche (prêtée par la To-do) a « Catégorie dans l'Agenda ». Le lien est dans une table de l'Agenda (`agenda__task_categories`) : la To-do ne change pas.
+
+Données (migration 7, ajouts seuls, sauvegarde avant comme toute migration) :
+
+- `agenda__categories` gagne `conflicts`, `default_duration`, `default_location`, `builtin`, `found` (nom seulement trouvé dans ses données, jamais créé : pas d'interrupteur hors de sa période, comme en v0.42) ; la colonne `shape` reste et sert de type par défaut.
+- `agenda__events` gagne `category_id` et `kind` (`rendez-vous` par défaut, `deadline` pour les événements d'une catégorie de forme Deadline) ; `agenda__weekly` gagne `category_id` ; `agenda__sources` gagne `mapping_ids` et `default_category_id` (un réimport suit un renommage).
+- Une ligne par catégorie connue. Les lignes déjà écrites en v0.42 gardent leur identifiant et leurs valeurs ; les autres reçoivent un **identifiant déterministe** (UUID v5 du nom replié, `shared/category-id.ts`) : le PC et le téléphone, migrés chacun de leur côté, écrivent les mêmes lignes ; la synchro ne voit ni doublon ni conflit (`tests/sync/agenda-categories-upgrade.test.ts`). Ces lignes semées ne passent pas par le journal (identiques des deux côtés).
+- Aucune colonne existante n'est réécrite ; la colonne texte `category` reste écrite à chaque changement (lisible par une version d'avant). Elle peut garder un ancien nom après un renommage : on lit d'abord `category_id`, puis le nom en secours (jamais un élément sans catégorie à l'écran). Un nom arrivé plus tard (synchro) s'affiche avec l'identifiant tiré de son nom ; sa ligne est écrite avec cet identifiant au premier changement.
+- Limite : une catégorie créée en v0.42 sur un seul appareil, jamais synchronisée avant la montée, peut rencontrer la ligne semée de l'autre : collision sur `key`, le PC gagne (Conflits). Une catégorie créée pendant un import n'est pas retirée par « Annuler l'import ».
+
+Routes : `GET/POST /categories`, `PATCH /categories/:id` (couleur, comptée, allumée, chevauchements, type / durée / lieu par défaut), `PUT /categories/order`, `POST /categories/:id/rename`, `DELETE /categories/:id?moveTo=<id>`, `POST /categories/undo`, `PUT /tasks/:id/category { categoryId | null }`. `:id` accepte aussi le nom. `RangeDto.categoryInfo` donne la liste ; événements, semaine type et tâches prévues portent `categoryId`.
+
+## Type Deadline (v0.42.0 ; porté par l'élément depuis v0.43.0, Expérimental, ADR 0049)
+
+Le **type** d'un élément (Rendez-vous ou Deadline) est à lui : colonne `kind` d'`agenda__events` (`rendez-vous` par défaut). La **catégorie** ne fait que proposer un type par défaut (« Deadline » pour la catégorie fixe « Deadline » et pour celles de Thomas réglées ainsi). Une deadline peut donc être dans **n'importe quelle catégorie** : la forme d'alerte vient du type, la couleur de la catégorie. Une deadline est un **moment** : une date et une heure facultative, **sans fin** (le serveur écrit fin = début ; repasser en Rendez-vous donne un bloc d'une heure).
+
+- **Où se choisit le type** : la fiche (« Type », pré-rempli quand on choisit une catégorie, encore modifiable) ; le clic droit (« En faire une deadline / un rendez-vous », « Annuler » remet type et heures) ; la barre de l'Agenda et la destination « Rendez-vous » de la barre « Ajouter » : **« deadline rendu rapport jeudi 23h59 »** (aussi « échéance : … ») — dans « Deadline », ou dans la catégorie écrite (« #cours ») ou choisie. Sans date, avec « ~1h », sur plusieurs jours ou en semaine type : refusé, **rien n'est écrit**, message clair. **Jamais une tâche de la To-do.**
+- **Changer de catégorie ne change pas le type** (en v0.42, la catégorie le décidait). Créer sans type (`POST /events`, créneau vide, import) : le type par défaut de la catégorie. Un import qui change la catégorie d'un événement lui donne le type par défaut de la nouvelle ; sinon un réimport ne touche jamais au type. Un événement importé garde la fin de son fichier (un réimport la compare) ; une deadline se dessine à son début.
+- Une occurrence de la semaine type n'a pas de type à elle : comme en v0.42, une occurrence dans une catégorie dont le type par défaut est Deadline ne compte pas dans la charge.
+- Semaine (PC) : avec une heure, un trait épais (couleur de sa catégorie) à cette heure en travers du jour, étiqueté (icône, titre, heure), au-dessus des blocs sans les cacher (le trait laisse passer les clics ; l'étiquette prend au plus 65 % de la colonne) ; sans heure, une bande dans « Journée ». Téléphone : la même logique dans la liste du jour.
+- Jamais comptée dans la charge ni le temps libre ; aucun chevauchement. En retard et pas faite : reste en alerte (« en retard de … »). **Faite** / **À refaire** (case dans la fiche ou clic droit, « Annuler ») : atténuée et barrée (colonne `done_at`, migration 6).
+- Ligne **« Deadlines »** en haut de la semaine (et du jour) : celles pas faites de la semaine affichée et des 7 jours suivants, et celles en retard (60 jours au plus), triées, avec le temps restant ; clic = la fiche ; se masque comme un interrupteur (local à l'appareil). `RangeDto.deadlines`, `shared/deadline.ts` (`untilText`, pur).
+- Aperçu et fiche : type, catégorie, temps restant, faite ou non. Aucune notification (rappels proposés dans la feuille de route, désactivés par défaut).
+- Montée v0.42 → v0.43 (migration 7) : les événements d'une catégorie de forme Deadline reçoivent `kind = deadline`, les autres `rendez-vous` (le même remplissage sur le PC et le téléphone).
+
+## Clic droit (v0.42.0, Expérimental, ADR 0048)
+
+Menu commun du SDK (`useContextMenu`, MODULES.md §7.7) sur les blocs de la semaine (PC), la liste du jour (téléphone : appui long), « À caser », les deadlines (trait, bande, ligne « Deadlines »). `frontend/Menus.tsx`, `agendaMenuItems` (pur, testé) : seulement les actions déjà possibles dans la fiche.
+
+- Événement : Ouvrir la fiche, Facultatif / Obligatoire, Lancer le timer…, Changer de catégorie (sous-menu, « Nouvelle catégorie… »), Couleur de cette catégorie…, Supprimer (question, puis « Annuler »).
+- Deadline : Ouvrir la fiche, Faite / À refaire, Changer de catégorie, Couleur…, Supprimer.
+- Occurrence de la semaine type : Ouvrir la fiche, Lancer le timer…, Couleur… (le reste se fait dans la fiche ou la semaine type).
+- Tâche prévue / à caser : Ouvrir la fiche, Faite / À refaire, Lancer le timer…, Couleur de « Tâches »… (prévue).
+- Élément d'un autre outil : « Ouvrir dans son outil » seulement.
+- « Lancer le timer… » ouvre la fiche, où le Timer prête son bouton (l'Agenda n'appelle jamais le Timer lui-même) ; désactivé avec sa raison sans le Timer. Chaque écriture a son « Annuler ».
+
+## Importer un calendrier (v0.37.0, ADR 0047 ; tableau CSV / Excel encore Expérimental)
 
 Agenda › **Importer** (sur le PC ; le lien n'est pas montré sur le téléphone, qui reçoit les événements par la synchro). Le fichier est lu sur le PC, rien ne part en ligne.
 

@@ -56,7 +56,7 @@ export function GuidePage() {
           catégorie.
         </p>
       </Card>
-      <Card title="Prévoir une tâche, déplacer, étirer (Expérimental)">
+      <Card title="Prévoir une tâche, déplacer, étirer">
         <p>
           <strong>Glisse</strong> une tâche de « À caser » sur la semaine : elle est prévue ce
           jour-là à cette heure (au quart d’heure près), pour sa durée estimée (30 min si elle n’en
@@ -82,7 +82,7 @@ export function GuidePage() {
           faite), elle est signalée. Sur le téléphone, on change l’heure et la durée par ce détail.
         </p>
       </Card>
-      <Card title="Agir sur place (Expérimental)">
+      <Card title="Agir sur place">
         <p>
           <strong>Clic sur une tâche</strong> (prévue ou à caser) : sa fiche complète, celle de la
           To-do — titre, tags, échéance, durée, heure prévue, morceau ; « Faite », « Retirer de
@@ -105,7 +105,7 @@ export function GuidePage() {
           après l’enregistrement.
         </p>
       </Card>
-      <Card title="Lancer un timer (Expérimental)">
+      <Card title="Lancer un timer">
         <p>
           Dans la fiche d’une tâche ou le panneau d’un rendez-vous :{' '}
           <strong>Lancer un timer</strong>, puis la durée du bloc, un pomodoro ou un de tes
@@ -132,7 +132,7 @@ export function GuidePage() {
           blocs en même temps sont signalés.
         </p>
       </Card>
-      <Card title="Les catégories : allumées ou éteintes (Expérimental)">
+      <Card title="Les catégories : allumées ou éteintes">
         <p>
           Chaque catégorie (Rendez-vous, Cours, Tâches, Sport, Repas…) a sa couleur et son
           interrupteur en haut de la semaine. <strong>Allumée</strong> : elle est affichée{' '}
@@ -152,7 +152,7 @@ export function GuidePage() {
           événement de l’Agenda ou une tâche prévue montre son détail.
         </p>
       </Card>
-      <Card title="Facultatif (Expérimental)">
+      <Card title="Facultatif">
         <p>
           Un cours ou un rendez-vous où tu n’iras pas, ou qui n’est pas important : ouvre-le et
           coche <strong>« Facultatif »</strong>. Il reste affiché à sa place, atténué et hachuré,
@@ -166,11 +166,12 @@ export function GuidePage() {
           les tâches (on les déplace) ni pour ce qui vient des autres outils.
         </p>
       </Card>
-      <Card title="Importer un horaire (Expérimental)">
+      <Card title="Importer un horaire">
         <p>
           <Link to="/m/agenda/import">Agenda › Importer</Link> (sur le PC) lit un calendrier{' '}
           <strong>.ics</strong> (l’export d’un horaire d’école, d’Outlook, de Google Agenda) ou un
-          tableau <strong>.csv</strong> / <strong>.xlsx</strong>. Rien ne part en ligne et rien
+          tableau <strong>.csv</strong> / <strong>.xlsx</strong> (le tableau est encore{' '}
+          <span className="badge badge--warning">Expérimental</span>). Rien ne part en ligne et rien
           n’est écrit avant l’aperçu.
         </p>
         <p>
@@ -190,6 +191,96 @@ export function GuidePage() {
           Les sources se gèrent dans Réglages › Agenda : renommer, changer les catégories,
           réimporter, supprimer (restaurable). Le téléphone reçoit les événements importés par la
           synchro.
+        </p>
+      </Card>
+      <Card title="Nom · lieu, aperçu, fiche à droite (Expérimental)">
+        <p>
+          Un bloc montre <strong>« Titre · Lieu »</strong> (« Computer Network Lab · 2F51 ») : le
+          lieu est coupé par « … » avant le titre quand la place manque, et seules les deux
+          premières salles d’un import sont écrites (« 2F51, 2E51… »). Rien n’est écrit : c’est
+          l’affichage.
+        </p>
+        <p>
+          Sur le PC, <strong>pose la souris</strong> un instant sur un bloc (ou une tâche « À caser
+          ») : une petite carte dit tout — titre complet, jour et heures, lieu complet, catégorie,
+          note, facultatif, code et source d’un import, état d’une tâche, outil d’un élément
+          d’ailleurs. Elle part quand la souris sort, au clic, au glisser, au défilement ou avec
+          Échap. Au clavier, un bloc qui reçoit le focus la montre aussi.
+        </p>
+        <p>
+          <strong>Clic sur un bloc</strong> : sa fiche s’ouvre à droite de la fenêtre, sans remonter
+          la page ; la semaine reste visible. Le bouton Fermer, Échap ou un clic sur la page la
+          ferme. Dans une fenêtre étroite (moins de 900 px), la fiche s’ouvre dans la page, qui
+          défile jusqu’à elle puis revient au bloc.
+        </p>
+      </Card>
+      <Card title="Recalculer les titres d’un horaire (Expérimental)">
+        <p>
+          Un horaire importé avant la v0.38 garde ses codes (« RE4L-L2-4MIN ») comme titres. Le
+          texte d’origine est gardé :{' '}
+          <strong>Réglages › Agenda › Sources › « Recalculer les titres »</strong> refait les titres
+          sans le fichier (« Computer Network Lab », « Thermo · Écrit ») et ouvre le même aperçu que
+          l’import. Seul le titre change ; un titre que tu as changé toi-même est décoché. Rien
+          n’est écrit avant « Appliquer » (sauvegarde avant, « Annuler » après). Un bandeau discret
+          le propose quand c’est utile ; fermé, il ne revient pas tant que rien ne change.
+        </p>
+      </Card>
+      <Card title="Catégories : les tiennes, leurs couleurs (Expérimental)">
+        <p>
+          <strong>Réglages › Agenda › Catégories</strong> : toutes les catégories, avec leur
+          pastille et leur nombre d’éléments. « Nouvelle catégorie » (un nom, une couleur) ; aussi
+          depuis la fiche, la barre de saisie et un créneau vide : « Nouvelle catégorie… », sans
+          quitter.
+        </p>
+        <p>
+          <strong>Couleur</strong> : 16 teintes lisibles dans tous les thèmes, ou une couleur libre
+          (un avertissement si le texte devient difficile à lire), et « Revenir à la couleur
+          d’origine ». Elle change partout : semaine, jour, interrupteurs, aperçu, fiche, charge. «
+          Comptée dans la charge » et « Allumée par défaut » se règlent par catégorie ; Monter /
+          Descendre règle l’ordre des listes.
+        </p>
+        <p>
+          Tes catégories se <strong>renomment</strong> (tes événements, la semaine type et les
+          correspondances d’import suivent : un réimport la vise encore) et se{' '}
+          <strong>suppriment</strong> : ses éléments vont dans la catégorie que tu choisis, jamais
+          supprimés. Une sauvegarde est faite avant, « Annuler » remet tout. Les catégories de
+          l’Agenda et des autres outils : la couleur seulement. Tant que tu ne touches à rien, tout
+          reste comme avant.
+        </p>
+      </Card>
+      <Card title="Clic droit (Expérimental)">
+        <p>
+          <strong>Clic droit</strong> sur un bloc (sur le téléphone : <strong>appui long</strong>,
+          au clavier : touche Menu ou Maj+F10) : les actions de sa fiche, sans l’ouvrir — Ouvrir la
+          fiche, Facultatif, Faite, Lancer le timer…, Changer de catégorie, Couleur de cette
+          catégorie…, Supprimer (toujours une question avant). Chaque changement a son « Annuler ».
+          Un élément d’un autre outil : « Ouvrir dans son outil » seulement. Échap, un clic ailleurs
+          ou un défilement ferme le menu.
+        </p>
+      </Card>
+      <Card title="Deadlines (Expérimental)">
+        <p>
+          Une <strong>deadline</strong> est un <strong>type</strong> d’élément (comme « Rendez-vous
+          ») : un moment, pas un bloc — une date et, si tu veux, une heure, sans fin. Elle peut être
+          dans <strong>n’importe quelle catégorie</strong> : la forme d’alerte vient du type, la
+          couleur de la catégorie (« Deadline » : rouge du thème). Dans la fiche : « Type ». Choisir
+          une catégorie dont le type par défaut est Deadline le pré-remplit. Dans la barre : «
+          deadline rendu rapport jeudi 23h59 » (dans « Deadline »), « deadline rendu rapport jeudi
+          #cours » (dans Cours) ; sans date, rien n’est ajouté. Jamais une tâche de la To-do.
+        </p>
+        <p>
+          Avec une heure : un <strong>trait</strong> de la couleur de sa catégorie en travers du
+          jour, avec <Icon name="circle-alert" /> le titre et l’heure ; il passe au-dessus des blocs
+          sans les cacher (on clique toujours les blocs dessous). Sans heure : une bande rouge dans
+          « Journée ». Sur le téléphone : la même chose dans la liste du jour.
+        </p>
+        <p>
+          Elle ne compte <strong>jamais</strong> dans la charge ni le temps libre, et ne crée aucun
+          chevauchement. En retard et pas faite : elle reste rouge. Dans sa fiche, la case{' '}
+          <strong>« Faite »</strong> (avec « Annuler ») l’atténue et la barre. La ligne « Deadlines
+          » en haut de la semaine liste celles à venir (la semaine affichée et les 7 jours suivants,
+          et celles en retard) avec le temps restant ; un clic ouvre la fiche ; elle se masque comme
+          un interrupteur. Pas de rappel ni de notification pour l’instant.
         </p>
       </Card>
     </Page>

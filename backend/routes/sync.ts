@@ -4,7 +4,8 @@
 import type { FastifyInstance } from 'fastify';
 import type { Hub } from '../core/hub';
 import { SyncError } from '../core/sync/engine';
-import type { SyncServer } from '../core/sync/server';
+import { openEventStream } from '../../packages/sdk/backend';
+import { SYNC_CHANGED_EVENT, type SyncServer } from '../core/sync/server';
 
 export function registerSyncRoutes(
   app: FastifyInstance,
@@ -55,6 +56,67 @@ export function registerSyncRoutes(
     sync.forget(request.params.id);
     return sync.status();
   });
+
+  // --- v0.41.0: the witness and « Réseaux et adresses » (read and display only) --------
+
+  /** The witness (side bar, Réglages): what is, nothing done. */
+  app.get('/api/core/sync/witness', async () => sync.witness());
+
+  /** The witness, live: sent again when something it shows changes (exchange, listener, network). */
+  app.get('/api/core/sync/stream', { config: { streamTicket: true } }, async (request, reply) => {
+    const stream = openEventStream(request, reply);
+    stream.send('witness', sync.witness());
+    const off = hub.bus.on(SYNC_CHANGED_EVENT, () => stream.send('witness', sync.witness()));
+    // « il y a 5 min » moves on its own: once a minute.
+    const tick = setInterval(() => stream.send('witness', sync.witness()), 60_000);
+    stream.onClose(() => {
+      off();
+      clearInterval(tick);
+    });
+  });
+
+  /** « Réseaux et adresses » : the Windows profiles read again (read only), the list, the history. */
+  app.get<{ Querystring: { refresh?: string } }>('/api/core/sync/networks', async (request) => {
+    // The page's opening reads the profiles again; a refresh after an event does not.
+    if (request.query.refresh !== '0') await sync.refreshNetwork();
+    return sync.networks();
+  });
+
+  app.put<{ Params: { key: string }; Body: { label?: unknown } }>(
+    '/api/core/sync/networks/:key',
+    async (request, reply) => {
+      try {
+        sync.renameNetwork(request.params.key, request.body?.label);
+        return sync.networks();
+      } catch (error) {
+        return fail(reply, error);
+      }
+    },
+  );
+
+  /** « Oublier » (after the page's confirmation): returns the entry, for « Annuler ». */
+  app.delete<{ Params: { key: string } }>(
+    '/api/core/sync/networks/:key',
+    async (request, reply) => {
+      try {
+        return { forgotten: sync.forgetNetwork(request.params.key), networks: sync.networks() };
+      } catch (error) {
+        return fail(reply, error);
+      }
+    },
+  );
+
+  app.post<{ Body: { entry?: unknown } }>(
+    '/api/core/sync/networks/restore',
+    async (request, reply) => {
+      try {
+        sync.restoreNetwork(request.body?.entry);
+        return sync.networks();
+      } catch (error) {
+        return fail(reply, error);
+      }
+    },
+  );
 
   app.get('/api/core/sync/conflicts', async () => ({
     conflicts: hub.sync.conflicts(true).slice(0, 300),

@@ -10,7 +10,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { createTestHub, dumpTables, loadModuleFolder, type TestHub } from '@hub/sdk/testing';
 import { readFileSync } from 'node:fs';
 import { Block, Ghost, ghostLabel, SHORT_BLOCK_PX, titleLines } from '../frontend/WeekView';
-import type { Item } from '../frontend/common';
+import { fullPlace, placeOf, shortPlace, type Item } from '../frontend/common';
 import type { RangeDto } from '../shared/types';
 
 const MODULES = path.resolve(__dirname, '..', '..');
@@ -161,5 +161,57 @@ describe('the ghost of a move, a stretch, a creation (v0.40.0)', () => {
     expect(rule).toMatch(/left: 0;/);
     expect(rule).toMatch(/right: 0;/);
     expect(rule).toMatch(/container-type: normal;/);
+  });
+});
+
+describe('« Titre · Lieu » in a block (v0.41.0)', () => {
+  const event = (location: string | null, minutes = 30): Item =>
+    ({
+      source: 'own',
+      event: {
+        id: 'e1',
+        title: 'Computer Network Lab',
+        start: '2026-11-18T09:00',
+        end: `2026-11-18T09:${String(minutes).padStart(2, '0')}`,
+        allDay: false,
+        location,
+        note: null,
+        category: 'Cours',
+        weekly: null,
+        timerPref: null,
+      },
+    }) as Item;
+
+  it('the place after the title, in the same line, cut first; nothing without a place', () => {
+    for (const minutes of [30, 59]) {
+      const html = render(event('2F51', minutes), minutes === 59 ? 120 : 30).replace(
+        /<!-- -->/g,
+        '',
+      );
+      expect(html).toMatch(
+        /<span class="ag-block__title[^"]*"[^>]*>Computer Network Lab<span class="ag-block__place"> · 2F51<\/span><\/span>/,
+      );
+      // Title, then place, then the time (short); the time first (tall), as in v0.38.
+      if (minutes === 30) expect(order(html, 'ag-block__place', 'ag-block__time')).toBe(true);
+    }
+    expect(render(event(null), 30)).not.toContain('ag-block__place');
+    expect(render(event('  '), 30)).not.toContain('ag-block__place');
+    // A task and another tool’s item give no place.
+    expect(render(task('Appeler', 30), 30)).not.toContain('ag-block__place');
+  });
+
+  it('the places of an import: the first two, « … » when more; complete for the preview', () => {
+    expect(shortPlace('2F51;2E51;2E44')).toBe('2F51, 2E51…');
+    expect(shortPlace('2F51; 2E51')).toBe('2F51, 2E51');
+    expect(shortPlace('Salle des fêtes')).toBe('Salle des fêtes');
+    expect(fullPlace('2F51;2E51;2E44')).toBe('2F51, 2E51, 2E44');
+    expect(render(event('2F51;2E51;2E44'), 30)).toContain('2F51, 2E51…');
+    expect(placeOf(event('2F51;2E51;2E44'))).toBe('2F51;2E51;2E44');
+  });
+
+  it('the place is cut before the title: one line with « … » at its end (short), clamped lines (tall)', () => {
+    const css = readFileSync(path.join(__dirname, '..', 'frontend', 'agenda.css'), 'utf8');
+    expect(css).toMatch(/\.ag-block--short \.ag-block__title \{[^}]*text-overflow: ellipsis;/);
+    expect(css).toMatch(/\.ag-block__place \{[^}]*font-weight: 400;/);
   });
 });

@@ -4,6 +4,70 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.43.0] — 2026-11-18
+
+Agenda : les catégories deviennent de vrais objets (identifiant, réglages qui agissent) et le type (Rendez-vous, Deadline) est porté par chaque élément ; correctif prévu en v0.41.1 (Rendez-vous par défaut, jamais de tâche par la destination Rendez-vous, « Convertir »). Migration 7 de l'Agenda (ajouts seulement, sauvegarde avant). Tout est marqué « Expérimental ».
+
+### Ajouté
+
+- **Agenda — Convertir** : « Convertir en tâche » (fiche et clic droit d'un rendez-vous) et « Convertir en rendez-vous » (fiche et clic droit d'une tâche prévue ou avec échéance) ; une action, « Annuler » remet exactement l'état d'avant, le timer associé suit.
+- **Agenda — réglages de catégorie qui agissent** : « Chevauchements signalés », type par défaut, durée et lieu par défaut (pré-remplis dans la fiche et dans un créneau vide).
+- **Agenda — catégorie d'une tâche** : « Catégorie dans l'Agenda » dans la fiche de tâche (table de l'Agenda ; la To-do ne change pas).
+- **Agenda — type** : « Type » dans la fiche (Rendez-vous / Deadline), « En faire une deadline / un rendez-vous » au clic droit (« Annuler ») ; une deadline peut être dans n'importe quelle catégorie (couleur de la catégorie) ; « deadline rendu rapport jeudi 23h59 » (ou « échéance : … ») dans la barre et dans la destination Rendez-vous de la barre « Ajouter ».
+
+### Changé
+
+- **Créneau vide** : « Rendez-vous » est le bouton principal et le choix de la touche Entrée ; « Tâche » seulement par son propre clic.
+- **Destination « Rendez-vous »** de la barre « Ajouter » : ne crée jamais de tâche (sans date ni heure, ou « ~1h » sans heure : rien n'est écrit, message clair).
+- **Renommer une catégorie** ne touche que la catégorie (les éléments la désignent par son identifiant) ; un réimport suit le renommage.
+- **Changer de catégorie ne change plus le type** d'un élément (en v0.42, la forme de la catégorie le décidait).
+
+### Données
+
+- Migration 7 de l'Agenda (ajouts) : colonnes de réglage des catégories, `category_id` et `kind` des événements, `category_id` de la semaine type, `mapping_ids` et `default_category_id` des sources, table `agenda__task_categories`, colonne `found` (catégorie seulement trouvée dans les données : pas d'interrupteur hors de sa période, comme en v0.42) ; une ligne par catégorie connue (identifiant tiré du nom, le même sur le PC et le téléphone ; les lignes de la v0.42 gardent les leurs). Sauvegarde automatique avant ; aucune colonne existante réécrite (md5 vérifié), semaine et charge identiques au pixel.
+- To-do : `restoreTask` et `timerPref` dans le service (pour « Convertir »), sans migration.
+
+## [0.42.0] — 2026-11-17
+
+Agenda : catégories gérées par Thomas et forme « Deadline » ; menu contextuel commun (clic droit, clavier, appui long) ; deux retouches de Courses sur le téléphone. Migration 6 de l'Agenda (ajouts seulement, sauvegarde avant). Tout est marqué « Expérimental ».
+
+### Ajouté
+
+- **Agenda — catégories** (Réglages › Agenda › Catégories) : la liste de toutes les catégories (pastille, forme, nombre d'éléments) ; « Nouvelle catégorie » (aussi depuis la fiche, la barre de saisie, un créneau vide et la semaine type : « Nouvelle catégorie… », sans quitter) ; **couleur** parmi 16 teintes définies pour les thèmes clairs et sombres (contraste vérifié dans tous les thèmes) ou couleur libre (encre lisible calculée, avertissement si le contraste reste faible), « Revenir à la couleur d'origine » ; comptée dans la charge ; allumée par défaut ; ordre. Tes catégories : renommer (événements, semaine type, correspondances d'import et réimport suivent ; sauvegarde ; « Annuler ») et supprimer (éléments déplacés, jamais supprimés ; sauvegarde ; « Annuler »). Fixes et autres outils : la couleur seulement. Sans action de Thomas, tout reste comme avant (grille identique au pixel).
+- **Agenda — Deadline** : un moment (date, heure facultative, pas de fin) ; trait rouge en travers du jour avec icône, titre et heure (au-dessus des blocs sans les cacher), bande dans « Journée » sans heure ; téléphone : la même logique dans la liste du jour ; jamais dans la charge ni les chevauchements ; « Faite » (atténuée, barrée, « Annuler ») ; ligne « Deadlines » (semaine + 7 jours, en retard comprises, temps restant, masquable) ; temps restant dans l'aperçu et la fiche.
+- **Menu contextuel commun** (`@hub/sdk`, ADR 0048, MODULES.md §7.7) : clic droit, touche Menu / Maj+F10, appui long (500 ms) sur le téléphone ; flèches, Entrée, Échap, sous-menu ; action désactivée avec sa raison ; action dangereuse toujours confirmée.
+- **Clic droit sur l'Agenda** : Ouvrir la fiche, Facultatif / Obligatoire, Faite / À refaire, Lancer le timer…, Changer de catégorie, Couleur de cette catégorie…, Supprimer (question, « Annuler ») ; un élément d'un autre outil : « Ouvrir dans son outil ».
+- **Clic droit sur la barre des outils** : Ouvrir, Monter / Descendre, Déplacer vers, **Masquer de la barre** (« Annuler » ; « Afficher les outils masqués » dans Réglages › Modules), Réglages de l'outil.
+
+### Changé
+
+- La barre des outils utilise le menu commun (l'ancien menu du shell est retiré ; « Déplacer vers » est un sous-menu).
+- **Courses (téléphone)** : la barre d'onglets se fond au bord quand elle défile ; « ‹ Semaine · Cette semaine · Semaine › » sur une seule ligne à 412 px.
+
+### Données
+
+- Migration 6 de l'Agenda (ajouts) : table `agenda__categories` (seulement les changements et les catégories de Thomas, synchronisée) et colonne `done_at` des événements. Sauvegarde automatique avant ; aucune donnée existante réécrite.
+- Disposition de la barre : champ facultatif `hidden` (outils masqués), propre au PC.
+
+## [0.41.0] — 2026-11-17
+
+Agenda : « Nom · lieu », aperçu au survol, fiche à portée de vue, titres d'école recalculés ; témoin de synchro sur le PC et « Réseaux et adresses » ; check-up de l'app. Aucune migration.
+
+### Ajouté
+
+- **Agenda — « Titre · Lieu »** dans les blocs (semaine PC, vue jour téléphone) ; le lieu est coupé avant le titre, les lieux multiples d'un import en abrégé (« 2F51, 2E51… »). Affichage seul.
+- **Agenda — « Recalculer les titres »** d'une source importée (Réglages › Agenda › Sources), sans le fichier : même aperçu que l'import, écriture sur « Appliquer » (sauvegarde avant, « Annuler »). Bandeau discret quand de meilleurs titres sont disponibles.
+- **Agenda — aperçu au survol** (PC) : une carte de lecture après 400 ms sur un bloc ou une tâche « À caser » (titre, heures, lieu complet, catégorie, note, code et source d'un import, état d'une tâche…). Remplace l'info-bulle.
+- **Agenda — la fiche s'ouvre à droite** (PC, fenêtre de 900 px ou plus), visible quel que soit le défilement ; fenêtre étroite : la page défile jusqu'à elle et revient au bloc.
+- **Témoin de synchro sur le PC** (barre latérale) : arrêtée, en attente, synchronisé il y a …, bloquée et pourquoi.
+- **« Réseaux et adresses »** (PC et téléphone) : profil Windows du réseau (Privé / Public, lecture seule), réseaux / adresses connus et nommés, dernier échec, « Oublier » avec « Annuler », 50 derniers essais.
+
+### Changé
+
+- **Badges « Expérimental »** retirés de ce que Thomas a validé (Agenda, import ICS et Sources, « Facultatif », synchro, Timer et sa notification) ; ajoutés aux nouveautés.
+- **Boutons-icônes** : le « + » de la barre latérale est centré ; mêmes tailles partout (30 × 30, icône de 16 px).
+- Le téléphone envoie ses versions dès « hello » : une différence est aussi refusée par le PC, qui le montre dans son témoin.
+
 ## [0.40.1] — 2026-11-16
 
 Synchro : horloge correcte des champs restés à leur valeur par défaut. Aucune migration.

@@ -1,0 +1,41 @@
+/* v0.42.0: the colours of the Agenda's categories (« --hue-<id> »), one per
+   palette entry (modules/agenda/shared/palette.ts). The dark themes take the
+   bright tones, the light themes (data-scheme="light") the deep ones: a block
+   mixes 30 % of the colour into the surface, its text keeps 4.5:1 in every
+   theme (tests/palette-contrast.test.ts). */
+:root {
+  --hue-rouge: #f87171;
+  --hue-corail: #fb7f6b;
+  --hue-orange: #fb923c;
+  --hue-ambre: #fbbf24;
+  --hue-jaune: #facc15;
+  --hue-olive: #a3c94a;
+  --hue-vert: #4ade80;
+  --hue-emeraude: #34d399;
+  --hue-turquoise: #2dd4bf;
+  --hue-cyan: #22d3ee;
+  --hue-bleu: #60a5fa;
+  --hue-indigo: #818cf8;
+  --hue-violet: #a78bfa;
+  --hue-mauve: #e879f9;
+  --hue-rose: #f472b6;
+  --hue-ardoise: #94a3b8;
+}
+:root[data-scheme='light'] {
+  --hue-rouge: #dc2626;
+  --hue-corail: #e0533d;
+  --hue-orange: #c2410c;
+  --hue-ambre: #b45309;
+  --hue-jaune: #a16207;
+  --hue-olive: #4d7c0f;
+  --hue-vert: #15803d;
+  --hue-emeraude: #047857;
+  --hue-turquoise: #0f766e;
+  --hue-cyan: #0e7490;
+  --hue-bleu: #2563eb;
+  --hue-indigo: #4f46e5;
+  --hue-violet: #7c3aed;
+  --hue-mauve: #a21caf;
+  --hue-rose: #db2777;
+  --hue-ardoise: #475569;
+}

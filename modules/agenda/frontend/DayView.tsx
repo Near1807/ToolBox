@@ -13,15 +13,21 @@ import type { RangeDto, ToPlaceDto } from '../shared/types';
 import { CreateSlot, type SlotKind } from './CreateSlot';
 import {
   colorStyle,
+  isDeadlineItem,
+  conflictsOn,
   itemId,
   isOptional,
   itemsOf,
+  placeOf,
+  shortPlace,
   taskLoads,
   timedBlocks,
   timerRuns,
   type Item,
 } from './common';
 import { LoadBar } from './WeekView';
+import { DeadlineBand, DeadlineLine, DeadlinesRow, useDeadlinesRow } from './Deadlines';
+import type { BindMenu } from './Menus';
 import { useNavigate } from 'react-router';
 
 export function DayView(props: {
@@ -33,7 +39,9 @@ export function DayView(props: {
   /** v0.36.0: a task « à caser » touched: its sheet. */
   onOpenTask?: (task: ToPlaceDto) => void;
   /** v0.36.0: create in a free slot, after the choice. */
-  onCreate?: (kind: SlotKind, title: string, span: Span) => Promise<void>;
+  onCreate?: (kind: SlotKind, title: string, span: Span, category?: string) => Promise<void>;
+  /** v0.42.0: the long-press (right-click) menu of its elements. */
+  menu?: BindMenu;
 }) {
   const { data, day } = props;
   const [slot, setSlot] = useState<Span | null>(null);
@@ -43,13 +51,24 @@ export function DayView(props: {
   const items = itemsOf(data, props.shown).filter(
     (i) => i.event.start.slice(0, 10) <= day && i.event.end.slice(0, 10) >= day,
   );
-  const bands = items.filter((i) => i.event.allDay);
-  const timed = items.filter((i) => !i.event.allDay);
+  // v0.42.0: a deadline: a band (no time) or a red line among the rows (with a time).
+  const deadlines = items.filter(isDeadlineItem) as (Item & { source: 'own' })[];
+  const bands = items.filter((i) => i.event.allDay && !isDeadlineItem(i));
+  const timed = items.filter((i) => !i.event.allDay && !isDeadlineItem(i));
+  const rowState = useDeadlinesRow();
   // The timed items and (v0.36.0) the free slots, in the order of the day.
   type Row =
     | { kind: 'item'; at: number; item: Item }
+    | { kind: 'deadline'; at: number; item: Item & { source: 'own' } }
     | { kind: 'gap'; at: number; from: number; to: number };
   const rows: Row[] = [
+    ...deadlines
+      .filter((i) => !i.event.allDay && i.event.start.slice(0, 10) === day)
+      .map((item): Row => ({
+        kind: 'deadline',
+        at: minutesOfDay(item.event.start.slice(11)),
+        item,
+      })),
     ...timed.map((item): Row => ({
       kind: 'item',
       at: item.event.start.slice(0, 10) < day ? -1 : minutesOfDay(item.event.start.slice(11)),
@@ -72,7 +91,7 @@ export function DayView(props: {
         start: i.event.start,
         end: i.event.end,
         category: i.event.category,
-        optional: isOptional(i),
+        optional: isOptional(i) || !conflictsOn(i.event.category),
       })),
     )
       .filter((p) => p.overlaps)
@@ -135,6 +154,23 @@ export function DayView(props: {
         </button>
       )}
       <LoadBar load={load} />
+      <DeadlinesRow
+        deadlines={data.deadlines ?? []}
+        shown={rowState.shown}
+        onToggle={rowState.toggle}
+        onOpen={(event) => props.onOpen({ source: 'own', event })}
+        menu={props.menu}
+      />
+      {deadlines
+        .filter((i) => i.event.allDay)
+        .map((i) => (
+          <DeadlineBand
+            key={itemId(i)}
+            item={i}
+            onOpen={props.onOpen}
+            bind={props.menu?.({ kind: 'item', item: i })}
+          />
+        ))}
       {bands.map((i) => (
         <button
           key={itemId(i)}
@@ -142,6 +178,7 @@ export function DayView(props: {
           className="ag-band"
           style={colorStyle(i.event.category)}
           onClick={() => props.onOpen(i)}
+          {...props.menu?.({ kind: 'item', item: i })}
         >
           {i.event.title}
           {i.event.start.slice(0, 10) !== i.event.end.slice(0, 10) &&
@@ -153,7 +190,16 @@ export function DayView(props: {
       )}
       <ul className="ag-list">
         {rows.map((row) =>
-          row.kind === 'gap' ? (
+          row.kind === 'deadline' ? (
+            <li key={itemId(row.item)} className="ag-list__row">
+              <DeadlineLine
+                item={row.item}
+                top={0}
+                onOpen={props.onOpen}
+                bind={props.menu?.({ kind: 'item', item: row.item })}
+              />
+            </li>
+          ) : row.kind === 'gap' ? (
             <li key={`gap:${row.from}`}>
               {slot && slot.start === `${day}T${timeOf(row.from)}` ? (
                 <CreateSlot
@@ -161,8 +207,8 @@ export function DayView(props: {
                   today={data.today}
                   todo={data.todo}
                   onCancel={() => setSlot(null)}
-                  onSubmit={async (kind, title) => {
-                    await props.onCreate!(kind, title, slot);
+                  onSubmit={async (kind, title, category) => {
+                    await props.onCreate!(kind, title, slot, category);
                     setSlot(null);
                   }}
                 />
@@ -189,6 +235,7 @@ export function DayView(props: {
                 className={`ag-list__item${isOptional(row.item) ? ' ag-list__item--optional' : ''}`}
                 style={colorStyle(row.item.event.category)}
                 onClick={() => props.onOpen(row.item)}
+                {...props.menu?.({ kind: 'item', item: row.item })}
               >
                 <span className="ag-list__time">
                   {timerRuns(data, row.item) && (
@@ -203,6 +250,9 @@ export function DayView(props: {
                   className={`ag-list__title${row.item.source === 'task' && row.item.event.done ? ' ag-done' : ''}`}
                 >
                   {row.item.event.title}
+                  {placeOf(row.item) && (
+                    <span className="ag-block__place"> · {shortPlace(placeOf(row.item)!)}</span>
+                  )}
                 </span>
                 <span className="small muted">
                   {row.item.event.category}
@@ -229,6 +279,7 @@ export function DayView(props: {
                   type="button"
                   className={`ag-task${t.late ? ' ag-task--late' : ''}`}
                   onClick={() => (props.onOpenTask ? props.onOpenTask(t) : navigate(t.open))}
+                  {...props.menu?.({ kind: 'task', task: t })}
                 >
                   <span className="ag-task__title">{t.title}</span>
                   <span className="small muted">

@@ -46,6 +46,7 @@ export function occurrences(
         location: w.location,
         note: null,
         category: w.category,
+        ...(w.categoryId ? { categoryId: w.categoryId } : {}),
         weekly: { id: w.id, date: day, moved },
         timerPref: w.timerPref ?? null,
       });

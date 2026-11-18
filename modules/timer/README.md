@@ -19,7 +19,7 @@ Un timer pour se mettre au travail : **timer simple**, **sessions avec pauses** 
 - **Historique** : date, session, tâche, travail fait (et prévu si arrêtée), terminée ou arrêtée, réponse à « Tâche terminée ? » ; **temps passé par tâche** (aussi sur la tâche dans la To-do).
 - **Accueil** : la session en cours (phase, temps restant), sinon des boutons de lancement rapide (15, 25, 45 min et les deux premiers préréglages).
 
-## Lancer depuis les autres modules (v0.36.0, Expérimental)
+## Lancer depuis les autres modules (v0.36.0)
 
 Le Timer **prête** le composant `timer.launch` (ADR 0046, props `TimerLaunchProps` dans `contract.ts`) : le bouton « Lancer un timer » de la fiche d'une tâche (To-do, aussi dans l'Agenda) et du panneau d'un rendez-vous de l'Agenda.
 
@@ -71,7 +71,7 @@ Une session lancée sur un appareil apparaît sur l'autre après une synchro : m
 
 ## Notification permanente sur le téléphone (v0.33.0)
 
-Pendant une session, sur le téléphone : une notification qui reste (non balayable) dans le volet et sur l'écran de verrouillage, avec le temps restant de la phase qui défile (compte à rebours natif d'Android) et son nom (`ongoingLabel` : « Travail · cycle 2 sur 4 », « Pause », « Pause longue », « Timer » pour un timer simple). La page donne le **plan complet** (`ongoingPlan`, `shared/notices.ts`) au greffon natif à chaque changement de la session (démarrage, pause, reprise, « +5 min ») ; le greffon passe seul d'une phase à l'autre (AlarmManager), reconstruit la notification après un redémarrage et la retire à la fin. Canal silencieux : le son reste celui des alertes de fin de phase. Ses boutons (« Pause » / « Reprendre », « Arrêter ») ouvrent l'appli, qui fait l'action par le serveur du Timer (seule vérité). Réglage du téléphone « Afficher le timer en cours dans les notifications », activé par défaut, Expérimental.
+Pendant une session, sur le téléphone : une notification qui reste (non balayable) dans le volet et sur l'écran de verrouillage, avec le temps restant de la phase qui défile (compte à rebours natif d'Android) et son nom (`ongoingLabel` : « Travail · cycle 2 sur 4 », « Pause », « Pause longue », « Timer » pour un timer simple). La page donne le **plan complet** (`ongoingPlan`, `shared/notices.ts`) au greffon natif à chaque changement de la session (démarrage, pause, reprise, « +5 min ») ; le greffon passe seul d'une phase à l'autre (AlarmManager), reconstruit la notification après un redémarrage et la retire à la fin. Canal silencieux : le son reste celui des alertes de fin de phase. Ses boutons (« Pause » / « Reprendre », « Arrêter ») ouvrent l'appli, qui fait l'action par le serveur du Timer (seule vérité). Réglage du téléphone « Afficher le timer en cours dans les notifications », activé par défaut (validé par Thomas, v0.41.0).
 
 ## Calendrier (« Prêt pour le calendrier », MODULES.md §5.17)
 

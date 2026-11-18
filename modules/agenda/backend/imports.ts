@@ -21,12 +21,14 @@ import { clip, type ParsedFile } from '../shared/import-item';
 import {
   categoryOf,
   comparePreview,
+  compareTitles,
   type ExistingImported,
   type ImportedValues,
   type ImportPeriod,
   type Origin,
   readOrigin,
   type SourceSettings,
+  type StoredImported,
   VALUE_FIELDS,
   valuesOf,
 } from '../shared/importing';
@@ -43,6 +45,7 @@ import {
 import { writeXlsx } from '../shared/xlsx';
 import { addDays } from '../shared/time';
 import type { AgendaSourceDto } from '../shared/types';
+import type { CategoryLookup } from './categories';
 
 export interface SourceRow {
   id: string;
@@ -51,6 +54,9 @@ export interface SourceRow {
   calendar_name: string | null;
   mapping: string;
   default_category: string;
+  /** v0.43.0: value of the file → category id (a renamed category is still the target). */
+  mapping_ids: string | null;
+  default_category_id: string | null;
   title_style: string;
   columns: string | null;
   last_import_at: string | null;
@@ -81,7 +87,19 @@ type Op =
   | { kind: 'created' | 'removed' | 'restored'; table: string; id: string }
   | { kind: 'updated'; table: string; id: string; before: Record<string, string | number | null> };
 
-export function registerImports(ctx: ModuleContext, store: SyncStore) {
+/** v0.43.0: what the import needs of the categories (backend/categories.ts). */
+export interface ImportCategories {
+  lookup(): CategoryLookup;
+  resolve(
+    input: { categoryId?: unknown; category?: unknown },
+    fallback: string,
+  ): {
+    id: string;
+    name: string;
+  };
+}
+
+export function registerImports(ctx: ModuleContext, store: SyncStore, cats: ImportCategories) {
   const events = ctx.db.table('events');
   const sources = ctx.db.table('sources');
   const undo = new Map<string, { ops: Op[]; at: number }>();
@@ -96,19 +114,51 @@ export function registerImports(ctx: ModuleContext, store: SyncStore) {
     return row;
   };
 
+  /**
+   * v0.43.0: a source's mapping and default category by the categories' ids
+   * (their CURRENT names: a rename follows), else by the names of before.
+   */
+  const currentSettings = (row: SourceRow, l = cats.lookup()) => {
+    const names = parseJson<Record<string, string>>(row.mapping, {});
+    const ids = parseJson<Record<string, string>>(row.mapping_ids, {});
+    const mapping = Object.fromEntries(
+      Object.entries(names).map(([k, v]) => [k, l.nameOf(v, ids[k] ?? null)]),
+    );
+    return { mapping, defaultCategory: l.nameOf(row.default_category, row.default_category_id) };
+  };
+  /** The ids of a mapping of names (a new name: its category is made). */
+  const idsOf = (mapping: Record<string, string>, defaultCategory: string) => ({
+    mapping_ids: JSON.stringify(
+      Object.fromEntries(
+        Object.entries(mapping).map(([k, v]) => [k, cats.resolve({ category: v }, v).id]),
+      ),
+    ),
+    default_category_id: cats.resolve({ category: defaultCategory }, defaultCategory).id,
+  });
+
   const sourceDto = (row: SourceRow): AgendaSourceDto => {
-    const counts = ctx.db
+    const l = cats.lookup();
+    const raw = ctx.db
       .prepare(
-        `SELECT category, COUNT(*) AS n FROM ${events} WHERE deleted_at IS NULL AND source_id = ? GROUP BY category ORDER BY category`,
+        `SELECT category, category_id, COUNT(*) AS n FROM ${events} WHERE deleted_at IS NULL AND source_id = ? GROUP BY category, category_id`,
       )
-      .all(row.id) as { category: string; n: number }[];
+      .all(row.id) as { category: string; category_id: string | null; n: number }[];
+    const byName = new Map<string, number>();
+    for (const c of raw) {
+      const name = l.nameOf(c.category, c.category_id);
+      byName.set(name, (byName.get(name) ?? 0) + c.n);
+    }
+    const counts = [...byName]
+      .map(([category, n]) => ({ category, n }))
+      .sort((a, b) => a.category.localeCompare(b.category));
+    const current = currentSettings(row, l);
     return {
       id: row.id,
       name: row.name,
       format: row.format,
       calendarName: row.calendar_name,
-      mapping: parseJson<Record<string, string>>(row.mapping, {}),
-      defaultCategory: row.default_category,
+      mapping: current.mapping,
+      defaultCategory: current.defaultCategory,
       titleStyle: row.title_style === 'code' ? 'code' : 'short',
       columns: parseJson<ColumnMap | null>(row.columns, null),
       lastImportAt: row.last_import_at,
@@ -183,23 +233,46 @@ export function registerImports(ctx: ModuleContext, store: SyncStore) {
   /** UIDs (before « # ») of a key, to recognise a source by its events. */
   const uidOf = (key: string) => key.split('#')[0]!;
 
-  const existingOf = (sourceId: string): ExistingImported[] =>
-    (
-      ctx.db
-        .prepare(`SELECT * FROM ${events} WHERE source_id = ? AND origin_key IS NOT NULL`)
-        .all(sourceId) as (ImportedValues & {
-        id: string;
-        origin_key: string;
-        origin: string | null;
-        deleted_at: string | null;
-      })[]
-    ).map((r) => ({
+  type StoredRow = ImportedValues & {
+    id: string;
+    origin_key: string;
+    origin: string | null;
+    deleted_at: string | null;
+    category_id: string | null;
+  };
+  /**
+   * v0.43.0: an imported event compared by its category's CURRENT name (by
+   * its id); what the last import wrote, too (the same category when its
+   * name is the event's text: Thomas did not change it).
+   */
+  const canonicalRow = (r: StoredRow, l: CategoryLookup): ExistingImported => {
+    const current = Object.fromEntries(
+      VALUE_FIELDS.map((f) => [f, r[f]]),
+    ) as unknown as ImportedValues;
+    current.category = l.nameOf(r.category, r.category_id);
+    const imported = readOrigin(r.origin)?.imported ?? null;
+    return {
       id: r.id,
       key: r.origin_key,
       deleted: r.deleted_at !== null,
-      current: Object.fromEntries(VALUE_FIELDS.map((f) => [f, r[f]])) as unknown as ImportedValues,
-      imported: readOrigin(r.origin)?.imported ?? null,
-    }));
+      current,
+      imported: imported && {
+        ...imported,
+        category: l.nameOf(
+          imported.category,
+          imported.category === r.category ? r.category_id : null,
+        ),
+      },
+    };
+  };
+  const existingOf = (sourceId: string): ExistingImported[] => {
+    const l = cats.lookup();
+    return (
+      ctx.db
+        .prepare(`SELECT * FROM ${events} WHERE source_id = ? AND origin_key IS NOT NULL`)
+        .all(sourceId) as StoredRow[]
+    ).map((r) => canonicalRow(r, l));
+  };
 
   // --- The choices of the import ----------------------------------------------
 
@@ -207,16 +280,17 @@ export function registerImports(ctx: ModuleContext, store: SyncStore) {
 
   const settingsOf = (body: Record<string, unknown>, source: SourceRow | null): SourceSettings => {
     const mapping: Record<string, string> = {};
+    const stored = source ? currentSettings(source) : null;
     const given =
       body.mapping && typeof body.mapping === 'object'
         ? (body.mapping as Record<string, unknown>)
-        : parseJson<Record<string, unknown>>(source?.mapping ?? null, {});
+        : (stored?.mapping ?? {});
     for (const [k, v] of Object.entries(given).slice(0, 200)) {
       const c = textOf(v);
       if (c) mapping[clip(k, 60)] = c;
     }
     const defaultCategory =
-      textOf(body.defaultCategory) || source?.default_category || textOf(body.name) || 'Importé';
+      textOf(body.defaultCategory) || stored?.defaultCategory || textOf(body.name) || 'Importé';
     const style = body.titleStyle ?? source?.title_style;
     return { mapping, defaultCategory, titleStyle: style === 'code' ? 'code' : 'short' };
   };
@@ -350,7 +424,7 @@ export function registerImports(ctx: ModuleContext, store: SyncStore) {
       const ops: Op[] = [];
       const now = new Date().toISOString();
       let sourceId = p.source?.id ?? '';
-      const sourceFields = {
+      const sourceFields: Record<string, string | number | null> = {
         format: p.file.format,
         calendar_name: p.file.calendarName ?? p.source?.calendar_name ?? null,
         mapping: JSON.stringify(p.settings.mapping),
@@ -363,11 +437,25 @@ export function registerImports(ctx: ModuleContext, store: SyncStore) {
         const item = items.get(key)!;
         const values = valuesOf(item, p.settings);
         const origin: Origin = { original: item.original, raw: item.rawCategory, imported: values };
-        return { ...values, source_id: sourceId, origin_key: key, origin: JSON.stringify(origin) };
+        return {
+          ...values,
+          // v0.43.0: its category by its identifier (made for a new name).
+          category_id: cats.resolve({ category: values.category }, values.category).id,
+          source_id: sourceId,
+          origin_key: key,
+          origin: JSON.stringify(origin),
+        };
       };
+      /** v0.43.0: the type of an event made (or moved to another category) by an import: its category's default type. */
+      const kindFor = (fields: Record<string, string | number | null>) =>
+        cats.lookup().of(String(fields.category), String(fields.category_id))?.shape === 'deadline'
+          ? 'deadline'
+          : 'rendez-vous';
       const before = (row: Record<string, unknown>, fields: Record<string, unknown>) =>
         Object.fromEntries(Object.keys(fields).map((k) => [k, row[k] as string | number | null]));
       ctx.db.transaction(() => {
+        // v0.43.0: the mapping by the categories' ids too (a rename keeps the target).
+        Object.assign(sourceFields, idsOf(p.settings.mapping, p.settings.defaultCategory));
         if (p.source) {
           ops.push({
             kind: 'updated',
@@ -385,6 +473,7 @@ export function registerImports(ctx: ModuleContext, store: SyncStore) {
         }
         for (const line of add) {
           const fields = fieldsOf(line.key);
+          fields.kind = kindFor(fields);
           const old = line.deletedBefore
             ? (ctx.db
                 .prepare(
@@ -416,6 +505,8 @@ export function registerImports(ctx: ModuleContext, store: SyncStore) {
           const changed = Object.fromEntries(
             Object.entries(fields).filter(([k, v]) => row[k] !== v),
           ) as Record<string, string | number | null>;
+          if ('category_id' in changed && kindFor(fields) !== row.kind)
+            changed.kind = kindFor(fields);
           ops.push({ kind: 'updated', table: 'events', id: line.id, before: before(row, changed) });
           store.update('events', line.id, changed);
         }
@@ -439,6 +530,113 @@ export function registerImports(ctx: ModuleContext, store: SyncStore) {
       };
     },
     { bodyLimit: MAX_IMPORT_BYTES },
+  );
+
+  // --- v0.41.0: « Recalculer les titres » (no file: the original text kept) -----------
+
+  const storedOf = (sourceId: string): StoredImported[] =>
+    (
+      ctx.db
+        .prepare(
+          `SELECT * FROM ${events} WHERE source_id = ? AND origin_key IS NOT NULL AND deleted_at IS NULL`,
+        )
+        .all(sourceId) as (ImportedValues & {
+        id: string;
+        origin_key: string;
+        origin: string | null;
+      })[]
+    ).flatMap((r) => {
+      const origin = readOrigin(r.origin);
+      if (!origin) return [];
+      return [
+        {
+          id: r.id,
+          key: r.origin_key,
+          current: Object.fromEntries(
+            VALUE_FIELDS.map((f) => [f, r[f]]),
+          ) as unknown as ImportedValues,
+          origin,
+        },
+      ];
+    });
+
+  const titlesPreview = (source: SourceRow) => {
+    const settings = settingsOf({}, source);
+    const rows = storedOf(source.id);
+    return { settings, rows, result: compareTitles(rows, settings.titleStyle) };
+  };
+
+  /** The preview: the same shape as an import's (only « Modifiés »). Nothing is written. */
+  ctx.routes.get('/sources/:id/titles', (request) => {
+    const source = getSource(uuidParam(request.params));
+    const p = titlesPreview(source);
+    return { sourceId: source.id, settings: p.settings, period: 'all', ...p.result };
+  });
+
+  /**
+   * The checked titles written (`accept`: keys), nothing else: backup first,
+   * one transaction, « Annuler » like an import. What the import wrote
+   * (origin.imported.title) follows, so the next import sees no change of the user.
+   */
+  ctx.routes.post('/sources/:id/titles/apply', (request) => {
+    const source = getSource(uuidParam(request.params));
+    const body = requestBody(request);
+    const accept = new Set(Array.isArray(body.accept) ? body.accept.map(String) : []);
+    const p = titlesPreview(source);
+    const lines = p.result.modified.filter((l) => accept.has(l.key));
+    const summary = {
+      same: p.result.same,
+      left: { add: 0, modified: p.result.modified.length - lines.length, gone: 0 },
+      errors: 0,
+      ignored: 0,
+      added: 0,
+      removed: 0,
+    };
+    if (!lines.length)
+      return { importId: null, backup: null, source: sourceDto(source), updated: 0, ...summary };
+    const rows = new Map(p.rows.map((r) => [r.id, r]));
+    const backup = ctx.db.backup('avant recalcul des titres Agenda');
+    const ops: Op[] = [];
+    ctx.db.transaction(() => {
+      for (const line of lines) {
+        const r = rows.get(line.id)!;
+        const origin: Origin = {
+          ...r.origin,
+          imported: { ...r.origin.imported, title: line.title },
+        };
+        const fields = { title: line.title, origin: JSON.stringify(origin) };
+        const row = store.get('events', line.id) as unknown as Record<string, unknown>;
+        ops.push({
+          kind: 'updated',
+          table: 'events',
+          id: line.id,
+          before: { title: row.title as string, origin: row.origin as string | null },
+        });
+        store.update('events', line.id, fields);
+      }
+    });
+    const importId = newId();
+    const at = Date.now();
+    for (const [id, u] of undo) if (at - u.at > UNDO_MS) undo.delete(id);
+    undo.set(importId, { ops, at });
+    return {
+      importId,
+      backup,
+      source: sourceDto(getSource(source.id)),
+      updated: lines.length,
+      ...summary,
+    };
+  });
+
+  /**
+   * The sources whose titles would change (not counting the events whose
+   * title the user changed): the Agenda offers « Voir », never applies.
+   */
+  ctx.routes.get('/title-updates', () =>
+    sourceRows().flatMap((s) => {
+      const count = titlesPreview(s).result.modified.filter((l) => !l.mine).length;
+      return count ? [{ id: s.id, name: s.name, count }] : [];
+    }),
   );
 
   /** « Annuler l'import »: everything it did, undone (in the reverse order). */
@@ -500,18 +698,22 @@ export function registerImports(ctx: ModuleContext, store: SyncStore) {
       fields.mapping = JSON.stringify(settings.mapping);
       fields.default_category = settings.defaultCategory;
       ctx.db.transaction(() => {
+        Object.assign(fields, idsOf(settings.mapping, settings.defaultCategory));
+        const l = cats.lookup();
         const rows = ctx.db
           .prepare(`SELECT * FROM ${events} WHERE source_id = ? AND deleted_at IS NULL`)
-          .all(id) as { id: string; category: string; origin: string | null }[];
+          .all(id) as StoredRow[];
         for (const r of rows) {
           const origin = readOrigin(r.origin);
           if (!origin) continue;
+          // v0.43.0: compared by the categories' current names (a rename changes nothing).
+          const was = canonicalRow(r, l);
           const category = categoryOf(origin.raw, settings);
-          if (category === origin.imported.category) continue;
-          const mine = r.category !== origin.imported.category;
+          if (category === was.imported?.category) continue;
+          const mine = was.current.category !== was.imported?.category;
           const next: Origin = { ...origin, imported: { ...origin.imported, category } };
           store.update('events', r.id, {
-            ...(mine ? {} : { category }),
+            ...(mine ? {} : { category, category_id: cats.resolve({ category }, category).id }),
             origin: JSON.stringify(next),
           });
         }

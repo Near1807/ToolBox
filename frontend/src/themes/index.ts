@@ -72,6 +72,8 @@ export function applyTheme(id: string): void {
   const theme = THEMES.find((t) => t.id === id) ?? THEMES.find((t) => t.id === DEFAULT_THEME);
   if (!theme) return;
   document.documentElement.dataset.theme = theme.id;
+  // v0.42.0: the palette of the categories follows the light / dark scheme (palette.css).
+  document.documentElement.dataset.scheme = theme.scheme;
   try {
     localStorage.setItem(STORAGE_KEY, theme.id);
   } catch {

@@ -82,6 +82,8 @@ const data: RangeDto = {
   dayEndHour: 23,
   categories: ['Cours', 'Examens', 'Repas', 'Sport', 'Tâches'],
   categoriesOff: ['Sport', 'Repas', 'Timer'],
+  categoryInfo: [],
+  deadlines: [],
 };
 const RANGE = { startHour: 7, endHour: 23 };
 const byDefault = (c: string) => isOn(c, {}, data.categoriesOff);

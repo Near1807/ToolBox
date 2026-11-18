@@ -3,7 +3,9 @@
 // of another module or of the Agenda is drawn.
 import { useCallback, useState } from 'react';
 import { useApi, useModule } from '@hub/sdk/frontend';
-import { categoryColor, isOn } from '../shared/categories';
+import { categoryColor, type CategoryDto, defaultShape, isOn } from '../shared/categories';
+import { blockInk, isFreeColor, parseColor, type Rgb } from '../shared/palette';
+import { foldName } from '../shared/category-id';
 import { TASKS_CATEGORY, type TimedBlock, type TaskLoad } from '../shared/load';
 import type { AgendaEventDto, ForeignEventDto, PlannedTaskDto, RangeDto } from '../shared/types';
 
@@ -21,12 +23,39 @@ export const itemId = (i: Item) =>
       ? `task:${i.event.id}`
       : i.event.id;
 
+/** v0.42.0: an event of the Agenda whose category has the « deadline » shape (a moment). */
+export const isDeadlineItem = (i: Item): boolean => i.source === 'own' && Boolean(i.event.deadline);
+
 /** Can be moved and stretched in the week: the Agenda's events at a time, and the planned tasks. */
 /** v0.40.0: an event of the Agenda marked « facultatif » (never a task, never another module's). */
 export const isOptional = (i: Item) =>
   i.source === 'own' && Boolean((i.event as { optional?: true }).optional);
 
-export const movable = (i: Item) => !i.event.allDay && (i.source === 'own' || i.source === 'task');
+/**
+ * v0.41.0: the place of an item, as stored (an event of the Agenda; the
+ * planned tasks and the other tools give none), or null.
+ */
+export const placeOf = (i: Item): string | null =>
+  i.source === 'own' ? (i.event.location?.trim() ?? '') || null : null;
+
+/** The places of an import (« 2F51;2E51;2E44 », or with commas), one by one. */
+export const places = (place: string): string[] =>
+  place
+    .split(/[;,]/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+
+/** v0.41.0: the place in a block: the first two, « … » when there are more. */
+export function shortPlace(place: string): string {
+  const all = places(place);
+  return all.length > 2 ? `${all.slice(0, 2).join(', ')}…` : all.join(', ');
+}
+
+/** The place in full (the preview, the sheet): every one, separated by commas. */
+export const fullPlace = (place: string): string => places(place).join(', ');
+
+export const movable = (i: Item) =>
+  !i.event.allDay && !isDeadlineItem(i) && (i.source === 'own' || i.source === 'task');
 
 export function useRange(from: string, to: string) {
   const module = useModule();
@@ -102,6 +131,16 @@ export function timedBlocks(
       .filter((e) => !e.allDay && shown(e.category))
       // v0.40.0: a « facultatif » event weighs nothing (like a category switched off).
       .filter((e) => !('optional' in e && e.optional))
+      // v0.42.0: a category not counted (Réglages), and (v0.43.0) a deadline — its own
+      // type, whatever its category — weigh nothing.
+      // An occurrence of the week type has no type of its own: as in v0.42, one in a category
+      // whose default type is Deadline weighs nothing either.
+      .filter(
+        (e) =>
+          isCounted(e.category) &&
+          !('deadline' in e && e.deadline) &&
+          !('weekly' in e && e.weekly && isDeadline(e.category)),
+      )
       .map((e) => ({ id: e.id, start: e.start, end: e.end, category: e.category }))
   );
 }
@@ -121,9 +160,84 @@ export const switchCategories = (data: RangeDto) =>
     a.localeCompare(b),
   );
 
-/** The block's colours: its category's token (never a colour of its own). */
-export const colorStyle = (category: string) =>
-  ({ '--ag-color': categoryColor(category) }) as React.CSSProperties;
+// --- v0.42.0: the colours chosen by Thomas ---------------------------------------
+// The list read with each period (RangeDto.categoryInfo) or from Réglages:
+// what colorStyle draws. Without it (or for a category it does not know):
+// the token of before.
+
+const registry = new Map<string, CategoryDto>();
+
+/** Keep the list of the categories (their colour, shape…), for every block drawn after. */
+export function rememberCategories(list: readonly CategoryDto[] | undefined): void {
+  if (!list) return;
+  registry.clear();
+  for (const c of list) registry.set(foldName(c.name), c);
+}
+
+/** One more (just created): offered at once, before the next reading. */
+export function rememberCategory(c: CategoryDto): void {
+  registry.set(foldName(c.name), c);
+}
+
+/** Every category known, in Thomas's order (the choices of the sheet, the bar, a slot). */
+export const knownCategories = (): CategoryDto[] => [...registry.values()];
+
+/** What the Agenda knows of a category (null: a name it never saw). */
+export const categoryInfo = (category: string): CategoryDto | null =>
+  registry.get(foldName(category)) ?? null;
+
+/** v0.43.0: its elements are flagged when they overlap (a category can say no). */
+export const conflictsOn = (category: string) => categoryInfo(category)?.conflicts ?? true;
+
+/** The CSS value of a category's colour: Thomas's choice, else its token. */
+export const categoryCss = (category: string) =>
+  categoryInfo(category)?.css ?? categoryColor(category);
+
+/** Is « Deadline » the default type of this category (v0.42: its shape)? */
+export const isDeadline = (category: string) =>
+  (categoryInfo(category)?.shape ?? defaultShape(category)) === 'deadline';
+
+/** Counted in the load (Réglages › Agenda › Catégories)? */
+export const isCounted = (category: string) => categoryInfo(category)?.counted ?? true;
+
+let inks: { theme: string; surface: Rgb; text: Rgb; other: Rgb } | null = null;
+/** The theme's surface and inks (read once per theme), for a free colour's text. */
+function themeInks() {
+  if (typeof document === 'undefined') return null;
+  const root = document.documentElement;
+  const theme = `${root.dataset.theme ?? ''}:${root.dataset.scheme ?? ''}`;
+  if (inks?.theme === theme) return inks;
+  const style = getComputedStyle(root);
+  const read = (name: string) => parseColor(style.getPropertyValue(name));
+  const surface = read('--surface');
+  const text = read('--text');
+  const other = read('--bg');
+  if (!surface || !text || !other) return null;
+  inks = { theme, surface, text, other };
+  return inks;
+}
+
+/**
+ * A free colour (« #rrggbb ») on the current theme: the ink that reads best
+ * on its block, and whether it stays low (< 4.5:1). Null for a token.
+ */
+export function freeColorInk(
+  css: string,
+): { ink: 'text' | 'other'; ratio: number; low: boolean } | null {
+  const rgb = isFreeColor(css) ? parseColor(css) : null;
+  const t = rgb ? themeInks() : null;
+  return rgb && t ? blockInk(rgb, t.surface, { text: t.text, other: t.other }) : null;
+}
+
+/** The block's colours: its category's (a token, or Thomas's free colour with a readable ink). */
+export function colorStyle(category: string): React.CSSProperties {
+  const css = categoryCss(category);
+  const ink = freeColorInk(css);
+  return {
+    '--ag-color': css,
+    ...(ink?.ink === 'other' ? { '--ag-ink': 'var(--bg)' } : {}),
+  } as React.CSSProperties;
+}
 
 /** v0.36.0: what a timer started from the Agenda is for (an event, or one occurrence of the week type). */
 export const timerSubject = (event: AgendaEventDto) =>

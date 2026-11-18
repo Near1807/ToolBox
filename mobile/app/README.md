@@ -71,6 +71,9 @@ versionCode = majeure × 1 000 000 + mineure × 100 + correctif
 | 0.38.0  | 3800        |
 | 0.40.0  | 4000        |
 | 0.40.1  | 4001        |
+| 0.41.0  | 4100        |
+| 0.42.0  | 4200        |
+| 0.43.0  | 4300        |
 | 1.0.0   | 1000000     |
 
 Il croît toujours tant que le correctif reste sous 100 et la mineure sous 10 000 ; la CI refuse sinon. Deux APK de la même version ont le même versionCode : pour mettre à jour le téléphone, il faut une nouvelle version.

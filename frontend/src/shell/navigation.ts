@@ -21,6 +21,12 @@ export interface NavCategoryLayout {
 
 export interface NavLayout {
   categories: NavCategoryLayout[];
+  /**
+   * v0.42.0: tools hidden from the bar (« Masquer de la barre »), still on
+   * the home page and in Réglages; shown again from Réglages › Modules.
+   * Absent: none (the layout of before).
+   */
+  hidden?: string[];
 }
 
 export interface NavCategory<T extends NavTool = NavTool> {
@@ -64,7 +70,16 @@ export function parseLayout(json: string | null | undefined): NavLayout {
           : [],
       });
     }
-    return { categories };
+    const hidden = Array.isArray((value as { hidden?: unknown }).hidden)
+      ? [
+          ...new Set(
+            ((value as { hidden: unknown[] }).hidden as unknown[]).filter(
+              (t): t is string => typeof t === 'string',
+            ),
+          ),
+        ]
+      : [];
+    return hidden.length ? { categories, hidden } : { categories };
   } catch {
     return EMPTY_LAYOUT;
   }
@@ -125,6 +140,7 @@ export function buildNavigation<T extends NavTool>(
 export function materialize(nav: NavCategory[], previous: NavLayout): NavLayout {
   const shown = new Set(nav.flatMap((c) => c.tools.map((t) => t.id)));
   return {
+    ...(previous.hidden?.length ? { hidden: previous.hidden } : {}),
     categories: nav.map((category) => {
       const before = previous.categories.find((c) => c.id === category.id);
       const hidden = (before?.tools ?? []).filter((id) => !shown.has(id));
@@ -280,4 +296,17 @@ export function filterNavigation<T extends NavTool>(
       ),
     }))
     .filter((category) => category.tools.length > 0);
+}
+
+/** v0.42.0: hide a tool from the bar (its place in its category is kept). */
+export function hideTool(layout: NavLayout, nav: NavCategory[], id: string): NavLayout {
+  const next = materialize(nav, layout);
+  const hidden = [...new Set([...(layout.hidden ?? []), id])];
+  return { ...next, hidden };
+}
+
+/** v0.42.0: show a hidden tool again, at its place. */
+export function showTool(layout: NavLayout, id: string): NavLayout {
+  const hidden = (layout.hidden ?? []).filter((t) => t !== id);
+  return hidden.length ? { ...layout, hidden } : { categories: layout.categories };
 }

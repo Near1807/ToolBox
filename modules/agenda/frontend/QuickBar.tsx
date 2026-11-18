@@ -4,6 +4,7 @@
 import { useMemo, useState } from 'react';
 import { Button, ErrorMessage, errorMessage, onPhone, useModule } from '@hub/sdk/frontend';
 import { parseQuick, previewText } from '../shared/parse';
+import { CategorySelect, shapeOfChoice } from './Categories';
 
 export interface Added {
   kind: 'event' | 'weekly' | 'task';
@@ -16,6 +17,8 @@ export interface Added {
 export function QuickBar(props: { today: string; todo: boolean; onAdded: (added: Added) => void }) {
   const module = useModule();
   const [text, setText] = useState('');
+  /** v0.42.0: the category chosen in the list ('' = from the text: « #cours », else Rendez-vous). */
+  const [category, setCategory] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const parsed = useMemo(() => parseQuick(text, props.today), [text, props.today]);
@@ -31,7 +34,7 @@ export function QuickBar(props: { today: string; todo: boolean; onAdded: (added:
         event?: { id: string; title: string };
         weekly?: { id: string; title: string };
         task?: { id: string; title: string; plannedAt?: string | null };
-      }>('/quick', { text });
+      }>('/quick', { text, ...(category ? { category } : {}) });
       const made = r.event ?? r.weekly ?? r.task!;
       props.onAdded({
         kind: r.kind,
@@ -59,12 +62,19 @@ export function QuickBar(props: { today: string; todo: boolean; onAdded: (added:
           className="input ag-quick__input"
           value={text}
           autoFocus={!onPhone()}
-          placeholder="dentiste jeudi 14h 1h · week-end scout 13-15 février · préparer la réunion ~1h avant vendredi"
+          placeholder="dentiste jeudi 14h 1h · week-end scout 13-15 février · préparer la réunion ~1h avant vendredi · deadline rapport jeudi 23h59"
           aria-label="Ajouter à l’agenda"
           onChange={(e) => {
             setText(e.target.value);
             setError(null);
           }}
+        />
+        <CategorySelect
+          className="input ag-quick__category"
+          label="Catégorie (sinon selon le texte)"
+          value={category}
+          onChange={setCategory}
+          empty="Catégorie : selon le texte"
         />
         <Button type="submit" disabled={blocked || busy}>
           Ajouter
@@ -77,7 +87,19 @@ export function QuickBar(props: { today: string; todo: boolean; onAdded: (added:
         >
           {parsed.kind === 'task' && !props.todo
             ? 'Une chose à caser devient une tâche de la To-do, qui n’est pas là. Ajoute une heure ou une date pour en faire un événement.'
-            : previewText(parsed, props.today)}
+            : parsed.kind === 'event' &&
+                (parsed.deadline || shapeOfChoice(category || parsed.category) === 'deadline')
+              ? // v0.43.0: a deadline (« deadline … », or a category whose default type it is): a moment.
+                previewText(
+                  {
+                    ...parsed,
+                    end: parsed.start,
+                    category: category || parsed.category,
+                    deadline: true,
+                  },
+                  props.today,
+                )
+              : previewText(parsed, props.today)}
         </p>
       )}
       {error && <ErrorMessage>{error}</ErrorMessage>}

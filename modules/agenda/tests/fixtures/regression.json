@@ -15,27 +15,7 @@
             "location": null,
             "note": null,
             "category": "Rendez-vous",
-            "weekly": null,
-            "timerPref": null
-          }
-        }
-      }
-    ],
-    [
-      "POST /quick",
-      {
-        "status": 200,
-        "body": {
-          "kind": "event",
-          "event": {
-            "id": "#2",
-            "title": "Réunion staff",
-            "start": "2026-11-17T20:00",
-            "end": "2026-11-17T21:00",
-            "allDay": false,
-            "location": null,
-            "note": null,
-            "category": "Rendez-vous",
+            "categoryId": "#2",
             "weekly": null,
             "timerPref": null
           }
@@ -50,13 +30,14 @@
           "kind": "event",
           "event": {
             "id": "#3",
-            "title": "Week-end scout",
-            "start": "2027-02-13",
-            "end": "2027-02-15",
-            "allDay": true,
+            "title": "Réunion staff",
+            "start": "2026-11-17T20:00",
+            "end": "2026-11-17T21:00",
+            "allDay": false,
             "location": null,
             "note": null,
             "category": "Rendez-vous",
+            "categoryId": "#2",
             "weekly": null,
             "timerPref": null
           }
@@ -71,6 +52,28 @@
           "kind": "event",
           "event": {
             "id": "#4",
+            "title": "Week-end scout",
+            "start": "2027-02-13",
+            "end": "2027-02-15",
+            "allDay": true,
+            "location": null,
+            "note": null,
+            "category": "Rendez-vous",
+            "categoryId": "#2",
+            "weekly": null,
+            "timerPref": null
+          }
+        }
+      }
+    ],
+    [
+      "POST /quick",
+      {
+        "status": 200,
+        "body": {
+          "kind": "event",
+          "event": {
+            "id": "#5",
             "title": "Examen math",
             "start": "2027-01-18",
             "end": "2027-01-18",
@@ -78,6 +81,7 @@
             "location": null,
             "note": null,
             "category": "Examens",
+            "categoryId": "#6",
             "weekly": null,
             "timerPref": null
           }
@@ -91,12 +95,13 @@
         "body": {
           "kind": "weekly",
           "weekly": {
-            "id": "#5",
+            "id": "#7",
             "title": "Badminton",
             "weekday": 3,
             "time": "19:00",
             "durationMin": 120,
             "category": "Sport",
+            "categoryId": "#8",
             "location": null,
             "from": "2026-11-12",
             "until": null,
@@ -112,7 +117,7 @@
         "body": {
           "kind": "task",
           "task": {
-            "id": "#6",
+            "id": "#9",
             "title": "préparer la réunion",
             "tags": [],
             "due": "2026-11-13",
@@ -130,7 +135,7 @@
         "body": {
           "kind": "task",
           "task": {
-            "id": "#7",
+            "id": "#10",
             "title": "acheter du pain",
             "tags": [],
             "due": null,
@@ -164,7 +169,7 @@
       {
         "status": 200,
         "body": {
-          "id": "#8",
+          "id": "#11",
           "title": "Déjeuner avec Léa",
           "start": "2026-11-18T12:30",
           "end": "2026-11-18T14:00",
@@ -172,6 +177,7 @@
           "location": "Chez Léon",
           "note": "réserver",
           "category": "Perso",
+          "categoryId": "#12",
           "weekly": null,
           "timerPref": null
         }
@@ -200,7 +206,7 @@
       {
         "status": 200,
         "body": {
-          "id": "#9",
+          "id": "#13",
           "title": "Vacances",
           "start": "2026-12-21",
           "end": "2026-12-31",
@@ -208,6 +214,7 @@
           "location": null,
           "note": null,
           "category": "Rendez-vous",
+          "categoryId": "#2",
           "weekly": null,
           "timerPref": null
         }
@@ -226,6 +233,7 @@
           "location": null,
           "note": null,
           "category": "Rendez-vous",
+          "categoryId": "#2",
           "weekly": null,
           "timerPref": null
         }
@@ -244,17 +252,18 @@
           "location": null,
           "note": null,
           "category": "Rendez-vous",
+          "categoryId": "#2",
           "weekly": null,
           "timerPref": null
         }
       }
     ],
     [
-      "PATCH /events/#3",
+      "PATCH /events/#4",
       {
         "status": 200,
         "body": {
-          "id": "#3",
+          "id": "#4",
           "title": "Week-end scout",
           "start": "2027-02-13",
           "end": "2027-02-15",
@@ -262,13 +271,14 @@
           "location": "Spa",
           "note": null,
           "category": "Rendez-vous",
+          "categoryId": "#2",
           "weekly": null,
           "timerPref": null
         }
       }
     ],
     [
-      "PUT /weekly/#5/occurrences/2026-11-19",
+      "PUT /weekly/#7/occurrences/2026-11-19",
       {
         "status": 200,
         "body": {
@@ -277,7 +287,7 @@
       }
     ],
     [
-      "PUT /weekly/#5/occurrences/2026-11-26",
+      "PUT /weekly/#7/occurrences/2026-11-26",
       {
         "status": 200,
         "body": {
@@ -286,7 +296,7 @@
       }
     ],
     [
-      "PUT /weekly/#5/occurrences/2026-12-03",
+      "PUT /weekly/#7/occurrences/2026-12-03",
       {
         "status": 200,
         "body": {
@@ -295,7 +305,7 @@
       }
     ],
     [
-      "PUT /weekly/#5/occurrences/2026-12-03",
+      "PUT /weekly/#7/occurrences/2026-12-03",
       {
         "status": 200,
         "body": {
@@ -304,7 +314,7 @@
       }
     ],
     [
-      "PUT /weekly/#5/occurrences/2026-11-26",
+      "PUT /weekly/#7/occurrences/2026-11-26",
       {
         "status": 400,
         "body": {
@@ -317,12 +327,13 @@
       {
         "status": 200,
         "body": {
-          "id": "#10",
+          "id": "#14",
           "title": "Yoga",
           "weekday": 0,
           "time": "07:30",
           "durationMin": 45,
           "category": "Loisirs",
+          "categoryId": "#15",
           "location": null,
           "from": "2026-11-16",
           "until": "2026-12-14",
@@ -331,16 +342,17 @@
       }
     ],
     [
-      "PATCH /weekly/#10",
+      "PATCH /weekly/#14",
       {
         "status": 200,
         "body": {
-          "id": "#10",
+          "id": "#14",
           "title": "Yoga",
           "weekday": 0,
           "time": "08:00",
           "durationMin": 45,
           "category": "Loisirs",
+          "categoryId": "#15",
           "location": null,
           "from": "2026-11-16",
           "until": "2026-12-14",
@@ -358,7 +370,7 @@
       }
     ],
     [
-      "DELETE /events/#8",
+      "DELETE /events/#11",
       {
         "status": 200,
         "body": {
@@ -367,11 +379,11 @@
       }
     ],
     [
-      "POST /events/#8/restore",
+      "POST /events/#11/restore",
       {
         "status": 200,
         "body": {
-          "id": "#8",
+          "id": "#11",
           "title": "Déjeuner avec Léa",
           "start": "2026-11-18T12:30",
           "end": "2026-11-18T14:00",
@@ -379,13 +391,14 @@
           "location": "Chez Léon",
           "note": "réserver",
           "category": "Perso",
+          "categoryId": "#12",
           "weekly": null,
           "timerPref": null
         }
       }
     ],
     [
-      "DELETE /weekly/#10",
+      "DELETE /weekly/#14",
       {
         "status": 200,
         "body": {
@@ -403,7 +416,7 @@
           "to": "2026-11-15",
           "events": [
             {
-              "id": "#5:2026-11-12",
+              "id": "#7:2026-11-12",
               "title": "Badminton",
               "start": "2026-11-12T19:00",
               "end": "2026-11-12T21:00",
@@ -411,8 +424,9 @@
               "location": null,
               "note": null,
               "category": "Sport",
+              "categoryId": "#8",
               "weekly": {
-                "id": "#5",
+                "id": "#7",
                 "date": "2026-11-12",
                 "moved": false
               },
@@ -422,7 +436,7 @@
           "foreign": [],
           "toPlace": [
             {
-              "id": "#6",
+              "id": "#9",
               "title": "préparer la réunion",
               "due": "2026-11-13",
               "estimateMin": 60,
@@ -430,7 +444,7 @@
               "late": false
             },
             {
-              "id": "#7",
+              "id": "#10",
               "title": "acheter du pain",
               "due": null,
               "estimateMin": null,
@@ -443,12 +457,13 @@
           "todo": true,
           "weekly": [
             {
-              "id": "#5",
+              "id": "#7",
               "title": "Badminton",
               "weekday": 3,
               "time": "19:00",
               "durationMin": 120,
               "category": "Sport",
+              "categoryId": "#8",
               "location": null,
               "from": "2026-11-12",
               "until": null,
@@ -458,6 +473,243 @@
           "dayStartHour": 7,
           "dayEndHour": 23,
           "categories": ["Sport"],
+          "categoryInfo": [
+            {
+              "id": "#2",
+              "stored": true,
+              "key": "rendez-vous",
+              "name": "Rendez-vous",
+              "color": null,
+              "css": "var(--series-1)",
+              "defaultCss": "var(--series-1)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "fixed",
+              "created": false,
+              "events": 4
+            },
+            {
+              "id": "#16",
+              "stored": true,
+              "key": "cours",
+              "name": "Cours",
+              "color": null,
+              "css": "var(--series-2)",
+              "defaultCss": "var(--series-2)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "fixed",
+              "created": false,
+              "events": 0
+            },
+            {
+              "id": "#17",
+              "stored": true,
+              "key": "réunions",
+              "name": "Réunions",
+              "color": null,
+              "css": "var(--series-3)",
+              "defaultCss": "var(--series-3)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "fixed",
+              "created": false,
+              "events": 0
+            },
+            {
+              "id": "#6",
+              "stored": true,
+              "key": "examens",
+              "name": "Examens",
+              "color": null,
+              "css": "var(--series-4)",
+              "defaultCss": "var(--series-4)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "fixed",
+              "created": false,
+              "events": 1
+            },
+            {
+              "id": "#15",
+              "stored": true,
+              "key": "loisirs",
+              "name": "Loisirs",
+              "color": null,
+              "css": "var(--series-5)",
+              "defaultCss": "var(--series-5)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "fixed",
+              "created": false,
+              "events": 0
+            },
+            {
+              "id": "#12",
+              "stored": true,
+              "key": "perso",
+              "name": "Perso",
+              "color": null,
+              "css": "var(--series-6)",
+              "defaultCss": "var(--series-6)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "fixed",
+              "created": false,
+              "events": 1
+            },
+            {
+              "id": "#18",
+              "stored": true,
+              "key": "deadline",
+              "name": "Deadline",
+              "color": null,
+              "css": "var(--danger)",
+              "defaultCss": "var(--danger)",
+              "shape": "deadline",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "fixed",
+              "created": false,
+              "events": 0
+            },
+            {
+              "id": "#19",
+              "stored": true,
+              "key": "tâches",
+              "name": "Tâches",
+              "color": null,
+              "css": "var(--series-7)",
+              "defaultCss": "var(--series-7)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "tool",
+              "created": false,
+              "events": 0
+            },
+            {
+              "id": "#8",
+              "stored": true,
+              "key": "sport",
+              "name": "Sport",
+              "color": null,
+              "css": "var(--series-5)",
+              "defaultCss": "var(--series-5)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": false,
+              "origin": "tool",
+              "created": false,
+              "events": 1
+            },
+            {
+              "id": "#20",
+              "stored": true,
+              "key": "repas",
+              "name": "Repas",
+              "color": null,
+              "css": "var(--series-6)",
+              "defaultCss": "var(--series-6)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": false,
+              "origin": "tool",
+              "created": false,
+              "events": 0
+            },
+            {
+              "id": "#21",
+              "stored": true,
+              "key": "cuisine",
+              "name": "Cuisine",
+              "color": null,
+              "css": "var(--series-8)",
+              "defaultCss": "var(--series-8)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "tool",
+              "created": false,
+              "events": 0
+            },
+            {
+              "id": "#22",
+              "stored": true,
+              "key": "timer",
+              "name": "Timer",
+              "color": null,
+              "css": "var(--series-7)",
+              "defaultCss": "var(--series-7)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": false,
+              "origin": "tool",
+              "created": false,
+              "events": 0
+            },
+            {
+              "id": "#23",
+              "stored": true,
+              "key": "musique",
+              "name": "Musique",
+              "color": null,
+              "css": "var(--series-8)",
+              "defaultCss": "var(--series-8)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "tool",
+              "created": false,
+              "events": 0
+            }
+          ],
+          "deadlines": [],
           "categoriesOff": ["Sport", "Repas", "Timer"]
         }
       }
@@ -472,7 +724,7 @@
           "to": "2026-11-22",
           "events": [
             {
-              "id": "#2",
+              "id": "#3",
               "title": "Réunion staff",
               "start": "2026-11-17T20:00",
               "end": "2026-11-17T21:00",
@@ -480,11 +732,12 @@
               "location": null,
               "note": null,
               "category": "Rendez-vous",
+              "categoryId": "#2",
               "weekly": null,
               "timerPref": null
             },
             {
-              "id": "#8",
+              "id": "#11",
               "title": "Déjeuner avec Léa",
               "start": "2026-11-18T12:30",
               "end": "2026-11-18T14:00",
@@ -492,6 +745,7 @@
               "location": "Chez Léon",
               "note": "réserver",
               "category": "Perso",
+              "categoryId": "#12",
               "weekly": null,
               "timerPref": null
             },
@@ -504,6 +758,7 @@
               "location": null,
               "note": null,
               "category": "Rendez-vous",
+              "categoryId": "#2",
               "weekly": null,
               "timerPref": null
             }
@@ -511,7 +766,7 @@
           "foreign": [],
           "toPlace": [
             {
-              "id": "#6",
+              "id": "#9",
               "title": "préparer la réunion",
               "due": "2026-11-13",
               "estimateMin": 60,
@@ -519,7 +774,7 @@
               "late": false
             },
             {
-              "id": "#7",
+              "id": "#10",
               "title": "acheter du pain",
               "due": null,
               "estimateMin": null,
@@ -532,12 +787,13 @@
           "todo": true,
           "weekly": [
             {
-              "id": "#5",
+              "id": "#7",
               "title": "Badminton",
               "weekday": 3,
               "time": "19:00",
               "durationMin": 120,
               "category": "Sport",
+              "categoryId": "#8",
               "location": null,
               "from": "2026-11-12",
               "until": null,
@@ -547,6 +803,243 @@
           "dayStartHour": 7,
           "dayEndHour": 23,
           "categories": ["Perso", "Rendez-vous"],
+          "categoryInfo": [
+            {
+              "id": "#2",
+              "stored": true,
+              "key": "rendez-vous",
+              "name": "Rendez-vous",
+              "color": null,
+              "css": "var(--series-1)",
+              "defaultCss": "var(--series-1)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "fixed",
+              "created": false,
+              "events": 4
+            },
+            {
+              "id": "#16",
+              "stored": true,
+              "key": "cours",
+              "name": "Cours",
+              "color": null,
+              "css": "var(--series-2)",
+              "defaultCss": "var(--series-2)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "fixed",
+              "created": false,
+              "events": 0
+            },
+            {
+              "id": "#17",
+              "stored": true,
+              "key": "réunions",
+              "name": "Réunions",
+              "color": null,
+              "css": "var(--series-3)",
+              "defaultCss": "var(--series-3)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "fixed",
+              "created": false,
+              "events": 0
+            },
+            {
+              "id": "#6",
+              "stored": true,
+              "key": "examens",
+              "name": "Examens",
+              "color": null,
+              "css": "var(--series-4)",
+              "defaultCss": "var(--series-4)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "fixed",
+              "created": false,
+              "events": 1
+            },
+            {
+              "id": "#15",
+              "stored": true,
+              "key": "loisirs",
+              "name": "Loisirs",
+              "color": null,
+              "css": "var(--series-5)",
+              "defaultCss": "var(--series-5)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "fixed",
+              "created": false,
+              "events": 0
+            },
+            {
+              "id": "#12",
+              "stored": true,
+              "key": "perso",
+              "name": "Perso",
+              "color": null,
+              "css": "var(--series-6)",
+              "defaultCss": "var(--series-6)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "fixed",
+              "created": false,
+              "events": 1
+            },
+            {
+              "id": "#18",
+              "stored": true,
+              "key": "deadline",
+              "name": "Deadline",
+              "color": null,
+              "css": "var(--danger)",
+              "defaultCss": "var(--danger)",
+              "shape": "deadline",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "fixed",
+              "created": false,
+              "events": 0
+            },
+            {
+              "id": "#19",
+              "stored": true,
+              "key": "tâches",
+              "name": "Tâches",
+              "color": null,
+              "css": "var(--series-7)",
+              "defaultCss": "var(--series-7)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "tool",
+              "created": false,
+              "events": 0
+            },
+            {
+              "id": "#8",
+              "stored": true,
+              "key": "sport",
+              "name": "Sport",
+              "color": null,
+              "css": "var(--series-5)",
+              "defaultCss": "var(--series-5)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": false,
+              "origin": "tool",
+              "created": false,
+              "events": 1
+            },
+            {
+              "id": "#20",
+              "stored": true,
+              "key": "repas",
+              "name": "Repas",
+              "color": null,
+              "css": "var(--series-6)",
+              "defaultCss": "var(--series-6)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": false,
+              "origin": "tool",
+              "created": false,
+              "events": 0
+            },
+            {
+              "id": "#21",
+              "stored": true,
+              "key": "cuisine",
+              "name": "Cuisine",
+              "color": null,
+              "css": "var(--series-8)",
+              "defaultCss": "var(--series-8)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "tool",
+              "created": false,
+              "events": 0
+            },
+            {
+              "id": "#22",
+              "stored": true,
+              "key": "timer",
+              "name": "Timer",
+              "color": null,
+              "css": "var(--series-7)",
+              "defaultCss": "var(--series-7)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": false,
+              "origin": "tool",
+              "created": false,
+              "events": 0
+            },
+            {
+              "id": "#23",
+              "stored": true,
+              "key": "musique",
+              "name": "Musique",
+              "color": null,
+              "css": "var(--series-8)",
+              "defaultCss": "var(--series-8)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "tool",
+              "created": false,
+              "events": 0
+            }
+          ],
+          "deadlines": [],
           "categoriesOff": ["Sport", "Repas", "Timer"]
         }
       }
@@ -561,7 +1054,7 @@
           "to": "2026-11-29",
           "events": [
             {
-              "id": "#5:2026-11-26",
+              "id": "#7:2026-11-26",
               "title": "Badminton",
               "start": "2026-11-26T19:00",
               "end": "2026-11-26T21:00",
@@ -569,8 +1062,9 @@
               "location": null,
               "note": null,
               "category": "Sport",
+              "categoryId": "#8",
               "weekly": {
-                "id": "#5",
+                "id": "#7",
                 "date": "2026-11-26",
                 "moved": false
               },
@@ -580,7 +1074,7 @@
           "foreign": [],
           "toPlace": [
             {
-              "id": "#6",
+              "id": "#9",
               "title": "préparer la réunion",
               "due": "2026-11-13",
               "estimateMin": 60,
@@ -588,7 +1082,7 @@
               "late": false
             },
             {
-              "id": "#7",
+              "id": "#10",
               "title": "acheter du pain",
               "due": null,
               "estimateMin": null,
@@ -601,12 +1095,13 @@
           "todo": true,
           "weekly": [
             {
-              "id": "#5",
+              "id": "#7",
               "title": "Badminton",
               "weekday": 3,
               "time": "19:00",
               "durationMin": 120,
               "category": "Sport",
+              "categoryId": "#8",
               "location": null,
               "from": "2026-11-12",
               "until": null,
@@ -616,6 +1111,243 @@
           "dayStartHour": 7,
           "dayEndHour": 23,
           "categories": ["Sport"],
+          "categoryInfo": [
+            {
+              "id": "#2",
+              "stored": true,
+              "key": "rendez-vous",
+              "name": "Rendez-vous",
+              "color": null,
+              "css": "var(--series-1)",
+              "defaultCss": "var(--series-1)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "fixed",
+              "created": false,
+              "events": 4
+            },
+            {
+              "id": "#16",
+              "stored": true,
+              "key": "cours",
+              "name": "Cours",
+              "color": null,
+              "css": "var(--series-2)",
+              "defaultCss": "var(--series-2)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "fixed",
+              "created": false,
+              "events": 0
+            },
+            {
+              "id": "#17",
+              "stored": true,
+              "key": "réunions",
+              "name": "Réunions",
+              "color": null,
+              "css": "var(--series-3)",
+              "defaultCss": "var(--series-3)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "fixed",
+              "created": false,
+              "events": 0
+            },
+            {
+              "id": "#6",
+              "stored": true,
+              "key": "examens",
+              "name": "Examens",
+              "color": null,
+              "css": "var(--series-4)",
+              "defaultCss": "var(--series-4)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "fixed",
+              "created": false,
+              "events": 1
+            },
+            {
+              "id": "#15",
+              "stored": true,
+              "key": "loisirs",
+              "name": "Loisirs",
+              "color": null,
+              "css": "var(--series-5)",
+              "defaultCss": "var(--series-5)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "fixed",
+              "created": false,
+              "events": 0
+            },
+            {
+              "id": "#12",
+              "stored": true,
+              "key": "perso",
+              "name": "Perso",
+              "color": null,
+              "css": "var(--series-6)",
+              "defaultCss": "var(--series-6)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "fixed",
+              "created": false,
+              "events": 1
+            },
+            {
+              "id": "#18",
+              "stored": true,
+              "key": "deadline",
+              "name": "Deadline",
+              "color": null,
+              "css": "var(--danger)",
+              "defaultCss": "var(--danger)",
+              "shape": "deadline",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "fixed",
+              "created": false,
+              "events": 0
+            },
+            {
+              "id": "#19",
+              "stored": true,
+              "key": "tâches",
+              "name": "Tâches",
+              "color": null,
+              "css": "var(--series-7)",
+              "defaultCss": "var(--series-7)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "tool",
+              "created": false,
+              "events": 0
+            },
+            {
+              "id": "#8",
+              "stored": true,
+              "key": "sport",
+              "name": "Sport",
+              "color": null,
+              "css": "var(--series-5)",
+              "defaultCss": "var(--series-5)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": false,
+              "origin": "tool",
+              "created": false,
+              "events": 1
+            },
+            {
+              "id": "#20",
+              "stored": true,
+              "key": "repas",
+              "name": "Repas",
+              "color": null,
+              "css": "var(--series-6)",
+              "defaultCss": "var(--series-6)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": false,
+              "origin": "tool",
+              "created": false,
+              "events": 0
+            },
+            {
+              "id": "#21",
+              "stored": true,
+              "key": "cuisine",
+              "name": "Cuisine",
+              "color": null,
+              "css": "var(--series-8)",
+              "defaultCss": "var(--series-8)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "tool",
+              "created": false,
+              "events": 0
+            },
+            {
+              "id": "#22",
+              "stored": true,
+              "key": "timer",
+              "name": "Timer",
+              "color": null,
+              "css": "var(--series-7)",
+              "defaultCss": "var(--series-7)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": false,
+              "origin": "tool",
+              "created": false,
+              "events": 0
+            },
+            {
+              "id": "#23",
+              "stored": true,
+              "key": "musique",
+              "name": "Musique",
+              "color": null,
+              "css": "var(--series-8)",
+              "defaultCss": "var(--series-8)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "tool",
+              "created": false,
+              "events": 0
+            }
+          ],
+          "deadlines": [],
           "categoriesOff": ["Sport", "Repas", "Timer"]
         }
       }
@@ -630,7 +1362,7 @@
           "to": "2027-02-28",
           "events": [
             {
-              "id": "#5:2027-02-04",
+              "id": "#7:2027-02-04",
               "title": "Badminton",
               "start": "2027-02-04T19:00",
               "end": "2027-02-04T21:00",
@@ -638,15 +1370,16 @@
               "location": null,
               "note": null,
               "category": "Sport",
+              "categoryId": "#8",
               "weekly": {
-                "id": "#5",
+                "id": "#7",
                 "date": "2027-02-04",
                 "moved": false
               },
               "timerPref": null
             },
             {
-              "id": "#5:2027-02-11",
+              "id": "#7:2027-02-11",
               "title": "Badminton",
               "start": "2027-02-11T19:00",
               "end": "2027-02-11T21:00",
@@ -654,15 +1387,16 @@
               "location": null,
               "note": null,
               "category": "Sport",
+              "categoryId": "#8",
               "weekly": {
-                "id": "#5",
+                "id": "#7",
                 "date": "2027-02-11",
                 "moved": false
               },
               "timerPref": null
             },
             {
-              "id": "#3",
+              "id": "#4",
               "title": "Week-end scout",
               "start": "2027-02-13",
               "end": "2027-02-15",
@@ -670,11 +1404,12 @@
               "location": "Spa",
               "note": null,
               "category": "Rendez-vous",
+              "categoryId": "#2",
               "weekly": null,
               "timerPref": null
             },
             {
-              "id": "#5:2027-02-18",
+              "id": "#7:2027-02-18",
               "title": "Badminton",
               "start": "2027-02-18T19:00",
               "end": "2027-02-18T21:00",
@@ -682,15 +1417,16 @@
               "location": null,
               "note": null,
               "category": "Sport",
+              "categoryId": "#8",
               "weekly": {
-                "id": "#5",
+                "id": "#7",
                 "date": "2027-02-18",
                 "moved": false
               },
               "timerPref": null
             },
             {
-              "id": "#5:2027-02-25",
+              "id": "#7:2027-02-25",
               "title": "Badminton",
               "start": "2027-02-25T19:00",
               "end": "2027-02-25T21:00",
@@ -698,8 +1434,9 @@
               "location": null,
               "note": null,
               "category": "Sport",
+              "categoryId": "#8",
               "weekly": {
-                "id": "#5",
+                "id": "#7",
                 "date": "2027-02-25",
                 "moved": false
               },
@@ -709,7 +1446,7 @@
           "foreign": [],
           "toPlace": [
             {
-              "id": "#6",
+              "id": "#9",
               "title": "préparer la réunion",
               "due": "2026-11-13",
               "estimateMin": 60,
@@ -717,7 +1454,7 @@
               "late": false
             },
             {
-              "id": "#7",
+              "id": "#10",
               "title": "acheter du pain",
               "due": null,
               "estimateMin": null,
@@ -730,12 +1467,13 @@
           "todo": true,
           "weekly": [
             {
-              "id": "#5",
+              "id": "#7",
               "title": "Badminton",
               "weekday": 3,
               "time": "19:00",
               "durationMin": 120,
               "category": "Sport",
+              "categoryId": "#8",
               "location": null,
               "from": "2026-11-12",
               "until": null,
@@ -745,6 +1483,243 @@
           "dayStartHour": 7,
           "dayEndHour": 23,
           "categories": ["Rendez-vous", "Sport"],
+          "categoryInfo": [
+            {
+              "id": "#2",
+              "stored": true,
+              "key": "rendez-vous",
+              "name": "Rendez-vous",
+              "color": null,
+              "css": "var(--series-1)",
+              "defaultCss": "var(--series-1)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "fixed",
+              "created": false,
+              "events": 4
+            },
+            {
+              "id": "#16",
+              "stored": true,
+              "key": "cours",
+              "name": "Cours",
+              "color": null,
+              "css": "var(--series-2)",
+              "defaultCss": "var(--series-2)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "fixed",
+              "created": false,
+              "events": 0
+            },
+            {
+              "id": "#17",
+              "stored": true,
+              "key": "réunions",
+              "name": "Réunions",
+              "color": null,
+              "css": "var(--series-3)",
+              "defaultCss": "var(--series-3)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "fixed",
+              "created": false,
+              "events": 0
+            },
+            {
+              "id": "#6",
+              "stored": true,
+              "key": "examens",
+              "name": "Examens",
+              "color": null,
+              "css": "var(--series-4)",
+              "defaultCss": "var(--series-4)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "fixed",
+              "created": false,
+              "events": 1
+            },
+            {
+              "id": "#15",
+              "stored": true,
+              "key": "loisirs",
+              "name": "Loisirs",
+              "color": null,
+              "css": "var(--series-5)",
+              "defaultCss": "var(--series-5)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "fixed",
+              "created": false,
+              "events": 0
+            },
+            {
+              "id": "#12",
+              "stored": true,
+              "key": "perso",
+              "name": "Perso",
+              "color": null,
+              "css": "var(--series-6)",
+              "defaultCss": "var(--series-6)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "fixed",
+              "created": false,
+              "events": 1
+            },
+            {
+              "id": "#18",
+              "stored": true,
+              "key": "deadline",
+              "name": "Deadline",
+              "color": null,
+              "css": "var(--danger)",
+              "defaultCss": "var(--danger)",
+              "shape": "deadline",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "fixed",
+              "created": false,
+              "events": 0
+            },
+            {
+              "id": "#19",
+              "stored": true,
+              "key": "tâches",
+              "name": "Tâches",
+              "color": null,
+              "css": "var(--series-7)",
+              "defaultCss": "var(--series-7)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "tool",
+              "created": false,
+              "events": 0
+            },
+            {
+              "id": "#8",
+              "stored": true,
+              "key": "sport",
+              "name": "Sport",
+              "color": null,
+              "css": "var(--series-5)",
+              "defaultCss": "var(--series-5)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": false,
+              "origin": "tool",
+              "created": false,
+              "events": 1
+            },
+            {
+              "id": "#20",
+              "stored": true,
+              "key": "repas",
+              "name": "Repas",
+              "color": null,
+              "css": "var(--series-6)",
+              "defaultCss": "var(--series-6)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": false,
+              "origin": "tool",
+              "created": false,
+              "events": 0
+            },
+            {
+              "id": "#21",
+              "stored": true,
+              "key": "cuisine",
+              "name": "Cuisine",
+              "color": null,
+              "css": "var(--series-8)",
+              "defaultCss": "var(--series-8)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "tool",
+              "created": false,
+              "events": 0
+            },
+            {
+              "id": "#22",
+              "stored": true,
+              "key": "timer",
+              "name": "Timer",
+              "color": null,
+              "css": "var(--series-7)",
+              "defaultCss": "var(--series-7)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": false,
+              "origin": "tool",
+              "created": false,
+              "events": 0
+            },
+            {
+              "id": "#23",
+              "stored": true,
+              "key": "musique",
+              "name": "Musique",
+              "color": null,
+              "css": "var(--series-8)",
+              "defaultCss": "var(--series-8)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "tool",
+              "created": false,
+              "events": 0
+            }
+          ],
+          "deadlines": [],
           "categoriesOff": ["Sport", "Repas", "Timer"]
         }
       }
@@ -768,7 +1743,7 @@
           "to": "2026-11-13",
           "events": [
             {
-              "id": "#5:2026-11-12",
+              "id": "#7:2026-11-12",
               "title": "Badminton",
               "start": "2026-11-12T19:00",
               "end": "2026-11-12T21:00",
@@ -776,8 +1751,9 @@
               "location": null,
               "note": null,
               "category": "Sport",
+              "categoryId": "#8",
               "weekly": {
-                "id": "#5",
+                "id": "#7",
                 "date": "2026-11-12",
                 "moved": false
               },
@@ -787,7 +1763,7 @@
           "foreign": [],
           "toPlace": [
             {
-              "id": "#6",
+              "id": "#9",
               "title": "préparer la réunion",
               "due": "2026-11-13",
               "estimateMin": 60,
@@ -795,7 +1771,7 @@
               "late": false
             },
             {
-              "id": "#7",
+              "id": "#10",
               "title": "acheter du pain",
               "due": null,
               "estimateMin": null,
@@ -808,12 +1784,13 @@
           "todo": true,
           "weekly": [
             {
-              "id": "#5",
+              "id": "#7",
               "title": "Badminton",
               "weekday": 3,
               "time": "19:00",
               "durationMin": 120,
               "category": "Sport",
+              "categoryId": "#8",
               "location": null,
               "from": "2026-11-12",
               "until": null,
@@ -823,6 +1800,243 @@
           "dayStartHour": 7,
           "dayEndHour": 23,
           "categories": ["Sport"],
+          "categoryInfo": [
+            {
+              "id": "#2",
+              "stored": true,
+              "key": "rendez-vous",
+              "name": "Rendez-vous",
+              "color": null,
+              "css": "var(--series-1)",
+              "defaultCss": "var(--series-1)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "fixed",
+              "created": false,
+              "events": 4
+            },
+            {
+              "id": "#16",
+              "stored": true,
+              "key": "cours",
+              "name": "Cours",
+              "color": null,
+              "css": "var(--series-2)",
+              "defaultCss": "var(--series-2)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "fixed",
+              "created": false,
+              "events": 0
+            },
+            {
+              "id": "#17",
+              "stored": true,
+              "key": "réunions",
+              "name": "Réunions",
+              "color": null,
+              "css": "var(--series-3)",
+              "defaultCss": "var(--series-3)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "fixed",
+              "created": false,
+              "events": 0
+            },
+            {
+              "id": "#6",
+              "stored": true,
+              "key": "examens",
+              "name": "Examens",
+              "color": null,
+              "css": "var(--series-4)",
+              "defaultCss": "var(--series-4)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "fixed",
+              "created": false,
+              "events": 1
+            },
+            {
+              "id": "#15",
+              "stored": true,
+              "key": "loisirs",
+              "name": "Loisirs",
+              "color": null,
+              "css": "var(--series-5)",
+              "defaultCss": "var(--series-5)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "fixed",
+              "created": false,
+              "events": 0
+            },
+            {
+              "id": "#12",
+              "stored": true,
+              "key": "perso",
+              "name": "Perso",
+              "color": null,
+              "css": "var(--series-6)",
+              "defaultCss": "var(--series-6)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "fixed",
+              "created": false,
+              "events": 1
+            },
+            {
+              "id": "#18",
+              "stored": true,
+              "key": "deadline",
+              "name": "Deadline",
+              "color": null,
+              "css": "var(--danger)",
+              "defaultCss": "var(--danger)",
+              "shape": "deadline",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "fixed",
+              "created": false,
+              "events": 0
+            },
+            {
+              "id": "#19",
+              "stored": true,
+              "key": "tâches",
+              "name": "Tâches",
+              "color": null,
+              "css": "var(--series-7)",
+              "defaultCss": "var(--series-7)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "tool",
+              "created": false,
+              "events": 0
+            },
+            {
+              "id": "#8",
+              "stored": true,
+              "key": "sport",
+              "name": "Sport",
+              "color": null,
+              "css": "var(--series-5)",
+              "defaultCss": "var(--series-5)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": false,
+              "origin": "tool",
+              "created": false,
+              "events": 1
+            },
+            {
+              "id": "#20",
+              "stored": true,
+              "key": "repas",
+              "name": "Repas",
+              "color": null,
+              "css": "var(--series-6)",
+              "defaultCss": "var(--series-6)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": false,
+              "origin": "tool",
+              "created": false,
+              "events": 0
+            },
+            {
+              "id": "#21",
+              "stored": true,
+              "key": "cuisine",
+              "name": "Cuisine",
+              "color": null,
+              "css": "var(--series-8)",
+              "defaultCss": "var(--series-8)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "tool",
+              "created": false,
+              "events": 0
+            },
+            {
+              "id": "#22",
+              "stored": true,
+              "key": "timer",
+              "name": "Timer",
+              "color": null,
+              "css": "var(--series-7)",
+              "defaultCss": "var(--series-7)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": false,
+              "origin": "tool",
+              "created": false,
+              "events": 0
+            },
+            {
+              "id": "#23",
+              "stored": true,
+              "key": "musique",
+              "name": "Musique",
+              "color": null,
+              "css": "var(--series-8)",
+              "defaultCss": "var(--series-8)",
+              "shape": "normal",
+              "counted": true,
+              "conflicts": true,
+              "defaultDuration": null,
+              "defaultLocation": null,
+              "shownByDefault": true,
+              "origin": "tool",
+              "created": false,
+              "events": 0
+            }
+          ],
+          "deadlines": [],
           "categoriesOff": ["Sport", "Repas", "Timer"]
         }
       }
@@ -832,7 +2046,7 @@
     "sources": ["todo", "agenda"],
     "events": [
       {
-        "id": "#2",
+        "id": "#3",
         "title": "Réunion staff",
         "start": "2026-11-17T20:00",
         "durationMin": 60,
@@ -841,7 +2055,7 @@
         "moduleId": "agenda"
       },
       {
-        "id": "#8",
+        "id": "#11",
         "title": "Déjeuner avec Léa",
         "start": "2026-11-18T12:30",
         "durationMin": 90,
@@ -862,65 +2076,314 @@
     ]
   },
   "tables": {
+    "agenda__categories": [
+      {
+        "id": "#16",
+        "created_at": "+482400000ms",
+        "updated_at": "+482400000ms",
+        "deleted_at": null,
+        "key": "cours",
+        "name": "Cours",
+        "color": null,
+        "shape": "normal",
+        "counted": 1,
+        "shown": 1,
+        "sort": null,
+        "mine": 0,
+        "conflicts": 1,
+        "default_duration": null,
+        "default_location": null,
+        "builtin": 1,
+        "found": 0
+      },
+      {
+        "id": "#21",
+        "created_at": "+482400000ms",
+        "updated_at": "+482400000ms",
+        "deleted_at": null,
+        "key": "cuisine",
+        "name": "Cuisine",
+        "color": null,
+        "shape": "normal",
+        "counted": 1,
+        "shown": 1,
+        "sort": null,
+        "mine": 0,
+        "conflicts": 1,
+        "default_duration": null,
+        "default_location": null,
+        "builtin": 1,
+        "found": 0
+      },
+      {
+        "id": "#18",
+        "created_at": "+482400000ms",
+        "updated_at": "+482400000ms",
+        "deleted_at": null,
+        "key": "deadline",
+        "name": "Deadline",
+        "color": null,
+        "shape": "deadline",
+        "counted": 1,
+        "shown": 1,
+        "sort": null,
+        "mine": 0,
+        "conflicts": 1,
+        "default_duration": null,
+        "default_location": null,
+        "builtin": 1,
+        "found": 0
+      },
+      {
+        "id": "#6",
+        "created_at": "+482400000ms",
+        "updated_at": "+482400000ms",
+        "deleted_at": null,
+        "key": "examens",
+        "name": "Examens",
+        "color": null,
+        "shape": "normal",
+        "counted": 1,
+        "shown": 1,
+        "sort": null,
+        "mine": 0,
+        "conflicts": 1,
+        "default_duration": null,
+        "default_location": null,
+        "builtin": 1,
+        "found": 0
+      },
+      {
+        "id": "#15",
+        "created_at": "+482400000ms",
+        "updated_at": "+482400000ms",
+        "deleted_at": null,
+        "key": "loisirs",
+        "name": "Loisirs",
+        "color": null,
+        "shape": "normal",
+        "counted": 1,
+        "shown": 1,
+        "sort": null,
+        "mine": 0,
+        "conflicts": 1,
+        "default_duration": null,
+        "default_location": null,
+        "builtin": 1,
+        "found": 0
+      },
+      {
+        "id": "#23",
+        "created_at": "+482400000ms",
+        "updated_at": "+482400000ms",
+        "deleted_at": null,
+        "key": "musique",
+        "name": "Musique",
+        "color": null,
+        "shape": "normal",
+        "counted": 1,
+        "shown": 1,
+        "sort": null,
+        "mine": 0,
+        "conflicts": 1,
+        "default_duration": null,
+        "default_location": null,
+        "builtin": 1,
+        "found": 0
+      },
+      {
+        "id": "#12",
+        "created_at": "+482400000ms",
+        "updated_at": "+482400000ms",
+        "deleted_at": null,
+        "key": "perso",
+        "name": "Perso",
+        "color": null,
+        "shape": "normal",
+        "counted": 1,
+        "shown": 1,
+        "sort": null,
+        "mine": 0,
+        "conflicts": 1,
+        "default_duration": null,
+        "default_location": null,
+        "builtin": 1,
+        "found": 0
+      },
+      {
+        "id": "#2",
+        "created_at": "+482400000ms",
+        "updated_at": "+482400000ms",
+        "deleted_at": null,
+        "key": "rendez-vous",
+        "name": "Rendez-vous",
+        "color": null,
+        "shape": "normal",
+        "counted": 1,
+        "shown": 1,
+        "sort": null,
+        "mine": 0,
+        "conflicts": 1,
+        "default_duration": null,
+        "default_location": null,
+        "builtin": 1,
+        "found": 0
+      },
+      {
+        "id": "#20",
+        "created_at": "+482400000ms",
+        "updated_at": "+482400000ms",
+        "deleted_at": null,
+        "key": "repas",
+        "name": "Repas",
+        "color": null,
+        "shape": "normal",
+        "counted": 1,
+        "shown": 0,
+        "sort": null,
+        "mine": 0,
+        "conflicts": 1,
+        "default_duration": null,
+        "default_location": null,
+        "builtin": 1,
+        "found": 0
+      },
+      {
+        "id": "#17",
+        "created_at": "+482400000ms",
+        "updated_at": "+482400000ms",
+        "deleted_at": null,
+        "key": "réunions",
+        "name": "Réunions",
+        "color": null,
+        "shape": "normal",
+        "counted": 1,
+        "shown": 1,
+        "sort": null,
+        "mine": 0,
+        "conflicts": 1,
+        "default_duration": null,
+        "default_location": null,
+        "builtin": 1,
+        "found": 0
+      },
+      {
+        "id": "#8",
+        "created_at": "+482400000ms",
+        "updated_at": "+482400000ms",
+        "deleted_at": null,
+        "key": "sport",
+        "name": "Sport",
+        "color": null,
+        "shape": "normal",
+        "counted": 1,
+        "shown": 0,
+        "sort": null,
+        "mine": 0,
+        "conflicts": 1,
+        "default_duration": null,
+        "default_location": null,
+        "builtin": 1,
+        "found": 0
+      },
+      {
+        "id": "#19",
+        "created_at": "+482400000ms",
+        "updated_at": "+482400000ms",
+        "deleted_at": null,
+        "key": "tâches",
+        "name": "Tâches",
+        "color": null,
+        "shape": "normal",
+        "counted": 1,
+        "shown": 1,
+        "sort": null,
+        "mine": 0,
+        "conflicts": 1,
+        "default_duration": null,
+        "default_location": null,
+        "builtin": 1,
+        "found": 0
+      },
+      {
+        "id": "#22",
+        "created_at": "+482400000ms",
+        "updated_at": "+482400000ms",
+        "deleted_at": null,
+        "key": "timer",
+        "name": "Timer",
+        "color": null,
+        "shape": "normal",
+        "counted": 1,
+        "shown": 0,
+        "sort": null,
+        "mine": 0,
+        "conflicts": 1,
+        "default_duration": null,
+        "default_location": null,
+        "builtin": 1,
+        "found": 0
+      }
+    ],
     "agenda__changes": [
       {
-        "id": "#11",
+        "id": "#24",
         "at": "+0ms",
         "entity": "events",
         "entity_id": "#1",
         "op": "create",
-        "data": "{\"title\":\"Dentiste\",\"start_at\":\"2026-11-19T14:00\",\"end_at\":\"2026-11-19T15:00\",\"all_day\":0,\"location\":null,\"note\":null,\"category\":\"Rendez-vous\"}"
+        "data": "{\"title\":\"Dentiste\",\"start_at\":\"2026-11-19T14:00\",\"end_at\":\"2026-11-19T15:00\",\"all_day\":0,\"location\":null,\"note\":null,\"category_id\":\"#2\",\"category\":\"Rendez-vous\",\"kind\":\"rendez-vous\"}"
       },
       {
-        "id": "#12",
+        "id": "#25",
         "at": "+1ms",
-        "entity": "events",
-        "entity_id": "#2",
-        "op": "create",
-        "data": "{\"title\":\"Réunion staff\",\"start_at\":\"2026-11-17T20:00\",\"end_at\":\"2026-11-17T21:00\",\"all_day\":0,\"location\":null,\"note\":null,\"category\":\"Rendez-vous\"}"
-      },
-      {
-        "id": "#13",
-        "at": "+2ms",
         "entity": "events",
         "entity_id": "#3",
         "op": "create",
-        "data": "{\"title\":\"Week-end scout\",\"start_at\":\"2027-02-13\",\"end_at\":\"2027-02-15\",\"all_day\":1,\"location\":null,\"note\":null,\"category\":\"Rendez-vous\"}"
+        "data": "{\"title\":\"Réunion staff\",\"start_at\":\"2026-11-17T20:00\",\"end_at\":\"2026-11-17T21:00\",\"all_day\":0,\"location\":null,\"note\":null,\"category_id\":\"#2\",\"category\":\"Rendez-vous\",\"kind\":\"rendez-vous\"}"
       },
       {
-        "id": "#14",
-        "at": "+3ms",
+        "id": "#26",
+        "at": "+2ms",
         "entity": "events",
         "entity_id": "#4",
         "op": "create",
-        "data": "{\"title\":\"Examen math\",\"start_at\":\"2027-01-18\",\"end_at\":\"2027-01-18\",\"all_day\":1,\"location\":null,\"note\":null,\"category\":\"Examens\"}"
+        "data": "{\"title\":\"Week-end scout\",\"start_at\":\"2027-02-13\",\"end_at\":\"2027-02-15\",\"all_day\":1,\"location\":null,\"note\":null,\"category_id\":\"#2\",\"category\":\"Rendez-vous\",\"kind\":\"rendez-vous\"}"
       },
       {
-        "id": "#15",
-        "at": "+4ms",
-        "entity": "weekly",
+        "id": "#27",
+        "at": "+3ms",
+        "entity": "events",
         "entity_id": "#5",
         "op": "create",
-        "data": "{\"title\":\"Badminton\",\"weekday\":3,\"time\":\"19:00\",\"duration_min\":120,\"category\":\"Sport\",\"location\":null,\"valid_from\":\"2026-11-12\",\"valid_until\":null}"
+        "data": "{\"title\":\"Examen math\",\"start_at\":\"2027-01-18\",\"end_at\":\"2027-01-18\",\"all_day\":1,\"location\":null,\"note\":null,\"category_id\":\"#6\",\"category\":\"Examens\",\"kind\":\"rendez-vous\"}"
       },
       {
-        "id": "#16",
+        "id": "#28",
+        "at": "+4ms",
+        "entity": "weekly",
+        "entity_id": "#7",
+        "op": "create",
+        "data": "{\"title\":\"Badminton\",\"weekday\":3,\"time\":\"19:00\",\"duration_min\":120,\"category_id\":\"#8\",\"category\":\"Sport\",\"location\":null,\"valid_from\":\"2026-11-12\",\"valid_until\":null}"
+      },
+      {
+        "id": "#29",
         "at": "+300000ms",
         "entity": "events",
-        "entity_id": "#8",
+        "entity_id": "#11",
         "op": "create",
-        "data": "{\"title\":\"Déjeuner avec Léa\",\"start_at\":\"2026-11-18T12:30\",\"end_at\":\"2026-11-18T14:00\",\"all_day\":0,\"location\":\"Chez Léon\",\"note\":\"réserver\",\"category\":\"Perso\"}"
+        "data": "{\"title\":\"Déjeuner avec Léa\",\"start_at\":\"2026-11-18T12:30\",\"end_at\":\"2026-11-18T14:00\",\"all_day\":0,\"location\":\"Chez Léon\",\"note\":\"réserver\",\"category_id\":\"#12\",\"category\":\"Perso\",\"kind\":\"rendez-vous\"}"
       },
       {
-        "id": "#17",
+        "id": "#30",
         "at": "+300001ms",
         "entity": "events",
-        "entity_id": "#9",
+        "entity_id": "#13",
         "op": "create",
-        "data": "{\"title\":\"Vacances\",\"start_at\":\"2026-12-21\",\"end_at\":\"2026-12-31\",\"all_day\":1,\"location\":null,\"note\":null,\"category\":\"Rendez-vous\"}"
+        "data": "{\"title\":\"Vacances\",\"start_at\":\"2026-12-21\",\"end_at\":\"2026-12-31\",\"all_day\":1,\"location\":null,\"note\":null,\"category_id\":\"#2\",\"category\":\"Rendez-vous\",\"kind\":\"rendez-vous\"}"
       },
       {
-        "id": "#18",
+        "id": "#31",
         "at": "+600000ms",
         "entity": "events",
         "entity_id": "#1",
@@ -928,7 +2391,7 @@
         "data": "{\"start_at\":\"2026-11-19T15:00\",\"end_at\":\"2026-11-19T16:00\"}"
       },
       {
-        "id": "#19",
+        "id": "#32",
         "at": "+600001ms",
         "entity": "events",
         "entity_id": "#1",
@@ -936,90 +2399,90 @@
         "data": "{\"title\":\"Dentiste (contrôle)\"}"
       },
       {
-        "id": "#20",
+        "id": "#33",
         "at": "+600002ms",
         "entity": "events",
-        "entity_id": "#3",
+        "entity_id": "#4",
         "op": "update",
         "data": "{\"location\":\"Spa\"}"
       },
       {
-        "id": "#21",
+        "id": "#34",
         "at": "+600003ms",
         "entity": "exceptions",
-        "entity_id": "#22",
+        "entity_id": "#35",
         "op": "create",
-        "data": "{\"weekly_id\":\"#5\",\"occurrence_date\":\"2026-11-19\",\"kind\":\"cancel\",\"start_at\":null,\"duration_min\":null}"
+        "data": "{\"weekly_id\":\"#7\",\"occurrence_date\":\"2026-11-19\",\"kind\":\"cancel\",\"start_at\":null,\"duration_min\":null}"
       },
       {
-        "id": "#23",
+        "id": "#36",
         "at": "+600004ms",
         "entity": "exceptions",
-        "entity_id": "#24",
+        "entity_id": "#37",
         "op": "create",
-        "data": "{\"weekly_id\":\"#5\",\"occurrence_date\":\"2026-11-26\",\"kind\":\"move\",\"start_at\":\"2026-11-27T18:00\",\"duration_min\":90}"
+        "data": "{\"weekly_id\":\"#7\",\"occurrence_date\":\"2026-11-26\",\"kind\":\"move\",\"start_at\":\"2026-11-27T18:00\",\"duration_min\":90}"
       },
       {
-        "id": "#25",
+        "id": "#38",
         "at": "+600005ms",
         "entity": "exceptions",
-        "entity_id": "#26",
+        "entity_id": "#39",
         "op": "create",
-        "data": "{\"weekly_id\":\"#5\",\"occurrence_date\":\"2026-12-03\",\"kind\":\"cancel\",\"start_at\":null,\"duration_min\":null}"
+        "data": "{\"weekly_id\":\"#7\",\"occurrence_date\":\"2026-12-03\",\"kind\":\"cancel\",\"start_at\":null,\"duration_min\":null}"
       },
       {
-        "id": "#27",
+        "id": "#40",
         "at": "+600006ms",
         "entity": "exceptions",
-        "entity_id": "#26",
+        "entity_id": "#39",
         "op": "delete",
         "data": null
       },
       {
-        "id": "#28",
+        "id": "#41",
         "at": "+600007ms",
         "entity": "exceptions",
-        "entity_id": "#24",
+        "entity_id": "#37",
         "op": "delete",
         "data": null
       },
       {
-        "id": "#29",
+        "id": "#42",
         "at": "+600008ms",
         "entity": "weekly",
-        "entity_id": "#10",
+        "entity_id": "#14",
         "op": "create",
-        "data": "{\"title\":\"Yoga\",\"weekday\":0,\"time\":\"07:30\",\"duration_min\":45,\"category\":\"Loisirs\",\"location\":null,\"valid_from\":\"2026-11-16\",\"valid_until\":\"2026-12-14\"}"
+        "data": "{\"title\":\"Yoga\",\"weekday\":0,\"time\":\"07:30\",\"duration_min\":45,\"category_id\":\"#15\",\"category\":\"Loisirs\",\"location\":null,\"valid_from\":\"2026-11-16\",\"valid_until\":\"2026-12-14\"}"
       },
       {
-        "id": "#30",
+        "id": "#43",
         "at": "+600009ms",
         "entity": "weekly",
-        "entity_id": "#10",
+        "entity_id": "#14",
         "op": "update",
         "data": "{\"time\":\"08:00\"}"
       },
       {
-        "id": "#31",
+        "id": "#44",
         "at": "+900000ms",
         "entity": "events",
-        "entity_id": "#8",
+        "entity_id": "#11",
         "op": "delete",
         "data": null
       },
       {
-        "id": "#32",
+        "id": "#45",
         "at": "+900001ms",
         "entity": "events",
-        "entity_id": "#8",
+        "entity_id": "#11",
         "op": "restore",
         "data": null
       },
       {
-        "id": "#33",
+        "id": "#46",
         "at": "+900002ms",
         "entity": "weekly",
-        "entity_id": "#10",
+        "entity_id": "#14",
         "op": "delete",
         "data": null
       }
@@ -1041,10 +2504,13 @@
         "source_id": null,
         "origin_key": null,
         "origin": null,
-        "optional": 0
+        "optional": 0,
+        "done_at": null,
+        "category_id": "#2",
+        "kind": "rendez-vous"
       },
       {
-        "id": "#2",
+        "id": "#3",
         "created_at": "+1ms",
         "updated_at": "+1ms",
         "deleted_at": null,
@@ -1059,10 +2525,13 @@
         "source_id": null,
         "origin_key": null,
         "origin": null,
-        "optional": 0
+        "optional": 0,
+        "done_at": null,
+        "category_id": "#2",
+        "kind": "rendez-vous"
       },
       {
-        "id": "#3",
+        "id": "#4",
         "created_at": "+2ms",
         "updated_at": "+600002ms",
         "deleted_at": null,
@@ -1077,10 +2546,13 @@
         "source_id": null,
         "origin_key": null,
         "origin": null,
-        "optional": 0
+        "optional": 0,
+        "done_at": null,
+        "category_id": "#2",
+        "kind": "rendez-vous"
       },
       {
-        "id": "#4",
+        "id": "#5",
         "created_at": "+3ms",
         "updated_at": "+3ms",
         "deleted_at": null,
@@ -1095,10 +2567,13 @@
         "source_id": null,
         "origin_key": null,
         "origin": null,
-        "optional": 0
+        "optional": 0,
+        "done_at": null,
+        "category_id": "#6",
+        "kind": "rendez-vous"
       },
       {
-        "id": "#8",
+        "id": "#11",
         "created_at": "+300000ms",
         "updated_at": "+900001ms",
         "deleted_at": null,
@@ -1113,10 +2588,13 @@
         "source_id": null,
         "origin_key": null,
         "origin": null,
-        "optional": 0
+        "optional": 0,
+        "done_at": null,
+        "category_id": "#12",
+        "kind": "rendez-vous"
       },
       {
-        "id": "#9",
+        "id": "#13",
         "created_at": "+300001ms",
         "updated_at": "+300001ms",
         "deleted_at": null,
@@ -1131,38 +2609,41 @@
         "source_id": null,
         "origin_key": null,
         "origin": null,
-        "optional": 0
+        "optional": 0,
+        "done_at": null,
+        "category_id": "#2",
+        "kind": "rendez-vous"
       }
     ],
     "agenda__exceptions": [
       {
-        "id": "#22",
+        "id": "#35",
         "created_at": "+600003ms",
         "updated_at": "+600003ms",
         "deleted_at": null,
-        "weekly_id": "#5",
+        "weekly_id": "#7",
         "occurrence_date": "2026-11-19",
         "kind": "cancel",
         "start_at": null,
         "duration_min": null
       },
       {
-        "id": "#24",
+        "id": "#37",
         "created_at": "+600004ms",
         "updated_at": "+600007ms",
         "deleted_at": "+600007ms",
-        "weekly_id": "#5",
+        "weekly_id": "#7",
         "occurrence_date": "2026-11-26",
         "kind": "move",
         "start_at": "2026-11-27T18:00",
         "duration_min": 90
       },
       {
-        "id": "#26",
+        "id": "#39",
         "created_at": "+600005ms",
         "updated_at": "+600006ms",
         "deleted_at": "+600006ms",
-        "weekly_id": "#5",
+        "weekly_id": "#7",
         "occurrence_date": "2026-12-03",
         "kind": "cancel",
         "start_at": null,
@@ -1170,9 +2651,10 @@
       }
     ],
     "agenda__sources": [],
+    "agenda__task_categories": [],
     "agenda__weekly": [
       {
-        "id": "#5",
+        "id": "#7",
         "created_at": "+4ms",
         "updated_at": "+4ms",
         "deleted_at": null,
@@ -1184,10 +2666,11 @@
         "location": null,
         "valid_from": "2026-11-12",
         "valid_until": null,
-        "timer_pref": null
+        "timer_pref": null,
+        "category_id": "#8"
       },
       {
-        "id": "#10",
+        "id": "#14",
         "created_at": "+600008ms",
         "updated_at": "+900002ms",
         "deleted_at": "+900002ms",
@@ -1199,25 +2682,26 @@
         "location": null,
         "valid_from": "2026-11-16",
         "valid_until": "2026-12-14",
-        "timer_pref": null
+        "timer_pref": null,
+        "category_id": "#15"
       }
     ]
   },
   "todo": {
     "todo__changes": [
       {
-        "id": "#34",
+        "id": "#47",
         "at": "+5ms",
         "entity": "tasks",
-        "entity_id": "#6",
+        "entity_id": "#9",
         "op": "create",
         "data": "{\"title\":\"préparer la réunion\",\"tags\":\"[]\",\"due_date\":\"2026-11-13\",\"done_at\":null,\"subject\":null,\"legacy_id\":null,\"duration_min\":60}"
       },
       {
-        "id": "#35",
+        "id": "#48",
         "at": "+6ms",
         "entity": "tasks",
-        "entity_id": "#7",
+        "entity_id": "#10",
         "op": "create",
         "data": "{\"title\":\"acheter du pain\",\"tags\":\"[]\",\"due_date\":null,\"done_at\":null,\"subject\":null,\"legacy_id\":null}"
       }
@@ -1225,7 +2709,7 @@
     "todo__legacy_ids": [],
     "todo__tasks": [
       {
-        "id": "#6",
+        "id": "#9",
         "created_at": "+5ms",
         "updated_at": "+5ms",
         "deleted_at": null,
@@ -1240,7 +2724,7 @@
         "timer_pref": null
       },
       {
-        "id": "#7",
+        "id": "#10",
         "created_at": "+6ms",
         "updated_at": "+6ms",
         "deleted_at": null,

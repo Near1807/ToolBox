@@ -8,6 +8,7 @@
 //   « préparer la réunion ~1h avant vendredi » → a task of the To-do (« à caser »)
 //   « réviser stats ~2h mercredi 14h » → a task of the To-do planned Wed. 14:00 (v0.35.0)
 //   « #cours » anywhere                 → its category
+//   « deadline rapport jeudi 23h59 »    → a deadline (v0.43.0): a moment, never a task
 // Rules (written for Thomas in the guide): a « ~duration » makes a task to fit
 // in; otherwise an hour makes an event at that time, a date alone an event
 // for the whole day, nothing dated a task. The date and the hours come
@@ -21,7 +22,7 @@ import {
   splitQuickAdd,
   takeDuration,
 } from '@hub/sdk/dates';
-import { categoryFromTag, DEFAULT_CATEGORY } from './categories';
+import { categoryFromTag, DEADLINE_CATEGORY, DEFAULT_CATEGORY } from './categories';
 import { addMinutes, dayLabel, eventWhen, timeOf, WEEKDAYS } from './time';
 
 export type Parsed =
@@ -32,6 +33,8 @@ export type Parsed =
       end: string;
       allDay: boolean;
       category: string;
+      /** v0.43.0: a deadline (« deadline … », or the « Deadline » destination): a moment. */
+      deadline?: true;
     }
   | {
       kind: 'weekly';
@@ -226,8 +229,64 @@ function takeDate(words: string[], today: string): { day: string | null; rest: s
   return { day: null, rest: words };
 }
 
+/** v0.43.0: « deadline rapport jeudi 23h59 », « échéance : … » (the word first). */
+const DEADLINE_WORD = /^(?:deadline|[ée]ch[ée]ance)\s*:?\s+/iu;
+
+/** Does the text start with the deadline keyword? */
+export const saysDeadline = (input: string) => DEADLINE_WORD.test(input.trim());
+
+/**
+ * v0.43.0: the bar read as a DEADLINE (the keyword, or the « Deadline »
+ * destination): a date and, if given, a time; no end; never a task nor an
+ * entry of the week type (refused, with a message: nothing is written).
+ * Without a category written (« #cours »), it goes in « Deadline ».
+ */
+export function parseDeadline(input: string, today: string): Parsed {
+  const text = input.trim().replace(DEADLINE_WORD, '');
+  const parsed = parseQuick(text, today);
+  const missing = {
+    kind: 'error' as const,
+    message:
+      'Une deadline a besoin d’une date (« deadline rapport jeudi 23h59 »). Rien n’a été ajouté.',
+  };
+  switch (parsed.kind) {
+    case 'empty':
+    case 'error':
+      return parsed;
+    case 'task':
+      return parsed.due || parsed.start
+        ? {
+            kind: 'error',
+            message:
+              'Une deadline n’a pas de durée (« ~1h ») : une date et, si tu veux, une heure. Rien n’a été ajouté.',
+          }
+        : missing;
+    case 'weekly':
+      return {
+        kind: 'error',
+        message:
+          'Une deadline est un moment, pas un élément de la semaine type. Rien n’a été ajouté.',
+      };
+    case 'event':
+      if (parsed.allDay && parsed.end !== parsed.start)
+        return {
+          kind: 'error',
+          message:
+            'Une deadline est un moment : une seule date (« deadline rapport jeudi »). Rien n’a été ajouté.',
+        };
+      return {
+        ...parsed,
+        end: parsed.start,
+        // « #cours » written: that one; else « Deadline ».
+        category: /(^|\s)#[\p{L}\p{N}_-]+/u.test(text) ? parsed.category : DEADLINE_CATEGORY,
+        deadline: true,
+      };
+  }
+}
+
 /** Reads the bar. `today`: « YYYY-MM-DD ». */
 export function parseQuick(input: string, today: string): Parsed {
+  if (saysDeadline(input)) return parseDeadline(input, today);
   let text = input.replace(/\s+/g, ' ').trim();
   if (!text) return { kind: 'empty' };
   let category: string | null = null;
@@ -287,7 +346,14 @@ export function parseQuick(input: string, today: string): Parsed {
     };
   }
   if (range)
-    return { kind: 'event', title, start: range.from, end: range.to, allDay: true, category: cat };
+    return {
+      kind: 'event',
+      title,
+      start: range.from,
+      end: range.to,
+      allDay: true,
+      category: cat,
+    };
   if (times.start !== null) {
     const day = date.day ?? today;
     const start = `${day}T${timeOf(times.start)}`;
@@ -306,7 +372,14 @@ export function parseQuick(input: string, today: string): Parsed {
     };
   }
   if (date.day)
-    return { kind: 'event', title, start: date.day, end: date.day, allDay: true, category: cat };
+    return {
+      kind: 'event',
+      title,
+      start: date.day,
+      end: date.day,
+      allDay: true,
+      category: cat,
+    };
   // Nothing dated: something to fit in (a task without a date).
   return {
     kind: 'task',
@@ -321,7 +394,9 @@ export function parseQuick(input: string, today: string): Parsed {
 export function previewText(parsed: Parsed, today: string): string {
   switch (parsed.kind) {
     case 'event':
-      return `Sera ajouté : ${parsed.title} · ${eventWhen(parsed, today)}`;
+      return parsed.deadline
+        ? `Sera ajouté (deadline · ${parsed.category}) : ${parsed.title} · ${eventWhen(parsed, today)}`
+        : `Sera ajouté : ${parsed.title} · ${eventWhen(parsed, today)}`;
     case 'weekly':
       return `Sera ajouté à la semaine type : ${parsed.title} · chaque ${WEEKDAYS[parsed.weekday]} ${parsed.time}–${timeOf(
         (Number(parsed.time.slice(0, 2)) * 60 + Number(parsed.time.slice(3)) + parsed.durationMin) %
