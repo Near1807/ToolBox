@@ -14,6 +14,8 @@ export interface TodoTask {
   durationMin: number | null;
   /** Planned start « YYYY-MM-DDTHH:mm » (v0.35.0), null when not planned. */
   plannedAt: string | null;
+  /** v0.43.0: the associated timer (the Timer's TimerChoice), or null. */
+  timerPref?: Record<string, unknown> | null;
 }
 
 export interface TodoService {
@@ -45,6 +47,8 @@ export interface TodoService {
     trackId?: number | null;
     durationMin?: number | null;
     plannedAt?: string | null;
+    /** v0.43.0: its associated timer (« Convertir en tâche » of the Agenda keeps it). */
+    timerPref?: Record<string, unknown> | null;
   }): TodoTask;
   /**
    * Plans a task at a day and time, or takes it out of the agenda
@@ -63,6 +67,12 @@ export interface TodoService {
    * after « Tâche » in the Agenda).
    */
   deleteTask(id: string): void;
+  /**
+   * v0.43.0: brings a deleted task back (its tombstone undone). Only to undo
+   * an action the calling module made on a click (« Annuler » after
+   * « Convertir en rendez-vous » in the Agenda).
+   */
+  restoreTask(id: string): TodoTask;
 }
 
 /**

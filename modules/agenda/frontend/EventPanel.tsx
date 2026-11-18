@@ -5,6 +5,7 @@
 import { useState } from 'react';
 import { Button, Card, ErrorMessage, errorMessage, Icon, useModule } from '@hub/sdk/frontend';
 import { deadlineClass, deadlineState } from './Deadlines';
+import { convertEventToTask } from './Convert';
 import { SheetClose } from './Dock';
 import { DEFAULT_CATEGORY } from '../shared/categories';
 import { CategorySelect, shapeOfChoice } from './Categories';
@@ -161,6 +162,8 @@ export function EventPanel(props: {
   onClose: () => void;
   onChanged: (undo?: Undo) => void;
   onWeekType: () => void;
+  /** v0.43.0: the To-do is there (« Convertir en tâche »). */
+  todo?: boolean;
 }) {
   const module = useModule();
   const { event } = props;
@@ -276,6 +279,21 @@ export function EventPanel(props: {
                 }
               >
                 Dupliquer la semaine suivante
+              </Button>
+            )}
+            {props.todo && (
+              <Button
+                small
+                variant="secondary"
+                title="Une tâche de la To-do, à la même heure (ou pour ce jour) ; « Annuler » remet le rendez-vous"
+                onClick={() => {
+                  setError(null);
+                  convertEventToTask(module.api, event).then(props.onChanged, (e: unknown) =>
+                    setError(errorMessage(e)),
+                  );
+                }}
+              >
+                Convertir en tâche
               </Button>
             )}
             <Button

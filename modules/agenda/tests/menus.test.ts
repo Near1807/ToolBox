@@ -162,6 +162,7 @@ describe('the menu of each element', () => {
       'À refaire',
       'Lancer le timer…',
       '—',
+      'Convertir en rendez-vous',
       'Couleur de « Tâches »…',
     ]);
     const toPlace: ToPlaceDto = {
@@ -177,6 +178,8 @@ describe('the menu of each element', () => {
       'Ouvrir la fiche',
       'Faite',
       'Lancer le timer…',
+      '—',
+      'Convertir en rendez-vous (Ni heure ni échéance : prévois-la d’abord dans la semaine)',
     ]);
   });
   it('another tool’s element: « Ouvrir dans son outil » only', () => {

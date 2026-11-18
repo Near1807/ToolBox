@@ -19,6 +19,7 @@ import type { CategoryDto } from '../shared/categories';
 import { ColorChooser, NewCategoryForm } from './Categories';
 import { categoryInfo, knownCategories, type Item } from './common';
 import type { Undo } from './EventPanel';
+import { convertEventToTask, convertTaskToEvent } from './Convert';
 
 /** What a menu is for: an element of the week / day, or a task « à caser ». */
 export type MenuTarget = { kind: 'item'; item: Item } | { kind: 'task'; task: ToPlaceDto };
@@ -31,6 +32,8 @@ export function useAgendaMenus(props: {
   data: RangeDto | null;
   /** The Timer is there (its button is lent in the sheet). */
   timer: boolean;
+  /** v0.43.0: the To-do is there (« Convertir en tâche / en rendez-vous »). */
+  todo: boolean;
   onOpen: (item: Item) => void;
   onOpenTask: (task: ToPlaceDto) => void;
   /** After a write: its « Annuler » (the page's notice) and a new reading. */
@@ -70,6 +73,8 @@ export function useAgendaMenus(props: {
       categories: knownCategories(),
       api,
       write,
+      todo: props.todo,
+      convert: (run) => run().then(props.onChanged, (e: unknown) => props.onError(errorMessage(e))),
       open: props.onOpen,
       openTask: props.onOpenTask,
       go: (url) => void navigate(url),
@@ -129,6 +134,10 @@ export function useAgendaMenus(props: {
 
 /** What the menu needs to act (the page gives it; the tests give stubs). */
 export interface MenuDeps {
+  /** v0.43.0: the To-do is there (the conversions). */
+  todo?: boolean;
+  /** v0.43.0: one conversion, then its « Annuler ». */
+  convert?: (run: () => Promise<Undo>) => void;
   /** The Timer is there (its button is lent in the sheet). */
   timer: boolean;
   /** Every category, in Thomas's order (« Changer de catégorie »). */
@@ -213,6 +222,18 @@ export function agendaMenuItems(target: MenuTarget, d: MenuDeps): MenuItem[] {
     ],
   });
 
+  // v0.43.0: the conversions (their « Annuler » puts back the state of before).
+  const api = d.api as unknown as Parameters<typeof convertEventToTask>[0];
+  const toEvent = (
+    t: { id: string; title: string },
+    allowed: boolean | string = true,
+  ): MenuItem => ({
+    label: 'Convertir en rendez-vous',
+    icon: 'calendar-days',
+    disabled: allowed === true ? false : allowed,
+    onSelect: () => d.convert?.(() => convertTaskToEvent(api, t)),
+  });
+
   return ((): MenuItem[] => {
     if (target.kind === 'task') {
       const t = target.task;
@@ -221,6 +242,8 @@ export function agendaMenuItems(target: MenuTarget, d: MenuDeps): MenuItem[] {
         { label: 'Ouvrir la fiche', icon: 'file', onSelect: () => d.openTask(t) },
         doneItems(t.title, false, `/tasks/${t.id}/done`, (done) => ({ done }), 'put'),
         timerItem(() => d.openTask(t)),
+        { separator: true },
+        toEvent(t, t.due ? true : 'Ni heure ni échéance : prévois-la d’abord dans la semaine'),
       ];
     }
     const { item } = target;
@@ -247,6 +270,7 @@ export function agendaMenuItems(target: MenuTarget, d: MenuDeps): MenuItem[] {
         doneItems(t.title, t.done, `/tasks/${t.id}/done`, (done) => ({ done }), 'put'),
         timerItem(() => d.open(item)),
         { separator: true },
+        toEvent(t),
         colorItem(t.category),
       ];
     }
@@ -279,6 +303,11 @@ export function agendaMenuItems(target: MenuTarget, d: MenuDeps): MenuItem[] {
       !e.deadline &&
         timerItem(() => d.open(item), e.allDay ? 'Pas pour un élément sur la journée' : true),
       { separator: true },
+      d.todo && {
+        label: 'Convertir en tâche',
+        icon: 'list-checks',
+        onSelect: () => d.convert?.(() => convertEventToTask(api, e)),
+      },
       categoryMenu(e),
       colorItem(e.category),
       { separator: true },

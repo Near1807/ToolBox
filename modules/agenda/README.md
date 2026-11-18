@@ -103,6 +103,22 @@ Case **« Facultatif »** dans la fiche d'un événement de l'Agenda (rendez-vou
 
 Par élément : une occurrence importée est un événement à part. Il appartient à Thomas, jamais au fichier : un réimport ne le lit pas, ne l'écrit pas et ne le compte pas comme « modifié par toi ». Pas pour les tâches ni pour les éléments des autres outils, ni pour les occurrences de la semaine type. Donnée : colonne `optional` (0 / 1) de `agenda__events` (migration 5, ajout seul), synchronisée ; `PATCH /events/:id { optional: true | false }` ; `AgendaEventDto.optional` présent seulement quand vrai.
 
+## Rendez-vous ou tâche (v0.43.0, correctif prévu en v0.41.1)
+
+Chemins de création, et ce que chacun crée :
+
+| Chemin                                                            | Crée                                                                                                                                                                              |
+| ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Créneau vide (clic, glissé, trou du téléphone)                    | **Rendez-vous** par défaut et avec Entrée ; « Tâche » seulement par son propre clic                                                                                               |
+| Barre « Ajouter » › Rendez-vous                                   | un rendez-vous (ou une entrée de la semaine type) ; **jamais une tâche** : sans date et heure, ou « ~1h » sans heure → refusé, rien d'écrit (`/quick` avec `mode: 'appointment'`) |
+| Barre « Ajouter » › Tâche                                         | une tâche (To-do)                                                                                                                                                                 |
+| Barre de saisie de l'Agenda                                       | rendez-vous, semaine type, ou tâche « à caser » (son rôle, inchangé), aperçu avant                                                                                                |
+| « Formulaire détaillé », fiche, « Dupliquer la semaine suivante » | un rendez-vous                                                                                                                                                                    |
+| Semaine type                                                      | une entrée de la semaine type                                                                                                                                                     |
+| Import                                                            | des rendez-vous                                                                                                                                                                   |
+
+**Convertir** (fiche et clic droit) : « Convertir en tâche » (un rendez-vous → une tâche prévue à la même heure et pour la même durée ; sur la journée : une tâche pour ce jour) et « Convertir en rendez-vous » (une tâche prévue → un rendez-vous à son heure ; seulement une échéance → sur la journée ; ni l'un ni l'autre : refusé). Une action ; « Annuler » remet exactement l'état d'avant (l'élément converti revient de sa suppression logique, celui créé est supprimé). Le timer associé suit. Routes : `POST /events/:id/to-task`, `POST /tasks/:id/to-event`, `POST /tasks/:id/restore` (service `todo` : `restoreTask`, `timerPref`).
+
 ## Catégories gérées par Thomas (v0.42.0, Expérimental)
 
 Réglages › Agenda › Catégories : la liste de toutes les catégories (celles de l'Agenda, « Deadline », celles des autres outils, les tiennes, et toutes celles trouvées dans tes événements, ta semaine type et tes correspondances d'import), avec leur pastille, leur forme et leur nombre d'éléments.

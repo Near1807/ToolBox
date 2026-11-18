@@ -4,7 +4,9 @@
 // stays the To-do's: the sheet writes only through the To-do's API. Opened
 // from a block (week, day, month) or a task « à caser »; PC and phone.
 import type { ReactNode } from 'react';
-import { Card, Lent } from '@hub/sdk/frontend';
+import { useState } from 'react';
+import { Button, Card, ErrorMessage, errorMessage, Lent, useModule } from '@hub/sdk/frontend';
+import { convertTaskToEvent } from './Convert';
 import type { TaskEditorProps } from '../../todo/contract';
 import { colorStyle } from './common';
 import type { Undo } from './EventPanel';
@@ -22,7 +24,11 @@ export function TaskPanel(props: {
   onChanged: (notice: Undo | { message: string; run: null }) => void;
   /** Buttons of the Agenda (« Lancer un timer »). */
   children?: ReactNode;
+  /** v0.43.0: after « Convertir en rendez-vous » (its « Annuler »); the sheet closes. */
+  onConverted?: (undo: Undo) => void;
 }) {
+  const module = useModule();
+  const [error, setError] = useState<string | null>(null);
   return (
     <Card
       title={
@@ -46,6 +52,24 @@ export function TaskPanel(props: {
         }}
         fallback={<p className="small muted">La To-do n’est pas là : rien à modifier ici.</p>}
       />
+      {props.onConverted && (
+        <div className="ui-actions ag-panel__more">
+          <Button
+            small
+            variant="secondary"
+            title="Un rendez-vous de l’Agenda à la même heure (ou sur la journée de son échéance) ; « Annuler » remet la tâche"
+            onClick={() => {
+              setError(null);
+              convertTaskToEvent(module.api, props.task).then(props.onConverted, (e: unknown) =>
+                setError(errorMessage(e)),
+              );
+            }}
+          >
+            Convertir en rendez-vous
+          </Button>
+        </div>
+      )}
+      {error && <ErrorMessage>{error}</ErrorMessage>}
     </Card>
   );
 }

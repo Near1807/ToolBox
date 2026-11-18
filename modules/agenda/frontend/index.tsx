@@ -200,6 +200,7 @@ function AgendaPage() {
   const menus = useAgendaMenus({
     data: data ?? null,
     timer: toolName('timer') !== null,
+    todo: Boolean(data?.todo),
     onOpen: (item) => open(item),
     onOpenTask: (t) => openToPlace(t),
     onChanged: changed,
@@ -389,6 +390,7 @@ function AgendaPage() {
               today={data.today}
               onClose={() => setSelected(null)}
               onChanged={changed}
+              todo={data.todo}
               onWeekType={() => {
                 setSelected(null);
                 setView('weekly');
@@ -406,6 +408,7 @@ function AgendaPage() {
               key={selectedTask.id}
               task={selectedTask}
               onClose={() => setSelectedTask(null)}
+              onConverted={changed}
               // The sheet stays open: the change shows in the week, with « Annuler ».
               onChanged={(u) => {
                 setNotice(u);
@@ -527,7 +530,7 @@ export default defineFrontendModule({
         kind: 'event' | 'weekly' | 'task';
         event?: { id: string; title: string; start: string };
         weekly?: { id: string; title: string };
-      }>('/quick', { text });
+      }>('/quick', { text, mode: 'appointment' });
       if (r.kind === 'weekly' && r.weekly)
         return {
           message: `« ${r.weekly.title} » ajouté à la semaine type`,

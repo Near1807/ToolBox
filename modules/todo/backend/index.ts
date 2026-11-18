@@ -463,6 +463,8 @@ export default defineBackendModule({
       done: row.done_at !== null,
       durationMin: row.duration_min,
       plannedAt: row.planned_at,
+      // v0.43.0: only when there is one (the service's answers of before stay the same).
+      ...(row.timer_pref ? { timerPref: timerPrefOf(row.timer_pref) } : {}),
     });
     ctx.services.provide<TodoService>('todo', {
       listOpenTasks: () =>
@@ -475,20 +477,21 @@ export default defineBackendModule({
       },
       completeTask: (id) => summary(update(id, { done: true })),
       uncompleteTask: (id) => summary(update(id, { done: false })),
-      createTask: (fields) =>
-        summary(
-          insert({
-            title: titleFrom(fields.title),
-            tags: tagsFrom(fields.tags ?? []),
-            due: dueFrom(fields.due ?? null),
-            subject:
-              fields.trackId != null && library()?.getTrack(fields.trackId)
-                ? TRACK_SUBJECT(fields.trackId)
-                : null,
-            durationMin: durationFrom(fields.durationMin ?? null),
-            plannedAt: plannedFrom(fields.plannedAt ?? null),
-          }),
-        ),
+      createTask: (fields) => {
+        const made = insert({
+          title: titleFrom(fields.title),
+          tags: tagsFrom(fields.tags ?? []),
+          due: dueFrom(fields.due ?? null),
+          subject:
+            fields.trackId != null && library()?.getTrack(fields.trackId)
+              ? TRACK_SUBJECT(fields.trackId)
+              : null,
+          durationMin: durationFrom(fields.durationMin ?? null),
+          plannedAt: plannedFrom(fields.plannedAt ?? null),
+        });
+        // v0.43.0: the timer it keeps (« Convertir en tâche »); written only when given.
+        return summary(fields.timerPref ? update(made.id, { timerPref: fields.timerPref }) : made);
+      },
       planTask: (id, fields) => {
         const patch: Record<string, unknown> = {};
         if ('plannedAt' in fields) patch.plannedAt = fields.plannedAt;
@@ -496,6 +499,7 @@ export default defineBackendModule({
         return summary(update(id, patch));
       },
       deleteTask: (id) => void remove(id),
+      restoreTask: (id) => summary(restore(id)),
     });
 
     // --- Track page of the library -------------------------------------------

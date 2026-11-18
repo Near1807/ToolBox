@@ -543,8 +543,18 @@ export default defineBackendModule({
     };
 
     /** The bar: an event, an entry of the week type, or a task of the To-do (« à caser »). */
-    const quickAdd = (input: unknown, chosen?: unknown) => {
+    /**
+     * `appointment` (v0.43.0): the « Rendez-vous » destination of the « Ajouter »
+     * bar: it NEVER creates a task — a text without a date and a time (or
+     * « ~1h » without a time) is refused, nothing is written.
+     */
+    const quickAdd = (input: unknown, chosen?: unknown, appointment = false) => {
       const parsed: Parsed = parseQuick(typeof input === 'string' ? input : '', localToday());
+      if (appointment && parsed.kind === 'task')
+        throw new HttpError(
+          400,
+          'Un rendez-vous a besoin d’une date et d’une heure (« dentiste jeudi 14h »). Rien n’a été ajouté ; pour une tâche, choisis « Tâche ».',
+        );
       // v0.42.0: a category chosen in the list wins over the text's (« #cours »).
       const override = typeof chosen === 'string' && chosen.trim() ? category(chosen) : null;
       if (override && (parsed.kind === 'event' || parsed.kind === 'weekly'))
@@ -595,7 +605,7 @@ export default defineBackendModule({
 
     ctx.routes.post('/quick', (request) => {
       const body = requestBody(request);
-      return quickAdd(body.text, body.category);
+      return quickAdd(body.text, body.category, body.mode === 'appointment');
     });
 
     ctx.routes.post('/events', (request) => createEvent(requestBody(request)));
@@ -722,6 +732,70 @@ export default defineBackendModule({
         Object.keys(changed).length ? store.update<EventRow>('events', id, changed) : row,
       );
     });
+    // --- v0.43.0: « Convertir en tâche / en rendez-vous » -------------------------
+    // One action each, on a click; « Annuler » (the page) undoes it exactly:
+    // the element converted is a tombstone brought back, the one made is
+    // deleted again. The associated timer follows.
+
+    /** An event of the Agenda becomes a task of the To-do (planned at its time, or due on its day). */
+    ctx.routes.post('/events/:id/to-task', (request) => {
+      const service = todoOrFail();
+      const row = getEvent(uuidParam(request.params));
+      const timed = row.all_day === 0 && row.end_at !== row.start_at;
+      const task = ctx.db.transaction(() => {
+        const made = service.createTask({
+          title: row.title,
+          ...(timed
+            ? {
+                plannedAt: row.start_at,
+                durationMin: Math.max(MIN_BLOCK_MIN, minutesBetween(row.start_at, row.end_at)),
+              }
+            : { due: row.start_at.slice(0, 10) }),
+          timerPref: prefOf(row.timer_pref),
+        });
+        store.remove('events', row.id);
+        return made;
+      });
+      return { task, eventId: row.id };
+    });
+
+    /** A task of the To-do becomes an event (at its planned time, or all day on its due date). */
+    ctx.routes.post('/tasks/:id/to-event', (request) => {
+      const service = todoOrFail();
+      const id = uuidParam(request.params);
+      const task = service.getTask(id);
+      if (!task) throw new HttpError(404, 'Tâche introuvable');
+      if (!task.plannedAt && !task.due)
+        throw new HttpError(
+          409,
+          'Cette tâche n’a ni heure ni échéance : prévois-la d’abord dans la semaine.',
+        );
+      const event = ctx.db.transaction(() => {
+        const made = store.create<EventRow>('events', {
+          title: task.title,
+          ...(task.plannedAt
+            ? {
+                start_at: task.plannedAt,
+                end_at: addMinutes(task.plannedAt, task.durationMin ?? MIN_BLOCK_MIN),
+                all_day: 0,
+              }
+            : { start_at: task.due!, end_at: task.due!, all_day: 1 }),
+          location: null,
+          note: null,
+          category: DEFAULT_CATEGORY,
+          ...(task.timerPref ? { timer_pref: JSON.stringify(task.timerPref) } : {}),
+        });
+        service.deleteTask(id);
+        return made;
+      });
+      return { event: eventDto(event), taskId: id };
+    });
+
+    /** « Annuler » of « Convertir en rendez-vous »: the task comes back as it was. */
+    ctx.routes.post('/tasks/:id/restore', (request) =>
+      todoOrFail().restoreTask(uuidParam(request.params)),
+    );
+
     // A tombstone (« Annuler » brings it back), after the page's confirmation.
     ctx.routes.delete('/events/:id', (request) => {
       store.remove('events', getEvent(uuidParam(request.params)).id);
