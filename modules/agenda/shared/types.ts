@@ -14,7 +14,10 @@ export interface AgendaEventDto {
   allDay: boolean;
   location: string | null;
   note: string | null;
+  /** Its category's CURRENT name (v0.43.0: found by its identifier). */
   category: string;
+  /** v0.43.0: its category's identifier (agenda__categories). */
+  categoryId?: string;
   /** Occurrence of the week type: its entry and its date (cancel / move one). */
   weekly: { id: string; date: string; moved: boolean } | null;
   /** v0.36.0: the associated timer (the Timer's TimerChoice; an occurrence: its entry's), or null. */
@@ -87,7 +90,10 @@ export interface PlannedTaskDto {
   start: string;
   end: string;
   allDay: false;
+  /** « Tâches », or (v0.43.0) the category of the Agenda given to it. */
   category: string;
+  /** v0.43.0: the category of the Agenda given to it, or absent (« Tâches »). */
+  categoryId?: string;
   /** Ticked: shown crossed out. */
   done: boolean;
   due: string | null;
@@ -115,6 +121,8 @@ export interface WeeklyDto {
   time: string;
   durationMin: number;
   category: string;
+  /** v0.43.0: its category's identifier. */
+  categoryId?: string;
   location: string | null;
   /** First and last day it applies (null: no limit). */
   from: string | null;

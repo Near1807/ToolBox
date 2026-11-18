@@ -3,14 +3,9 @@
 // of another module or of the Agenda is drawn.
 import { useCallback, useState } from 'react';
 import { useApi, useModule } from '@hub/sdk/frontend';
-import {
-  categoryColor,
-  type CategoryDto,
-  categoryKey,
-  defaultShape,
-  isOn,
-} from '../shared/categories';
+import { categoryColor, type CategoryDto, defaultShape, isOn } from '../shared/categories';
 import { blockInk, isFreeColor, parseColor, type Rgb } from '../shared/palette';
+import { foldName } from '../shared/category-id';
 import { TASKS_CATEGORY, type TimedBlock, type TaskLoad } from '../shared/load';
 import type { AgendaEventDto, ForeignEventDto, PlannedTaskDto, RangeDto } from '../shared/types';
 
@@ -168,12 +163,12 @@ const registry = new Map<string, CategoryDto>();
 export function rememberCategories(list: readonly CategoryDto[] | undefined): void {
   if (!list) return;
   registry.clear();
-  for (const c of list) registry.set(c.key, c);
+  for (const c of list) registry.set(foldName(c.name), c);
 }
 
 /** One more (just created): offered at once, before the next reading. */
 export function rememberCategory(c: CategoryDto): void {
-  registry.set(c.key, c);
+  registry.set(foldName(c.name), c);
 }
 
 /** Every category known, in Thomas's order (the choices of the sheet, the bar, a slot). */
@@ -181,7 +176,10 @@ export const knownCategories = (): CategoryDto[] => [...registry.values()];
 
 /** What the Agenda knows of a category (null: a name it never saw). */
 export const categoryInfo = (category: string): CategoryDto | null =>
-  registry.get(categoryKey(category)) ?? null;
+  registry.get(foldName(category)) ?? null;
+
+/** v0.43.0: its elements are flagged when they overlap (a category can say no). */
+export const conflictsOn = (category: string) => categoryInfo(category)?.conflicts ?? true;
 
 /** The CSS value of a category's colour: Thomas's choice, else its token. */
 export const categoryCss = (category: string) =>

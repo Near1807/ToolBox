@@ -10,6 +10,8 @@ import type { Span } from '../shared/drag';
 import { dayLabel } from '../shared/time';
 import { DEFAULT_CATEGORY } from '../shared/categories';
 import { CategorySelect } from './Categories';
+import { categoryInfo } from './common';
+import { formatDuration } from '@hub/sdk/dates';
 
 export type SlotKind = 'task' | 'event';
 
@@ -30,6 +32,15 @@ export function CreateSlot(props: {
   const [error, setError] = useState<string | null>(null);
   // v0.43.0: « Rendez-vous » is the main choice and Entrée's; « Tâche » only by its own click.
   const fallback = 'event' as SlotKind;
+  const info = categoryInfo(category);
+  const defaults = [
+    info?.defaultDuration
+      ? `${formatDuration(info.defaultDuration)} (durée de « ${info.name} »)`
+      : '',
+    info?.defaultLocation ?? '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
   const when = `${dayLabel(props.span.start.slice(0, 10), props.today)} ${props.span.start.slice(11)}–${props.span.end.slice(11)}`;
   const submit = (kind: SlotKind) => {
     if (!title.trim() || busy) return;
@@ -70,6 +81,8 @@ export function CreateSlot(props: {
         {title.trim()
           ? `${fallback === 'task' ? 'Tâche' : 'Rendez-vous'} « ${title.trim()} » · ${when}`
           : when}
+        {/* v0.43.0: what the category prefills (its duration, its place). */}
+        {defaults && ` · ${defaults}`}
       </p>
       <label className="small ag-create__category">
         Catégorie du rendez-vous{' '}

@@ -14,6 +14,7 @@ import { CreateSlot, type SlotKind } from './CreateSlot';
 import {
   colorStyle,
   isDeadlineItem,
+  conflictsOn,
   itemId,
   isOptional,
   itemsOf,
@@ -90,7 +91,7 @@ export function DayView(props: {
         start: i.event.start,
         end: i.event.end,
         category: i.event.category,
-        optional: isOptional(i),
+        optional: isOptional(i) || !conflictsOn(i.event.category),
       })),
     )
       .filter((p) => p.overlaps)

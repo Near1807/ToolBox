@@ -1,4 +1,5 @@
 import { colorValue as colorOf } from './palette';
+import { foldName } from './category-id';
 
 // Categories and their colours: each one takes one of the theme's eight
 // categorical tokens (--series-1 … --series-8), never a colour of its own.
@@ -129,13 +130,19 @@ export const defaultShape = (name: string): CategoryShape =>
 export const defaultColor = (name: string) =>
   categoryKey(name) === 'deadline' ? 'var(--danger)' : categoryColor(name);
 
-/** Where a category comes from (what can be done with it). */
-export type CategoryOrigin = 'fixed' | 'tool' | 'mine' | 'used';
+/**
+ * Where a category comes from (what can be done with it): the Agenda's own
+ * (« intégrée »), another tool's, or Thomas's (created, or found in his data
+ * and imports: renamed and deleted like his own).
+ */
+export type CategoryOrigin = 'fixed' | 'tool' | 'mine';
 
-/** A category as the Agenda shows and offers it. */
+/** A category as the Agenda shows and offers it (v0.43.0: an object, ADR 0049). */
 export interface CategoryDto {
-  /** The row's id when Thomas changed or created it, else null. */
-  id: string | null;
+  /** Its identifier (a row's; for a name not yet stored: the one it will get). */
+  id: string;
+  /** Its row exists (else: shown from a name found in the data, written on first change). */
+  stored: boolean;
   key: string;
   name: string;
   /** « p:<palette id> », « #rrggbb », or null: its own default. */
@@ -144,9 +151,16 @@ export interface CategoryDto {
   css: string;
   /** The CSS value of its own default (« Revenir à la couleur d'origine »). */
   defaultCss: string;
+  /** Its default type (v0.42 « forme »): « normal » = rendez-vous, « deadline ». */
   shape: CategoryShape;
-  /** In the load, the free time and the overlaps (when switched on). */
+  /** In the load and the free time (when switched on). */
   counted: boolean;
+  /** v0.43.0: its elements are flagged when they overlap (no: like « facultatif »). */
+  conflicts: boolean;
+  /** v0.43.0: prefilled when it is chosen (minutes; null: the slot's or 1 h). */
+  defaultDuration: number | null;
+  /** v0.43.0: prefilled when it is chosen. */
+  defaultLocation: string | null;
   /** Switched on when this device has no choice of its own. */
   shownByDefault: boolean;
   origin: CategoryOrigin;
@@ -154,7 +168,7 @@ export interface CategoryDto {
   events: number;
 }
 
-/** What Thomas stored for a category (a row of agenda__categories). */
+/** A row of agenda__categories (v0.42 columns + v0.43 ones). */
 export interface CategoryRowLike {
   id: string;
   name: string;
@@ -164,62 +178,102 @@ export interface CategoryRowLike {
   shown: number;
   sort: number | null;
   mine: number;
+  conflicts?: number;
+  default_duration?: number | null;
+  default_location?: string | null;
+  builtin?: number;
 }
+
+const FOLD_FIXED = new Map(FIXED_CATEGORIES.map((c) => [foldName(c), c]));
+const FOLD_TOOL = new Map(TOOL_CATEGORIES.map((c) => [foldName(c), c]));
+
+/** Where a name comes from. */
+export const originOf = (name: string): CategoryOrigin =>
+  FOLD_FIXED.has(foldName(name)) ? 'fixed' : FOLD_TOOL.has(foldName(name)) ? 'tool' : 'mine';
 
 /**
  * The list (Réglages › Agenda › Catégories, the choices of a category): the
- * fixed ones, the other tools' ones, Thomas's own, and every name found in
- * the events, the week type and the import mappings; Thomas's changes over
- * the defaults; in his order, else fixed, tools, then by name. Pure.
+ * stored categories, plus — never without a category on screen — the fixed
+ * ones, the tools' and every name found in the data that has no row yet
+ * (with their values of before, and the identifier they will get). In
+ * Thomas's order, else fixed, tools, then by name. Pure.
  */
 export function mergeCategories(input: {
   rows: readonly CategoryRowLike[];
-  /** Name found in the data → number of events / week-type entries. */
-  used: ReadonlyMap<string, number>;
+  /** Folded name → number of events / week-type entries (by category, see the backend). */
+  counts: ReadonlyMap<string, number>;
+  /** Names found in the data and the imports (any case or accents). */
+  names: Iterable<string>;
   /** The setting « Catégories éteintes par défaut ». */
   offByDefault: readonly string[];
+  /** The identifier a name gets (UUID v5 of its folded name). */
+  idOf: (name: string) => string;
 }): CategoryDto[] {
-  const byKey = new Map<string, { name: string; origin: CategoryOrigin; rank: number }>();
-  const add = (name: string, origin: CategoryOrigin, rank: number) => {
-    const key = categoryKey(name);
-    if (!key || byKey.has(key)) return;
-    byKey.set(key, { name: name.trim(), origin, rank });
-  };
-  FIXED_CATEGORIES.forEach((c, i) => add(c, 'fixed', i));
-  TOOL_CATEGORIES.forEach((c, i) => add(c, 'tool', 100 + i));
-  for (const r of input.rows) add(r.name, r.mine ? 'mine' : 'used', 1000);
-  for (const name of input.used.keys()) add(name, 'used', 1000);
-  const rows = new Map(input.rows.map((r) => [categoryKey(r.name), r]));
-  const counts = new Map<string, number>();
-  for (const [name, n] of input.used)
-    counts.set(categoryKey(name), (counts.get(categoryKey(name)) ?? 0) + n);
-  const off = new Set(input.offByDefault.map(categoryKey));
-  const list = [...byKey.entries()].map(([key, c]) => {
-    const row = rows.get(key);
-    const defaultCss = defaultColor(c.name);
-    const color = row?.color ?? null;
-    return {
+  const off = new Set(input.offByDefault.map(foldName));
+  const out = new Map<string, { dto: CategoryDto; sort: number | null; rank: number }>();
+  const rankOf = (fold: string) =>
+    FOLD_FIXED.has(fold)
+      ? FIXED_CATEGORIES.indexOf(FOLD_FIXED.get(fold)!)
+      : FOLD_TOOL.has(fold)
+        ? 100 + TOOL_CATEGORIES.indexOf(FOLD_TOOL.get(fold)!)
+        : 1000;
+  for (const r of input.rows) {
+    const fold = foldName(r.name);
+    if (out.has(fold)) continue;
+    const defaultCss = defaultColor(r.name);
+    out.set(fold, {
       dto: {
-        id: row?.id ?? null,
-        key,
-        name: row?.name ?? c.name,
-        color,
-        css: colorOf(color, defaultCss),
+        id: r.id,
+        stored: true,
+        key: categoryKey(r.name),
+        name: r.name,
+        color: r.color,
+        css: colorOf(r.color, defaultCss),
         defaultCss,
-        shape:
-          row && (row.shape === 'deadline' || row.shape === 'normal')
-            ? row.shape
-            : defaultShape(c.name),
-        counted: row ? row.counted === 1 : true,
-        shownByDefault: row ? row.shown === 1 : !off.has(key),
-        origin: c.origin,
-        events: counts.get(key) ?? 0,
-      } satisfies CategoryDto,
-      sort: row?.sort ?? null,
-      rank: c.rank,
-    };
-  });
-  return list
+        shape: r.shape === 'deadline' ? 'deadline' : 'normal',
+        counted: r.counted === 1,
+        conflicts: (r.conflicts ?? 1) === 1,
+        defaultDuration: r.default_duration ?? null,
+        defaultLocation: r.default_location ?? null,
+        shownByDefault: r.shown === 1,
+        origin: originOf(r.name),
+        events: input.counts.get(fold) ?? 0,
+      },
+      sort: r.sort,
+      rank: rankOf(fold),
+    });
+  }
+  const virtual = (name: string) => {
+    const clean = name.replace(/\s+/g, ' ').trim();
+    const fold = foldName(clean);
+    if (!fold || out.has(fold)) return;
+    const defaultCss = defaultColor(clean);
+    out.set(fold, {
+      dto: {
+        id: input.idOf(clean),
+        stored: false,
+        key: categoryKey(clean),
+        name: clean,
+        color: null,
+        css: defaultCss,
+        defaultCss,
+        shape: defaultShape(clean),
+        counted: true,
+        conflicts: true,
+        defaultDuration: null,
+        defaultLocation: null,
+        shownByDefault: !off.has(fold),
+        origin: originOf(clean),
+        events: input.counts.get(fold) ?? 0,
+      },
+      sort: null,
+      rank: rankOf(fold),
+    });
+  };
+  FIXED_CATEGORIES.forEach(virtual);
+  TOOL_CATEGORIES.forEach(virtual);
+  for (const n of input.names) virtual(n);
+  return [...out.values()]
     .sort(
       (a, b) =>
         (a.sort ?? 10_000 + a.rank) - (b.sort ?? 10_000 + b.rank) ||

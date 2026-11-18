@@ -119,17 +119,28 @@ Chemins de création, et ce que chacun crée :
 
 **Convertir** (fiche et clic droit) : « Convertir en tâche » (un rendez-vous → une tâche prévue à la même heure et pour la même durée ; sur la journée : une tâche pour ce jour) et « Convertir en rendez-vous » (une tâche prévue → un rendez-vous à son heure ; seulement une échéance → sur la journée ; ni l'un ni l'autre : refusé). Une action ; « Annuler » remet exactement l'état d'avant (l'élément converti revient de sa suppression logique, celui créé est supprimé). Le timer associé suit. Routes : `POST /events/:id/to-task`, `POST /tasks/:id/to-event`, `POST /tasks/:id/restore` (service `todo` : `restoreTask`, `timerPref`).
 
-## Catégories gérées par Thomas (v0.42.0, Expérimental)
+## Catégories : de vrais objets (v0.43.0, Expérimental, ADR 0049)
 
-Réglages › Agenda › Catégories : la liste de toutes les catégories (celles de l'Agenda, « Deadline », celles des autres outils, les tiennes, et toutes celles trouvées dans tes événements, ta semaine type et tes correspondances d'import), avec leur pastille, leur forme et leur nombre d'éléments.
+Une **catégorie** est ce à quoi un élément est rattaché (Cours, Scouts…) ; elle a un identifiant et des réglages qui agissent. Son **type par défaut** (l'ancienne « forme » de la v0.42) pré-remplit les nouveaux éléments ; le type lui-même est porté par l'élément (partie Deadline ci-dessous).
 
-- **Nouvelle catégorie** : un nom et une couleur (aussi depuis la fiche, la barre et un créneau vide : « Nouvelle catégorie… », sans quitter).
-- **Couleur** : 16 teintes de la palette (définies pour les thèmes clairs ET sombres, contraste du texte vérifié dans tous les thèmes, `tests/palette-contrast.test.ts`), ou une **couleur libre** (le texte du bloc prend l'encre qui se lit le mieux ; un avertissement si le contraste reste faible), et « Revenir à la couleur d'origine ». Elle s'applique partout : blocs, vue jour, interrupteurs, aperçu, fiche, résumé.
-- **Comptée dans la charge** et **Allumée par défaut** (remplace, pour cette catégorie, le réglage « Catégories éteintes par défaut »), l'**ordre** (Monter / Descendre, l'ordre des listes de choix).
-- **Tes catégories seulement** : renommer (une transaction : événements, semaine type, correspondances et catégorie par défaut des sources, catégorie « importée » des événements importés pour qu'un réimport la vise encore, le réglage ; sauvegarde avant ; « Annuler »), changer la forme, supprimer (ses éléments vont dans la catégorie choisie, **jamais supprimés** ; sauvegarde ; « Annuler »).
-- Les catégories fixes et celles des autres outils : la couleur seulement (l'interface le dit).
+Réglages › Agenda › Catégories : toutes les catégories (celles de l'Agenda, « Deadline », celles des autres outils, les tiennes, et toutes celles trouvées dans tes événements, ta semaine type et tes correspondances d'import), avec leur pastille, leur type par défaut et leur nombre d'éléments.
 
-Données : table `agenda__categories` (migration 6, ajout seul) qui ne contient **que** ce que Thomas a changé ou créé ; sans ligne, une catégorie garde exactement ses valeurs d'avant (son jeton `--series-N`, comptée, allumée selon le réglage). Rien n'est écrit à l'ouverture. Synchronisée (SyncStore, clé unique `key`, le PC gagne en cas de collision). Routes : `GET/POST /categories`, `PATCH /categories/:key`, `PUT /categories/order`, `POST /categories/:key/rename`, `DELETE /categories/:key?moveTo=…`, `POST /categories/undo`. `RangeDto.categoryInfo` donne la liste avec chaque période ; `/quick` accepte `category` (le choix de la liste gagne sur « #tag »).
+- **Nouvelle catégorie** : un nom (unique, sans tenir compte des majuscules ni des accents) et une couleur, aussi depuis la fiche, la barre et un créneau vide (« Nouvelle catégorie… »).
+- **Couleur** : 16 teintes de la palette (thèmes clairs et sombres, `tests/palette-contrast.test.ts`), une **couleur libre** (avertissement si le contraste est faible), « Revenir à la couleur d'origine ». Partout : blocs, vue jour, interrupteurs, aperçu, fiche.
+- **Réglages qui agissent** : _Comptée_ (charge), _Chevauchements signalés_ (éteint : ses éléments ne sont jamais signalés en conflit, ils restent comptés), _Allumée par défaut_ (valeur de départ de son interrupteur), **durée et lieu par défaut** (pré-remplis quand on la choisit dans la fiche ou dans un créneau vide), **type par défaut** (tes catégories), ordre.
+- **Tes catégories seulement** : renommer (ne touche **que** la ligne de la catégorie : les éléments la désignent par son identifiant ; « Annuler »), supprimer (ses éléments vont dans la catégorie choisie, **jamais supprimés** ; sauvegarde ; « Annuler »).
+- Les catégories fixes et celles des autres outils : couleur et réglages seulement (l'interface le dit).
+- **Tâches** : la fiche de tâche (prêtée par la To-do) a « Catégorie dans l'Agenda ». Le lien est dans une table de l'Agenda (`agenda__task_categories`) : la To-do ne change pas.
+
+Données (migration 7, ajouts seuls, sauvegarde avant comme toute migration) :
+
+- `agenda__categories` gagne `conflicts`, `default_duration`, `default_location`, `builtin` ; la colonne `shape` reste et sert de type par défaut.
+- `agenda__events` gagne `category_id` et `kind` (`rendez-vous` par défaut, `deadline` pour les événements d'une catégorie de forme Deadline) ; `agenda__weekly` gagne `category_id` ; `agenda__sources` gagne `mapping_ids` et `default_category_id` (un réimport suit un renommage).
+- Une ligne par catégorie connue. Les lignes déjà écrites en v0.42 gardent leur identifiant et leurs valeurs ; les autres reçoivent un **identifiant déterministe** (UUID v5 du nom replié, `shared/category-id.ts`) : le PC et le téléphone, migrés chacun de leur côté, écrivent les mêmes lignes ; la synchro ne voit ni doublon ni conflit (`tests/sync/agenda-categories-upgrade.test.ts`). Ces lignes semées ne passent pas par le journal (identiques des deux côtés).
+- Aucune colonne existante n'est réécrite ; la colonne texte `category` reste écrite à chaque changement (lisible par une version d'avant). Elle peut garder un ancien nom après un renommage : on lit d'abord `category_id`, puis le nom en secours (jamais un élément sans catégorie à l'écran). Un nom arrivé plus tard (synchro) s'affiche avec l'identifiant tiré de son nom ; sa ligne est écrite avec cet identifiant au premier changement.
+- Limite : une catégorie créée en v0.42 sur un seul appareil, jamais synchronisée avant la montée, peut rencontrer la ligne semée de l'autre : collision sur `key`, le PC gagne (Conflits). Une catégorie créée pendant un import n'est pas retirée par « Annuler l'import ».
+
+Routes : `GET/POST /categories`, `PATCH /categories/:id` (couleur, comptée, allumée, chevauchements, type / durée / lieu par défaut), `PUT /categories/order`, `POST /categories/:id/rename`, `DELETE /categories/:id?moveTo=<id>`, `POST /categories/undo`, `PUT /tasks/:id/category { categoryId | null }`. `:id` accepte aussi le nom. `RangeDto.categoryInfo` donne la liste ; événements, semaine type et tâches prévues portent `categoryId`.
 
 ## Deadlines (v0.42.0, Expérimental)
 

@@ -34,7 +34,7 @@ import { occurrences, type OccurrenceException } from '../shared/recurrence';
 import { addDays, addMinutes, daysBetween, minutesBetween } from '../shared/time';
 import { readOrigin } from '../shared/importing';
 import { registerImports } from './imports';
-import { registerCategories } from './categories';
+import { type CategoryLookup, migrateCategoriesToObjects, registerCategories } from './categories';
 import type {
   AgendaEventDto,
   ForeignEventDto,
@@ -65,6 +65,10 @@ interface EventRow {
   optional: number;
   /** v0.42.0: a deadline ticked « faite » (ISO date), or null. */
   done_at: string | null;
+  /** v0.43.0: its category (agenda__categories); the `category` text stays readable. */
+  category_id: string | null;
+  /** v0.43.0: its type, « rendez-vous » or « deadline ». */
+  kind: string;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -82,6 +86,8 @@ interface WeeklyRow {
   valid_until: string | null;
   /** v0.36.0: the associated timer, as JSON, or null. */
   timer_pref: string | null;
+  /** v0.43.0: its category (agenda__categories). */
+  category_id: string | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -191,6 +197,12 @@ export default defineBackendModule({
         ALTER TABLE agenda__events ADD COLUMN done_at TEXT;
       `,
     },
+    {
+      version: 7,
+      description:
+        'categories as objects (v0.43.0, ADR 0049): their settings, the category_id and the type (kind) of the elements, a category for a task; every category in use seeded with an identifier derived from its name (the same on the PC and the phone), with its values of now',
+      up: (db) => migrateCategoriesToObjects(db),
+    },
   ],
   sync: {},
 
@@ -205,8 +217,8 @@ export default defineBackendModule({
 
     // --- Reading ----------------------------------------------------------------
 
-    registerImports(ctx, store);
     const categories = registerCategories(ctx, store);
+    registerImports(ctx, store, categories);
     /** v0.37.0: the name of each source, for the detail of its events. */
     const sourceNames = () =>
       new Map(
@@ -216,63 +228,70 @@ export default defineBackendModule({
             .all() as { id: string; name: string }[]
         ).map((s) => [s.id, s.name]),
       );
+    /** Is this event a deadline (a moment)? v0.42: its category's shape. */
+    const isDeadlineRow = (row: EventRow, l: CategoryLookup = categories.lookup()) =>
+      l.of(row.category, row.category_id)?.shape === 'deadline';
+
     /** An event as the pages get it; an imported one with its source (v0.37.0). */
-    /** v0.42.0: the keys of the categories of the « deadline » shape. */
-    const deadlineKeys = () =>
-      new Set(
-        categories
-          .list()
-          .filter((c) => c.shape === 'deadline')
-          .map((c) => c.key),
-      );
+    /**
+     * v0.43.0: its category by its identifier (a renamed category: the new
+     * name), else by its name; `deadline` (v0.42) from the category's shape.
+     */
     const eventDto = (
       row: EventRow,
       names = row.source_id ? sourceNames() : null,
-      deadlines = deadlineKeys(),
-    ): AgendaEventDto => ({
-      id: row.id,
-      title: row.title,
-      start: row.start_at,
-      end: row.end_at,
-      allDay: row.all_day === 1,
-      location: row.location,
-      note: row.note,
-      category: row.category,
-      weekly: null,
-      timerPref: prefOf(row.timer_pref),
-      ...(row.optional ? { optional: true as const } : {}),
-      ...(deadlines.has(categoryKey(row.category)) ? { deadline: true as const } : {}),
-      ...(row.done_at ? { done: true as const } : {}),
-      ...(row.source_id && names?.has(row.source_id)
-        ? {
-            source: {
-              id: row.source_id,
-              name: names.get(row.source_id)!,
-              original: readOrigin(row.origin)?.original ?? {},
-            },
-          }
-        : {}),
-    });
-    const weeklyDto = (row: WeeklyRow): WeeklyDto => ({
+      l: CategoryLookup = categories.lookup(),
+    ): AgendaEventDto => {
+      const cat = l.of(row.category, row.category_id);
+      return {
+        id: row.id,
+        title: row.title,
+        start: row.start_at,
+        end: row.end_at,
+        allDay: row.all_day === 1,
+        location: row.location,
+        note: row.note,
+        category: cat?.name ?? row.category,
+        ...(cat ? { categoryId: cat.id } : {}),
+        weekly: null,
+        timerPref: prefOf(row.timer_pref),
+        ...(row.optional ? { optional: true as const } : {}),
+        ...(cat?.shape === 'deadline' ? { deadline: true as const } : {}),
+        ...(row.done_at ? { done: true as const } : {}),
+        ...(row.source_id && names?.has(row.source_id)
+          ? {
+              source: {
+                id: row.source_id,
+                name: names.get(row.source_id)!,
+                original: readOrigin(row.origin)?.original ?? {},
+              },
+            }
+          : {}),
+      };
+    };
+    const weeklyDto = (row: WeeklyRow, l: CategoryLookup = categories.lookup()): WeeklyDto => ({
       id: row.id,
       title: row.title,
       weekday: row.weekday,
       time: row.time,
       durationMin: row.duration_min,
-      category: row.category,
+      category: l.nameOf(row.category, row.category_id),
+      ...(l.of(row.category, row.category_id)
+        ? { categoryId: l.of(row.category, row.category_id)!.id }
+        : {}),
       location: row.location,
       from: row.valid_from,
       until: row.valid_until,
       timerPref: prefOf(row.timer_pref),
     });
-    const weeklyList = () =>
+    const weeklyList = (l: CategoryLookup = categories.lookup()) =>
       (
         ctx.db
           .prepare(
             `SELECT * FROM ${weeklyTable} WHERE deleted_at IS NULL ORDER BY weekday, time, title`,
           )
           .all() as WeeklyRow[]
-      ).map(weeklyDto);
+      ).map((r) => weeklyDto(r, l));
     /** The live exception of each occurrence (the latest one if two were written on two devices). */
     const exceptionList = (): OccurrenceException[] => {
       const rows = ctx.db
@@ -297,10 +316,10 @@ export default defineBackendModule({
         )
         .all(to, from) as EventRow[];
       const names = rows.some((r) => r.source_id) ? sourceNames() : null;
-      const deadlines = deadlineKeys();
+      const l = categories.lookup();
       return [
-        ...rows.map((r) => eventDto(r, names, deadlines)),
-        ...occurrences(weeklyList(), exceptionList(), from, to),
+        ...rows.map((r) => eventDto(r, names, l)),
+        ...occurrences(weeklyList(l), exceptionList(), from, to),
       ].sort((a, b) => a.start.localeCompare(b.start) || a.title.localeCompare(b.title));
     };
 
@@ -309,17 +328,16 @@ export default defineBackendModule({
      * included (up to OVERDUE_DAYS back), up to `to` + AHEAD_DAYS; sorted.
      */
     const deadlineList = (list: CategoryDto[], today: string, to: string): AgendaEventDto[] => {
-      const keys = list.filter((c) => c.shape === 'deadline').map((c) => c.key);
-      if (!keys.length) return [];
+      const l = categories.lookup(list);
       const rows = ctx.db
         .prepare(
-          `SELECT * FROM ${events} WHERE deleted_at IS NULL AND done_at IS NULL AND lower(trim(category)) IN (${keys.map(() => '?').join(', ')}) AND substr(start_at, 1, 10) >= ? AND substr(start_at, 1, 10) <= ? ORDER BY start_at, title`,
+          `SELECT * FROM ${events} WHERE deleted_at IS NULL AND done_at IS NULL AND substr(start_at, 1, 10) >= ? AND substr(start_at, 1, 10) <= ? ORDER BY start_at, title`,
         )
-        .all(...keys, addDays(today, -OVERDUE_DAYS), addDays(to, AHEAD_DAYS)) as EventRow[];
-      const set = new Set(keys);
-      const names = rows.some((r) => r.source_id) ? sourceNames() : null;
-      return rows
-        .map((r) => eventDto(r, names, set))
+        .all(addDays(today, -OVERDUE_DAYS), addDays(to, AHEAD_DAYS)) as EventRow[];
+      const mine = rows.filter((r) => isDeadlineRow(r, l));
+      const names = mine.some((r) => r.source_id) ? sourceNames() : null;
+      return mine
+        .map((r) => eventDto(r, names, l))
         .sort((a, b) => dueMoment(a.start).localeCompare(dueMoment(b.start)));
     };
 
@@ -341,6 +359,9 @@ export default defineBackendModule({
       const service = todo();
       // v0.35.0: the planned tasks (events of a source of items, with `itemId`).
       const tasks: PlannedTaskDto[] = [];
+      // v0.43.0: a task with a category of the Agenda (its own table; the To-do is unchanged).
+      const links = categories.taskLinks();
+      const lookupAll = categories.lookup();
       for (const e of view.events) {
         if (
           !e.itemId ||
@@ -357,7 +378,12 @@ export default defineBackendModule({
           start: e.start,
           end: addMinutes(e.start, e.durationMin),
           allDay: false,
-          category: e.category,
+          ...(links.has(task.id) && lookupAll.byId.has(links.get(task.id)!)
+            ? {
+                category: lookupAll.byId.get(links.get(task.id)!)!.name,
+                categoryId: links.get(task.id)!,
+              }
+            : { category: e.category }),
           done: task.done,
           due: task.due,
           afterDue: task.due !== null && e.start.slice(0, 10) > task.due,
@@ -452,7 +478,14 @@ export default defineBackendModule({
       if (!t && required) throw new HttpError(400, `${label} : obligatoire`);
       return t || null;
     };
-    const category = (value: unknown) => text(value, 'Catégorie') ?? DEFAULT_CATEGORY;
+    /** v0.43.0: the category written: { category_id, category (its name, readable) }. */
+    const categoryFields = (body: Record<string, unknown>) => {
+      const c = categories.resolve(
+        { categoryId: body.categoryId, category: text(body.category, 'Catégorie') },
+        DEFAULT_CATEGORY,
+      );
+      return { category_id: c.id, category: c.name };
+    };
 
     /** Start and end of an event, checked (all day: dates, last day inclusive; else date-times). */
     const when = (body: Record<string, unknown>, moment = false) => {
@@ -490,14 +523,16 @@ export default defineBackendModule({
     };
 
     const createEvent = (body: Record<string, unknown>): AgendaEventDto => {
-      const cat = category(body.category);
+      const cat = categoryFields(body);
+      const deadline = categories.shapeOf(cat.category, cat.category_id) === 'deadline';
       return eventDto(
         store.create<EventRow>('events', {
           title: text(body.title, 'Titre', true)!,
-          ...when(body, categories.shapeOf(cat) === 'deadline'),
+          ...when(body, deadline),
           location: text(body.location, 'Lieu'),
           note: text(body.note, 'Note'),
-          category: cat,
+          ...cat,
+          kind: deadline ? 'deadline' : 'rendez-vous',
         }),
       );
     };
@@ -521,7 +556,8 @@ export default defineBackendModule({
           throw new HttpError(400, 'Durée invalide (en minutes)');
         out.duration_min = d;
       }
-      if (!partial || 'category' in body) out.category = category(body.category);
+      if (!partial || 'category' in body || 'categoryId' in body)
+        Object.assign(out, categoryFields(body));
       if (partial && 'timerPref' in body) out.timer_pref = prefFrom(body.timerPref);
       if (!partial || 'location' in body) out.location = text(body.location, 'Lieu');
       for (const [key, column] of [
@@ -556,7 +592,10 @@ export default defineBackendModule({
           'Un rendez-vous a besoin d’une date et d’une heure (« dentiste jeudi 14h »). Rien n’a été ajouté ; pour une tâche, choisis « Tâche ».',
         );
       // v0.42.0: a category chosen in the list wins over the text's (« #cours »).
-      const override = typeof chosen === 'string' && chosen.trim() ? category(chosen) : null;
+      const override =
+        typeof chosen === 'string' && chosen.trim()
+          ? categories.resolve({ categoryId: chosen, category: chosen }, DEFAULT_CATEGORY).name
+          : null;
       if (override && (parsed.kind === 'event' || parsed.kind === 'weekly'))
         parsed.category = override;
       switch (parsed.kind) {
@@ -687,7 +726,7 @@ export default defineBackendModule({
       if ('title' in body) fields.title = text(body.title, 'Titre', true);
       if ('location' in body) fields.location = text(body.location, 'Lieu');
       if ('note' in body) fields.note = text(body.note, 'Note');
-      if ('category' in body) fields.category = category(body.category);
+      if ('category' in body || 'categoryId' in body) Object.assign(fields, categoryFields(body));
       if ('timerPref' in body) fields.timer_pref = prefFrom(body.timerPref);
       if ('optional' in body) {
         if (typeof body.optional !== 'boolean')
@@ -700,11 +739,13 @@ export default defineBackendModule({
         fields.done_at = body.done ? (row.done_at ?? new Date().toISOString()) : null;
       }
       // v0.42.0: a deadline (its category's shape) is a moment; back to a block: one hour.
-      const nextCategory = (fields.category as string | undefined) ?? row.category;
-      const moment = categories.shapeOf(nextCategory) === 'deadline';
-      const wasMoment =
-        categories.shapeOf(row.category) === 'deadline' ||
-        (row.all_day === 0 && row.end_at === row.start_at);
+      const moment =
+        categories.shapeOf(
+          (fields.category as string | undefined) ?? row.category,
+          (fields.category_id as string | undefined) ?? row.category_id,
+        ) === 'deadline';
+      const wasMoment = isDeadlineRow(row) || (row.all_day === 0 && row.end_at === row.start_at);
+      if (moment !== (row.kind === 'deadline')) fields.kind = moment ? 'deadline' : 'rendez-vous';
       if ('start' in body || 'end' in body || 'allDay' in body || moment !== wasMoment)
         Object.assign(
           fields,
@@ -782,7 +823,7 @@ export default defineBackendModule({
             : { start_at: task.due!, end_at: task.due!, all_day: 1 }),
           location: null,
           note: null,
-          category: DEFAULT_CATEGORY,
+          ...categoryFields({}),
           ...(task.timerPref ? { timer_pref: JSON.stringify(task.timerPref) } : {}),
         });
         service.deleteTask(id);

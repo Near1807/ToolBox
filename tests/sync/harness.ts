@@ -5,6 +5,7 @@ import path from 'node:path';
 import Database from 'better-sqlite3';
 import {
   createTestHub,
+  type DiscoveredModule,
   loadModuleFolder,
   MemoryFileStore,
   normaliseImage,
@@ -44,13 +45,26 @@ export interface Devices {
   first(mode: 'merge' | 'replace'): void;
   /** Every live and deleted row of the synchronised tables of a module, by id. */
   rows(device: 'pc' | 'phone', module: string): Record<string, Record<string, unknown>[]>;
-  close(): Promise<void>;
+  /** `keep`: the data stay (reopen them with `devices({ pcDir, phoneDb })`). */
+  close(options?: { keep?: boolean }): Promise<void>;
 }
 
-export async function devices(): Promise<Devices> {
-  const loaded = await Promise.all(MODULES.map((id) => loadModuleFolder(path.join(ROOT, id))));
-  const pc = await createTestHub({ loadExamples: false, modules: loaded });
-  const phoneDb = await openWasmDatabase();
+/**
+ * v0.43.0: `replace` swaps modules (an older Agenda, to test an upgrade);
+ * `pcDir` and `phoneDb` reopen two devices on their data (after `close({ keep: true })`).
+ */
+export async function devices(
+  options: {
+    replace?: Record<string, DiscoveredModule>;
+    pcDir?: string;
+    phoneDb?: SqlDatabase;
+  } = {},
+): Promise<Devices> {
+  const loaded = await Promise.all(
+    MODULES.map((id) => options.replace?.[id] ?? loadModuleFolder(path.join(ROOT, id))),
+  );
+  const pc = await createTestHub({ loadExamples: false, modules: loaded, dataDir: options.pcDir });
+  const phoneDb = options.phoneDb ?? (await openWasmDatabase());
   const phoneFiles = new MemoryFileStore();
   const phone = await PhoneHub.start({
     db: phoneDb,
@@ -115,9 +129,9 @@ export async function devices(): Promise<Devices> {
         db.close();
       }
     },
-    close: async () => {
+    close: async (o) => {
       await phone.close();
-      await pc.close();
+      await pc.close(o?.keep ? { keepData: true } : undefined);
     },
   };
 }

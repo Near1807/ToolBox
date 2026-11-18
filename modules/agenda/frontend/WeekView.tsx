@@ -41,6 +41,7 @@ import {
   type Item,
   categoryCss,
   isDeadlineItem,
+  conflictsOn,
 } from './common';
 import { DeadlineBand, DeadlineLine, DeadlinesRow, useDeadlinesRow } from './Deadlines';
 import type { BindMenu } from './Menus';
@@ -728,7 +729,7 @@ export function WeekView(props: {
               start: i.event.start,
               end: i.event.end,
               category: i.event.category,
-              optional: isOptional(i),
+              optional: isOptional(i) || !conflictsOn(i.event.category),
             })),
           );
           const ghost =

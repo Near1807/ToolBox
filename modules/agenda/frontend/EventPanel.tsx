@@ -11,7 +11,7 @@ import { DEFAULT_CATEGORY } from '../shared/categories';
 import { CategorySelect, shapeOfChoice } from './Categories';
 import { addMinutes, eventWhen, minutesBetween } from '../shared/time';
 import type { AgendaEventDto } from '../shared/types';
-import { colorStyle } from './common';
+import { categoryInfo, colorStyle } from './common';
 
 export interface Undo {
   message: string;
@@ -131,7 +131,20 @@ export function EventForm(props: {
         </label>
         <label>
           Catégorie
-          <CategorySelect value={category} onChange={setCategory} />
+          <CategorySelect
+            value={category}
+            onChange={(name) => {
+              setCategory(name);
+              // v0.43.0: choosing a category prefills its defaults (still changeable).
+              const info = categoryInfo(name);
+              if (info?.defaultLocation && !location.trim()) setLocation(info.defaultLocation);
+              if (info?.defaultDuration && !allDay && startDay) {
+                const end = addMinutes(`${startDay}T${startTime}`, info.defaultDuration);
+                setEndDay(end.slice(0, 10));
+                setEndTime(end.slice(11));
+              }
+            }}
+          />
         </label>
       </div>
       <label>

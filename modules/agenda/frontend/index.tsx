@@ -19,12 +19,13 @@ import {
 } from '@hub/sdk/frontend';
 import { addDays, dayLabel, mondayOf } from '../shared/time';
 import type { AgendaEventDto, RangeDto } from '../shared/types';
-import { minutesBetween } from '../shared/time';
+import { addMinutes, minutesBetween } from '../shared/time';
 import { spanLabel, type Span } from '../shared/drag';
 import { appointmentPreview } from '../shared/parse';
 import type { SlotKind } from './CreateSlot';
 import { TaskPanel, type OpenTask } from './TaskPanel';
 import {
+  categoryInfo,
   colorStyle,
   rememberCategories,
   switchCategories,
@@ -182,10 +183,13 @@ function AgendaPage() {
         run: () => module.api.delete(`/tasks/${made.id}`),
       });
     } else {
+      // v0.43.0: the category's defaults (its duration, its place) prefill the slot's.
+      const info = category ? categoryInfo(category) : null;
       const made = await module.api.post<{ id: string; title: string }>('/events', {
         title,
         start: span.start,
-        end: span.end,
+        end: info?.defaultDuration ? addMinutes(span.start, info.defaultDuration) : span.end,
+        ...(info?.defaultLocation ? { location: info.defaultLocation } : {}),
         ...(category ? { category } : {}),
       });
       setNotice({

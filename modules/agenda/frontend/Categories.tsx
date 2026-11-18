@@ -23,13 +23,12 @@ import {
 } from './common';
 
 const ORIGIN: Record<CategoryDto['origin'], string> = {
-  fixed: 'de l’Agenda : seule la couleur change',
-  tool: 'd’un autre outil : seule la couleur change',
+  fixed: 'intégrée à l’Agenda : couleur et réglages seulement (ni renommer ni supprimer)',
+  tool: 'd’un autre outil : couleur et réglages seulement (ni renommer ni supprimer)',
   mine: 'à toi',
-  used: 'trouvée dans tes événements : seule la couleur change',
 };
 
-const SHAPE: Record<CategoryShape, string> = { normal: 'Normale', deadline: 'Deadline' };
+const SHAPE: Record<CategoryShape, string> = { normal: 'Rendez-vous', deadline: 'Deadline' };
 
 /** The colour of a category: the 16 hues, a free colour, back to the original. */
 export function ColorChooser(props: {
@@ -133,12 +132,12 @@ function CategoryRow(props: {
   const [renaming, setRenaming] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const url = `/categories/${encodeURIComponent(c.key)}`;
+  const url = `/categories/${encodeURIComponent(c.id)}`;
   const run = (task: () => Promise<unknown>) => {
     setError(null);
     task().then(props.onChanged, (e: unknown) => setError(errorMessage(e)));
   };
-  const others = props.all.filter((x) => x.key !== c.key && x.shape === c.shape);
+  const others = props.all.filter((x) => x.id !== c.id);
   return (
     <li className="list__item list__item--top ag-cats__item">
       <div className="ag-cats__main">
@@ -146,17 +145,28 @@ function CategoryRow(props: {
         <div>
           <strong>{c.name}</strong>{' '}
           <span className="muted small">
-            {SHAPE[c.shape]} · {c.events} élément{c.events > 1 ? 's' : ''} · {ORIGIN[c.origin]}
+            type par défaut : {SHAPE[c.shape]} · {c.events} élément{c.events > 1 ? 's' : ''} ·{' '}
+            {ORIGIN[c.origin]}
           </span>
           <div className="ag-cats__flags small">
             <label className="ag-check">
               <input
                 type="checkbox"
                 checked={c.counted}
-                disabled={c.shape === 'deadline'}
                 onChange={(e) => run(() => module.api.patch(url, { counted: e.target.checked }))}
               />{' '}
-              {c.shape === 'deadline' ? 'Jamais comptée (deadline)' : 'Comptée dans la charge'}
+              Comptée dans la charge
+            </label>
+            <label
+              className="ag-check"
+              title="Non : ses éléments ne sont jamais signalés quand ils se chevauchent (comme « facultatif »)"
+            >
+              <input
+                type="checkbox"
+                checked={c.conflicts}
+                onChange={(e) => run(() => module.api.patch(url, { conflicts: e.target.checked }))}
+              />{' '}
+              Chevauchements signalés
             </label>
             <label className="ag-check">
               <input
@@ -170,17 +180,49 @@ function CategoryRow(props: {
             </label>
             {mine && (
               <label>
-                Forme{' '}
+                Type par défaut{' '}
                 <select
                   className="input input--small"
                   value={c.shape}
                   onChange={(e) => run(() => module.api.patch(url, { shape: e.target.value }))}
                 >
-                  <option value="normal">Normale (un bloc de temps)</option>
-                  <option value="deadline">Deadline (un moment, en rouge)</option>
+                  <option value="normal">Rendez-vous</option>
+                  <option value="deadline">Deadline</option>
                 </select>
               </label>
             )}
+            <label>
+              Durée par défaut (min){' '}
+              <input
+                key={`d:${c.defaultDuration ?? ''}`}
+                className="input input--small ag-cats__num"
+                type="number"
+                min={5}
+                max={1440}
+                step={5}
+                defaultValue={c.defaultDuration ?? ''}
+                placeholder="—"
+                onBlur={(e) => {
+                  const v = e.target.value ? Number(e.target.value) : null;
+                  if (v !== c.defaultDuration)
+                    run(() => module.api.patch(url, { defaultDuration: v }));
+                }}
+              />
+            </label>
+            <label>
+              Lieu par défaut{' '}
+              <input
+                key={`l:${c.defaultLocation ?? ''}`}
+                className="input input--small"
+                defaultValue={c.defaultLocation ?? ''}
+                placeholder="—"
+                onBlur={(e) => {
+                  const v = e.target.value.trim() || null;
+                  if (v !== c.defaultLocation)
+                    run(() => module.api.patch(url, { defaultLocation: v }));
+                }}
+              />
+            </label>
           </div>
         </div>
         <div className="ui-actions ag-cats__actions">
@@ -220,7 +262,7 @@ function CategoryRow(props: {
                       const r = await module.api.delete<{ undoId: string }>(url);
                       props.onUndo({ message: `« ${c.name} » supprimée`, undoId: r.undoId });
                     });
-                  } else setDeleting(others[0]?.name ?? '');
+                  } else setDeleting(others[0]?.id ?? '');
                 }}
               >
                 Supprimer
@@ -265,8 +307,8 @@ function CategoryRow(props: {
             />
           </label>
           <p className="small muted">
-            Ses événements, la semaine type et les correspondances d’import suivent (une sauvegarde
-            est faite avant).
+            Seule la catégorie change : ses éléments, la semaine type et les correspondances
+            d’import la suivent par elle-même. « Annuler » remet l’ancien nom.
           </p>
           <div className="ui-actions">
             <Button small type="submit">
@@ -288,7 +330,7 @@ function CategoryRow(props: {
               onChange={(e) => setDeleting(e.target.value)}
             >
               {others.map((o) => (
-                <option key={o.key} value={o.name}>
+                <option key={o.id} value={o.id}>
                   {o.name}
                 </option>
               ))}
@@ -305,7 +347,7 @@ function CategoryRow(props: {
               onClick={() => {
                 if (
                   !window.confirm(
-                    `Supprimer « ${c.name} » et déplacer ses ${c.events} élément(s) vers « ${deleting} » ?`,
+                    `Supprimer « ${c.name} » et déplacer ses ${c.events} élément(s) vers « ${others.find((o) => o.id === deleting)?.name ?? ''} » ?`,
                   )
                 )
                   return;
@@ -315,7 +357,7 @@ function CategoryRow(props: {
                   );
                   setDeleting(null);
                   props.onUndo({
-                    message: `« ${c.name} » supprimée, ses éléments sont dans « ${deleting} »`,
+                    message: `« ${c.name} » supprimée, ses éléments sont dans « ${others.find((o) => o.id === deleting)?.name ?? ''} »`,
                     undoId: r.undoId,
                   });
                 });
@@ -401,7 +443,7 @@ export function CategoriesPanel() {
   const [failure, setFailure] = useState<string | null>(null);
   const move = (index: number, delta: -1 | 1) => {
     if (!data) return;
-    const keys = data.map((c) => c.key);
+    const keys = data.map((c) => c.id);
     const [k] = keys.splice(index, 1);
     keys.splice(index + delta, 0, k!);
     module.api
