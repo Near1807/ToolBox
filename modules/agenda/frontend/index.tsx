@@ -532,7 +532,7 @@ export default defineFrontendModule({
     add: async (text, { api }) => {
       const r = await api.post<{
         kind: 'event' | 'weekly' | 'task';
-        event?: { id: string; title: string; start: string };
+        event?: { id: string; title: string; start: string; deadline?: true };
         weekly?: { id: string; title: string };
       }>('/quick', { text, mode: 'appointment' });
       if (r.kind === 'weekly' && r.weekly)
@@ -543,7 +543,9 @@ export default defineFrontendModule({
         };
       if (r.kind === 'event' && r.event)
         return {
-          message: `« ${r.event.title} » ajouté à l’agenda`,
+          message: r.event.deadline
+            ? `Deadline « ${r.event.title} » ajoutée à l’agenda`
+            : `« ${r.event.title} » ajouté à l’agenda`,
           open: `/m/agenda?date=${r.event.start.slice(0, 10)}`,
           undo: () => api.delete(`/events/${r.event!.id}`),
         };

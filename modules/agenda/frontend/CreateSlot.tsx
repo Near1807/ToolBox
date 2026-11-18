@@ -79,7 +79,10 @@ export function CreateSlot(props: {
       />
       <p className="small muted ag-create__preview">
         {title.trim()
-          ? `${fallback === 'task' ? 'Tâche' : 'Rendez-vous'} « ${title.trim()} » · ${when}`
+          ? // v0.43.0: a category whose default type is Deadline: a deadline at the slot's start.
+            info?.shape === 'deadline'
+            ? `Deadline « ${title.trim()} » · ${dayLabel(props.span.start.slice(0, 10), props.today)} ${props.span.start.slice(11)}`
+            : `${fallback === 'task' ? 'Tâche' : 'Rendez-vous'} « ${title.trim()} » · ${when}`
           : when}
         {/* v0.43.0: what the category prefills (its duration, its place). */}
         {defaults && ` · ${defaults}`}

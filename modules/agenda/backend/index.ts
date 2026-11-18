@@ -228,14 +228,30 @@ export default defineBackendModule({
             .all() as { id: string; name: string }[]
         ).map((s) => [s.id, s.name]),
       );
-    /** Is this event a deadline (a moment)? v0.42: its category's shape. */
-    const isDeadlineRow = (row: EventRow, l: CategoryLookup = categories.lookup()) =>
-      l.of(row.category, row.category_id)?.shape === 'deadline';
+    /** Is this event a deadline (a moment)? v0.43.0: its own type (`kind`), whatever its category. */
+    const isDeadlineRow = (row: EventRow) => row.kind === 'deadline';
+    /**
+     * v0.43.0: the type asked (`kind`: « rendez-vous » or « deadline »), else
+     * the default type of its category (its v0.42 « forme »).
+     */
+    const kindOf = (
+      body: Record<string, unknown>,
+      cat: { category: string; category_id: string },
+    ) => {
+      if ('kind' in body && body.kind !== undefined && body.kind !== null) {
+        if (body.kind !== 'deadline' && body.kind !== 'rendez-vous')
+          throw new HttpError(400, 'Type invalide (« rendez-vous » ou « deadline »)');
+        return body.kind;
+      }
+      return categories.shapeOf(cat.category, cat.category_id) === 'deadline'
+        ? 'deadline'
+        : 'rendez-vous';
+    };
 
     /** An event as the pages get it; an imported one with its source (v0.37.0). */
     /**
      * v0.43.0: its category by its identifier (a renamed category: the new
-     * name), else by its name; `deadline` (v0.42) from the category's shape.
+     * name), else by its name; `deadline` from its own type (v0.43.0).
      */
     const eventDto = (
       row: EventRow,
@@ -256,7 +272,7 @@ export default defineBackendModule({
         weekly: null,
         timerPref: prefOf(row.timer_pref),
         ...(row.optional ? { optional: true as const } : {}),
-        ...(cat?.shape === 'deadline' ? { deadline: true as const } : {}),
+        ...(isDeadlineRow(row) ? { deadline: true as const } : {}),
         ...(row.done_at ? { done: true as const } : {}),
         ...(row.source_id && names?.has(row.source_id)
           ? {
@@ -334,7 +350,7 @@ export default defineBackendModule({
           `SELECT * FROM ${events} WHERE deleted_at IS NULL AND done_at IS NULL AND substr(start_at, 1, 10) >= ? AND substr(start_at, 1, 10) <= ? ORDER BY start_at, title`,
         )
         .all(addDays(today, -OVERDUE_DAYS), addDays(to, AHEAD_DAYS)) as EventRow[];
-      const mine = rows.filter((r) => isDeadlineRow(r, l));
+      const mine = rows.filter(isDeadlineRow);
       const names = mine.some((r) => r.source_id) ? sourceNames() : null;
       return mine
         .map((r) => eventDto(r, names, l))
@@ -524,7 +540,7 @@ export default defineBackendModule({
 
     const createEvent = (body: Record<string, unknown>): AgendaEventDto => {
       const cat = categoryFields(body);
-      const deadline = categories.shapeOf(cat.category, cat.category_id) === 'deadline';
+      const deadline = kindOf(body, cat) === 'deadline';
       return eventDto(
         store.create<EventRow>('events', {
           title: text(body.title, 'Titre', true)!,
@@ -604,7 +620,11 @@ export default defineBackendModule({
         case 'error':
           throw new HttpError(400, parsed.message);
         case 'event':
-          return { kind: 'event' as const, event: createEvent(parsed) };
+          // v0.43.0: « deadline … »: a deadline, whatever its category.
+          return {
+            kind: 'event' as const,
+            event: createEvent({ ...parsed, kind: parsed.deadline ? 'deadline' : undefined }),
+          };
         case 'weekly':
           return {
             kind: 'weekly' as const,
@@ -738,14 +758,16 @@ export default defineBackendModule({
           throw new HttpError(400, 'Faite : oui ou non (true / false)');
         fields.done_at = body.done ? (row.done_at ?? new Date().toISOString()) : null;
       }
-      // v0.42.0: a deadline (its category's shape) is a moment; back to a block: one hour.
+      // v0.43.0: the type is the element's own: it changes only when asked
+      // (`kind`), never with its category. A deadline is a moment; back to a
+      // block: one hour.
       const moment =
-        categories.shapeOf(
-          (fields.category as string | undefined) ?? row.category,
-          (fields.category_id as string | undefined) ?? row.category_id,
-        ) === 'deadline';
+        'kind' in body
+          ? kindOf(body, { category: row.category, category_id: row.category_id ?? '' }) ===
+            'deadline'
+          : isDeadlineRow(row);
       const wasMoment = isDeadlineRow(row) || (row.all_day === 0 && row.end_at === row.start_at);
-      if (moment !== (row.kind === 'deadline')) fields.kind = moment ? 'deadline' : 'rendez-vous';
+      if (moment !== isDeadlineRow(row)) fields.kind = moment ? 'deadline' : 'rendez-vous';
       if ('start' in body || 'end' in body || 'allDay' in body || moment !== wasMoment)
         Object.assign(
           fields,

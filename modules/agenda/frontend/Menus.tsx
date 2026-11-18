@@ -209,7 +209,8 @@ export function agendaMenuItems(target: MenuTarget, d: MenuDeps): MenuItem[] {
     icon: 'tag',
     submenu: [
       ...d.categories.map((c: CategoryDto): MenuItem => ({
-        label: c.shape === 'deadline' ? `${c.name} (deadline)` : c.name,
+        // v0.43.0: the type stays the element's own (« En faire une deadline »).
+        label: c.name,
         disabled: c.key === e.category.trim().toLowerCase() && 'Sa catégorie actuelle',
         onSelect: () => changeCategory(e, c.name),
       })),
@@ -221,6 +222,31 @@ export function agendaMenuItems(target: MenuTarget, d: MenuDeps): MenuItem[] {
       },
     ],
   });
+
+  // v0.43.0: its type (the sheet's « Type »): « Annuler » puts back type and times.
+  const kindItem = (e: AgendaEventDto): MenuItem => {
+    const deadline = !e.deadline;
+    return {
+      label: deadline ? 'En faire une deadline' : 'En faire un rendez-vous',
+      icon: deadline ? 'circle-alert' : 'calendar-days',
+      onSelect: () =>
+        d.write(
+          () => d.api.patch(`/events/${e.id}`, { kind: deadline ? 'deadline' : 'rendez-vous' }),
+          {
+            message: deadline
+              ? `« ${e.title} » est une deadline`
+              : `« ${e.title} » est un rendez-vous`,
+            run: () =>
+              d.api.patch(`/events/${e.id}`, {
+                kind: e.deadline ? 'deadline' : 'rendez-vous',
+                allDay: e.allDay,
+                start: e.start,
+                end: e.end,
+              }),
+          },
+        ),
+    };
+  };
 
   // v0.43.0: the conversions (their « Annuler » puts back the state of before).
   const api = d.api as unknown as Parameters<typeof convertEventToTask>[0];
@@ -308,6 +334,7 @@ export function agendaMenuItems(target: MenuTarget, d: MenuDeps): MenuItem[] {
         icon: 'list-checks',
         onSelect: () => d.convert?.(() => convertEventToTask(api, e)),
       },
+      kindItem(e),
       categoryMenu(e),
       colorItem(e.category),
       { separator: true },

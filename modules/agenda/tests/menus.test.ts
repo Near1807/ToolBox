@@ -80,6 +80,7 @@ describe('the menu of each element', () => {
       'Facultatif',
       'Lancer le timer…',
       '—',
+      'En faire une deadline',
       'Changer de catégorie ›',
       'Couleur de « Cours »…',
       '—',
@@ -109,6 +110,7 @@ describe('the menu of each element', () => {
       'Ouvrir la fiche',
       'Faite',
       '—',
+      'En faire un rendez-vous',
       'Changer de catégorie ›',
       'Couleur de « Deadline »…',
       '—',
@@ -246,7 +248,7 @@ describe('what each action writes, and its « Annuler »', () => {
     >;
     expect(labels(sub.submenu)).toEqual([
       'Cours (Sa catégorie actuelle)',
-      'Deadline (deadline)',
+      'Deadline',
       'Soirée',
       '—',
       'Nouvelle catégorie…',
@@ -256,6 +258,13 @@ describe('what each action writes, and its « Annuler »', () => {
     expect(calls[1]).toContain('"category":"Cours"');
     runItem(pick(sub.submenu, 'Nouvelle catégorie…'));
     expect(dialogs[0]).toMatchObject({ kind: 'new-category' });
+  });
+  it('En faire une deadline: PATCH kind; Annuler puts back type and times', () => {
+    const { d, calls } = deps();
+    runItem(pick(agendaMenuItems(target(event()), d), 'En faire une deadline'));
+    expect(calls[0]).toBe('PATCH /events/e1 {"kind":"deadline"}');
+    expect(calls[1]).toContain('"kind":"rendez-vous"');
+    expect(calls[1]).toContain('"end":');
   });
   it('Supprimer: asks first; « Annuler » of the question = nothing; then DELETE, Annuler = restore', () => {
     const { d, calls } = deps();

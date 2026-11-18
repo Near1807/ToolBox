@@ -191,14 +191,24 @@ describe('deadlines through the routes', () => {
       css: 'var(--hue-orange)',
       shape: 'deadline',
     });
-    // Back to an ordinary category: a block of one hour; and back to a moment.
-    const block = await call<AgendaEventDto>('PATCH', `/events/${rendu.id}`, { category: 'Cours' });
+    // v0.43.0: the type is the element's own: another category keeps it a deadline
+    // (its colour changes) …
+    const moved = await call<AgendaEventDto>('PATCH', `/events/${rendu.id}`, { category: 'Cours' });
+    expect(moved).toMatchObject({ category: 'Cours', deadline: true, end: '2026-11-19T23:59' });
+    // … the type changes it: a block of one hour; and back to a moment.
+    const block = await call<AgendaEventDto>('PATCH', `/events/${rendu.id}`, {
+      kind: 'rendez-vous',
+    });
     expect(block).toMatchObject({ start: '2026-11-19T23:59', end: '2026-11-20T00:59' });
     expect(block.deadline).toBeUndefined();
+    expect((await hub.request('PATCH', `${API}/events/${rendu.id}`, { kind: 'x' })).status).toBe(
+      400,
+    );
     const moment = await call<AgendaEventDto>('PATCH', `/events/${rendu.id}`, {
-      category: 'Deadline',
+      kind: 'deadline',
     });
     expect(moment.end).toBe(moment.start);
+    expect(moment.deadline).toBe(true);
     const row = (
       dumpTables(hub.dataDir, 'agenda').agenda__events as { done_at: string | null }[]
     )[0]!;
@@ -216,5 +226,129 @@ describe('deadlines through the routes', () => {
     });
     expect(e).toMatchObject({ end: '2026-11-20T18:00', deadline: true });
     expect((await week()).deadlines.map((d) => d.title)).toEqual(['Labo 3']);
+  });
+});
+
+// v0.43.0 (ADR 0049): the type is the element's own, the colour its category's.
+describe('the type Deadline, carried by the element', () => {
+  let hub: TestHub;
+  afterEach(async () => {
+    await hub?.close();
+    vi.useRealTimers();
+  });
+  const open = async () => {
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date(2026, 10, 17, 14) });
+    hub = await createTestHub({
+      loadExamples: false,
+      modules: [
+        await loadModuleFolder(path.resolve(__dirname, '..')),
+        await loadModuleFolder(path.resolve(__dirname, '..', '..', 'todo')),
+      ],
+    });
+  };
+  const call = async <T>(method: string, url: string, body?: unknown) => {
+    const r = await hub.request<T>(method, `${API}${url}`, body);
+    if (r.status !== 200)
+      throw new Error(`${method} ${url}: ${r.status} ${JSON.stringify(r.body)}`);
+    return r.body;
+  };
+  const week = () => call<RangeDto>('GET', '/range?from=2026-11-16&to=2026-11-22');
+  const tasks = () =>
+    (dumpTables(hub.dataDir, 'todo').todo__tasks as unknown[] | undefined)?.length ?? 0;
+
+  it('a deadline in any category: its colour, the alert of a deadline; never in the load', async () => {
+    await open();
+    await call('PATCH', '/categories/Cours', { color: 'p:vert' });
+    const e = await call<AgendaEventDto>('POST', '/events', {
+      title: 'Rendu rapport',
+      start: '2026-11-19T23:59',
+      category: 'Cours',
+      kind: 'deadline',
+    });
+    expect(e).toMatchObject({ category: 'Cours', deadline: true, end: '2026-11-19T23:59' });
+    const w = await week();
+    expect(w.deadlines.map((d) => d.title)).toEqual(['Rendu rapport']);
+    rememberCategories(w.categoryInfo);
+    expect(timedBlocks(w).map((b) => b.id)).not.toContain(e.id);
+    rememberCategories([]);
+    // A rendez-vous in « Deadline » (its type asked): a block, counted.
+    const block = await call<AgendaEventDto>('POST', '/events', {
+      title: 'Point',
+      start: '2026-11-18T10:00',
+      end: '2026-11-18T11:00',
+      category: 'Deadline',
+      kind: 'rendez-vous',
+    });
+    expect(block.deadline).toBeUndefined();
+    expect(block.end).toBe('2026-11-18T11:00');
+  });
+
+  it('the bar: « deadline … » makes a deadline, never a task; without a date: nothing written', async () => {
+    await open();
+    const a = await call<{ kind: string; event: AgendaEventDto }>('POST', '/quick', {
+      text: 'deadline rendu rapport jeudi 23h59',
+    });
+    expect(a.event).toMatchObject({
+      title: 'Rendu rapport',
+      start: '2026-11-19T23:59',
+      end: '2026-11-19T23:59',
+      category: 'Deadline',
+      deadline: true,
+    });
+    const b = await call<{ event: AgendaEventDto }>('POST', '/quick', {
+      text: 'deadline rendu labo vendredi #cours',
+    });
+    expect(b.event).toMatchObject({
+      start: '2026-11-20',
+      allDay: true,
+      category: 'Cours',
+      deadline: true,
+    });
+    // The « Rendez-vous » destination of the « Ajouter » bar: the same.
+    const c = await call<{ event: AgendaEventDto }>('POST', '/quick', {
+      text: 'échéance : inscription lundi',
+      mode: 'appointment',
+    });
+    expect(c.event).toMatchObject({ category: 'Deadline', deadline: true });
+    const before = (await week()).events.length;
+    for (const text of [
+      'deadline rendu rapport',
+      'deadline réviser ~2h vendredi',
+      'deadline stage 13-15 décembre',
+    ]) {
+      const r = await hub.request('POST', `${API}/quick`, { text });
+      expect(r.status, text).toBe(400);
+      expect(JSON.stringify(r.body)).toContain('Rien n’a été ajouté');
+    }
+    expect((await week()).events.length).toBe(before);
+    expect(tasks()).toBe(0);
+  });
+
+  it('an import into a category whose default type is Deadline makes deadlines', async () => {
+    await open();
+    await call('POST', '/categories', { name: 'Rendus', shape: 'deadline' });
+    const ics = [
+      'BEGIN:VCALENDAR',
+      'BEGIN:VEVENT',
+      'UID:r1',
+      'SUMMARY:Labo 4',
+      'DTSTART:20261120T180000',
+      'DTEND:20261120T200000',
+      'END:VEVENT',
+      'END:VCALENDAR',
+    ].join('\r\n');
+    const asNew = {
+      format: 'ics',
+      name: 'Rendus',
+      mapping: {},
+      defaultCategory: 'Rendus',
+      text: ics,
+    };
+    const p = await call<{ add: { key: string }[] }>('POST', '/import/preview', asNew);
+    expect(p.add.length).toBe(1);
+    await call('POST', '/import/apply', { ...asNew, accept: p.add.map((l) => l.key) });
+    const labo = (await week()).events.find((e) => e.title === 'Labo 4');
+    // Its end stays the file's (a reimport compares it); a deadline is drawn at its start.
+    expect(labo).toMatchObject({ category: 'Rendus', deadline: true, start: '2026-11-20T18:00' });
   });
 });

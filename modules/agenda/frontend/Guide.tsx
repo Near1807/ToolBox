@@ -260,15 +260,19 @@ export function GuidePage() {
       </Card>
       <Card title="Deadlines (Expérimental)">
         <p>
-          Une <strong>deadline</strong> est un moment, pas un bloc : une date et, si tu veux, une
-          heure, sans fin. Catégorie « Deadline » (rouge du thème), ou une de tes catégories avec la
-          forme « Deadline » (Réglages). Dans la barre : « rendu rapport jeudi 23h59 #deadline ».
+          Une <strong>deadline</strong> est un <strong>type</strong> d’élément (comme « Rendez-vous
+          ») : un moment, pas un bloc — une date et, si tu veux, une heure, sans fin. Elle peut être
+          dans <strong>n’importe quelle catégorie</strong> : la forme d’alerte vient du type, la
+          couleur de la catégorie (« Deadline » : rouge du thème). Dans la fiche : « Type ». Choisir
+          une catégorie dont le type par défaut est Deadline le pré-remplit. Dans la barre : «
+          deadline rendu rapport jeudi 23h59 » (dans « Deadline »), « deadline rendu rapport jeudi
+          #cours » (dans Cours) ; sans date, rien n’est ajouté. Jamais une tâche de la To-do.
         </p>
         <p>
-          Avec une heure : un <strong>trait rouge</strong> en travers du jour, avec{' '}
-          <Icon name="circle-alert" /> le titre et l’heure ; il passe au-dessus des blocs sans les
-          cacher (on clique toujours les blocs dessous). Sans heure : une bande rouge dans « Journée
-          ». Sur le téléphone : la même chose dans la liste du jour.
+          Avec une heure : un <strong>trait</strong> de la couleur de sa catégorie en travers du
+          jour, avec <Icon name="circle-alert" /> le titre et l’heure ; il passe au-dessus des blocs
+          sans les cacher (on clique toujours les blocs dessous). Sans heure : une bande rouge dans
+          « Journée ». Sur le téléphone : la même chose dans la liste du jour.
         </p>
         <p>
           Elle ne compte <strong>jamais</strong> dans la charge ni le temps libre, et ne crée aucun

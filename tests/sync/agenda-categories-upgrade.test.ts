@@ -187,5 +187,14 @@ describe('the categories of v0.42 become objects (each device alone, then a sync
       await d.onPhone<{ name: string; css: string }[]>('GET', `${API}/categories`)
     ).find((c) => c.name === 'Foot');
     expect(foot!.css).toBe('var(--hue-vert)');
+    // The type (part B) travels too: « Thermo » made a deadline on the PC.
+    const thermo = d.rows('pc', 'agenda').events!.find((e) => e.title === 'Thermo')!;
+    await d.onPc('PATCH', `${API}/events/${String(thermo.id)}`, { kind: 'deadline' });
+    expect(Number(d.exchange().conflicts ?? 0)).toBe(0);
+    const range = await d.onPhone<{ events: { title: string; deadline?: boolean }[] }>(
+      'GET',
+      `${API}/range?from=2026-11-16&to=2026-11-22`,
+    );
+    expect(range.events.find((e) => e.title === 'Thermo')!.deadline).toBe(true);
   });
 });

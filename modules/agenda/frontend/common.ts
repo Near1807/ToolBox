@@ -131,8 +131,16 @@ export function timedBlocks(
       .filter((e) => !e.allDay && shown(e.category))
       // v0.40.0: a « facultatif » event weighs nothing (like a category switched off).
       .filter((e) => !('optional' in e && e.optional))
-      // v0.42.0: a category not counted (Réglages), and the deadlines (a moment), weigh nothing.
-      .filter((e) => isCounted(e.category) && !isDeadline(e.category))
+      // v0.42.0: a category not counted (Réglages), and (v0.43.0) a deadline — its own
+      // type, whatever its category — weigh nothing.
+      // An occurrence of the week type has no type of its own: as in v0.42, one in a category
+      // whose default type is Deadline weighs nothing either.
+      .filter(
+        (e) =>
+          isCounted(e.category) &&
+          !('deadline' in e && e.deadline) &&
+          !('weekly' in e && e.weekly && isDeadline(e.category)),
+      )
       .map((e) => ({ id: e.id, start: e.start, end: e.end, category: e.category }))
   );
 }
@@ -185,7 +193,7 @@ export const conflictsOn = (category: string) => categoryInfo(category)?.conflic
 export const categoryCss = (category: string) =>
   categoryInfo(category)?.css ?? categoryColor(category);
 
-/** Is it a « deadline » category (a moment, not a block of time)? */
+/** Is « Deadline » the default type of this category (v0.42: its shape)? */
 export const isDeadline = (category: string) =>
   (categoryInfo(category)?.shape ?? defaultShape(category)) === 'deadline';
 

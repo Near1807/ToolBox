@@ -36,8 +36,13 @@ export function EventForm(props: {
   const [note, setNote] = useState(i.note ?? '');
   const [category, setCategory] = useState(i.category ?? DEFAULT_CATEGORY);
   const [error, setError] = useState<string | null>(null);
-  // v0.42.0: a deadline (its category's shape) is a moment: a date, an optional time, no end.
-  const moment = shapeOfChoice(category) === 'deadline';
+  // v0.43.0: its type is its own (Rendez-vous or Deadline); choosing a category
+  // prefills it from the category's default type (still changeable). A deadline
+  // is a moment: a date, an optional time, no end.
+  const [kind, setKind] = useState<'rendez-vous' | 'deadline'>(
+    i.deadline || (!i.id && shapeOfChoice(category) === 'deadline') ? 'deadline' : 'rendez-vous',
+  );
+  const moment = kind === 'deadline';
   return (
     <form
       className="ag-form"
@@ -58,6 +63,7 @@ export function EventForm(props: {
           location,
           note,
           category,
+          kind,
         };
         props.onSubmit(fields).catch((err: unknown) => setError(errorMessage(err)));
       }}
@@ -70,6 +76,17 @@ export function EventForm(props: {
           onChange={(e) => setTitle(e.target.value)}
           required
         />
+      </label>
+      <label>
+        Type
+        <select
+          className="input"
+          value={kind}
+          onChange={(e) => setKind(e.target.value === 'deadline' ? 'deadline' : 'rendez-vous')}
+        >
+          <option value="rendez-vous">Rendez-vous (un bloc de temps)</option>
+          <option value="deadline">Deadline (un moment, sans fin)</option>
+        </select>
       </label>
       <label className="ag-check">
         <input type="checkbox" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} />{' '}
@@ -137,6 +154,7 @@ export function EventForm(props: {
               setCategory(name);
               // v0.43.0: choosing a category prefills its defaults (still changeable).
               const info = categoryInfo(name);
+              setKind(shapeOfChoice(name) === 'deadline' ? 'deadline' : 'rendez-vous');
               if (info?.defaultLocation && !location.trim()) setLocation(info.defaultLocation);
               if (info?.defaultDuration && !allDay && startDay) {
                 const end = addMinutes(`${startDay}T${startTime}`, info.defaultDuration);
@@ -268,6 +286,7 @@ export function EventPanel(props: {
                     location: event.location ?? '',
                     note: event.note ?? '',
                     category: event.category,
+                    kind: event.deadline ? 'deadline' : 'rendez-vous',
                   }),
               });
             }}

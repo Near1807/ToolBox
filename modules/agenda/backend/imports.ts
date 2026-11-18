@@ -446,6 +446,11 @@ export function registerImports(ctx: ModuleContext, store: SyncStore, cats: Impo
           origin: JSON.stringify(origin),
         };
       };
+      /** v0.43.0: the type of an event made (or moved to another category) by an import: its category's default type. */
+      const kindFor = (fields: Record<string, string | number | null>) =>
+        cats.lookup().of(String(fields.category), String(fields.category_id))?.shape === 'deadline'
+          ? 'deadline'
+          : 'rendez-vous';
       const before = (row: Record<string, unknown>, fields: Record<string, unknown>) =>
         Object.fromEntries(Object.keys(fields).map((k) => [k, row[k] as string | number | null]));
       ctx.db.transaction(() => {
@@ -468,6 +473,7 @@ export function registerImports(ctx: ModuleContext, store: SyncStore, cats: Impo
         }
         for (const line of add) {
           const fields = fieldsOf(line.key);
+          fields.kind = kindFor(fields);
           const old = line.deletedBefore
             ? (ctx.db
                 .prepare(
@@ -499,6 +505,8 @@ export function registerImports(ctx: ModuleContext, store: SyncStore, cats: Impo
           const changed = Object.fromEntries(
             Object.entries(fields).filter(([k, v]) => row[k] !== v),
           ) as Record<string, string | number | null>;
+          if ('category_id' in changed && kindFor(fields) !== row.kind)
+            changed.kind = kindFor(fields);
           ops.push({ kind: 'updated', table: 'events', id: line.id, before: before(row, changed) });
           store.update('events', line.id, changed);
         }
