@@ -13,7 +13,7 @@ import { applyTheme, cachedTheme, installThemes } from '../../../frontend/src/th
 import { WorkerClient, workerTransport } from '../../../packages/phone/transport';
 import { App } from './App';
 import { autoSync } from './auto';
-import { pageHost } from './page-host';
+import { pageHost, sweepSharedFiles } from './page-host';
 import './mobile.css';
 
 installThemes();
@@ -22,6 +22,8 @@ applyTheme(cachedTheme());
 const worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
 const client = new WorkerClient(worker);
 client.serveHost(pageHost);
+// v0.44.0: a shared file a closed app could not delete (nothing stays after a share).
+sweepSharedFiles();
 // A change made here (an API call that writes) is synchronised shortly after,
 // when the automatic synchronisation is on (grouped, packages/phone/auto-sync.ts).
 const transport = workerTransport(client);
