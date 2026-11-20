@@ -166,6 +166,18 @@ Menu commun du SDK (`useContextMenu`, MODULES.md §7.7) sur les blocs de la sema
 - Élément d'un autre outil : « Ouvrir dans son outil » seulement.
 - « Lancer le timer… » ouvre la fiche, où le Timer prête son bouton (l'Agenda n'appelle jamais le Timer lui-même) ; désactivé avec sa raison sans le Timer. Chaque écriture a son « Annuler ».
 
+## Image du calendrier (v0.44.0, Expérimental, ADR 0050)
+
+Pour envoyer ses dispos : un clic copie une **image** de la vue affichée, à coller dans une discussion.
+
+- **Bouton** dans la barre de l'Agenda (semaine et mois sur le PC ; jour et mois sur le téléphone ; pas sur la semaine type), et **clic droit sur l'arrière-plan** de la grille (semaine, mois, PC) : « Copier l'image de cette semaine / ce mois ».
+- **PC** : l'image va dans le **presse-papiers** du système (preload `copyImage` → `clipboard.write` du processus principal), message « Image de la semaine copiée : colle-la dans ta discussion (Ctrl+V) ». **Téléphone** : le **menu de partage** d'Android (WhatsApp, Messenger…) par `ctx.files.saveAs` ; la copie mise dans le cache est supprimée après (au retour sur l'app, 5 min au plus ; tout de suite si le partage est annulé ; balayage au démarrage).
+- **Menu** à côté du bouton : « Détails » / « Dispos seulement », « Thème clair » / « Thème de l'app » (retenus sur l'appareil, `localStorage` `toolbox.agenda.snapshot` ; défaut Détails, thème clair), « Enregistrer l'image… » (« Enregistrer sous » du PC, nom « Agenda semaine du 2026-11-23.png » ; menu de partage sur le téléphone ; route `POST /image/save`, PNG et nom vérifiés).
+- **Rendu dédié** (pas une capture de l'écran) : `shared/snapshot.ts` construit la scène (pure, même code PC et téléphone), `shared/snapshot-paint.ts` la peint sur un canvas, `frontend/snapshot.ts` lit les jetons du thème (l'app, ou « Clair » lu dans les feuilles de style) et fait le PNG. Aucune dépendance nouvelle, aucune requête réseau, aucune couleur écrite dans le code.
+- **Contenu** : la période affichée (« Semaine du 23 au 29 novembre 2026 », « Novembre 2026 », « Lundi 23 novembre 2026 ») ; seulement les catégories allumées, avec leurs couleurs ; **toute la plage d'heures** (du premier au dernier élément de la période, arrondie à l'heure, au moins la plage réglée) ; blocs côte à côte comme à l'écran (titre, heure, lieu selon la place) ; journées et plusieurs jours en bandes ; deadlines (trait ou bande, icône d'alerte) ; facultatifs hachurés ; légende des catégories présentes. Rien de l'interface (fiche, aperçu, poignée, fantôme, « À caser », barre, charge, badges) ; aucune donnée personnelle ajoutée (ni nom, ni e-mail, ni appareil). Les notes ne sont jamais dans l'image.
+- **« Dispos seulement »** : chaque bloc dit « Occupé » (« Occupé (facultatif) » pour un facultatif), sans titre, lieu ni note — ces textes ne sont même pas dans la scène dessinée ; couleur gardée ; deadlines et légende retirées ; sous-titre « Créneaux occupés ».
+- **Taille** : semaine et mois 800 unités de large × 2 = **1 600 px** ; jour 960 px ; PNG sans bloc de texte.
+
 ## Importer un calendrier (v0.37.0, ADR 0047 ; tableau CSV / Excel encore Expérimental)
 
 Agenda › **Importer** (sur le PC ; le lien n'est pas montré sur le téléphone, qui reçoit les événements par la synchro). Le fichier est lu sur le PC, rien ne part en ligne.

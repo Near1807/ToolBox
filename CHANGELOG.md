@@ -4,6 +4,20 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.44.0] — 2026-11-20
+
+Agenda : copier une image du calendrier (la vue affichée) pour partager ses dispos. Aucune migration. Marqué « Expérimental ».
+
+### Ajouté
+
+- **Agenda — « Copier l'image »** (bouton de la barre et clic droit sur le fond de la grille) : une image dédiée de la vue affichée — semaine (passée ou future), mois, jour sur le téléphone — avec toute la plage d'heures, les catégories allumées et leurs couleurs, les journées, les deadlines, les facultatifs hachurés et la légende ; rien de l'interface. PC : dans le presse-papiers (Ctrl+V dans une discussion) ; téléphone : menu de partage d'Android.
+- Menu de l'image : « Détails » / « Dispos seulement » (chaque bloc dit « Occupé », sans titre, lieu ni note ; sans deadlines ni légende), « Thème clair » / « Thème de l'app » (retenus sur l'appareil), « Enregistrer l'image… ».
+- SDK : `copyImage` (presse-papiers), `useContextMenu().openAt` (menu d'un bouton), icône `share`.
+
+### Changé
+
+- Téléphone : une copie mise dans le cache pour un partage (« Enregistrer sous ») est supprimée ensuite (au retour sur l'app, 5 min au plus, tout de suite si le partage est annulé ; balayage au démarrage).
+
 ## [0.43.0] — 2026-11-18
 
 Agenda : les catégories deviennent de vrais objets (identifiant, réglages qui agissent) et le type (Rendez-vous, Deadline) est porté par chaque élément ; correctif prévu en v0.41.1 (Rendez-vous par défaut, jamais de tâche par la destination Rendez-vous, « Convertir »). Migration 7 de l'Agenda (ajouts seulement, sauvegarde avant). Tout est marqué « Expérimental ».

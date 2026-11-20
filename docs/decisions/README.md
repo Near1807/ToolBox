@@ -68,3 +68,4 @@ Modèle :
 | 0047 | [Agenda : importer un calendrier dans une source liée à des catégories](0047-agenda-import-sources.md)                               |
 | 0048 | [Menu contextuel commun (clic droit, clavier, appui long)](0048-menu-contextuel-commun.md)                                           |
 | 0049 | [Agenda : catégories objets et types portés par l'élément](0049-agenda-categories-objets-et-types.md)                                |
+| 0050 | [Agenda : image du calendrier (copier, partager)](0050-agenda-image-du-calendrier.md)                                                |
