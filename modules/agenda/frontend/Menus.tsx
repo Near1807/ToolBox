@@ -22,7 +22,11 @@ import type { Undo } from './EventPanel';
 import { convertEventToTask, convertTaskToEvent } from './Convert';
 
 /** What a menu is for: an element of the week / day, or a task « à caser ». */
-export type MenuTarget = { kind: 'item'; item: Item } | { kind: 'task'; task: ToPlaceDto };
+export type MenuTarget =
+  | { kind: 'item'; item: Item }
+  | { kind: 'task'; task: ToPlaceDto }
+  /** v0.44.0: the grid's background (week, month): « Copier l'image de cette semaine ». */
+  | { kind: 'background' };
 export type BindMenu = (target: MenuTarget) => ContextMenuHandlers;
 
 export type Dialog =
@@ -40,6 +44,8 @@ export function useAgendaMenus(props: {
   onChanged: (undo?: Undo) => void;
   /** A write refused: its message (the page's notice, nothing to undo). */
   onError: (message: string) => void;
+  /** v0.44.0: the image of the view shown (the background's only item). */
+  snapshot?: () => MenuItem | null;
 }) {
   const module = useModule();
   const navigate = useNavigate();
@@ -70,6 +76,7 @@ export function useAgendaMenus(props: {
   const items = (target: MenuTarget) =>
     agendaMenuItems(target, {
       timer: props.timer,
+      snapshot: props.snapshot,
       categories: knownCategories(),
       api,
       write,
@@ -84,7 +91,11 @@ export function useAgendaMenus(props: {
   const bind: BindMenu = (target) =>
     menu.bind(
       () => items(target),
-      target.kind === 'task' ? target.task.title : target.item.event.title,
+      target.kind === 'task'
+        ? target.task.title
+        : target.kind === 'background'
+          ? 'Agenda'
+          : target.item.event.title,
     );
 
   const node = (
@@ -134,6 +145,8 @@ export function useAgendaMenus(props: {
 
 /** What the menu needs to act (the page gives it; the tests give stubs). */
 export interface MenuDeps {
+  /** v0.44.0: « Copier l'image de cette semaine / ce mois » (the background's menu). */
+  snapshot?: () => MenuItem | null;
   /** v0.43.0: the To-do is there (the conversions). */
   todo?: boolean;
   /** v0.43.0: one conversion, then its « Annuler ». */
@@ -261,6 +274,10 @@ export function agendaMenuItems(target: MenuTarget, d: MenuDeps): MenuItem[] {
   });
 
   return ((): MenuItem[] => {
+    if (target.kind === 'background') {
+      const item = d.snapshot?.();
+      return item ? [item] : [];
+    }
     if (target.kind === 'task') {
       const t = target.task;
       return [

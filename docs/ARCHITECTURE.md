@@ -175,13 +175,16 @@ Un ticket ne vaut donc que pour ouvrir un flux, et ne peut être ni rejoué ni u
 
 ### Ce que le preload expose
 
-L'interface n'a accès qu'à cinq choses hors de l'API REST (`electron/preload.ts`) :
+L'interface n'a accès qu'à six choses hors de l'API REST (`electron/preload.ts`) :
 
 - le jeton de session ;
 - le chemin réel d'un fichier glissé **dans** la fenêtre (`webUtils.getPathForFile`) ;
 - le glisser d'un fichier **hors** de la fenêtre (`startDrag`) ;
+- une image mise dans le **presse-papiers** (`copyImage`, v0.44.0 : un PNG fait par la page, l'image du calendrier de l'Agenda) ;
 - les boutons de la fenêtre (`window` : plein écran, réduire, fermer, thème clair/sombre de la barre de titre) ;
 - la page à ouvrir quand on clique une notification (`onNavigate`, une route de l'interface uniquement).
+
+`copyImage` n'accepte que la fenêtre principale, un vrai PNG (signature vérifiée) de 40 Mo au plus ; le process principal le met dans le presse-papiers (`clipboard.write`), rien n'est écrit sur le disque. Côté module : `copyImage(png)` de `@hub/sdk/frontend` (dans un navigateur : le presse-papiers du navigateur).
 
 Le glisser hors de la fenêtre ne reçoit qu'une URL de média signée : le process principal en vérifie la signature (`hub.media.resolve`) avant d'appeler `webContents.startDrag`, si bien qu'une page ne peut pas faire glisser un fichier arbitraire.
 

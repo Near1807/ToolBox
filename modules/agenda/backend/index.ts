@@ -7,6 +7,7 @@
 // `todo`, optional). Portable (phone), « Prêt pour la synchro » (UUIDs,
 // journal, tombstones, `sync`), « Prêt pour le calendrier » (its own events).
 import {
+  base64ToBytes,
   changesTableSql,
   defineBackendModule,
   HttpError,
@@ -657,6 +658,36 @@ export default defineBackendModule({
     };
 
     // --- Routes ---------------------------------------------------------------
+
+    // --- v0.44.0: the calendar's image (drawn by the page) -----------------------
+    // « Enregistrer l'image… »: the OS's « Enregistrer sous » on the PC, Android's
+    // share sheet on the phone (ctx.files.saveAs). Only a PNG; nothing is kept.
+    const PNG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+    ctx.routes.post(
+      '/image/save',
+      async (request) => {
+        const body = requestBody(request);
+        const name = typeof body.name === 'string' ? body.name.trim() : '';
+        if (!/^[^\\/:*?"<>|]{1,120}\.png$/.test(name))
+          throw new HttpError(400, 'Nom de fichier invalide (…png)');
+        let png: Uint8Array;
+        try {
+          png = base64ToBytes(String(body.png ?? ''));
+        } catch {
+          throw new HttpError(400, 'Image illisible');
+        }
+        if (png.length < PNG.length || PNG.some((b, i) => png[i] !== b))
+          throw new HttpError(400, 'Ce n’est pas une image PNG');
+        const saved = await ctx.files.saveAs({
+          title: typeof body.title === 'string' && body.title ? body.title : 'Enregistrer l’image',
+          defaultName: name,
+          filters: [{ name: 'Image PNG', extensions: ['png'] }],
+          data: png,
+        });
+        return saved ? { path: saved } : { cancelled: true };
+      },
+      { bodyLimit: 40 * 1024 * 1024 },
+    );
 
     ctx.routes.get('/range', (request) => {
       const { from, to } = period(request.query);

@@ -1,6 +1,16 @@
 import path from 'node:path';
 import { existsSync } from 'node:fs';
-import { app, BrowserWindow, dialog, ipcMain, nativeImage, session, shell } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  clipboard,
+  ClipboardItem,
+  dialog,
+  ipcMain,
+  nativeImage,
+  session,
+  shell,
+} from 'electron';
 import discoveredModules from 'virtual:toolbox-modules';
 import { toUnpackedPath } from '../backend/core/ffmpeg-binaries';
 import { mediaTokenFromUrl } from '../backend/core/media';
@@ -46,6 +56,23 @@ let mainWindow: BrowserWindow | null = null;
 
 ipcMain.on('toolbox:get-config', (event) => {
   event.returnValue = { token };
+});
+
+// v0.44.0: an image the page made (the Agenda's calendar) into the system's
+// clipboard. Only from the main window, only a PNG (its signature checked),
+// 40 MB at most; nothing is written on disk. Returns its size, or null.
+const MAX_CLIPBOARD_IMAGE = 40 * 1024 * 1024;
+const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+ipcMain.handle('toolbox:copy-image', async (event, png: unknown) => {
+  if (!mainWindow || event.sender !== mainWindow.webContents) return null;
+  if (!(png instanceof Uint8Array) || png.byteLength > MAX_CLIPBOARD_IMAGE) return null;
+  if (PNG_SIGNATURE.some((byte, i) => png[i] !== byte)) return null;
+  const image = nativeImage.createFromBuffer(Buffer.from(png));
+  if (image.isEmpty()) return null;
+  await clipboard.write([
+    new ClipboardItem({ 'image/png': new Blob([png as BlobPart], { type: 'image/png' }) }),
+  ]);
+  return image.getSize();
 });
 
 // Drag a generated file out of the window (to a browser, the Explorer…). Only

@@ -654,6 +654,8 @@ export function WeekView(props: {
       <div
         className={`ag-week${drag?.moved ? ' ag-week--dragging' : ''}`}
         style={{ '--ag-days': 7 } as React.CSSProperties}
+        // v0.44.0: the background's menu (« Copier l'image de cette semaine »).
+        {...props.menu?.({ kind: 'background' })}
       >
         <div className="ag-week__corner" />
         {days.map((d) => (

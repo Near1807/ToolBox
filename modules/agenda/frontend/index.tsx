@@ -45,6 +45,7 @@ import { Dock, useDocked } from './Dock';
 import { SourcesPanel } from './Sources';
 import { CategoriesPanel } from './Categories';
 import { useAgendaMenus } from './Menus';
+import { SnapshotButton, useSnapshot } from './Snapshot';
 import { MonthView, monthGrid, monthTitle } from './MonthView';
 import { QuickBar } from './QuickBar';
 import { CategorySwitches, WeekView, type Drop } from './WeekView';
@@ -199,6 +200,15 @@ function AgendaPage() {
     }
     reload();
   };
+  // v0.44.0: « Copier l'image » of the view shown (the week type has none).
+  const snapshotView = view === 'weekly' ? null : view;
+  const snapshot = useSnapshot({
+    data: data ?? null,
+    view: snapshotView,
+    day,
+    shown: layers.shown,
+    onNotice: (message) => setNotice({ message, run: null }),
+  });
   // v0.42.0: the right-click / long-press menu of the blocks (SDK, ADR 0048).
   const toolName = useModuleNames();
   const menus = useAgendaMenus({
@@ -209,6 +219,7 @@ function AgendaPage() {
     onOpenTask: (t) => openToPlace(t),
     onChanged: changed,
     onError: (message) => setNotice({ message, run: null }),
+    snapshot: () => (snapshotView && data ? snapshot.menuItem(snapshotView) : null),
   });
   const openToPlace = (t: { id: string; title: string }) =>
     setSelectedTask({ id: t.id, title: t.title, category: 'Tâches' });
@@ -313,6 +324,7 @@ function AgendaPage() {
               </strong>
             </div>
           )}
+          {data && snapshotView && <SnapshotButton snapshot={snapshot} view={snapshotView} />}
           {!phone && view !== 'weekly' && (
             <Button small variant="secondary" onClick={() => setCreating(!creating)}>
               {creating ? 'Fermer le formulaire' : 'Formulaire détaillé'}
@@ -462,6 +474,7 @@ function AgendaPage() {
               setDay(d);
               setView(phone ? 'day' : 'week');
             }}
+            menu={phone ? undefined : menus.bind}
           />
         )}
         {data && view === 'weekly' && (

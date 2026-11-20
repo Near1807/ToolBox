@@ -123,6 +123,8 @@ declare global {
       token: string;
       getPathForFile?: (file: File) => string;
       startDrag?: (mediaUrl: string) => void;
+      /** v0.44.0: an image (PNG) into the system's clipboard: its size, or null if refused. */
+      copyImage?: (png: Uint8Array) => Promise<{ width: number; height: number } | null>;
       /** Desktop window buttons (absent in a browser). */
       window?: {
         isFullscreen: () => Promise<boolean>;
@@ -439,6 +441,23 @@ export async function pickFolder(options: {
 export async function copyText(text: string): Promise<boolean> {
   try {
     await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * v0.44.0: copies an image (PNG bytes) to the system's clipboard, to paste it
+ * in a chat (Ctrl+V). In the desktop app through the shell (Electron's
+ * clipboard); in a browser through its clipboard (when it allows it).
+ * Resolves to false when it could not be copied. Nothing is written on disk.
+ */
+export async function copyImage(png: Uint8Array): Promise<boolean> {
+  try {
+    if (window.toolbox?.copyImage) return (await window.toolbox.copyImage(png)) !== null;
+    const blob = new Blob([png as BlobPart], { type: 'image/png' });
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
     return true;
   } catch {
     return false;

@@ -365,3 +365,36 @@ describe('the PNG', () => {
     expect(substitute('var(--a, var(--b))', (n) => (n === '--b' ? 'red' : undefined))).toBe('red');
   });
 });
+
+describe('« Enregistrer l’image… » (the route)', () => {
+  it('a PNG only, a file name ending in .png; outside the desktop app: cancelled, nothing written', async () => {
+    const { createTestHub, loadModuleFolder } = await import('@hub/sdk/testing');
+    const hub = await createTestHub({
+      loadExamples: false,
+      modules: [await loadModuleFolder(path.resolve(__dirname, '..'))],
+    });
+    try {
+      const url = '/api/modules/agenda/image/save';
+      const scene = png(buildSnapshot(input()));
+      const b64 = scene.bytes.toString('base64');
+      expect((await hub.request('POST', url, { name: 'x.txt', png: b64 })).status).toBe(400);
+      expect((await hub.request('POST', url, { name: 'a/b.png', png: b64 })).status).toBe(400);
+      expect(
+        (
+          await hub.request('POST', url, {
+            name: 'Agenda.png',
+            png: Buffer.from('hello').toString('base64'),
+          })
+        ).status,
+      ).toBe(400);
+      const ok = await hub.request('POST', url, {
+        name: 'Agenda semaine du 2026-11-23.png',
+        png: b64,
+      });
+      expect(ok.status).toBe(200);
+      expect(ok.body).toEqual({ cancelled: true });
+    } finally {
+      await hub.close();
+    }
+  });
+});

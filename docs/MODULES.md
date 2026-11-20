@@ -650,6 +650,7 @@ const menu = useContextMenu();
 - **Seulement des actions qui existent déjà ailleurs** dans l'interface ; une action qui modifie reste visible et annulable comme ailleurs (son « Annuler ») ; une dangereuse garde sa confirmation. Pas d'action « en douce ».
 - Si l'élément a ses propres gestionnaires (glisser, clavier), les fusionner avec `mergeHandlers(own, menu.bind(...))`.
 - Fermeture : Échap, clic ailleurs, défilement ; le menu reste dans la fenêtre. Style : `.ui-menu` (jetons du thème).
+- Le menu d'un bouton (v0.44.0) : `menu.openAt(() => items, x, y, label)` l'ouvre à un point (sous le bouton), avec le même clavier et les mêmes règles.
 
 ## 8. Tests
 

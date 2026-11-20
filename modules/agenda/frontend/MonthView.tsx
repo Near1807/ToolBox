@@ -4,6 +4,7 @@
 import { addDays, dayLabel, MONTHS, weekday } from '../shared/time';
 import type { RangeDto } from '../shared/types';
 import { colorStyle, itemId, itemsOf, type Item } from './common';
+import type { BindMenu } from './Menus';
 
 const HEADS = ['lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.', 'dim.'];
 
@@ -30,6 +31,8 @@ export function MonthView(props: {
   shown: (category: string) => boolean;
   onOpen: (item: Item) => void;
   onDay: (day: string) => void;
+  /** v0.44.0: the background's menu (« Copier l'image de ce mois », PC). */
+  menu?: BindMenu;
 }) {
   const { data, month } = props;
   const { from, to } = monthGrid(month);
@@ -37,7 +40,7 @@ export function MonthView(props: {
   const days: string[] = [];
   for (let d = from; d <= to; d = addDays(d, 1)) days.push(d);
   return (
-    <div className="ag-month">
+    <div className="ag-month" {...props.menu?.({ kind: 'background' })}>
       {HEADS.map((h) => (
         <div key={h} className="ag-month__head small muted">
           {h}

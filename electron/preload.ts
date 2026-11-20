@@ -1,7 +1,8 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 
 // The UI receives from the desktop shell only: the API session token, the real
-// path of files dropped onto the window (browsers hide it), dragging a file
+// path of files dropped onto the window (browsers hide it), an image put in
+// the clipboard (v0.44.0), dragging a file
 // out of the window (identified by its signed media URL, checked by the main
 // process), the window buttons (full screen, minimise, close), the light/dark scheme of the title bar, the size of the floating
 // window and the page to open when a notification is clicked. Everything else goes through the REST API (see docs/ARCHITECTURE.md).
@@ -11,6 +12,12 @@ contextBridge.exposeInMainWorld('toolbox', {
   token: config.token,
   getPathForFile: (file: File): string => webUtils.getPathForFile(file),
   startDrag: (mediaUrl: string): void => ipcRenderer.send('toolbox:start-drag', mediaUrl),
+  // v0.44.0: an image the page made, into the system's clipboard (its size, or null).
+  copyImage: (png: Uint8Array): Promise<{ width: number; height: number } | null> =>
+    ipcRenderer.invoke('toolbox:copy-image', png) as Promise<{
+      width: number;
+      height: number;
+    } | null>,
   window: {
     isFullscreen: (): Promise<boolean> =>
       ipcRenderer.invoke('toolbox:is-fullscreen') as Promise<boolean>,
