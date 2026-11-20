@@ -18,7 +18,7 @@ import {
 } from '../shared/snapshot';
 import { type Canvas2D, paintScene, snapshotColors } from '../shared/snapshot-paint';
 import { cssRules, parseRgba, substitute, themeTokens } from '../shared/snapshot-color';
-import { snapshotItems, snapshotPeriod } from '../frontend/snapshot';
+import { snapshotItems, snapshotPeriod } from '../frontend/snapshot-png';
 import type { RangeDto } from '../shared/types';
 
 const THEMES = path.resolve(__dirname, '..', '..', '..', 'frontend', 'src', 'themes');

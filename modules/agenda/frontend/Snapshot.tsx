@@ -18,7 +18,7 @@ import {
 import type { SnapshotMode, SnapshotView } from '../shared/snapshot';
 import { snapshotFileName } from '../shared/snapshot';
 import type { RangeDto } from '../shared/types';
-import { snapshotPeriod, snapshotPng, type SnapshotTheme } from './snapshot';
+import { snapshotPeriod, snapshotPng, type SnapshotTheme } from './snapshot-png';
 
 const PREFS_KEY = 'toolbox.agenda.snapshot';
 
