@@ -69,3 +69,5 @@ Modèle :
 | 0048 | [Menu contextuel commun (clic droit, clavier, appui long)](0048-menu-contextuel-commun.md)                                           |
 | 0049 | [Agenda : catégories objets et types portés par l'élément](0049-agenda-categories-objets-et-types.md)                                |
 | 0050 | [Agenda : image du calendrier (copier, partager)](0050-agenda-image-du-calendrier.md)                                                |
+| 0051 | [Fichiers de l'utilisateur gardés par un module](0051-fichiers-de-l-utilisateur-gardes-par-un-module.md)                             |
+| 0052 | [Coffre : éléments, contextes, attributs, disque lisible sans ToolBox](0052-coffre-modele-et-stockage.md)                            |

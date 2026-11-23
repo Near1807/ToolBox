@@ -28,13 +28,15 @@ import {
   DEFAULT_CATEGORY,
   DEFAULT_OFF,
 } from '../shared/categories';
-import { AHEAD_DAYS, dueMoment, OVERDUE_DAYS } from '../shared/deadline';
+import { AHEAD_DAYS, dueMoment, localNow, OVERDUE_DAYS } from '../shared/deadline';
 import { MIN_BLOCK_MIN } from '../shared/drag';
 import { parseQuick, type Parsed } from '../shared/parse';
 import { occurrences, type OccurrenceException } from '../shared/recurrence';
 import { addDays, addMinutes, daysBetween, minutesBetween } from '../shared/time';
 import { readOrigin } from '../shared/importing';
 import { registerImports } from './imports';
+import type { AgendaService } from '../contract';
+import { coursesOf, type ImportedRow } from '../shared/courses';
 import { type CategoryLookup, migrateCategoriesToObjects, registerCategories } from './categories';
 import type {
   AgendaEventDto,
@@ -220,6 +222,18 @@ export default defineBackendModule({
 
     const categories = registerCategories(ctx, store);
     registerImports(ctx, store, categories);
+    // v0.45.0: the courses of the imported timetables, read only (the Coffre recognises them).
+    ctx.services.provide<AgendaService>('agenda', {
+      courses: () =>
+        coursesOf(
+          ctx.db
+            .prepare(
+              `SELECT title, start_at, end_at, location, origin FROM ${events} WHERE deleted_at IS NULL AND source_id IS NOT NULL ORDER BY start_at`,
+            )
+            .all() as ImportedRow[],
+          localNow(),
+        ),
+    });
     /** v0.37.0: the name of each source, for the detail of its events. */
     const sourceNames = () =>
       new Map(

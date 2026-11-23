@@ -5,52 +5,14 @@
 // computed). Stored as « p:<id> » or « #rrggbb »; null = the category's own default.
 // Pure (PC, phone, tests).
 
-export const PALETTE = [
-  { id: 'rouge', label: 'Rouge' },
-  { id: 'corail', label: 'Corail' },
-  { id: 'orange', label: 'Orange' },
-  { id: 'ambre', label: 'Ambre' },
-  { id: 'jaune', label: 'Jaune' },
-  { id: 'olive', label: 'Olive' },
-  { id: 'vert', label: 'Vert' },
-  { id: 'emeraude', label: 'Émeraude' },
-  { id: 'turquoise', label: 'Turquoise' },
-  { id: 'cyan', label: 'Cyan' },
-  { id: 'bleu', label: 'Bleu' },
-  { id: 'indigo', label: 'Indigo' },
-  { id: 'violet', label: 'Violet' },
-  { id: 'mauve', label: 'Mauve' },
-  { id: 'rose', label: 'Rose' },
-  { id: 'ardoise', label: 'Ardoise' },
-] as const;
-
-export type PaletteId = (typeof PALETTE)[number]['id'];
-
-const FREE = /^#[0-9a-f]{6}$/i;
-
-/** Is this a colour a category may store (« p:<id> » of the palette, or « #rrggbb »)? */
-export function isColorValue(v: unknown): v is string {
-  if (typeof v !== 'string') return false;
-  if (FREE.test(v)) return true;
-  return v.startsWith('p:') && PALETTE.some((p) => `p:${p.id}` === v);
-}
-
-export const isFreeColor = (v: string | null | undefined): v is string =>
-  typeof v === 'string' && FREE.test(v);
-
-/** The CSS value of a stored colour, or `fallback` (the category's default token). */
-export function colorValue(stored: string | null | undefined, fallback: string): string {
-  if (stored && stored.startsWith('p:')) return `var(--hue-${stored.slice(2)})`;
-  if (isFreeColor(stored)) return stored.toLowerCase();
-  return fallback;
-}
-
-/** « Violet », « Couleur libre », or « D’origine ». */
-export function colorLabel(stored: string | null | undefined): string {
-  if (!stored) return 'Couleur d’origine';
-  if (isFreeColor(stored)) return `Couleur libre (${stored.toLowerCase()})`;
-  return PALETTE.find((p) => `p:${p.id}` === stored)?.label ?? 'Couleur d’origine';
-}
+export {
+  colorLabel,
+  colorValue,
+  isColorValue,
+  isFreeColor,
+  PALETTE,
+  type PaletteId,
+} from '@hub/sdk/palette';
 
 // --- Contrast (WCAG 2.1), pure: the tests and the free colour's text ---------------
 

@@ -250,6 +250,77 @@ export interface SyncClock {
   onReceived?(handler: (tools: SyncTools & { master: boolean }) => void): () => void;
 }
 
+/** v0.45.0: Windows' « Mark of the Web » of a downloaded file. */
+export interface FileProvenance {
+  /** 3 = Internet, 2 = trusted sites, 1 = intranet… (null when not written). */
+  zone: number | null;
+  /** The address of the file itself. */
+  hostUrl: string | null;
+  /** The page it was downloaded from. */
+  referrerUrl: string | null;
+}
+
+/**
+ * v0.45.0: the extensions of files that RUN something when opened (programs,
+ * installers, scripts, shortcuts). ctx.files.open refuses them without a
+ * confirmation that named the file.
+ */
+export const RUNNABLE_EXTENSIONS: readonly string[] = [
+  'exe',
+  'msi',
+  'msp',
+  'msix',
+  'appx',
+  'bat',
+  'cmd',
+  'com',
+  'scr',
+  'pif',
+  'cpl',
+  'ps1',
+  'psm1',
+  'vbs',
+  'vbe',
+  'js',
+  'jse',
+  'wsf',
+  'wsh',
+  'hta',
+  'lnk',
+  'url',
+  'jar',
+  'reg',
+  'inf',
+  'application',
+  'gadget',
+  'msc',
+  'scf',
+  'sh',
+];
+
+/** Does opening this file run something (see RUNNABLE_EXTENSIONS)? */
+export function isRunnable(name: string): boolean {
+  const ext = /\.([^./\\]+)$/.exec(name.trim().toLowerCase())?.[1];
+  return ext !== undefined && RUNNABLE_EXTENSIONS.includes(ext);
+}
+
+/**
+ * v0.45.0: the « Mark of the Web » text (a :Zone.Identifier stream, INI) →
+ * its zone and addresses; null when it holds none of them.
+ */
+export function parseZoneIdentifier(text: string): FileProvenance | null {
+  const value = (key: string) => {
+    const m = new RegExp(`^\\s*${key}\\s*=\\s*(.*?)\\s*$`, 'im').exec(text);
+    return m?.[1] ? m[1] : null;
+  };
+  const zoneText = value('ZoneId');
+  const zone = zoneText !== null && /^\d+$/.test(zoneText) ? Number(zoneText) : null;
+  const hostUrl = value('HostUrl');
+  const referrerUrl = value('ReferrerUrl');
+  if (zone === null && !hostUrl && !referrerUrl) return null;
+  return { zone, hostUrl, referrerUrl };
+}
+
 export interface ModuleFiles {
   /** Private data folder: <userData>/modules/<id>/ (created when the module loads). */
   readonly dataDir: string;
@@ -259,8 +330,13 @@ export interface ModuleFiles {
   outputDir(): string;
   /** Path inside outputDir() (for a generated file); throws if it escapes the folder. */
   outputPath(...segments: string[]): string;
-  /** Opens a file or folder with the OS (Explorer, default app). */
-  open(path: string): Promise<void>;
+  /**
+   * Opens a file or folder with the OS (Explorer, default app). v0.45.0: a
+   * file that RUNS something (an executable, a script, a shortcut: see
+   * isRunnable) is refused unless `runnable: true` says the user confirmed,
+   * in a question that named it.
+   */
+  open(path: string, options?: { runnable?: boolean }): Promise<void>;
   /** Shows a file selected in the OS file explorer. */
   reveal(path: string): void;
   /**
@@ -311,6 +387,22 @@ export interface ModuleFiles {
    * save that failed). A deletion the user asked for goes through trash().
    */
   removeFile(path: string): void;
+  /**
+   * v0.45.0 (PC): the folder of the USER's files the module keeps for them
+   * (not generated files, not its internal data): <userData>/<id>/, beside
+   * the modules' data — the whole of ToolBox in one folder, never removed by
+   * the uninstaller. Created on first use; served by mediaUrl. The module
+   * keeps its files readable without ToolBox (clear names and folders).
+   */
+  readonly libraryDir: string;
+  /** Path inside libraryDir; throws if it escapes the folder. */
+  libraryPath(...segments: string[]): string;
+  /**
+   * v0.45.0 (PC): where a file was downloaded from, as Windows marked it
+   * (« Mark of the Web », its :Zone.Identifier stream): read on the file
+   * itself (an original the user dropped). Null when there is no mark.
+   */
+  provenance(path: string): FileProvenance | null;
   /** Read-only files shipped with the module: modules/<id>/assets/ (fonts, images…). */
   readonly assetsDir: string;
   /** Path inside assetsDir; throws if it escapes the folder. */

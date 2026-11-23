@@ -128,6 +128,8 @@ export class Hub {
   readonly dataDir: string;
   readonly backupsDir: string;
   readonly modulesDataDir: string;
+  /** v0.45.0: the libraries of the loaded modules (served as media). */
+  private readonly libraryDirs: string[];
   readonly handle: DatabaseHandle;
   readonly logs: LogStore;
   readonly logger: ModuleLogger;
@@ -152,6 +154,7 @@ export class Hub {
     this.dataDir = options.dataDir;
     this.backupsDir = path.join(options.dataDir, 'backups');
     this.modulesDataDir = path.join(options.dataDir, 'modules');
+    this.libraryDirs = [];
     for (const dir of [this.dataDir, this.backupsDir, this.modulesDataDir]) {
       mkdirSync(dir, { recursive: true });
     }
@@ -163,6 +166,8 @@ export class Hub {
     this.scheduler = new Scheduler(this.handle);
     this.media = new MediaSigner(() => [
       this.modulesDataDir,
+      // v0.45.0: the user's files kept by modules (<userData>/<id>/, ctx.files.libraryDir).
+      ...this.libraryDirs,
       this.getOutputRoot(),
       options.assetsRoot,
     ]);
@@ -193,6 +198,13 @@ export class Hub {
   }
 
   /** Root folder for generated files (core setting "outputRoot"). */
+  /** v0.45.0: <userData>/<id>/, the user's files a module keeps (ctx.files.libraryDir), served as media. */
+  private libraryDirOf(id: string): string {
+    const dir = path.join(this.dataDir, id);
+    if (!this.libraryDirs.includes(dir)) this.libraryDirs.push(dir);
+    return dir;
+  }
+
   getOutputRoot(): string {
     return String(this.settings.get(CORE_SCOPE, 'outputRoot') ?? this.host.getDefaultOutputRoot());
   }
@@ -475,6 +487,7 @@ export class Hub {
       files: createModuleFiles({
         moduleId: id,
         modulesDataDir: this.modulesDataDir,
+        libraryDir: this.libraryDirOf(id),
         assetsDir: path.join(this.options.assetsRoot, record.folder, 'assets'),
         getOutputRoot: () => this.getOutputRoot(),
         host: this.host,

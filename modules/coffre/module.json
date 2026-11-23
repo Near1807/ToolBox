@@ -1,0 +1,22 @@
+{
+  "id": "coffre",
+  "name": "Coffre",
+  "description": "Un seul endroit pour garder, ranger, retrouver et ouvrir les fichiers qui comptent : cours, synthèses, code, rapports, contrats, fichiers d'applications. Glisse, le Coffre propose où ranger ; Entrée, c'est rangé.",
+  "version": "0.1.0",
+  "section": "Outils",
+  "icon": "package",
+  "order": 7,
+  "experimental": true,
+  "dependsOn": {
+    "optionalServices": ["agenda"]
+  },
+  "settings": [
+    {
+      "key": "animations",
+      "type": "boolean",
+      "label": "Animations",
+      "description": "Un fichier rangé file vers sa tuile (courtes ; jamais quand Windows demande de réduire les animations).",
+      "default": true
+    }
+  ]
+}
