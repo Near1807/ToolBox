@@ -1,4 +1,5 @@
 import { CalendarRegistry } from './calendar';
+import { SearchRegistry } from './search';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
@@ -147,6 +148,8 @@ export class Hub {
   readonly accounts: AccountManager;
   readonly assistant = new AssistantRegistry();
   readonly calendar = new CalendarRegistry((id) => this.records.get(id)?.manifest?.name ?? id);
+  /** v0.47.0: the search of every module (Ctrl+K anywhere, §5.18). */
+  readonly search = new SearchRegistry((id) => this.records.get(id)?.manifest?.name ?? id);
   readonly hotkeys: HotkeyManager;
   /** Modules currently asking for the floating indicator. */
   private readonly overlayRequests = new Set<string>();
@@ -533,6 +536,7 @@ export class Hub {
       notifications: createModuleNotifications(id, this.host, logger),
       assistant: this.assistant.forModule(manifest, logger, (off) => disposers.push(off)),
       calendar: this.calendar.forModule(id, (off) => disposers.push(off)),
+      search: this.search.forModule(id, (off) => disposers.push(off)),
       hotkeys: this.hotkeys.forModule(id, manifest.permissions?.globalKeys === true, (off) =>
         disposers.push(off),
       ),

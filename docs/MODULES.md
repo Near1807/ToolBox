@@ -443,6 +443,21 @@ Le socle ajoute `moduleId` et réunit toutes les sources : `GET /api/core/calend
 - `unscheduled(from, to)` sur la source : les **éléments à caser** (`CalendarItem` : `id`, `title`, `due` ou `null`, `estimateMin` ou `null`, `open`, `category`, `status`), ceux qui ont une échéance au plus tard le `to` (en retard compris) et ceux sans échéance. Lecture seule. La To-do les fournit (tâches à faire, avec leur durée estimée) ; l'Agenda les montre dans « À caser », jamais dans la grille.
 - `ctx.calendar.query(from, to)` : lecture de toutes les sources pour un module (l'Agenda), chaque événement et chaque élément avec son `moduleId` et sa `category`, et `itemSources` (les modules qui donnent des éléments à caser : leurs événements sont les mêmes tâches, à ne pas montrer deux fois). Lecture seule ; une source en erreur est écartée. `GET /api/core/calendar` répond **exactement comme avant** (les références de non-régression des modules en dépendent).
 
+### 5.18 `ctx.search` — la recherche partout (Ctrl+K, v0.47.0, Expérimental)
+
+Un module dont les éléments peuvent être cherchés déclare un fournisseur : `ctx.search.provide({ label?, search(query, limit), more?(query) })` (ADR 0057). `search` renvoie au plus `limit` résultats (`SearchResult`), les plus pertinents d'abord :
+
+| Champ     | Contenu                                                                                                 |
+| --------- | ------------------------------------------------------------------------------------------------------- |
+| `id`      | identifiant stable dans le module                                                                       |
+| `title`   | titre affiché                                                                                           |
+| `snippet` | facultatif : extrait, les mots trouvés entre `SEARCH_MARK_OPEN` et `SEARCH_MARK_CLOSE` (U+0001, U+0002) |
+| `hint`    | facultatif : une ligne courte (« Cours › Thermo · page 3 »)                                             |
+| `icon`    | facultatif : une icône du SDK (« file », « folder »…)                                                   |
+| `open`    | route qui ouvre le résultat (« /m/coffre/voir/<id>?page=3&q=mot »)                                      |
+
+`more(query)` (facultatif) : la page du module avec tous ses résultats (« Tous les résultats »). Un fournisseur ne modifie **jamais** rien et répond vite (il est appelé pendant la frappe) ; plus lent que 2 s ou en erreur, il est écarté et les autres répondent. Le socle les réunit : `GET /api/core/search?q=&limit=`. Ctrl+K, partout, ouvre la recherche du socle : les outils (navigation), puis les groupes des modules. Affichage d'un extrait : composant `MarkedText` du SDK. Appliqué à : Coffre (noms, fiches et contenu des fichiers, ADR 0056).
+
 ## 6. Migrations et sécurité des données
 
 ```ts

@@ -8,6 +8,7 @@ import type { AttributeKey, ItemDto } from '../shared/types';
 import { useCoffre } from './frame';
 import { extOfItem, shortDate, type ContextChoice } from './logic';
 import { iconOf, ReaderView } from './ReaderView';
+import type { ReaderLocate } from './readers';
 import { Sheet } from './Sheet';
 import { Versions } from './disk/Versions';
 import { AlsoIn } from './AlsoIn';
@@ -24,6 +25,8 @@ export function Preview(props: {
   index: number;
   onIndex: (index: number) => void;
   onClose: () => void;
+  /** v0.47.0: opened from a search (its page, the words marked). */
+  locate?: ReaderLocate;
 }) {
   const module = useModule();
   const coffre = useCoffre();
@@ -158,6 +161,7 @@ export function Preview(props: {
           <ReaderView
             source={source}
             mode="full"
+            locate={props.locate}
             icon={iconOf(item)}
             fallback={
               <>

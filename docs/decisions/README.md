@@ -74,3 +74,5 @@ Modèle :
 | 0053 | [Coffre : fenêtre de rangement, aperçu et registre de lecteurs](0053-coffre-rangement-et-lecteurs.md)                                                            |
 | 0054 | [Socle : dossier externe servi aux lecteurs, copie cohérente de la base, indicateur dans la barre latérale](0054-socle-dossier-externe-copie-base-indicateur.md) |
 | 0055 | [Coffre : le disque externe (identité, états, mise à jour sûre, historique, corbeille, restauration)](0055-coffre-disque-externe.md)                             |
+| 0056 | [Coffre : la recherche dans le contenu (texte extrait, index FTS5 gardé sur le PC)](0056-coffre-recherche-dans-le-contenu.md)                                    |
+| 0057 | [Socle : la recherche partout (Ctrl+K), contrat `ctx.search`](0057-socle-recherche-partout.md)                                                                   |

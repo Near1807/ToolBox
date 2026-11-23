@@ -170,6 +170,8 @@ export interface ModuleContext {
   readonly images: ModuleImages;
   /** « Prêt pour le calendrier »: the module's dated items, for the general calendar (§5.17). */
   readonly calendar: ModuleCalendar;
+  /** v0.47.0: what the module offers to the hub's search (Ctrl+K anywhere, §5.18). */
+  readonly search: ModuleSearch;
   readonly binaries: ModuleBinaries;
   readonly logger: ModuleLogger;
   /** Called when the hub shuts down (close watchers, kill processes…). */
@@ -816,6 +818,42 @@ export interface ModuleCalendar {
    * fit in, each with its module and its category. Read only.
    */
   query(from: string, to: string): Promise<CalendarView>;
+}
+
+/** v0.47.0: the marks around a found word in `SearchResult.snippet` (U+0001 … U+0002). */
+export const SEARCH_MARK_OPEN = '\u0001';
+export const SEARCH_MARK_CLOSE = '\u0002';
+
+/** v0.47.0: one result of the hub's search (Ctrl+K anywhere, MODULES.md §5.18). */
+export interface SearchResult {
+  /** Stable id inside the module. */
+  id: string;
+  title: string;
+  /** An extract, the found words between SEARCH_MARK_OPEN and SEARCH_MARK_CLOSE. */
+  snippet?: string;
+  /** A short line under the title (« Cours › Thermo · page 3 »). */
+  hint?: string;
+  /** An icon of the SDK (« file », « folder »…); the module's own by default. */
+  icon?: string;
+  /** UI route that opens the result (« /m/coffre/voir/<id>?page=3&q=mot »). */
+  open: string;
+}
+
+export interface SearchProvider {
+  /** The group's title (the module's name by default). */
+  label?: string;
+  /**
+   * The results for a query (at most `limit`), most relevant first. Read
+   * only: never changes anything; fast (it runs while Thomas types).
+   */
+  search(query: string, limit: number): SearchResult[] | Promise<SearchResult[]>;
+  /** Optional: the module's own page with every result (« Tous les résultats »). */
+  more?(query: string): string;
+}
+
+export interface ModuleSearch {
+  /** Registers the module's provider (one per module; replaces the previous one). */
+  provide(provider: SearchProvider): void;
 }
 
 export interface ModuleServices {

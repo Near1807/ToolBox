@@ -2,9 +2,10 @@
 // free), the disk's gauge (current versions / history / Recycle Bin / free),
 // the last update, « pas encore sur le disque », the verification, and the
 // archiving suggestions (never applied alone).
+import { useEffect } from 'react';
 import { Link } from 'react-router';
 import { Button, Counter, formatBytes, Gauge, useApi, useModule } from '@hub/sdk/frontend';
-import type { DiskStatusDto, HomeDto } from '../../shared/types';
+import type { DiskStatusDto, HomeDto, IndexStatusDto } from '../../shared/types';
 import { useCoffre } from '../frame';
 import { ago, plural } from './useDisk';
 
@@ -152,6 +153,7 @@ export function Health(props: { home: HomeDto; disk: DiskStatusDto | null; onVer
           </span>
         )}
       </div>
+      <IndexLine />
       {suggest.data && suggest.data.count > 0 && (
         <p className="coffre-health__suggest">
           {plural(suggest.data.count, 'élément')} pas ouvert{suggest.data.count > 1 ? 's' : ''}{' '}
@@ -160,5 +162,42 @@ export function Health(props: { home: HomeDto; disk: DiskStatusDto | null; onVer
         </p>
       )}
     </section>
+  );
+}
+
+/**
+ * v0.47.0: the reading of the texts (search in the content), in the
+ * background: its progress while it runs, the scanned PDF without text.
+ */
+function IndexLine() {
+  const module = useModule();
+  const status = useApi<IndexStatusDto & { reading: string | null }>(module.url('/search/status'));
+  const s = status.data;
+  const { reload } = status;
+  const running = Boolean(s && (s.pending > 0 || s.running));
+  useEffect(() => {
+    if (!running) return;
+    const t = setInterval(reload, 2500);
+    return () => clearInterval(t);
+  }, [running, reload]);
+  if (!s || !s.total) return null;
+  return (
+    <p className="coffre-health__index small" data-coffre-index>
+      <span className="badge badge--warning">Expérimental</span>{' '}
+      {running ? (
+        <>
+          Lecture des textes pour la recherche : {s.done} / {s.total}
+          {s.reading ? ` (${s.reading})` : ''}. En arrière-plan, priorité basse.
+        </>
+      ) : (
+        <>
+          Recherche dans le contenu : {plural(s.withText, 'élément')} lu
+          {s.withText > 1 ? 's' : ''}
+          {s.noText > 0 &&
+            ` · ${s.noText} PDF sans texte (scanné${s.noText > 1 ? 's' : ''} : pas d’OCR)`}
+          {s.errors > 0 && ` · ${plural(s.errors, 'fichier')} illisible${s.errors > 1 ? 's' : ''}`}.
+        </>
+      )}
+    </p>
   );
 }

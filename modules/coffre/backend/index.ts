@@ -42,6 +42,8 @@ import { registerDiskRoutes } from './disk-routes';
 import { registerRestoreRoutes } from './restore';
 import { registerVerifyRoutes } from './verify';
 import { cleanReadCopies, readCopy, registerArchiveRoutes, SUGGEST_DAYS } from './archive';
+import { TEXT_MIGRATION_SQL, TextIndex } from './text-index';
+import { registerSearch } from './search';
 
 /** An entry of « Ranger » (the rangement window's choice for one dropped path). */
 interface DepositEntry {
@@ -64,6 +66,8 @@ interface DepositEntry {
 const UNDO_MS = 15 * 60_000;
 /** A folder with more files than this is not fingerprinted (no duplicate check). */
 const MAX_PROJECT_FILES = 20_000;
+/** v0.47.0: how often the PC's files are looked at (changes read again for the search). */
+const RESCAN_MS = 10 * 60_000;
 /** « Nouveau » on a tile: what was added in the last days. */
 const FRESH_DAYS = 7;
 
@@ -160,6 +164,12 @@ export default defineBackendModule({
         );
         CREATE INDEX coffre__versions_item ON coffre__versions (item_id);
       `,
+    },
+    {
+      version: 3,
+      description:
+        'v0.47.0 : texte des éléments pour la recherche dans le contenu (index FTS5, gardé sur le PC)',
+      up: TEXT_MIGRATION_SQL('coffre__text', 'coffre__text_state'),
     },
   ],
 
@@ -285,6 +295,10 @@ export default defineBackendModule({
       }
       return row.rel_path ? library.abs(row.rel_path) : null;
     };
+
+    // v0.47.0: the text of the elements (search in the content, ADR 0056).
+    const textIndex = new TextIndex({ ctx, items, fileOf: (row) => absOf(row) });
+    disk.onChange = () => textIndex.kick(500);
 
     const dtos = (rows: ItemRow[]): ItemDto[] => {
       const byId = new Map(contextRows().map((c) => [c.id, c]));
@@ -539,6 +553,7 @@ export default defineBackendModule({
           trashCount,
           pending: states.filter((st) => st === 'pending').length,
           archived: states.filter((st) => st === 'archived').length,
+          index: textIndex.status(),
         },
       };
     });
@@ -752,6 +767,7 @@ export default defineBackendModule({
             }
           })
         : null;
+      if (created.length) textIndex.kick();
       return { created: dtos(created.map((id) => getRow(id))), skipped, undoId };
     });
 
@@ -1080,6 +1096,16 @@ export default defineBackendModule({
     registerArchiveRoutes(deps, disk);
     registerRestoreRoutes(deps, disk);
     registerVerifyRoutes(deps, disk);
+    registerSearch({
+      ctx,
+      items,
+      attributes,
+      textIndex,
+      dtos,
+      contextRows,
+      pathOf,
+      scanPc: () => disk.scanPc(),
+    });
 
     // The Coffre's folders exist from the first opening (readable in the Explorer).
     try {
@@ -1100,13 +1126,27 @@ export default defineBackendModule({
         ctx.logger.warn(`Fichiers temporaires du Coffre : ${String(error)}`);
       }
     // What changed in the PC's files while ToolBox was closed (only the PC's database is written).
+    // v0.47.0: then the texts not read yet (the existing elements once; what changed) — in the
+    // background, interruptible, resumed at the next start.
+    textIndex.forgetErased();
     const startupScan = setTimeout(() => {
-      disk.scanPc().catch((error) => ctx.logger.warn(`Fichiers du PC : ${String(error)}`));
+      disk
+        .scanPc()
+        .catch((error) => ctx.logger.warn(`Fichiers du PC : ${String(error)}`))
+        .finally(() => textIndex.kick());
     }, 3000);
     startupScan.unref?.();
-    ctx.onShutdown(() => {
+    // v0.47.0: a file changed in its folder while ToolBox is open (opened from the Explorer)
+    // is seen within the next minutes (sizes and dates compared; only what changed is read).
+    const rescan = setInterval(() => {
+      disk.scanPc().catch((error) => ctx.logger.warn(`Fichiers du PC : ${String(error)}`));
+    }, RESCAN_MS);
+    rescan.unref?.();
+    ctx.onShutdown(async () => {
       clearTimeout(startupScan);
+      clearInterval(rescan);
       disk.stop();
+      await textIndex.stop();
     });
   },
 });

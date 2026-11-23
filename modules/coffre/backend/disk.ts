@@ -56,6 +56,8 @@ export class DiskManager {
   private scanning: Promise<unknown> | null = null;
   /** What runs on the disk now (one thing at a time). */
   busy: string | null = null;
+  /** v0.47.0: told when the PC's files were looked at, or when the disk comes (the text index). */
+  onChange: ((what: 'scanned' | 'connected') => void) | null = null;
 
   constructor(private readonly d: CoffreDeps) {}
 
@@ -216,6 +218,7 @@ export class DiskManager {
     this.mediaRoot = root;
     // The readers show an archived element from the disk: its files may be served.
     if (root) this.withdrawMedia = this.d.ctx.files.allowMediaRoot?.(root) ?? null;
+    if (root) this.onChange?.('connected');
   }
 
   /** The disk's folder now, or a clear refusal. */
@@ -341,7 +344,9 @@ export class DiskManager {
     const run = this.scanPcOnce(options);
     this.scanning = run;
     try {
-      return await run;
+      const r = await run;
+      this.onChange?.('scanned');
+      return r;
     } finally {
       this.scanning = null;
     }

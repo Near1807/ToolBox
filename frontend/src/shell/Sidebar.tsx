@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type DragEvent } from 'react';
+import { useRef, useState, type DragEvent } from 'react';
 import {
   ErrorBoundary,
   Icon,
@@ -59,18 +59,7 @@ export function Sidebar(props: { fullscreen: boolean }) {
   const [drop, setDrop] = useState<DropTarget | null>(null);
   const search = useRef<HTMLInputElement>(null);
 
-  // Ctrl+K: quick search.
-  useEffect(() => {
-    const key = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
-        event.preventDefault();
-        search.current?.focus();
-        search.current?.select();
-      }
-    };
-    window.addEventListener('keydown', key);
-    return () => window.removeEventListener('keydown', key);
-  }, []);
+  // v0.47.0: Ctrl+K opens the hub's search (SearchPalette); this field filters the tools.
 
   const searching = query.trim() !== '';
   const shown = filterNavigation(sidebar, query);
@@ -255,8 +244,8 @@ export function Sidebar(props: { fullscreen: boolean }) {
             ref={search}
             type="search"
             placeholder="Rechercher"
-            title="Rechercher un outil (Ctrl+K)"
-            aria-label="Rechercher un outil (Ctrl+K)"
+            title="Filtrer les outils (Ctrl+K : chercher partout)"
+            aria-label="Filtrer les outils"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === 'Escape' && setQuery('')}

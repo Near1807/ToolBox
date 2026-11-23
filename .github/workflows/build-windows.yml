@@ -62,6 +62,9 @@ jobs:
           $env:COFFRE_TEST_BIG = '1'
           npx vitest run modules/coffre/tests/disk-update.test.ts -t 'gros fichier'
           if ($LASTEXITCODE -ne 0) { throw "gros fichier : $LASTEXITCODE" }
+          # v0.47.0: the search's time on 3000 elements (measured, in the report).
+          npx vitest run modules/coffre/tests/search.test.ts -t 'temps mesuré'
+          if ($LASTEXITCODE -ne 0) { throw "recherche sur 3000 éléments : $LASTEXITCODE" }
 
       - name: Native modules load in Electron
         run: npm run check:native

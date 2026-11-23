@@ -14,7 +14,6 @@ import {
   type DragEvent,
   type ReactNode,
 } from 'react';
-import { useNavigate } from 'react-router';
 import { isRunnable } from '@hub/sdk/core';
 import {
   Button,
@@ -39,6 +38,7 @@ import { VerifyDialog } from './disk/VerifyDialog';
 import { useDisk } from './disk/useDisk';
 import { entriesOf, type DepositEntry } from './logic';
 import { Preview } from './Preview';
+import type { ReaderLocate } from './readers';
 
 export interface Tools {
   vscode: boolean;
@@ -72,7 +72,8 @@ export interface CoffreValue {
   setHere(contextId: string | null): void;
   notify(message: string, undoId?: string | null): void;
   fail(error: unknown): void;
-  preview(items: ItemDto[], index: number): void;
+  /** v0.47.0: `locate`: opened from a search (its page, the words marked). */
+  preview(items: ItemDto[], index: number, locate?: ReaderLocate): void;
   open(item: ItemDto, how?: OpenHow): void;
   trash(item: ItemDto): void;
   pin(item: ItemDto): void;
@@ -123,7 +124,6 @@ export const draggingFiles = (e: DragEvent) => Array.from(e.dataTransfer.types).
 
 export function CoffreFrame(props: { children: ReactNode }) {
   const module = useModule();
-  const navigate = useNavigate();
   const menu = useContextMenu();
   const contexts = useApi<ContextDto[]>(module.url('/contexts'));
   const values = useApi<Record<string, string[]>>(module.url('/values'));
@@ -155,7 +155,11 @@ export function CoffreFrame(props: { children: ReactNode }) {
     fixed: string | null;
     folders: number;
   } | null>(null);
-  const [preview, setPreview] = useState<{ items: ItemDto[]; index: number } | null>(null);
+  const [preview, setPreview] = useState<{
+    items: ItemDto[];
+    index: number;
+    locate?: ReaderLocate;
+  } | null>(null);
   const [over, setOver] = useState(false);
   const depth = useRef(0);
   const here = useRef<string | null>(null);
@@ -476,21 +480,7 @@ Ils restent sur le disque « ${diskName} » (vérifiés avant), et leur copie es
     ],
   );
 
-  // Ctrl+K: the Coffre's search, before the sidebar's (capture phase).
-  useEffect(() => {
-    const key = (event: KeyboardEvent) => {
-      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'k') return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      const input = document.querySelector<HTMLInputElement>('[data-coffre-search]');
-      if (input) {
-        input.focus();
-        input.select();
-      } else navigate(module.path(''), { state: { search: true } });
-    };
-    window.addEventListener('keydown', key, true);
-    return () => window.removeEventListener('keydown', key, true);
-  }, [navigate, module]);
+  // v0.47.0: Ctrl+K is the hub's search (everywhere, the Coffre's content included).
 
   const value = useMemo<CoffreValue>(
     () => ({
@@ -508,7 +498,7 @@ Ils restent sur le disque « ${diskName} » (vérifiés avant), et leur copie es
       },
       notify,
       fail,
-      preview: (items, index) => setPreview({ items, index }),
+      preview: (items, index, locate) => setPreview({ items, index, locate }),
       open,
       trash,
       pin,
@@ -705,7 +695,8 @@ Ils restent sur le disque « ${diskName} » (vérifiés avant), et leur copie es
         <Preview
           items={preview.items}
           index={preview.index}
-          onIndex={(index) => setPreview((p) => (p ? { ...p, index } : p))}
+          locate={preview.locate}
+          onIndex={(index) => setPreview((p) => (p ? { ...p, index, locate: undefined } : p))}
           onClose={() => setPreview(null)}
         />
       )}

@@ -2,7 +2,7 @@
 // recent elements, Arrivée, the contexts' tiles by family, the health of the
 // Coffre (place on the PC; the backup disk comes in v0.46).
 import { useEffect, useMemo, useState, type DragEvent } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
 import {
   Button,
   ContextTile,
@@ -15,10 +15,10 @@ import {
   useContextMenu,
   useModule,
 } from '@hub/sdk/frontend';
-import { searchItems } from '../shared/facets';
-import type { ContextDto, HomeDto, ItemDto } from '../shared/types';
+import type { ContextDto, HomeDto } from '../shared/types';
 import { draggingFiles, useCoffre } from './frame';
 import { Items } from './Items';
+import { SearchResults } from './SearchResults';
 import { familiesOf } from './logic';
 import { Health } from './disk/Health';
 import { RestoreDialog } from './disk/RestoreDialog';
@@ -65,7 +65,7 @@ export function SearchBox(props: { value: string; onChange: (v: string) => void 
         data-coffre-search
         className="input"
         type="search"
-        placeholder="Chercher dans le Coffre (Ctrl+K)"
+        placeholder="Chercher dans le Coffre, contenu compris"
         aria-label="Chercher dans le Coffre"
         value={props.value}
         onChange={(e) => props.onChange(e.target.value)}
@@ -80,13 +80,18 @@ export function HomePage() {
   const location = useLocation();
   const linkMenu = useContextMenu();
   const home = useApi<HomeDto>(module.url('/home'));
-  const [query, setQuery] = useState('');
+  // v0.47.0: « Tous les résultats » of the hub's search lands here (?q=).
+  const [params] = useSearchParams();
+  const urlQuery = params.get('q');
+  const [query, setQuery] = useState(() => urlQuery ?? '');
+  const [fromUrl, setFromUrl] = useState(urlQuery);
+  if (urlQuery !== fromUrl) {
+    setFromUrl(urlQuery);
+    if (urlQuery !== null) setQuery(urlQuery);
+  }
   const [restoring, setRestoring] = useState(false);
   const searching = query.trim() !== '';
-  const all = useApi<ItemDto[]>(searching ? module.url('/items') : null);
-  const found = useMemo(() => (all.data ? searchItems(all.data, query) : []), [all.data, query]);
 
-  // Ctrl+K from another page of the Coffre lands here, in the search.
   useEffect(() => {
     if ((location.state as { search?: boolean } | null)?.search)
       document.querySelector<HTMLInputElement>('[data-coffre-search]')?.focus();
@@ -136,16 +141,7 @@ export function HomePage() {
       <div data-coffre-page>
         {home.error && <ErrorMessage>{home.error}</ErrorMessage>}
         {searching ? (
-          <section className="coffre-section">
-            <h2 className="coffre-h2">
-              Résultats pour « {query.trim()} » <span className="muted">({found.length})</span>
-            </h2>
-            <Items
-              items={found}
-              showContext
-              empty={all.loading ? 'Recherche…' : 'Rien trouvé (noms, fiches et attributs).'}
-            />
-          </section>
+          <SearchResults query={query} />
         ) : (
           h && (
             <>

@@ -107,7 +107,50 @@ export interface HomeDto {
     /** v0.46.0: « pas encore sur le disque » (the one fragile state). */
     pending: number;
     archived: number;
+    /** v0.47.0: the search in the content (texts read in the background). */
+    index: IndexStatusDto;
   };
+}
+
+/** v0.47.0: where the reading of the texts (search in the content) stands. */
+export interface IndexStatusDto {
+  /** Elements with a fingerprint (files and projects, not in the Recycle Bin). */
+  total: number;
+  /** Read for their current content. */
+  done: number;
+  pending: number;
+  withText: number;
+  /** « Pas de texte » (a scanned PDF): no OCR. */
+  noText: number;
+  errors: number;
+  running: boolean;
+}
+
+/** v0.47.0: one part of an element holding the words (a PDF's page, a project's file). */
+export interface TextHitDto {
+  /** « 3 » (a page, a slide), « src/main.c » (a project's file), or « ». */
+  part: string;
+  /** The extract, the found words between U+0001 and U+0002. */
+  snippet: string;
+}
+
+/** v0.47.0: one element found, with where its words are. */
+export interface SearchHitDto {
+  item: ItemDto;
+  /** Its name, its sheet or its context hold the words. */
+  byName: boolean;
+  /** Where in its content (most relevant first, at most 5). */
+  hits: TextHitDto[];
+  /** Number of parts holding the words (« 7 pages »). */
+  partCount: number;
+}
+
+export interface SearchDto {
+  query: string;
+  results: SearchHitDto[];
+  /** Server time (ms), for the report. */
+  ms: number;
+  index: IndexStatusDto;
 }
 
 /** A course of the Agenda (its service), for the deductions and a course's header. */

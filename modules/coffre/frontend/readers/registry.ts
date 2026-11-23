@@ -14,10 +14,23 @@ export interface ReaderSource {
   blob?: Blob | null;
 }
 
+/** v0.47.0: where to open (a search's result): its page, the words to mark. */
+export interface ReaderLocate {
+  page?: number;
+  query?: string;
+}
+
 export interface ReaderProps {
   source: ReaderSource;
   /** « thumb »: a card's small preview (light, never interactive). */
   mode: 'full' | 'thumb';
+  /** v0.47.0: opened from a search: at its page, the words marked. */
+  locate?: ReaderLocate;
+  /**
+   * v0.47.0: shown in the reading window (fullscreen, its own window): the
+   * reader may offer more (a PDF's tools, a Markdown's table of contents…).
+   */
+  window?: boolean;
 }
 
 export interface Reader {

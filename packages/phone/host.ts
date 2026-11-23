@@ -22,6 +22,7 @@ import {
   type StoredImage,
 } from '../sdk/core';
 import { CalendarRegistry } from '../../backend/core/calendar';
+import { SearchRegistry } from '../../backend/core/search';
 import { coreMigrations } from '../../backend/core/core-migrations';
 import {
   applyMigrations,
@@ -240,6 +241,10 @@ export class PhoneHub {
   sync!: SyncEngine;
   readonly services = new ServiceRegistry();
   readonly calendar = new CalendarRegistry(
+    (id) => this.options.modules.find((m) => m.manifest.id === id)?.manifest.name ?? id,
+  );
+  /** v0.47.0: the modules' search providers (no search page on the phone yet). */
+  readonly search = new SearchRegistry(
     (id) => this.options.modules.find((m) => m.manifest.id === id)?.manifest.name ?? id,
   );
   readonly settings: PhoneSettings;
@@ -470,6 +475,7 @@ export class PhoneHub {
         this.options.host?.normaliseImage ? { normalise: this.options.host.normaliseImage } : {},
       ),
       calendar: this.calendar.forModule(id, (off) => disposers.push(off)),
+      search: this.search.forModule(id, (off) => disposers.push(off)),
       binaries: unavailable('binaries'),
       logger,
       onShutdown: (handler) => shutdown.push(handler),

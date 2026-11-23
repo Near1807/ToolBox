@@ -3,6 +3,7 @@ import { Outlet, useNavigate } from 'react-router';
 import { ModuleBackgrounds } from '../modules/ModuleExtras';
 import { NavigationProvider } from './NavigationContext';
 import { QuickAdd } from './QuickAdd';
+import { SearchPalette } from './SearchPalette';
 import { Sidebar } from './Sidebar';
 import { useThemeAutomation } from './theme-automation';
 import { useFullscreen, WindowButtons } from './WindowControls';
@@ -23,6 +24,7 @@ export function Layout() {
         </main>
         <WindowButtons fullscreen={fullscreen} />
         <QuickAdd />
+        <SearchPalette />
         <ModuleBackgrounds />
       </div>
     </NavigationProvider>

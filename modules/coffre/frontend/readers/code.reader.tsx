@@ -1,7 +1,7 @@
 // Code, coloured by highlight.js (local, bundled): only the languages below
 // are loaded. highlight.js escapes the text itself: its output holds only its
 // own <span class="hljs-…"> (no HTML of the file ever reaches the page).
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import hljs from 'highlight.js/lib/core';
 import bash from 'highlight.js/lib/languages/bash';
 import c from 'highlight.js/lib/languages/c';
@@ -33,6 +33,7 @@ import x86asm from 'highlight.js/lib/languages/x86asm';
 import yaml from 'highlight.js/lib/languages/yaml';
 import dos from 'highlight.js/lib/languages/dos';
 import julia from 'highlight.js/lib/languages/julia';
+import { useMarks } from './mark';
 import { registerReader, type ReaderProps } from './registry';
 import { useSourceText } from './useSource';
 
@@ -132,7 +133,7 @@ export function highlight(text: string, ext: string): string | null {
   }
 }
 
-function CodeReader({ source, mode }: ReaderProps) {
+function CodeReader({ source, mode, locate }: ReaderProps) {
   const { text, error } = useSourceText(source, mode === 'thumb' ? 4000 : undefined);
   const shown = useMemo(
     () =>
@@ -147,14 +148,33 @@ function CodeReader({ source, mode }: ReaderProps) {
     () => (shown === null ? null : highlight(shown, source.ext)),
     [shown, source.ext],
   );
+  const box = useRef<HTMLPreElement>(null);
+  useMarks(box, mode === 'full' ? locate?.query : null, html ?? shown);
+  // v0.47.0: the line numbers (a column beside, the text itself is never cut).
+  const lines = useMemo(
+    () => (mode === 'full' && shown !== null ? shown.split('\n').length : 0),
+    [shown, mode],
+  );
   if (error) return <p className="coffre-reader-error">{error}</p>;
   if (shown === null) return null;
   const className = `hljs ${mode === 'thumb' ? 'coffre-reader-thumb-text' : 'coffre-reader-code'}`;
-  return html === null ? (
-    <pre className={className}>{shown}</pre>
-  ) : (
-    // highlight.js escaped the text: only its own spans are HTML.
-    <pre className={className} dangerouslySetInnerHTML={{ __html: html }} />
+  const code =
+    html === null ? (
+      <pre ref={box} className={className}>
+        {shown}
+      </pre>
+    ) : (
+      // highlight.js escaped the text: only its own spans are HTML.
+      <pre ref={box} className={className} dangerouslySetInnerHTML={{ __html: html }} />
+    );
+  if (mode === 'thumb') return code;
+  return (
+    <div className="coffre-reader-lines">
+      <pre className="coffre-reader-lines__numbers hljs" aria-hidden>
+        {Array.from({ length: lines }, (_, i) => i + 1).join('\n')}
+      </pre>
+      {code}
+    </div>
   );
 }
 

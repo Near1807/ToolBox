@@ -24,6 +24,8 @@ extraResources:
 
 asarUnpack:
   - build/modules/*/assets/**
+  # v0.47.0: pdf.js (Node build), loaded by Node for the Coffre's search.
+  - build/main/pdfjs/**
   - node_modules/ffmpeg-static/**
   - node_modules/@derhuerst/ffprobe-static/**
   - node_modules/better-sqlite3/**

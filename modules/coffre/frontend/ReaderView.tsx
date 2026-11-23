@@ -2,7 +2,7 @@
 import { Component, type ReactNode } from 'react';
 import { Icon, type IconName } from '@hub/sdk/frontend';
 import type { ItemDto } from '../shared/types';
-import { readerFor, type ReaderSource } from './readers';
+import { readerFor, type ReaderLocate, type ReaderSource } from './readers';
 
 /** The icon of an element without a preview (by its nature). */
 export function iconOf(item: Pick<ItemDto, 'kind' | 'attributes'>): IconName {
@@ -41,6 +41,10 @@ export function ReaderView(props: {
   icon: IconName;
   /** Under the icon when there is no reader (« Ouvrir dans l'application »). */
   fallback?: ReactNode;
+  /** v0.47.0: opened from a search (its page, the words marked). */
+  locate?: ReaderLocate;
+  /** v0.47.0: in the reading window. */
+  window?: boolean;
 }) {
   const reader = readerFor(props.source, props.mode);
   const icon = (
@@ -53,7 +57,7 @@ export function ReaderView(props: {
   const Reader = reader.component;
   return (
     <Guard key={`${reader.id}:${props.source.url ?? props.source.name}`} fallback={icon}>
-      <Reader source={props.source} mode={props.mode} />
+      <Reader source={props.source} mode={props.mode} locate={props.locate} window={props.window} />
     </Guard>
   );
 }

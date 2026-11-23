@@ -23,6 +23,8 @@ Le Coffre **copie** ce qu'on y dépose : l'original n'est jamais modifié ni dé
 | `coffre__attributes` | élément, clé (nature, origin, language, application, prof, year, site, tag), valeur, origine `guessed` / `chosen`, raison                                                                                                                                                                            |
 | `coffre__also`       | « aussi utilisé » : élément ↔ autre contexte                                                                                                                                                                                                                                                         |
 | `coffre__changes`    | journal                                                                                                                                                                                                                                                                                              |
+| `coffre__text`       | v0.47.0 : texte des éléments pour la recherche (FTS5, accents et casse ignorés) : `item_id`, `part` (page d'un PDF, diapositive, fichier d'un projet), `body`. Donnée **dérivée**, gardée sur le PC, jamais synchronisée                                                                             |
+| `coffre__text_state` | v0.47.0 : pour chaque élément, l'empreinte dont le texte a été lu et son état (`ok`, `notext` = PDF scanné, `unsupported`, `toobig`, `error`)                                                                                                                                                        |
 
 ## API (`/api/modules/coffre`)
 
@@ -32,13 +34,15 @@ Le Coffre **copie** ce qu'on y dépose : l'original n'est jamais modifié ni dé
 - `DELETE /items/:id` (corbeille) · `POST /items/:id/restore` · `POST /items/:id/erase { confirm: true }` (depuis la corbeille seulement) · `POST /undo { undoId }`
 - `POST /items/:id/open { how: app | folder | vscode, runnable? }` : un exécutable seulement avec `runnable: true` (confirmation qui le nomme)
 - `POST /contexts { name, parentId?, color? }` · `PATCH /contexts/:id { name?, color?, coverItemId? }` (renommer = le dossier suit)
+- v0.47.0 : `GET /search?q=&limit=` (noms, fiches **et contenu**, groupés par élément, extraits et pages, temps) · `GET /search/status` (lecture des textes) · `POST /search/refresh` (regarder les fichiers du PC maintenant) · `GET /items/:id/matches?q=` (les pages qui contiennent les mots)
 
 ## Pages (`frontend/`)
 
-Toutes dans le même cadre (`frame.tsx`) : **glisser n'importe où** sur une page du Coffre ouvre la fenêtre de rangement (sur la page d'un contexte ou sur sa tuile : ce contexte est fixé) ; message avec « Annuler » ; aperçu par-dessus la page ; Ctrl+K = recherche du Coffre (avant celle de la barre latérale tant qu'une page du Coffre est ouverte).
+Toutes dans le même cadre (`frame.tsx`) : **glisser n'importe où** sur une page du Coffre ouvre la fenêtre de rangement (sur la page d'un contexte ou sur sa tuile : ce contexte est fixé) ; message avec « Annuler » ; aperçu par-dessus la page. v0.47.0 : Ctrl+K = la recherche du socle, partout (le Coffre est un fournisseur, `backend/search.ts`) ; le champ de l'accueil cherche aussi dans le contenu (`SearchResults.tsx`).
 
-- `''` accueil (`Home.tsx`) : recherche (noms, fiches, attributs), santé du coffre (jauge du disque du PC, éléments, place, corbeille ; disque de sauvegarde en v0.46), Arrivée (compteur, « Ranger » / « Tout est rangé »), « En cours » (épinglés), récents, tuiles des contextes par famille ;
+- `''` accueil (`Home.tsx`) : recherche (noms, fiches, attributs ; v0.47.0 : le contenu, résultats du serveur groupés par élément avec extraits et pages, pastilles), santé du coffre (jauge du disque du PC, éléments, place, corbeille ; disque de sauvegarde en v0.46), Arrivée (compteur, « Ranger » / « Tout est rangé »), « En cours » (épinglés), récents, tuiles des contextes par famille ;
 - `c/:id` page d'un contexte : bandeau de sa couleur, couverture, cours de l'Agenda (code, profs, prochain créneau), sous-contextes, filtres en pastilles combinables, cartes ou liste triable (choix retenu sur le PC) ;
+- v0.47.0 : `chercher?q=` (les résultats, « Tous les résultats » de Ctrl+K) ; `voir/:id?page=&q=` (un résultat de Ctrl+K : l'aperçu ouvert à sa page, les mots surlignés) ;
 - `v/:clé/:valeur` vue par attribut (« Python », « Prof PCH ») ; `arrivee` ; `corbeille` (Récupérer, Effacer définitivement après confirmation).
 
 Fenêtre de rangement (`Deposit.tsx`) : aperçu à gauche, fiche pré-remplie à droite (`Sheet.tsx` : « deviné » + raison au survol, chaque champ en un clic par `Picker.tsx`, création d'un contexte « Cours › Réseaux » ou d'un tag sur place), Entrée = Ranger, « Ranger plus tard » (Arrivée), plusieurs fichiers : liste et « Tout valider » (sans proposition : Arrivée ; un doublon reste de côté tant qu'il n'est pas « gardé quand même »). Un dossier : « Un projet » ou « Les fichiers un par un ». Animation vers la tuile (`fly.ts`), coupée par le réglage « Animations » et par `prefers-reduced-motion`.
@@ -48,6 +52,12 @@ Carte (`Items.tsx`, `ReliefCard` du SDK) : aperçu, nom, nature, contexte (vues 
 ### Lecteurs (`frontend/readers/`)
 
 Registre générique (`registry.ts`) : un lecteur = un fichier `<nom>.reader.tsx` qui appelle `registerReader({ id, extensions, maxBytes?, thumbMaxBytes?, priority?, component })` ; `readers/index.ts` les trouve tous (aucun autre changement). Fournis : PDF (pdf.js, `pdfjs-dist`, worker servi par l'app), images, texte, code coloré (`highlight.js`, langues choisies), Markdown (`markdown-it`, `html: false`, sans images, liens jamais suivis), vidéo et son (lecteurs du navigateur), HTML **isolé** (cadre `sandbox=""`, politique `default-src 'none'` : aucun script, aucune requête). Sans lecteur : l'icône de sa nature et « Ouvrir dans son application ».
+
+v0.47.0 : un lecteur reçoit `locate` (ouvert depuis une recherche : sa page, ses mots, surlignés par `readers/mark.ts`) et `window` (dans la fenêtre de lecture). PDF : pages dessinées quand elles sont vues, couche de texte (sélectionnable, mots surlignés), zoom, « aller à la page », « Chercher dans le document » (↑ ↓) ; code : numéros de ligne ; Markdown : sommaire dans la fenêtre de lecture ; image : zoom.
+
+## Recherche dans le contenu (v0.47.0, ADR 0056)
+
+`backend/extract.ts` lit le texte (PDF par page avec pdf.js pour Node, Markdown, texte, HTML sans script ni style, code, `.docx`, `.pptx` par diapositive, `.xlsx` ; un projet : ses fichiers texte ; PDF scanné : « pas de texte », pas d'OCR) ; `backend/text-index.ts` le garde dans l'index FTS5, en arrière-plan (un fichier à la fois, pause de 30 ms, interrompu à la fermeture, repris au démarrage : ce qui reste = ce dont l'empreinte lue n'est pas l'actuelle). Déclencheurs : dépôt, regard sur les fichiers du PC (démarrage, avant une mise à jour du disque, toutes les 10 min), branchement du disque (archivés pas encore lus). Lit seulement le coffre, n'écrit que l'index. Progression dans la zone Santé.
 
 Limites connues : les PDF à images JPEG 2000 ou à polices non incluses s'affichent sans ces images / avec des polices de remplacement (les fichiers WebAssembly et polices de pdf.js ne sont pas chargés : la politique de l'interface n'autorise pas WebAssembly).
 

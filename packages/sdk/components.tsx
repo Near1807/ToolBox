@@ -964,3 +964,27 @@ export function useChartGradient(
     ),
   };
 }
+
+/**
+ * v0.47.0: an extract of the search (Ctrl+K, the Coffre): the found words,
+ * between U+0001 and U+0002 (SEARCH_MARK_OPEN / SEARCH_MARK_CLOSE of the
+ * contract), are shown in <mark>. Plain text otherwise (never HTML).
+ */
+export function MarkedText(props: { text: string; className?: string }) {
+  const parts: ReactNode[] = [];
+  let on = false;
+  let key = 0;
+  let piece = '';
+  const flush = () => {
+    if (piece) parts.push(on ? <mark key={key++}>{piece}</mark> : piece);
+    piece = '';
+  };
+  for (const c of props.text) {
+    if (c === '\u0001' || c === '\u0002') {
+      flush();
+      on = c === '\u0001';
+    } else piece += c;
+  }
+  flush();
+  return <span className={props.className}>{parts}</span>;
+}

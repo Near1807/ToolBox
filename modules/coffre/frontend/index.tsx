@@ -7,6 +7,7 @@ import { DiskBadge } from './disk/DiskBadge';
 import { DiskSettings } from './disk/DiskSettings';
 import { CoffreFrame } from './frame';
 import { HomePage } from './Home';
+import { ViewPage } from './SearchResults';
 import { ArrivalPage, AttributePage, ContextPage, StatePage, TrashPage } from './Pages';
 import './coffre.css';
 
@@ -27,6 +28,9 @@ export default defineFrontendModule({
     { path: 'arrivee', component: framed(ArrivalPage) },
     { path: 'corbeille', component: framed(TrashPage) },
     { path: 'etat/:state', component: framed(StatePage) },
+    // v0.47.0: the hub's search (Ctrl+K): « Tous les résultats », a result at its page.
+    { path: 'chercher', component: framed(HomePage) },
+    { path: 'voir/:id', component: framed(() => <ViewPage home={HomePage} />) },
   ],
   // v0.46.0: the disk at a glance in the sidebar, and its panel in Réglages › Coffre.
   nav: { badge: DiskBadge },

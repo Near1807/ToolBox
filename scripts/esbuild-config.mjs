@@ -71,6 +71,24 @@ export const copyModuleAssetsPlugin = {
 };
 
 /**
+ * v0.47.0: pdf.js's Node build (the Coffre reads the text of PDF for its
+ * search), copied next to the bundle: build/main/pdfjs/ (unpacked from
+ * app.asar, loaded by Node itself; its worker beside it).
+ */
+export const copyPdfjsPlugin = {
+  name: 'toolbox-pdfjs',
+  setup(build) {
+    build.onEnd(() => {
+      const from = path.join(root, 'node_modules', 'pdfjs-dist', 'legacy', 'build');
+      const target = path.join(root, 'build', 'main', 'pdfjs');
+      rmSync(target, { recursive: true, force: true });
+      for (const file of ['pdf.mjs', 'pdf.worker.mjs'])
+        cpSync(path.join(from, file), path.join(target, file));
+    });
+  },
+};
+
+/**
  * Main process + backend + module backends in one bundle. Runtime
  * `dependencies` stay external: they are shipped in node_modules by
  * electron-builder (native addons, binaries). Everything else is bundled.
@@ -87,6 +105,6 @@ export const mainBuildOptions = {
   sourcemap: true,
   alias: { '@hub/sdk': './packages/sdk' },
   external: ['electron', ...Object.keys(pkg.dependencies ?? {})],
-  plugins: [discoverModulesPlugin, copyModuleAssetsPlugin],
+  plugins: [discoverModulesPlugin, copyModuleAssetsPlugin, copyPdfjsPlugin],
   logLevel: 'info',
 };

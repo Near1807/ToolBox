@@ -262,6 +262,37 @@
   object-fit: contain;
   display: block;
   margin: auto;
+  cursor: zoom-in;
+}
+/* v0.47.0: the image with its zoom. */
+.coffre-reader-image-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+.coffre-reader-image-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.coffre-reader-image-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+  padding: 12px;
+}
+.coffre-reader-image-view--zoomed {
+  overflow: auto;
+}
+.coffre-reader-image-view--zoomed .coffre-reader-image {
+  cursor: zoom-out;
+  margin: 0;
 }
 .coffre-reader-video {
   max-width: 100%;
@@ -323,7 +354,17 @@
   border: 0;
   background: var(--media-bg);
 }
+.coffre-reader-pdf-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 0;
+  height: 100%;
+}
 .coffre-reader-pdf {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -331,9 +372,166 @@
   padding: 12px;
   width: 100%;
 }
-.coffre-reader-pdf canvas {
+/* v0.47.0: one page (drawn when seen), its text layer above (selectable, the words marked). */
+.coffre-reader-pdf__page {
+  position: relative;
+  flex: none;
   box-shadow: var(--elev-raised);
   background: var(--media-bg);
+  --scale-round-x: 1px;
+  --scale-round-y: 1px;
+}
+.coffre-reader-pdf__page canvas {
+  display: block;
+}
+.coffre-reader-pdf__page .textLayer {
+  position: absolute;
+  inset: 0;
+  overflow: clip;
+  line-height: 1;
+  text-align: initial;
+  transform-origin: 0 0;
+  forced-color-adjust: none;
+  --min-font-size: 1;
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
+}
+.coffre-reader-pdf__page .textLayer :is(span, br) {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+  user-select: text;
+}
+.coffre-reader-pdf__page .textLayer > :not(.markedContent),
+.coffre-reader-pdf__page .textLayer .markedContent span:not(.markedContent) {
+  --font-height: 0;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  --scale-x: 1;
+  --rotate: 0deg;
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+}
+.coffre-reader-pdf__page .textLayer .markedContent {
+  display: contents;
+}
+.coffre-reader-pdf__page .textLayer ::selection {
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.coffre-reader-pdf__page .textLayer mark.coffre-hit {
+  color: transparent;
+  background: color-mix(in srgb, var(--warning) 45%, transparent);
+}
+.coffre-reader-pdf__page .textLayer mark.coffre-hit--current {
+  background: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.coffre-reader-pdf__tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.coffre-reader-pdf__goto,
+.coffre-reader-pdf__zoom,
+.coffre-reader-pdf__find {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.coffre-reader-pdf__goto .input {
+  width: 4.5em;
+  text-align: right;
+}
+.coffre-reader-pdf__pct {
+  min-width: 3.5em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.coffre-reader-pdf__find {
+  margin-left: auto;
+}
+.coffre-reader-pdf__find .input {
+  width: 16em;
+}
+.coffre-reader-pdf__count {
+  font-variant-numeric: tabular-nums;
+}
+/* v0.47.0: a search's words in the text readers. */
+mark.coffre-hit {
+  background: color-mix(in srgb, var(--warning) 40%, transparent);
+  color: inherit;
+  border-radius: 2px;
+}
+mark.coffre-hit--current {
+  background: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+/* v0.47.0: code with its line numbers. */
+.coffre-reader-lines {
+  display: flex;
+  width: 100%;
+  min-height: 100%;
+  background: var(--surface-2);
+}
+.coffre-reader-lines .coffre-reader-code {
+  flex: 1;
+  min-width: 0;
+}
+.coffre-reader-lines__numbers {
+  margin: 0;
+  padding: 16px 8px 16px 14px;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  text-align: right;
+  color: var(--text-3);
+  background: var(--surface-2);
+  border-right: 1px solid var(--border);
+  user-select: none;
+}
+/* v0.47.0: a Markdown's table of contents (reading window). */
+.coffre-reader-md-layout {
+  display: grid;
+  grid-template-columns: minmax(180px, 260px) 1fr;
+  width: 100%;
+  min-height: 0;
+}
+.coffre-reader-toc {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  max-height: 100vh;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 18px 10px;
+  border-right: 1px solid var(--border);
+}
+.coffre-reader-toc__title {
+  padding: 0 8px 6px;
+}
+.coffre-reader-toc__item {
+  border: 0;
+  background: none;
+  text-align: left;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  cursor: pointer;
+}
+.coffre-reader-toc__item:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+.coffre-reader-toc__item--2 {
+  padding-left: 20px;
+}
+.coffre-reader-toc__item--3 {
+  padding-left: 32px;
+  font-size: 0.9em;
 }
 .coffre-reader-error,
 .coffre-reader-wait {
@@ -1277,4 +1475,86 @@ button.coffre-value__text:hover {
   align-items: center;
   gap: 8px;
   font-weight: 600;
+}
+
+/* v0.47.0: the search's results, grouped by element, their extracts and pages. */
+.coffre-results {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.coffre-result {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  padding: 6px 8px;
+}
+.coffre-result--away {
+  opacity: 0.75;
+}
+.coffre-result__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: 0;
+  background: none;
+  padding: 4px;
+  text-align: left;
+  color: var(--text);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+.coffre-result__head:hover,
+.coffre-result__hit:hover {
+  background: var(--surface-hover);
+}
+.coffre-result__hits {
+  list-style: none;
+  margin: 2px 0 0 28px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.coffre-result__hit {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  width: 100%;
+  border: 0;
+  background: none;
+  padding: 3px 6px;
+  text-align: left;
+  color: var(--text-2);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  font-size: 0.9rem;
+}
+.coffre-result__part {
+  flex: none;
+  min-width: 5.5em;
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 0.82rem;
+}
+.coffre-results__exp {
+  margin-left: 8px;
+  vertical-align: middle;
+}
+.coffre-results__reading,
+.coffre-results__time {
+  margin: 4px 0;
+}
+.coffre-health__index {
+  margin: 8px 0 0;
+  color: var(--text-2);
+}
+.coffre-reader-pdf__zoom .icon-button,
+.coffre-reader-image-tools .icon-button {
+  font-size: 1.15rem;
+  line-height: 1;
 }

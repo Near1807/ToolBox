@@ -84,6 +84,14 @@ export function registerCoreRoutes(app: FastifyInstance, hub: Hub, appVersion: s
     },
   );
 
+  // v0.47.0: the hub's search (Ctrl+K anywhere, MODULES.md §5.18): every module's results.
+  app.get<{ Querystring: { q?: string; limit?: string } }>('/api/core/search', async (request) => {
+    const t0 = performance.now();
+    const limit = Math.max(1, Math.min(50, Number(request.query.limit) || 8));
+    const groups = await hub.search.search(String(request.query.q ?? ''), limit);
+    return { groups, ms: Math.round((performance.now() - t0) * 10) / 10 };
+  });
+
   app.put<{ Params: { id: string }; Body: { enabled?: unknown } }>(
     '/api/core/modules/:id/enabled',
     async (request, reply) => {
