@@ -1085,6 +1085,18 @@ export default defineBackendModule({
       return { ok: true };
     });
 
+    /**
+     * v0.47.0: « Lire en plein écran » — the element in a reading window of its own
+     * (ADR 0058): the same readers, without the ToolBox interface. Opens nothing else.
+     */
+    ctx.routes.post('/items/:id/read-window', (request) => {
+      const row = getRow(uuidParam(request.params));
+      if (row.trashed_at) throw new HttpError(409, 'Dans la corbeille : le récupérer d’abord');
+      const opened = ctx.ui.openWindow(`/m/coffre/lire/${row.id}`, { title: row.name });
+      if (opened) store.update('items', row.id, { opened_at: new Date().toISOString() });
+      return { opened, route: `/w/m/coffre/lire/${row.id}` };
+    });
+
     /** The preview was opened (« pas ouverts depuis 6 mois » counts it as opened). */
     ctx.routes.post('/items/:id/seen', (request) => {
       const row = getRow(uuidParam(request.params));

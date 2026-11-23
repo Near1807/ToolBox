@@ -210,9 +210,9 @@ function PdfFull({ source, locate, window: inWindow }: ReaderProps) {
   }, [doc]);
   const width = zoom === null ? Math.min(fit, inWindow ? 1400 : 980) : baseWidth * (96 / 72) * zoom;
 
-  const goTo = useCallback((n: number, smooth = false) => {
+  const goTo = useCallback((n: number) => {
     const el = scroller.current?.querySelector<HTMLElement>(`[data-page="${n}"]`);
-    el?.scrollIntoView({ block: 'start', behavior: smooth ? 'smooth' : 'auto' });
+    el?.scrollIntoView({ block: 'start' });
   }, []);
 
   // Opened from a search: at its page.
@@ -274,22 +274,37 @@ function PdfFull({ source, locate, window: inWindow }: ReaderProps) {
   }, [doc, query, locate?.page]);
 
   const found = wordsOf(query).length && answer?.query === query ? answer.pages : null;
+  /** The page whose first mark is « the current one » (shown when the page is drawn). */
+  const wanted = useRef<number | null>(locate?.page ?? null);
+  const current = (n: number) => {
+    const first = marks.current.get(n)?.[0];
+    if (!first) return false;
+    for (const m of scroller.current?.querySelectorAll('.coffre-hit--current') ?? [])
+      m.classList.remove('coffre-hit--current');
+    first.classList.add('coffre-hit--current');
+    first.scrollIntoView({ block: 'center' });
+    return true;
+  };
   const onMarks = useCallback((n: number, list: HTMLElement[]) => {
     marks.current.set(n, list);
+    if (wanted.current === n && list.length) {
+      wanted.current = null;
+      requestAnimationFrame(() => {
+        for (const m of document.querySelectorAll('.coffre-hit--current'))
+          m.classList.remove('coffre-hit--current');
+        list[0]!.classList.add('coffre-hit--current');
+        list[0]!.scrollIntoView({ block: 'center' });
+      });
+    }
   }, []);
   const showHit = (i: number) => {
     if (!found?.length) return;
     const k = (i + found.length) % found.length;
     setHit(k);
     const n = found[k]!;
-    goTo(n, true);
-    setTimeout(() => {
-      for (const m of document.querySelectorAll('.coffre-hit--current'))
-        m.classList.remove('coffre-hit--current');
-      const first = marks.current.get(n)?.[0];
-      first?.classList.add('coffre-hit--current');
-      first?.scrollIntoView({ block: 'center' });
-    }, 350);
+    goTo(n);
+    // Drawn already: at once; else when it is drawn (onMarks).
+    wanted.current = current(n) ? null : n;
   };
 
   const pages = useMemo(

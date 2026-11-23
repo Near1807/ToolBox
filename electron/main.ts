@@ -18,6 +18,7 @@ import { generateToken } from '../backend/core/security';
 import { startServer, type RunningServer } from '../backend/server';
 import { attachDesktop, showWindow, startedHidden } from './desktop';
 import { closeOverlay, initOverlay } from './overlay';
+import { closeReaderWindows, initReaderWindows } from './reader-windows';
 import { createElectronHost } from './host';
 import { runSmokeTest } from './smoke-test';
 import {
@@ -179,7 +180,9 @@ async function bootstrap(): Promise<void> {
   const appUrl = isDev && devServerUrl ? devServerUrl : `${server.url}/`;
   allowOnlyMicrophone(appUrl);
   mainWindow = createWindow(appUrl);
+  mainWindow.on('closed', closeReaderWindows);
   initOverlay(appUrl);
+  initReaderWindows(appUrl, path.join(__dirname, 'preload.cjs'));
 
   if (smokeTestFile) {
     const window = mainWindow;
@@ -215,6 +218,7 @@ if (!app.requestSingleInstanceLock()) {
     const closing = server;
     server = null;
     closeOverlay();
+    closeReaderWindows();
     // Never hang on exit: give the hub 5 s to stop cleanly.
     const timeout = new Promise((resolve) => setTimeout(resolve, 5000));
     // app.quit() is ignored once will-quit was prevented: exit explicitly.

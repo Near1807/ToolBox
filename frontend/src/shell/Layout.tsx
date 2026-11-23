@@ -8,6 +8,21 @@ import { Sidebar } from './Sidebar';
 import { useThemeAutomation } from './theme-automation';
 import { useFullscreen, WindowButtons } from './WindowControls';
 
+/**
+ * v0.47.0: a reading window (ADR 0058) — a module's page alone: no sidebar,
+ * no « Ajouter », no search; the theme of the app.
+ */
+export function WindowLayout() {
+  useThemeAutomation();
+  return (
+    <div className="app app--window">
+      <main className="content content--window">
+        <Outlet />
+      </main>
+    </div>
+  );
+}
+
 export function Layout() {
   const fullscreen = useFullscreen();
   const navigate = useNavigate();

@@ -53,6 +53,11 @@ export interface HostAdapter {
   /** Shows or hides the floating indicator window (always on top, never takes the focus). */
   setOverlayVisible(visible: boolean): void;
   /**
+   * v0.47.0: opens a UI route in a reading window of its own, without the
+   * ToolBox interface (ADR 0058). Absent outside the desktop app.
+   */
+  openWindow?(route: string, options: { title: string }): void;
+  /**
    * System-wide keyboard hook (push-to-talk), absent outside the desktop app.
    * start() throws when the hook cannot run.
    */

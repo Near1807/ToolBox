@@ -546,6 +546,12 @@ export class Hub {
           this.host.showWindow(route);
         },
         setOverlay: (visible) => this.setOverlay(id, visible),
+        openWindow: (route, options) => {
+          if (!route.startsWith(`/m/${id}/`)) throw new Error(`Route invalide « ${route} »`);
+          if (!this.host.openWindow) return false;
+          this.host.openWindow(route, { title: String(options?.title ?? '').slice(0, 200) });
+          return true;
+        },
       },
       images: { normalise: normaliseImage },
       binaries: {

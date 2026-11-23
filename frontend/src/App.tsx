@@ -4,7 +4,7 @@ import { OverlayPage } from './modules/ModuleExtras';
 import { ModulesProvider, PresentModules } from './modules/ModulesContext';
 import { HomePage } from './shell/HomePage';
 import { JobsPage } from './shell/JobsPage';
-import { Layout } from './shell/Layout';
+import { Layout, WindowLayout } from './shell/Layout';
 import { LogsPage } from './shell/LogsPage';
 import { NotFoundPage } from './shell/NotFoundPage';
 import { OutputsPage } from './shell/OutputsPage';
@@ -16,6 +16,10 @@ export function App() {
       <PresentModules>
         <Routes>
           <Route path="overlay" element={<OverlayPage />} />
+          {/* v0.47.0: a module's page in a window of its own, without the shell (ADR 0058). */}
+          <Route path="w" element={<WindowLayout />}>
+            <Route path="m/:moduleId/*" element={<ModuleHost />} />
+          </Route>
           <Route element={<Layout />}>
             <Route index element={<HomePage />} />
             <Route path="m/:moduleId/*" element={<ModuleHost />} />

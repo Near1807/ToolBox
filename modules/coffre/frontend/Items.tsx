@@ -305,6 +305,17 @@ export function Items(props: {
                 >
                   <Icon name="external-link" />
                 </button>
+                {item.kind === 'file' && (
+                  <button
+                    type="button"
+                    className="icon-button coffre-card-action"
+                    title="Lire en plein écran (fenêtre à part)"
+                    aria-label="Lire en plein écran"
+                    onClick={() => coffre.readWindow(item)}
+                  >
+                    <Icon name="eye" />
+                  </button>
+                )}
                 <button
                   type="button"
                   className="icon-button coffre-card-action"

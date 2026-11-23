@@ -1129,6 +1129,13 @@ export interface ModuleUi {
    * module's `Overlay` component (always on top, shared by all modules: MODULES.md §5.16).
    */
   setOverlay(visible: boolean): void;
+  /**
+   * v0.47.0: opens one of the module's routes (« /m/coffre/lire/<id> ») in a
+   * window of its own, without the ToolBox interface (Alt+Tab, several at
+   * once, F11; ADR 0058). Returns false where there is no such window (the
+   * phone, the tests without a desktop host).
+   */
+  openWindow(route: string, options: { title: string }): boolean;
 }
 
 export interface ModuleLogger {

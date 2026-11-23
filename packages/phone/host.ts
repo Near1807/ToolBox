@@ -469,6 +469,7 @@ export class PhoneHub {
       hotkeys: unavailable('hotkeys'),
       ui: partly<ModuleContext['ui']>('ui', {
         setOverlay: (visible) => this.setOverlay(id, visible),
+        openWindow: () => false,
       }),
       images: partly<ModuleContext['images']>(
         'images',

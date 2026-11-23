@@ -1,5 +1,8 @@
-import { writeFileSync } from 'node:fs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import type { BrowserWindow } from 'electron';
+import { openReaderWindow, readerWindowCount, closeReaderWindows } from './reader-windows';
 import { TOKEN_HEADER } from '../backend/core/security';
 import type { SystemInfo } from '../backend/server';
 
@@ -102,7 +105,44 @@ export async function runSmokeTest(
     });
     check('module-route', created.ok, `HTTP ${created.status}`);
 
+    // v0.47.0: pdf.js's Node build is found in the packaged app (unpacked from the asar):
+    // a PDF put in the Coffre is found by a word of its page 2.
+    try {
+      const dir = mkdtempSync(path.join(tmpdir(), 'toolbox-smoke-'));
+      const pdf = path.join(dir, 'smoke.pdf');
+      writeFileSync(pdf, tinyPdf(['Page un', 'Le mot fusibleSmoke est ici']));
+      const deposit = await fetch(`${apiUrl}/api/modules/coffre/deposit/apply`, {
+        method: 'POST',
+        headers: authed,
+        body: JSON.stringify({ entries: [{ path: pdf, newContext: ['Smoke'], attributes: [] }] }),
+      });
+      let found = '';
+      for (let i = 0; i < 60 && deposit.ok && !found; i++) {
+        const r = (await (
+          await fetch(`${apiUrl}/api/modules/coffre/search?q=fusiblesmoke`, { headers: authed })
+        ).json()) as { results: { hits: { part: string }[] }[] };
+        found = r.results[0]?.hits[0]?.part ?? '';
+        if (!found) await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+      check(
+        'pdf-text',
+        found === '2',
+        deposit.ok ? `page=${found || 'introuvable'}` : `HTTP ${deposit.status}`,
+      );
+    } catch (error) {
+      check('pdf-text', false, String(error));
+    }
+
     await uiLoaded;
+    // v0.47.0: a reading window opens (a module's page alone).
+    try {
+      openReaderWindow('/m/template/', 'Smoke');
+      const opened = readerWindowCount();
+      closeReaderWindows();
+      check('reader-window', opened === 1, `fenêtres=${opened}`);
+    } catch (error) {
+      check('reader-window', false, String(error));
+    }
     const title = (await window.webContents.executeJavaScript('document.title')) as string;
     check('ui-loaded', title === 'ToolBox', `title="${title}"`);
   } catch (error) {
@@ -112,4 +152,34 @@ export async function runSmokeTest(
   result.ok = Object.values(result.checks).every((c) => c.ok);
   writeFileSync(outputFile, JSON.stringify(result, null, 2));
   return result.ok;
+}
+
+/** A PDF whose pages hold these lines (Helvetica), for the pdf-text check. */
+function tinyPdf(pages: string[]): Buffer {
+  const objs: string[] = [];
+  const add = (o: string) => objs.push(o);
+  const font = add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
+  const pagesId = objs.length + pages.length * 2 + 1;
+  const kids: number[] = [];
+  for (const text of pages) {
+    const content = `BT /F1 12 Tf 72 720 Td (${text}) Tj ET`;
+    const c = add(`<< /Length ${content.length} >>\nstream\n${content}\nendstream`);
+    kids.push(
+      add(
+        `<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 ${font} 0 R >> >> /Contents ${c} 0 R >>`,
+      ),
+    );
+  }
+  add(`<< /Type /Pages /Kids [${kids.map((k) => `${k} 0 R`).join(' ')}] /Count ${kids.length} >>`);
+  const catalog = add(`<< /Type /Catalog /Pages ${pagesId} 0 R >>`);
+  let out = '%PDF-1.4\n';
+  const offsets: number[] = [];
+  objs.forEach((o, i) => {
+    offsets.push(out.length);
+    out += `${i + 1} 0 obj\n${o}\nendobj\n`;
+  });
+  const xref = out.length;
+  out += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n${offsets.map((o) => `${String(o).padStart(10, '0')} 00000 n \n`).join('')}`;
+  out += `trailer\n<< /Size ${objs.length + 1} /Root ${catalog} 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return Buffer.from(out, 'latin1');
 }

@@ -217,6 +217,10 @@ La disposition est un JSON dans le réglage caché `ui.navigation` (`{ categorie
 
 Fermer la fenêtre alors que des tâches tournent (envoi YouTube, rendu) — zone de notification désactivée — ouvre une confirmation qui les liste (`electron/desktop.ts`) : elles s'arrêtent avec l'app ; un envoi YouTube reprend au lancement suivant là où il s'était arrêté, les autres tâches (rendus) sont marquées « interrompues » et sont à relancer.
 
+### Fenêtres de lecture (v0.47.0, ADR 0058)
+
+`HostAdapter.openWindow(route, { title })` (facultatif, présent dans l'app de bureau) : `electron/reader-windows.ts` ouvre une `BrowserWindow` par appel sur `#/w<route>` (une page de module seule, `WindowLayout`, sans barre latérale), avec le même preload, `sandbox`, `contextIsolation`, le même refus des navigations hors de l'app et des fenêtres ouvertes par la page. F11 bascule le plein écran de cette fenêtre (le choix de la fenêtre principale n'est pas touché) ; Échap ne ferme rien. La dernière place donnée par Thomas (déplacée, redimensionnée, agrandie) est retenue dans `<userData>/reader-window.json` ; une nouvelle fenêtre se décale de 32 px par fenêtre ouverte. Elles se ferment avec la fenêtre principale. Le smoke test en ouvre une.
+
 ### Assistant : actions des modules, touche globale, fenêtre flottante
 
 ADR 0028. Trois briques génériques du socle, utilisées par le module `assistant` (le socle ne connaît pas l'assistant) :

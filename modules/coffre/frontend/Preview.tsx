@@ -134,6 +134,11 @@ export function Preview(props: {
         <Button onClick={() => coffre.open(item)}>
           {item.kind === 'project' && coffre.tools.vscode ? 'Ouvrir dans VS Code' : 'Ouvrir'}
         </Button>
+        {item.kind === 'file' && (
+          <Button variant="secondary" onClick={() => coffre.readWindow(item)}>
+            Lire en plein écran
+          </Button>
+        )}
         <Button variant="secondary" onClick={() => coffre.open(item, 'folder')}>
           Afficher dans l’explorateur
         </Button>

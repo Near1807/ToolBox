@@ -2733,3 +2733,10 @@ input[type='range'] {
 .search-palette__foot {
   margin: 0;
 }
+
+/* v0.47.0: a reading window (a module's page alone, ADR 0058). */
+.content--window {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}

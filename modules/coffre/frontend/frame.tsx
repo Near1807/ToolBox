@@ -75,6 +75,8 @@ export interface CoffreValue {
   /** v0.47.0: `locate`: opened from a search (its page, the words marked). */
   preview(items: ItemDto[], index: number, locate?: ReaderLocate): void;
   open(item: ItemDto, how?: OpenHow): void;
+  /** v0.47.0: « Lire en plein écran » — a reading window of its own (Alt+Tab). */
+  readWindow(item: ItemDto): void;
   trash(item: ItemDto): void;
   pin(item: ItemDto): void;
   move(item: ItemDto, contextId: string | null): void;
@@ -245,6 +247,19 @@ export function CoffreFrame(props: { children: ReactNode }) {
   const t: Tools = useMemo(
     () => tools.data ?? { vscode: false, animations: true, root: '' },
     [tools.data],
+  );
+
+  const readWindow = useCallback(
+    (item: ItemDto) => {
+      module.api
+        .post<{ opened: boolean; route: string }>(`/items/${item.id}/read-window`)
+        .then((r) => {
+          // Outside the desktop app (a browser in development): a tab.
+          if (!r.opened) window.open(`#${r.route}`, '_blank', 'noopener');
+        })
+        .catch(fail);
+    },
+    [module.api, fail],
   );
 
   const open = useCallback(
@@ -442,6 +457,15 @@ Ils restent sur le disque « ${diskName} » (vérifiés avant), et leur copie es
           : []),
       ...extra,
       { separator: true },
+      ...(item.kind === 'file' && !item.trashedAt
+        ? [
+            {
+              label: 'Lire en plein écran',
+              icon: 'eye' as const,
+              onSelect: () => readWindow(item),
+            },
+          ]
+        : []),
       {
         label:
           item.kind === 'project' && t.vscode ? 'Ouvrir dans VS Code' : 'Ouvrir avec l’application',
@@ -464,6 +488,7 @@ Ils restent sur le disque « ${diskName} » (vérifiés avant), et leur copie es
       },
     ],
     [
+      readWindow,
       list,
       move,
       pin,
@@ -500,6 +525,7 @@ Ils restent sur le disque « ${diskName} » (vérifiés avant), et leur copie es
       fail,
       preview: (items, index, locate) => setPreview({ items, index, locate }),
       open,
+      readWindow,
       trash,
       pin,
       move,
@@ -511,6 +537,7 @@ Ils restent sur le disque « ${diskName} » (vérifiés avant), et leur copie es
       reactivate,
     }),
     [
+      readWindow,
       module,
       list,
       values.data,
