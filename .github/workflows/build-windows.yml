@@ -39,7 +39,7 @@ jobs:
       - name: Tests (full suite, with complete renders)
         run: npm run test:full
 
-      - name: Coffre on a real NTFS volume (virtual disk, letter changed)
+      - name: Coffre on a real NTFS volume (virtual disk, letter changed) and a 2 GB file
         shell: pwsh
         run: |
           $vhd = Join-Path $env:RUNNER_TEMP 'coffre-test.vhdx'
@@ -58,6 +58,10 @@ jobs:
           $env:COFFRE_TEST_VHD = $vhd
           npx vitest run modules/coffre/tests/real-volume.test.ts
           if ($LASTEXITCODE -ne 0) { throw "test sur le vrai volume : $LASTEXITCODE" }
+          # The 2 Go file, alone (not in parallel with the rest of the suite).
+          $env:COFFRE_TEST_BIG = '1'
+          npx vitest run modules/coffre/tests/disk-update.test.ts -t 'gros fichier'
+          if ($LASTEXITCODE -ne 0) { throw "gros fichier : $LASTEXITCODE" }
 
       - name: Native modules load in Electron
         run: npm run check:native

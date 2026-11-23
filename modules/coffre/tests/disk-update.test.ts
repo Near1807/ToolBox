@@ -16,7 +16,6 @@ import {
 } from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fullRenderTests } from '@hub/sdk/testing';
 import { DISK_FOLDER, IDENTITY_FILE } from '../backend/disk-layout';
 import type { DiskStatusDto, ItemDto, UpdateReport } from '../shared/types';
 import {
@@ -331,7 +330,9 @@ describe('mettre à jour le disque', () => {
   });
 });
 
-describe.runIf(fullRenderTests)('gros fichier (≥ 2 Go)', () => {
+// Run alone by the Windows CI (its own step, with the real volume): written in parallel with
+// the other test files, 4 Go of writing and reading slow the whole machine down.
+describe.runIf(process.env.COFFRE_TEST_BIG === '1')('gros fichier (≥ 2 Go)', () => {
   it('copié en flux, mémoire stable, progression', { timeout: 900_000 }, async () => {
     w = await diskWorld();
     const big = path.join(w.dl, 'video-2go.mkv');
