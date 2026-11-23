@@ -37,6 +37,8 @@ export interface ContextRow {
   color: string | null;
   sort: number | null;
   cover_item_id: string | null;
+  /** v0.47.0 (migration 6): « Lié au cours … » (null: by its name or code; « - »: none). */
+  course_name: string | null;
 }
 export interface AttributeRow {
   id: string;

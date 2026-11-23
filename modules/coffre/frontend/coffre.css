@@ -1673,3 +1673,24 @@ button.coffre-value__text:hover {
 .coffre-learned__nature {
   width: 12em;
 }
+
+/* v0.47.0: « Maintenant » (a course of the Agenda now) and « Lié au cours ». */
+.coffre-now {
+  border: 1px solid var(--accent-soft);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  background: var(--surface);
+  margin-bottom: 14px;
+}
+.coffre-now__course {
+  margin: 0 0 10px;
+}
+.coffre-context__course-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 10px;
+}
+.coffre-context__course-link .input {
+  width: auto;
+}

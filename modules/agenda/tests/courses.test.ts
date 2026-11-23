@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createTestHub, dumpTables, loadModuleFolder, type TestHub } from '@hub/sdk/testing';
-import { coursesOf, teachersOf, type ImportedRow } from '../shared/courses';
+import { coursesNow, coursesOf, teachersOf, type ImportedRow } from '../shared/courses';
 
 const ICS = readFileSync(path.join(__dirname, 'fixtures', 'horaire-ecam.ics'), 'utf8');
 
@@ -55,6 +55,21 @@ describe('the courses of an imported timetable (service agenda.courses)', () => 
     expect([...names].sort((a, b) => a.localeCompare(b, 'fr'))).toEqual(names);
     // Read only: nothing written by the service's computation.
     expect(courses.length).toBeGreaterThan(3);
+    // v0.47.0: « Maintenant » — a slot of Thermo: during it, 10 minutes before, and not 30 minutes before.
+    const slot = rows.find((r) => r.title.includes('Thermo') && r.start_at.includes('T'))!;
+    const during = coursesNow(rows, slot.start_at, 15);
+    expect(during.find((c) => c.start === slot.start_at)).toMatchObject({
+      inProgress: true,
+      end: slot.end_at,
+    });
+    expect(during[0]!.inProgress).toBe(true);
+    const shift = (dt: string, min: number) =>
+      new Date(Date.parse(`${dt}:00Z`) + min * 60_000).toISOString().slice(0, 16);
+    const before = coursesNow(rows, shift(slot.start_at, -10), 15);
+    expect(before.find((c) => c.start === slot.start_at)).toMatchObject({ inProgress: false });
+    expect(
+      coursesNow(rows, shift(slot.start_at, -30), 15).some((c) => c.start === slot.start_at),
+    ).toBe(false);
   });
 });
 

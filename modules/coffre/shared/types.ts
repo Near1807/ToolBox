@@ -54,6 +54,8 @@ export interface ContextDto {
   fresh: number;
   /** The item shown as its cover, or null. */
   coverItemId: string | null;
+  /** v0.47.0: « Lié au cours … » (null: automatic, by name or code; « - »: no course). */
+  courseName: string | null;
 }
 
 export interface ItemDto {
@@ -274,4 +276,19 @@ export interface LearnedRuleDto {
   /** Sure enough to propose. */
   active: boolean;
   lastAt: string | null;
+}
+
+/** v0.47.0: « Maintenant » — the course of the Agenda now (or within 15 min) and its context. */
+export interface NowDto {
+  course: {
+    name: string;
+    code: string | null;
+    start: string;
+    end: string;
+    location: string | null;
+    inProgress: boolean;
+  };
+  context: ContextDto | null;
+  /** The context's elements, the most recent first. */
+  items: ItemDto[];
 }

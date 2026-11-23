@@ -51,6 +51,7 @@ const ctx = (id: string, path: string[], count = 1): ContextDto => ({
   count,
   fresh: 0,
   coverItemId: null,
+  courseName: null,
 });
 
 const item = (name: string, over: Partial<ItemDto> = {}): ItemDto => ({

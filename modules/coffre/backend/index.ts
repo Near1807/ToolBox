@@ -31,6 +31,7 @@ import {
   type CourseHint,
   type HomeDto,
   type ItemDto,
+  type NowDto,
   type ItemKind,
   type ProposalDto,
 } from '../shared/types';
@@ -47,6 +48,7 @@ import { registerSearch } from './search';
 import { DOWNLOADS_MIGRATION_SQL, DownloadWatcher } from './downloads';
 import { Learner, RULES_MIGRATION_SQL } from './learning';
 import { applyRules } from '../shared/learn';
+import { contextOfCourse } from '../shared/now';
 
 /** An entry of « Ranger » (the rangement window's choice for one dropped path). */
 interface DepositEntry {
@@ -185,6 +187,11 @@ export default defineBackendModule({
       description:
         'v0.47.0 : ce que le Coffre apprend des choix de Thomas (règles, prêt pour la synchro)',
       up: RULES_MIGRATION_SQL('coffre__rules'),
+    },
+    {
+      version: 6,
+      description: 'v0.47.0 : « Lié au cours … » d’un contexte (« Maintenant »)',
+      up: `ALTER TABLE coffre__contexts ADD COLUMN course_name TEXT;`,
     },
   ],
 
@@ -388,6 +395,7 @@ export default defineBackendModule({
           count: count.get(c.id)?.n ?? 0,
           fresh: count.get(c.id)?.fresh ?? 0,
           coverItemId: c.cover_item_id,
+          courseName: c.course_name ?? null,
         };
       });
     };
@@ -475,6 +483,11 @@ export default defineBackendModule({
         if (b.color !== null && !isColorValue(b.color))
           throw new HttpError(400, 'Couleur invalide');
         store.update('contexts', id, { color: (b.color as string | null) ?? null });
+      }
+      // v0.47.0: « Lié au cours … » (null: automatic; « - »: none).
+      if ('courseName' in b) {
+        const v = typeof b.courseName === 'string' ? b.courseName.trim().slice(0, 200) : '';
+        store.update('contexts', id, { course_name: v || null });
       }
       if ('coverItemId' in b) {
         const cover = typeof b.coverItemId === 'string' && b.coverItemId ? b.coverItemId : null;
@@ -638,6 +651,43 @@ export default defineBackendModule({
         return [];
       }
     };
+    /**
+     * v0.47.0: « Maintenant » — the course of the Agenda in progress or starting within
+     * 15 minutes, its context and that context's elements (most recent first). Null
+     * without the Agenda, or with no course now. Read only.
+     */
+    ctx.routes.get('/now', (): NowDto | null => {
+      let list: ReturnType<NonNullable<AgendaService['coursesNow']>> = [];
+      try {
+        list = agenda()?.coursesNow?.(15) ?? [];
+      } catch (error) {
+        ctx.logger.warn(`Cours de l'Agenda illisibles : ${String(error)}`);
+      }
+      const course = list[0];
+      if (!course) return null;
+      const all = contextDtos();
+      const context = contextOfCourse(all, course);
+      let rows: ItemRow[] = [];
+      if (context)
+        rows = ctx.db
+          .prepare(
+            `SELECT * FROM ${items} WHERE deleted_at IS NULL AND trashed_at IS NULL AND (context_id = ? OR id IN (SELECT item_id FROM ${also} WHERE deleted_at IS NULL AND context_id = ?))
+             ORDER BY MAX(COALESCE(opened_at, ''), created_at, updated_at) DESC LIMIT 12`,
+          )
+          .all(context.id, context.id) as ItemRow[];
+      return {
+        course: {
+          name: course.name,
+          code: course.code,
+          start: course.start,
+          end: course.end,
+          location: course.location,
+          inProgress: course.inProgress,
+        },
+        context,
+        items: dtos(rows),
+      };
+    });
     /** The Agenda's courses (a course context's header), empty without the Agenda. */
     ctx.routes.get('/courses', (): CourseHint[] => coursesSafe());
 

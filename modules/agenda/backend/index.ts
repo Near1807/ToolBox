@@ -36,7 +36,7 @@ import { addDays, addMinutes, daysBetween, minutesBetween } from '../shared/time
 import { readOrigin } from '../shared/importing';
 import { registerImports } from './imports';
 import type { AgendaService } from '../contract';
-import { coursesOf, type ImportedRow } from '../shared/courses';
+import { coursesNow, coursesOf, type ImportedRow } from '../shared/courses';
 import { type CategoryLookup, migrateCategoriesToObjects, registerCategories } from './categories';
 import type {
   AgendaEventDto,
@@ -233,6 +233,20 @@ export default defineBackendModule({
             .all() as ImportedRow[],
           localNow(),
         ),
+      // v0.47.0: « Maintenant » of the Coffre — the slots around now only (read only).
+      coursesNow: (withinMinutes) => {
+        const now = localNow();
+        const within = Math.max(0, Math.min(180, withinMinutes));
+        return coursesNow(
+          ctx.db
+            .prepare(
+              `SELECT title, start_at, end_at, location, origin FROM ${events} WHERE deleted_at IS NULL AND source_id IS NOT NULL AND start_at <= ? AND end_at > ? ORDER BY start_at`,
+            )
+            .all(addMinutes(now, within), now) as ImportedRow[],
+          now,
+          within,
+        );
+      },
     });
     /** v0.37.0: the name of each source, for the detail of its events. */
     const sourceNames = () =>

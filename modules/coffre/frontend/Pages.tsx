@@ -17,6 +17,7 @@ import {
 import { PALETTE } from '@hub/sdk/palette';
 import { fold } from '../shared/deduce';
 import { facetsOf, filterItems, type FacetSelection } from '../shared/facets';
+import { linkedTo, NO_COURSE } from '../shared/now';
 import {
   ATTRIBUTE_KEYS,
   ATTRIBUTE_LABELS,
@@ -216,15 +217,16 @@ export function ContextPage() {
     return () => coffre.setHere(null);
   }, [coffre, id]);
 
+  // v0.47.0: linked by hand (« Lié au cours … »), else by its name or code.
   const course = useMemo(() => {
     if (!context) return null;
-    const name = fold(context.name);
-    return (
-      (courses.data ?? []).find(
-        (c) => fold(c.name) === name || (c.code && fold(c.code) === name),
-      ) ?? null
-    );
+    return (courses.data ?? []).find((c) => linkedTo(context, c)) ?? null;
   }, [context, courses.data]);
+  const linkCourse = (courseName: string | null) =>
+    void module.api
+      .patch(`/contexts/${id}`, { courseName })
+      .then(() => coffre.refresh())
+      .catch(coffre.fail);
   const cover = context?.coverItemId ? items.data?.find((i) => i.id === context.coverItemId) : null;
 
   if (!context)
@@ -346,6 +348,27 @@ export function ContextPage() {
               </div>
             )}
           </section>
+        )}
+        {(courses.data?.length ?? 0) > 0 && (
+          <label className="coffre-context__course-link">
+            <span className="muted small">Lié au cours</span>{' '}
+            <select
+              className="input"
+              value={context.courseName ?? ''}
+              onChange={(e) => linkCourse(e.target.value || null)}
+            >
+              <option value="">
+                Automatique (même nom ou code){course ? ` : ${course.name}` : ''}
+              </option>
+              {(courses.data ?? []).map((c) => (
+                <option key={c.name} value={c.name}>
+                  {c.name}
+                  {c.code ? ` (${c.code})` : ''}
+                </option>
+              ))}
+              <option value={NO_COURSE}>Aucun cours</option>
+            </select>
+          </label>
         )}
         {children.length > 0 && (
           <div className="coffre-tiles coffre-tiles--small">

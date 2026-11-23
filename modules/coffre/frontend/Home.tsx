@@ -20,6 +20,7 @@ import { draggingFiles, useCoffre } from './frame';
 import { Items } from './Items';
 import { SearchResults } from './SearchResults';
 import { DownloadsPanel } from './Downloads';
+import { NowPanel } from './Now';
 import { familiesOf } from './logic';
 import { Health } from './disk/Health';
 import { RestoreDialog } from './disk/RestoreDialog';
@@ -146,6 +147,7 @@ export function HomePage() {
         ) : (
           h && (
             <>
+              <NowPanel />
               <div className="coffre-dash">
                 <Health home={h} disk={coffre.disk} onVerify={coffre.verify} />
                 <div className="coffre-dash__side">

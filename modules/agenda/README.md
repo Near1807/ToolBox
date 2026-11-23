@@ -233,3 +233,8 @@ Ses événements et les occurrences de la semaine type, catégorie comprise ; `e
 ## Pas dans cette version
 
 Rappels et notifications (consultation seulement). Abonnement à une URL ICS (prévu plus tard). Import depuis le téléphone.
+
+## Service `agenda` (lecture seule)
+
+- `courses()` (v0.45.0) : les cours des horaires importés (nom, code, profs, prochain créneau), pour le Coffre.
+- `coursesNow(withinMinutes)` (v0.47.0, facultatif dans le contrat) : les créneaux de cours importés **en cours** ou qui commencent dans les `withinMinutes` minutes (180 au plus), celui en cours d'abord (« Maintenant » du Coffre, ADR 0062). Rien n'est écrit. Calcul pur : `coursesNow` (`shared/courses.ts`).
