@@ -43,6 +43,7 @@ Toutes dans le même cadre (`frame.tsx`) : **glisser n'importe où** sur une pag
 - `''` accueil (`Home.tsx`) : recherche (noms, fiches, attributs ; v0.47.0 : le contenu, résultats du serveur groupés par élément avec extraits et pages, pastilles), santé du coffre (jauge du disque du PC, éléments, place, corbeille ; disque de sauvegarde en v0.46), Arrivée (compteur, « Ranger » / « Tout est rangé »), « En cours » (épinglés), récents, tuiles des contextes par famille ;
 - `c/:id` page d'un contexte : bandeau de sa couleur, couverture, cours de l'Agenda (code, profs, prochain créneau), sous-contextes, filtres en pastilles combinables, cartes ou liste triable (choix retenu sur le PC) ;
 - v0.47.0 : `lire/:id` (la **fenêtre de lecture**, `ReaderPage.tsx`, ouverte par `POST /items/:id/read-window` → `ctx.ui.openWindow`, ADR 0058 : le lecteur seul, en mode `window` ; « Lire en plein écran » dans l'aperçu, sur la carte, au clic droit) ;
+- v0.47.0 : `ranger/:lot` (fichiers envoyés par Windows, clic droit « Ranger dans ToolBox » ou « Envoyer vers », `Received.tsx` : la fenêtre de rangement avec tout le lot ; `GET /received/:id` ; le Coffre reçoit par `ctx.ui.receiveFiles`, ADR 0059) ;
 - v0.47.0 : `chercher?q=` (les résultats, « Tous les résultats » de Ctrl+K) ; `voir/:id?page=&q=` (un résultat de Ctrl+K : l'aperçu ouvert à sa page, les mots surlignés) ;
 - `v/:clé/:valeur` vue par attribut (« Python », « Prof PCH ») ; `arrivee` ; `corbeille` (Récupérer, Effacer définitivement après confirmation).
 

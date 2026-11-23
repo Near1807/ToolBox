@@ -75,6 +75,11 @@ export interface CoffreValue {
   /** v0.47.0: `locate`: opened from a search (its page, the words marked). */
   preview(items: ItemDto[], index: number, locate?: ReaderLocate): void;
   open(item: ItemDto, how?: OpenHow): void;
+  /**
+   * v0.47.0: paths to put away (sent by Windows, new downloads): the rangement
+   * window, or first the question for folders (a project / the files one by one).
+   */
+  range(paths: string[], folders?: number): void;
   /** v0.47.0: « Lire en plein écran » — a reading window of its own (Alt+Tab). */
   readWindow(item: ItemDto): void;
   trash(item: ItemDto): void;
@@ -150,6 +155,10 @@ export function CoffreFrame(props: { children: ReactNode }) {
   }, [reloadDisk, module.id]);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [entries, setEntries] = useState<DepositEntry[] | null>(null);
+  const entriesOpen = useRef(false);
+  useEffect(() => {
+    entriesOpen.current = entries !== null;
+  }, [entries]);
   const [analyzing, setAnalyzing] = useState<string | null>(null);
   const [folderQuestion, setFolderQuestion] = useState<{
     paths: string[];
@@ -177,7 +186,14 @@ export function CoffreFrame(props: { children: ReactNode }) {
   const analyze = useCallback(
     async (
       paths: string[],
-      options: { expand?: boolean; files?: Map<string, File>; fixed?: string | null; as?: 'link' },
+      options: {
+        expand?: boolean;
+        files?: Map<string, File>;
+        fixed?: string | null;
+        as?: 'link';
+        /** v0.47.0: added to the rangement window already open (files sent a moment later). */
+        append?: boolean;
+      },
     ) => {
       setAnalyzing(paths.length > 1 ? `${paths.length} éléments` : 'le fichier');
       try {
@@ -185,7 +201,8 @@ export function CoffreFrame(props: { children: ReactNode }) {
           paths,
           expand: options.expand === true,
         });
-        setEntries(entriesOf(proposals, options));
+        const made = entriesOf(proposals, options);
+        setEntries((now) => (options.append && now ? [...now, ...made] : made));
       } catch (error) {
         fail(error);
       } finally {
@@ -247,6 +264,15 @@ export function CoffreFrame(props: { children: ReactNode }) {
   const t: Tools = useMemo(
     () => tools.data ?? { vscode: false, animations: true, root: '' },
     [tools.data],
+  );
+
+  const range = useCallback(
+    (paths: string[], folders = 0) => {
+      if (!paths.length) return;
+      if (folders) setFolderQuestion({ paths, files: new Map(), fixed: null, folders });
+      else void analyze(paths, { append: entriesOpen.current });
+    },
+    [analyze],
   );
 
   const readWindow = useCallback(
@@ -526,6 +552,7 @@ Ils restent sur le disque « ${diskName} » (vérifiés avant), et leur copie es
       preview: (items, index, locate) => setPreview({ items, index, locate }),
       open,
       readWindow,
+      range,
       trash,
       pin,
       move,
@@ -538,6 +565,7 @@ Ils restent sur le disque « ${diskName} » (vérifiés avant), et leur copie es
     }),
     [
       readWindow,
+      range,
       module,
       list,
       values.data,

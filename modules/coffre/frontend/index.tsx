@@ -9,6 +9,7 @@ import { CoffreFrame } from './frame';
 import { HomePage } from './Home';
 import { ViewPage } from './SearchResults';
 import { ReaderPage } from './ReaderPage';
+import { ReceivedPage } from './Received';
 import { ArrivalPage, AttributePage, ContextPage, StatePage, TrashPage } from './Pages';
 import './coffre.css';
 
@@ -32,6 +33,8 @@ export default defineFrontendModule({
     // v0.47.0: the hub's search (Ctrl+K): « Tous les résultats », a result at its page.
     { path: 'chercher', component: framed(HomePage) },
     { path: 'voir/:id', component: framed(() => <ViewPage home={HomePage} />) },
+    // v0.47.0: files sent by Windows (right click, « Envoyer vers »): the rangement window.
+    { path: 'ranger/:batch', component: framed(() => <ReceivedPage home={HomePage} />) },
     // v0.47.0: the reading window (/w/m/coffre/lire/<id>): the reader alone, no frame.
     { path: 'lire/:id', component: ReaderPage },
   ],

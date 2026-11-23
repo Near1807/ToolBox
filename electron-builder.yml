@@ -61,6 +61,8 @@ nsis:
   shortcutName: ToolBox
   # Keep user data (settings, library, stats) when uninstalling.
   deleteAppDataOnUninstall: false
+  # v0.47.0: « Ranger dans ToolBox » (right click, Envoyer vers): added, then removed at uninstall.
+  include: resources/build/installer.nsh
   artifactName: ToolBox-Setup-${version}.exe
 
 portable:

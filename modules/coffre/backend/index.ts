@@ -1104,6 +1104,25 @@ export default defineBackendModule({
       return { ok: true };
     });
 
+    // v0.47.0: files sent by Windows (« Ranger dans ToolBox », « Envoyer vers », ADR 0059):
+    // one batch = one rangement window. Nothing is written until Thomas clicks « Ranger ».
+    const received = new Map<string, { at: number; paths: string[] }>();
+    ctx.ui.receiveFiles((paths) => {
+      const now = Date.now();
+      for (const [k, b] of received) if (now - b.at > 24 * 3_600_000) received.delete(k);
+      const id = newId();
+      received.set(id, { at: now, paths });
+      return `/m/coffre/ranger/${id}`;
+    });
+    ctx.routes.get('/received/:id', (request) => {
+      const id = uuidParam(request.params);
+      const batch = received.get(id);
+      if (!batch) throw new HttpError(404, 'Ces fichiers ne sont plus en attente');
+      const paths = batch.paths.filter((p) => existsSync(p));
+      const folders = paths.filter((p) => statSync(p).isDirectory()).length;
+      return { id, paths, folders, missing: batch.paths.length - paths.length };
+    });
+
     registerDiskRoutes(deps, disk);
     registerArchiveRoutes(deps, disk);
     registerRestoreRoutes(deps, disk);

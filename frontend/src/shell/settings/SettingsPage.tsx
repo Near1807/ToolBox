@@ -20,6 +20,7 @@ import { useNavigation } from '../NavigationContext';
 import { showTool } from '../navigation';
 import { AppearanceCard } from './AppearanceCard';
 import { SyncSection } from './SyncCard';
+import { WindowsCard } from './WindowsCard';
 import { SettingsForm, type SettingsSectionData } from './SettingsForm';
 
 const STATUS_LABELS = {
@@ -529,7 +530,19 @@ export function SettingsPage() {
     }));
 
   const sections: Section[] = [
-    { id: 'general', title: 'Général', group: GENERAL_GROUP, entries: fieldsOf('core') },
+    {
+      id: 'general',
+      title: 'Général',
+      group: GENERAL_GROUP,
+      entries: [
+        ...fieldsOf('core'),
+        {
+          key: 'windows-menu',
+          label: 'Clic droit de Windows : « Ranger dans ToolBox »',
+          description: 'Envoyer vers',
+        },
+      ],
+    },
     {
       id: 'appearance',
       title: 'Apparence',
@@ -708,6 +721,7 @@ export function SettingsPage() {
               <SettingsForm section={general} onSaved={settings.reload} />
             </Card>
           )}
+          {current.id === 'general' && <WindowsCard />}
           {current.id === 'appearance' && <AppearanceCard />}
           {current.id === 'floating' && <FloatingCard />}
           {current.id === 'rights' && <RightsCard />}

@@ -552,6 +552,18 @@ export class Hub {
           this.host.openWindow(route, { title: String(options?.title ?? '').slice(0, 200) });
           return true;
         },
+        receiveFiles: (handler) => {
+          if (this.fileReceiver && this.fileReceiver.moduleId !== id) {
+            logger.warn(
+              `Fichiers envoyés par Windows : déjà reçus par « ${this.fileReceiver.moduleId} »`,
+            );
+            return;
+          }
+          this.fileReceiver = { moduleId: id, handler };
+          disposers.push(() => {
+            if (this.fileReceiver?.moduleId === id) this.fileReceiver = null;
+          });
+        },
       },
       images: { normalise: normaliseImage },
       binaries: {
@@ -594,6 +606,32 @@ export class Hub {
       logger.error(record.error, error);
       return false;
     }
+  }
+
+  /** v0.47.0: the module that receives the files Windows sends (ADR 0059). */
+  private fileReceiver: {
+    moduleId: string;
+    handler: (paths: string[]) => string | null | Promise<string | null>;
+  } | null = null;
+
+  /**
+   * v0.47.0: files sent by Windows (right click « Ranger dans ToolBox »,
+   * « Envoyer vers »), one batch: given to the receiving module, then the
+   * window comes to the front on the route it answers. Absolute paths only.
+   */
+  async receiveFiles(paths: readonly string[]): Promise<string | null> {
+    const list = paths.filter((p) => typeof p === 'string' && path.isAbsolute(p));
+    if (!list.length) return null;
+    let route: string | null = null;
+    if (this.fileReceiver)
+      try {
+        route = await this.fileReceiver.handler([...list]);
+      } catch (error) {
+        this.logger.error('Fichiers envoyés par Windows : échec', error);
+      }
+    else this.logger.warn('Fichiers envoyés par Windows : aucun outil pour les recevoir');
+    this.host.showWindow(route ?? undefined);
+    return route;
   }
 
   private setOverlay(moduleId: string, visible: boolean): void {

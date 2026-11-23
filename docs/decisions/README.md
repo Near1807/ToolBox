@@ -77,3 +77,4 @@ Modèle :
 | 0056 | [Coffre : la recherche dans le contenu (texte extrait, index FTS5 gardé sur le PC)](0056-coffre-recherche-dans-le-contenu.md)                                    |
 | 0057 | [Socle : la recherche partout (Ctrl+K), contrat `ctx.search`](0057-socle-recherche-partout.md)                                                                   |
 | 0058 | [Socle : les fenêtres de lecture (une page de module dans sa propre fenêtre)](0058-socle-fenetres-de-lecture.md)                                                 |
+| 0059 | [Socle : les fichiers envoyés par Windows (« Ranger dans ToolBox », « Envoyer vers »)](0059-socle-fichiers-envoyes-par-windows.md)                               |

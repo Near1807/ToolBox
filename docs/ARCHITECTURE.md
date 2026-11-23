@@ -221,6 +221,10 @@ Fermer la fenêtre alors que des tâches tournent (envoi YouTube, rendu) — zon
 
 `HostAdapter.openWindow(route, { title })` (facultatif, présent dans l'app de bureau) : `electron/reader-windows.ts` ouvre une `BrowserWindow` par appel sur `#/w<route>` (une page de module seule, `WindowLayout`, sans barre latérale), avec le même preload, `sandbox`, `contextIsolation`, le même refus des navigations hors de l'app et des fenêtres ouvertes par la page. F11 bascule le plein écran de cette fenêtre (le choix de la fenêtre principale n'est pas touché) ; Échap ne ferme rien. La dernière place donnée par Thomas (déplacée, redimensionnée, agrandie) est retenue dans `<userData>/reader-window.json` ; une nouvelle fenêtre se décale de 32 px par fenêtre ouverte. Elles se ferment avec la fenêtre principale. Le smoke test en ouvre une.
 
+### Fichiers envoyés par Windows (v0.47.0, ADR 0059)
+
+Clic droit « Ranger dans ToolBox » (registre `HKCU`, ajouté par `resources/build/installer.nsh`, retiré à la désinstallation, retiré / remis par Réglages › Général via `HostAdapter.shellIntegration` = `electron/shell-integration.ts`) et « Envoyer vers » lancent `ToolBox.exe --ranger <chemins>`. L'instance unique reçoit les arguments (`second-instance`) ; `backend/core/received-files.ts` les lit et les regroupe (1,5 s) ; `Hub.receiveFiles` les donne au module qui reçoit (`ctx.ui.receiveFiles`) et montre la fenêtre sur sa route.
+
 ### Assistant : actions des modules, touche globale, fenêtre flottante
 
 ADR 0028. Trois briques génériques du socle, utilisées par le module `assistant` (le socle ne connaît pas l'assistant) :

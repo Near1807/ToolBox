@@ -58,6 +58,14 @@ export interface HostAdapter {
    */
   openWindow?(route: string, options: { title: string }): void;
   /**
+   * v0.47.0: Windows' right click « Ranger dans ToolBox » and « Envoyer vers »
+   * (HKCU, no administrator; ADR 0059). Absent outside Windows' desktop app.
+   */
+  shellIntegration?: {
+    get(): Promise<{ menu: boolean; sendTo: boolean }>;
+    set(enabled: boolean): Promise<{ menu: boolean; sendTo: boolean }>;
+  };
+  /**
    * System-wide keyboard hook (push-to-talk), absent outside the desktop app.
    * start() throws when the hook cannot run.
    */

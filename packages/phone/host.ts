@@ -470,6 +470,7 @@ export class PhoneHub {
       ui: partly<ModuleContext['ui']>('ui', {
         setOverlay: (visible) => this.setOverlay(id, visible),
         openWindow: () => false,
+        receiveFiles: () => undefined,
       }),
       images: partly<ModuleContext['images']>(
         'images',

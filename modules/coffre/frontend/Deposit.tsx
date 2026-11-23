@@ -35,6 +35,15 @@ const targetOf = (item: ItemDto | undefined) =>
 export function Deposit(props: { entries: DepositEntry[]; onClose: () => void }) {
   const coffre = useCoffre();
   const [entries, setEntries] = useState(props.entries);
+  // v0.47.0: more files arriving while the window is open (sent by Windows a moment
+  // later): added at the end, the ones already there untouched.
+  const [given, setGiven] = useState(props.entries);
+  if (props.entries !== given) {
+    setGiven(props.entries);
+    const known = new Set(entries.map((e) => e.proposal.path));
+    const added = props.entries.filter((e) => !known.has(e.proposal.path));
+    if (added.length) setEntries([...entries, ...added]);
+  }
   const [current, setCurrent] = useState(0);
   const [busy, setBusy] = useState(false);
   const previewBox = useRef<HTMLDivElement>(null);

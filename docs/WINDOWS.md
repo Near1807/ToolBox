@@ -66,3 +66,14 @@ La barre écrite de l'assistant (Réglages › Assistant vocal, touche « barre 
 4. Écrire « liste de courses », Entrée : la réponse s'affiche ; Échap : la barre se ferme et le clavier revient au Bloc-notes (taper : le texte va dans le Bloc-notes).
 5. Si la barre devient orange (« Clique dans le champ… ») : cliquer dans le champ, taper : le texte va dans la barre. Le noter (dans quelle application c'était) : c'est le cas où Windows a refusé.
 6. Vérifier que le Bloc-notes n'a pas sa barre de menus sélectionnée après la fermeture de la barre (effet possible de l'Alt simulé ; Échap la libère).
+
+## « Ranger dans ToolBox » : clic droit et « Envoyer vers » (v0.47.0, Expérimental)
+
+L'installateur ajoute, **pour ton compte seulement** (registre `HKCU`, sans droits d'administrateur) :
+
+- « Ranger dans ToolBox » dans le clic droit de l'explorateur, sur un fichier ou un dossier (clés `HKCU\Software\Classes\*\shell\ToolBox.Ranger` et `…\Directory\shell\ToolBox.Ranger`) ; sous Windows 11, il est dans « Afficher d'autres options » (Maj+F10) ;
+- un raccourci « Ranger dans ToolBox » dans « Envoyer vers » (`%APPDATA%\Microsoft\Windows\SendTo`).
+
+ToolBox ouvert : la fenêtre de rangement du Coffre vient au premier plan avec ces fichiers. ToolBox fermé : il démarre et l'ouvre. Plusieurs fichiers : **une seule fenêtre** (Windows lance ToolBox une fois par fichier ; ToolBox regroupe ce qui arrive en 1,5 s). Rien n'est rangé sans ton clic ; l'original ne bouge pas.
+
+La désinstallation retire les clés et le raccourci (vérifié par la CI Windows : `scripts/uninstall-keeps-data.ps1`). Réglages › Général › « Clic droit de Windows » les retire ou les remet ; ce choix est gardé lors d'une mise à jour de ToolBox (`HKCU\Software\ToolBox`, valeur `ShellMenu`). Version portable : rien n'est ajouté à l'installation ; le bouton des Réglages les ajoute (vers l'exe portable : à refaire si tu le déplaces). ADR 0059.

@@ -151,7 +151,7 @@ export function ViewPage(props: { home: ComponentType }) {
   const page = Number(params.get('page')) || undefined;
   const query = params.get('q') ?? undefined;
   useEffect(() => {
-    if (!item.data || opened.current === `${id}:${page}:${query}`) return;
+    if (!item.data || item.data.id !== id || opened.current === `${id}:${page}:${query}`) return;
     opened.current = `${id}:${page}:${query}`;
     coffre.preview([item.data], 0, { page, query });
   }, [item.data, id, page, query, coffre]);

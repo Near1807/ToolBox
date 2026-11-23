@@ -1136,6 +1136,14 @@ export interface ModuleUi {
    * phone, the tests without a desktop host).
    */
   openWindow(route: string, options: { title: string }): boolean;
+  /**
+   * v0.47.0: the module receives the files Windows sends to ToolBox (the
+   * Explorer's « Ranger dans ToolBox », « Envoyer vers », ADR 0059): one batch
+   * (several files sent together) at a time; the handler answers with the
+   * route that shows them (the window comes to the front there), or null.
+   * One module only (the first to ask); read only until Thomas acts.
+   */
+  receiveFiles(handler: (paths: string[]) => string | null | Promise<string | null>): void;
 }
 
 export interface ModuleLogger {

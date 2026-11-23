@@ -84,6 +84,27 @@ export function registerCoreRoutes(app: FastifyInstance, hub: Hub, appVersion: s
     },
   );
 
+  // v0.47.0: « Ranger dans ToolBox » in Windows' right click and « Envoyer vers » (ADR 0059).
+  app.get('/api/core/shell-integration', async () => {
+    const integration = hub.host.shellIntegration;
+    if (!integration) return { available: false, menu: false, sendTo: false };
+    return { available: true, ...(await integration.get()) };
+  });
+  app.put<{ Body: { enabled?: unknown } }>(
+    '/api/core/shell-integration',
+    async (request, reply) => {
+      const integration = hub.host.shellIntegration;
+      if (!integration)
+        return reply.code(409).send({ error: 'Seulement dans l’app ToolBox sous Windows' });
+      if (typeof request.body?.enabled !== 'boolean')
+        return reply.code(400).send({ error: 'Champ « enabled » (booléen) attendu' });
+      hub.logger.info(
+        `Clic droit de Windows « Ranger dans ToolBox » : ${request.body.enabled ? 'remis' : 'retiré'}`,
+      );
+      return { available: true, ...(await integration.set(request.body.enabled)) };
+    },
+  );
+
   // v0.47.0: the hub's search (Ctrl+K anywhere, MODULES.md §5.18): every module's results.
   app.get<{ Querystring: { q?: string; limit?: string } }>('/api/core/search', async (request) => {
     const t0 = performance.now();
