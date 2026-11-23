@@ -26,6 +26,27 @@
       "default": 20,
       "min": 0.001,
       "max": 100000
+    },
+    {
+      "key": "watchDownloads",
+      "type": "boolean",
+      "label": "Proposer de ranger mes nouveaux téléchargements (Expérimental)",
+      "description": "Désactivé par défaut. Seulement les fichiers arrivés APRÈS l'activation ; ceux en cours de téléchargement (.crdownload, .part…) attendus ; ceux déjà dans le Coffre écartés. Rien n'est rangé sans ton clic ; l'original n'est jamais déplacé ni supprimé.",
+      "default": false
+    },
+    {
+      "key": "downloadsFolder",
+      "type": "folder",
+      "label": "Dossier surveillé",
+      "description": "Vide : ton dossier Téléchargements.",
+      "default": ""
+    },
+    {
+      "key": "notifyDownloads",
+      "type": "boolean",
+      "label": "Notification Windows pour un nouveau téléchargement",
+      "description": "Désactivée par défaut (le compteur du Coffre suffit).",
+      "default": false
     }
   ]
 }

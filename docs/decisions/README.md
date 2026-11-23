@@ -78,3 +78,4 @@ Modèle :
 | 0057 | [Socle : la recherche partout (Ctrl+K), contrat `ctx.search`](0057-socle-recherche-partout.md)                                                                   |
 | 0058 | [Socle : les fenêtres de lecture (une page de module dans sa propre fenêtre)](0058-socle-fenetres-de-lecture.md)                                                 |
 | 0059 | [Socle : les fichiers envoyés par Windows (« Ranger dans ToolBox », « Envoyer vers »)](0059-socle-fichiers-envoyes-par-windows.md)                               |
+| 0060 | [Coffre : proposer de ranger les nouveaux téléchargements (désactivé par défaut)](0060-coffre-surveillance-telechargements.md)                                   |

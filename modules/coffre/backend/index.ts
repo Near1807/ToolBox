@@ -44,6 +44,7 @@ import { registerVerifyRoutes } from './verify';
 import { cleanReadCopies, readCopy, registerArchiveRoutes, SUGGEST_DAYS } from './archive';
 import { TEXT_MIGRATION_SQL, TextIndex } from './text-index';
 import { registerSearch } from './search';
+import { DOWNLOADS_MIGRATION_SQL, DownloadWatcher } from './downloads';
 
 /** An entry of « Ranger » (the rangement window's choice for one dropped path). */
 interface DepositEntry {
@@ -170,6 +171,12 @@ export default defineBackendModule({
       description:
         'v0.47.0 : texte des éléments pour la recherche dans le contenu (index FTS5, gardé sur le PC)',
       up: TEXT_MIGRATION_SQL('coffre__text', 'coffre__text_state'),
+    },
+    {
+      version: 4,
+      description:
+        'v0.47.0 : fichiers de Téléchargements suivis (surveillance désactivée par défaut ; état de ce PC)',
+      up: DOWNLOADS_MIGRATION_SQL('coffre__downloads'),
     },
   ],
 
@@ -768,6 +775,8 @@ export default defineBackendModule({
           })
         : null;
       if (created.length) textIndex.kick();
+      // v0.47.0: a new download put away is no longer proposed.
+      downloads.ranged(entries.map((e) => e.path));
       return { created: dtos(created.map((id) => getRow(id))), skipped, undoId };
     });
 
@@ -1122,6 +1131,36 @@ export default defineBackendModule({
       const folders = paths.filter((p) => statSync(p).isDirectory()).length;
       return { id, paths, folders, missing: batch.paths.length - paths.length };
     });
+
+    // v0.47.0: « Proposer de ranger mes nouveaux téléchargements » (OFF by default, ADR 0060).
+    const downloads = new DownloadWatcher(ctx, (sha) => duplicateOf(sha) !== null);
+    ctx.settings.onChange((key) => {
+      if (key === 'watchDownloads' || key === 'downloadsFolder') {
+        if (downloads.enabled()) downloads.snapshot();
+        downloads.start();
+      }
+    });
+    ctx.routes.get('/downloads', () => downloads.status());
+    /** Looks at the folder now (the page's « Actualiser », the tests). Read only. */
+    ctx.routes.post('/downloads/check', async () => {
+      await downloads.poll();
+      return downloads.status();
+    });
+    ctx.routes.post('/downloads/ignore', (request) => {
+      const b = requestBody(request);
+      const paths = Array.isArray(b.paths)
+        ? b.paths.filter((p): p is string => typeof p === 'string')
+        : [];
+      downloads.ignore(paths);
+      return downloads.status();
+    });
+    ctx.routes.get('/downloads/existing', () => {
+      if (!downloads.enabled())
+        throw new HttpError(409, 'La surveillance de Téléchargements est désactivée');
+      return downloads.existing();
+    });
+    downloads.start();
+    ctx.onShutdown(() => downloads.stop());
 
     registerDiskRoutes(deps, disk);
     registerArchiveRoutes(deps, disk);

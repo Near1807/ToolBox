@@ -2,6 +2,7 @@
 // (accent), or something is kept on this PC only (warning), with its reason
 // on hover. Nothing when all is saved and the disk is away.
 import type { DiskStatusDto } from '../../shared/types';
+import { useDownloads } from '../Downloads';
 import { ago, plural, useDisk } from './useDisk';
 
 export function badgeOf(s: DiskStatusDto | null): { tone: 'on' | 'warn'; text: string } | null {
@@ -25,13 +26,27 @@ export function badgeOf(s: DiskStatusDto | null): { tone: 'on' | 'warn'; text: s
 export function DiskBadge() {
   const { data } = useDisk(10_000);
   const badge = badgeOf(data);
-  if (!badge) return null;
-  return (
+  // v0.47.0: « 3 nouveaux téléchargements » (only when the watching is on).
+  const downloads = useDownloads(10_000).data;
+  const n = downloads?.enabled ? downloads.pending.length : 0;
+  const count = n ? (
     <span
-      className={`coffre-badge coffre-badge--${badge.tone}`}
-      title={badge.text}
-      aria-label={badge.text}
-      role="img"
-    />
+      className="coffre-badge-count"
+      title={n > 1 ? `${n} nouveaux téléchargements à ranger` : '1 nouveau téléchargement à ranger'}
+    >
+      {n}
+    </span>
+  ) : null;
+  if (!badge) return count;
+  return (
+    <>
+      {count}
+      <span
+        className={`coffre-badge coffre-badge--${badge.tone}`}
+        title={badge.text}
+        aria-label={badge.text}
+        role="img"
+      />
+    </>
   );
 }

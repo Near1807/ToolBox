@@ -19,6 +19,7 @@ import type { ContextDto, HomeDto } from '../shared/types';
 import { draggingFiles, useCoffre } from './frame';
 import { Items } from './Items';
 import { SearchResults } from './SearchResults';
+import { DownloadsPanel } from './Downloads';
 import { familiesOf } from './logic';
 import { Health } from './disk/Health';
 import { RestoreDialog } from './disk/RestoreDialog';
@@ -147,25 +148,28 @@ export function HomePage() {
             <>
               <div className="coffre-dash">
                 <Health home={h} disk={coffre.disk} onVerify={coffre.verify} />
-                <section
-                  className="coffre-panel coffre-arrival"
-                  data-coffre-arrival
-                  aria-label="Arrivée"
-                >
-                  <h2 className="coffre-h2">Arrivée</h2>
-                  {h.arrivalCount ? (
-                    <>
-                      <Counter value={h.arrivalCount} label="à ranger" tone="accent" />
-                      <Link className="button button--primary" to={coffre.path('arrivee')}>
-                        Ranger
-                      </Link>
-                    </>
-                  ) : (
-                    <p className="coffre-arrival__done">
-                      <Icon name="circle-check" /> Tout est rangé
-                    </p>
-                  )}
-                </section>
+                <div className="coffre-dash__side">
+                  <section
+                    className="coffre-panel coffre-arrival"
+                    data-coffre-arrival
+                    aria-label="Arrivée"
+                  >
+                    <h2 className="coffre-h2">Arrivée</h2>
+                    {h.arrivalCount ? (
+                      <>
+                        <Counter value={h.arrivalCount} label="à ranger" tone="accent" />
+                        <Link className="button button--primary" to={coffre.path('arrivee')}>
+                          Ranger
+                        </Link>
+                      </>
+                    ) : (
+                      <p className="coffre-arrival__done">
+                        <Icon name="circle-check" /> Tout est rangé
+                      </p>
+                    )}
+                  </section>
+                  <DownloadsPanel />
+                </div>
               </div>
               {empty && (
                 <div className="coffre-welcome">

@@ -1592,3 +1592,61 @@ button.coffre-value__text:hover {
   display: flex;
   background: var(--surface-2);
 }
+
+/* v0.47.0: new downloads (the home's panel, the sidebar's count). */
+.coffre-dash__side {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+.coffre-downloads__list {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.9rem;
+}
+.coffre-downloads__list li {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.coffre-downloads__actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.coffre-badge-count {
+  margin-left: 6px;
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--text-on-accent);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+.coffre-existing {
+  max-width: 560px;
+}
+.coffre-existing__list {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+  max-height: 50vh;
+  overflow: auto;
+}
+.coffre-existing__list li {
+  padding: 3px 0;
+}
+.coffre-existing__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}

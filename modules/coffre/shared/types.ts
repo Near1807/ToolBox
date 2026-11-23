@@ -239,3 +239,19 @@ export interface DiskStatusDto {
   /** The history quota (bytes). */
   quota: number;
 }
+
+/** v0.47.0: a new download proposed (« Proposer de ranger mes nouveaux téléchargements »). */
+export interface DownloadDto {
+  path: string;
+  name: string;
+  size: number;
+  modifiedAt: string;
+}
+
+export interface DownloadsDto {
+  enabled: boolean;
+  folder: string;
+  pending: DownloadDto[];
+  /** Seen, not stable yet (a download in progress). */
+  waiting: number;
+}
