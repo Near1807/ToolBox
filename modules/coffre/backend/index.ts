@@ -4,7 +4,7 @@
 // (userData/coffre) and opens their applications. Ready for sync (UUIDs,
 // tombstones, journal) without a real sync yet.
 import { spawn } from 'node:child_process';
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, rmSync, statSync } from 'node:fs';
 import path from 'node:path';
 import {
   changesTableSql,
@@ -172,6 +172,8 @@ export default defineBackendModule({
       ctx,
       store,
       library,
+      // « Annuler » (defined just below; called only later, at a request).
+      remember: (run) => remember(run),
       t: {
         items,
         contexts,
@@ -938,14 +940,19 @@ export default defineBackendModule({
       if (row.rel_path) await library.erase(row.rel_path);
       const trashDir = `${TRASH_FOLDER}/${row.id}`;
       if (library.exists(trashDir)) await library.erase(trashDir);
+      // v0.46.0: a copy on the disk goes to the disk's Recycle Bin at the next update and can
+      // be recovered from there: its sheet (attributes) is kept with it.
+      const onDisk = copiesOf([id]).has(id);
       ctx.db.transaction(() => {
-        const rows = ctx.db
-          .prepare(`SELECT id FROM ${attributes} WHERE deleted_at IS NULL AND item_id = ?`)
-          .all(id) as { id: string }[];
-        for (const r of rows) store.remove('attributes', r.id);
+        if (!onDisk) {
+          const rows = ctx.db
+            .prepare(`SELECT id FROM ${attributes} WHERE deleted_at IS NULL AND item_id = ?`)
+            .all(id) as { id: string }[];
+          for (const r of rows) store.remove('attributes', r.id);
+        }
         store.remove('items', id);
       });
-      return { ok: true };
+      return { ok: true, onDisk };
     });
 
     ctx.routes.post('/undo', async (request) => {
@@ -1017,6 +1024,15 @@ export default defineBackendModule({
     }
     // The disk is looked for every few seconds, READ ONLY (only a click writes on it).
     disk.start();
+    // ToolBox's own temporary copies on the PC (an element or a version copied back from the
+    // disk and never finished; the previous files kept for « Annuler », which a restart ends:
+    // those versions are on the disk): removed at startup.
+    for (const dir of ['tmp', 'annuler'])
+      try {
+        rmSync(ctx.files.dataPath(dir), { recursive: true, force: true });
+      } catch (error) {
+        ctx.logger.warn(`Fichiers temporaires du Coffre : ${String(error)}`);
+      }
     // What changed in the PC's files while ToolBox was closed (only the PC's database is written).
     const startupScan = setTimeout(() => {
       disk.scanPc().catch((error) => ctx.logger.warn(`Fichiers du PC : ${String(error)}`));

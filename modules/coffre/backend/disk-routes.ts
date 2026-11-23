@@ -4,6 +4,7 @@
 import { HttpError, requestBody } from '@hub/sdk/core';
 import { ejectDisk } from './eject';
 import { buildPlan, runUpdate, type UpdateInput } from './update';
+import { registerHistoryRoutes } from './history';
 import type { DiskStatusDto, UpdateReport } from '../shared/types';
 import { isInDiskTrash } from './disk-layout';
 import type { CoffreDeps, DiskManager } from './disk';
@@ -54,7 +55,7 @@ export function quickSteps(d: CoffreDeps, diskId: string): Step[] {
 
 export function quotaBytes(d: CoffreDeps): number {
   const gb = Number(d.ctx.settings.get<number>('historyQuotaGb') ?? 20);
-  return Math.max(1, Number.isFinite(gb) ? gb : 20) * GB;
+  return Math.max(0.001, Number.isFinite(gb) ? gb : 20) * GB;
 }
 
 export function diskStatus(d: CoffreDeps, disk: DiskManager): DiskStatusDto {
@@ -154,6 +155,8 @@ export function registerDiskRoutes(d: CoffreDeps, disk: DiskManager): void {
     await disk.lookAgain();
     return result;
   });
+
+  registerHistoryRoutes(d, disk);
 
   /** Forgets the disk on this PC: nothing written or removed on the disk. */
   ctx.routes.post('/disk/forget', () => {

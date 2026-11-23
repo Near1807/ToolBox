@@ -257,7 +257,7 @@ export async function runUpdate(
         const now = new Date();
         // The old version goes to the history (an update), or aside (damaged): never overwritten.
         if (copy && step.kind === 'update' && existsSync(disk.abs(root, copy.rel_path))) {
-          const old = historyPath(item.id, baseName(copy.rel_path), now);
+          const old = freeTarget(disk, root, historyPath(item.id, baseName(copy.rel_path), now));
           await place(disk.abs(root, copy.rel_path), disk.abs(root, old));
           d.store.create<VersionRow>('versions', {
             item_id: item.id,

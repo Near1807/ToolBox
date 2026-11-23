@@ -1160,3 +1160,40 @@ button.coffre-value__text:hover {
 .coffre-facets__disk {
   margin-bottom: 8px;
 }
+.coffre-witness__link {
+  color: var(--warning);
+}
+.coffre-versions {
+  margin-top: 18px;
+}
+.coffre-versions h3 {
+  margin: 0 0 6px;
+  font-size: 0.9rem;
+}
+.coffre-versions ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.coffre-versions li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.85rem;
+}
+.coffre-disktrash {
+  margin-top: 30px;
+}
+.coffre-proposal {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 0 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--warning);
+}

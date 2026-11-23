@@ -29,6 +29,8 @@ export interface CoffreDeps {
   store: SyncStore;
   library: Library;
   t: Tables;
+  /** Keeps an « Annuler » (15 minutes); its id for the page. */
+  remember: (run: () => Promise<void>) => string;
 }
 
 /** How often the disk is looked for (read only). */

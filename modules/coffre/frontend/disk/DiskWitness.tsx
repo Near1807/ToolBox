@@ -49,6 +49,11 @@ export function DiskWitness(props: { status: DiskStatusDto; action?: ReactNode }
       <Icon name={s.connected ? 'disc' : 'warning'} />
       <span className="coffre-witness__text">{w.text}</span>
       {todo && <span className="coffre-witness__todo">{todo}</span>}
+      {s.oldTrash > 0 && (
+        <a className="coffre-witness__link" href="#/m/coffre/corbeille">
+          {s.oldTrash} dans la corbeille du disque depuis plus de 30 jours
+        </a>
+      )}
       {props.action}
     </div>
   );

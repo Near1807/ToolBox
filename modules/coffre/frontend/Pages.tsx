@@ -28,6 +28,8 @@ import { useCoffre } from './frame';
 import { Tile } from './Home';
 import { Items, useView, ViewBar } from './Items';
 import { shortDate } from './logic';
+import { DiskTrash } from './disk/DiskTrash';
+import { useDisk } from './disk/useDisk';
 
 /** The pills of a list: combinable (AND between keys, OR inside one). */
 export function Facets(props: {
@@ -371,7 +373,7 @@ export function TrashPage() {
   const erase = (item: ItemDto) => {
     if (
       !window.confirm(
-        `Effacer définitivement « ${item.name} » ?\n\nLe fichier est supprimé du disque : il ne pourra plus être récupéré.`,
+        `Effacer définitivement « ${item.name} » de ce PC ?\n\nS'il est déjà sur le disque du coffre, il reste dans la corbeille du disque (récupérable tant qu'il y est). Sinon, il ne pourra plus être récupéré.`,
       )
     )
       return;
@@ -384,6 +386,7 @@ export function TrashPage() {
       .catch(coffre.fail);
   };
   const list = items.data ?? [];
+  const disk = useDisk(10_000);
   return (
     <Page
       title="Corbeille du Coffre"
@@ -425,6 +428,7 @@ export function TrashPage() {
             </tbody>
           </table>
         )}
+        <DiskTrash status={disk.data} />
       </div>
     </Page>
   );

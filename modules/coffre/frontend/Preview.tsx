@@ -9,6 +9,7 @@ import { useCoffre } from './frame';
 import { extOfItem, shortDate, type ContextChoice } from './logic';
 import { iconOf, ReaderView } from './ReaderView';
 import { Sheet } from './Sheet';
+import { Versions } from './disk/Versions';
 
 const typing = (t: EventTarget | null) =>
   t instanceof HTMLElement &&
@@ -193,6 +194,7 @@ export function Preview(props: {
           >
             <NameField key={`${item.id}:${item.name}`} name={item.name} onRename={rename} />
           </Sheet>
+          <Versions item={item} onRestored={() => fresh.reload()} />
           {item.sourcePath && (
             <p className="coffre-preview__origin muted" title={item.sourcePath}>
               Déposé depuis : {item.sourcePath}
