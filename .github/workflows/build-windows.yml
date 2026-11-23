@@ -51,6 +51,12 @@ jobs:
       - name: Smoke test packaged app (backend, SQLite, FFmpeg, UI)
         run: node scripts/smoke-test.mjs dist/win-unpacked/ToolBox.exe
 
+      - name: User data survives uninstalling (install, marker, uninstall)
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem dist -Filter 'ToolBox-Setup-*.exe' | Select-Object -First 1
+          ./scripts/uninstall-keeps-data.ps1 -Installer $setup.FullName
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v5
         with:

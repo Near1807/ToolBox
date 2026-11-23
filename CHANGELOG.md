@@ -4,6 +4,26 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.45.0] — 2026-11-23
+
+Nouveau module **Coffre** (PC, marqué « Expérimental ») : garder, ranger, retrouver et ouvrir ses fichiers. Cahier des charges complet dans `docs/coffre/CAHIER-DES-CHARGES.md`. Migration 1 du Coffre (création de ses tables) ; aucune autre migration.
+
+### Ajouté
+
+- **Coffre — déposer et ranger** : glisser des fichiers ou des dossiers n'importe où sur une page du Coffre ouvre la fenêtre de rangement : aperçu à gauche, fiche pré-remplie à droite (contexte, nature, origine, langage, application, prof, année, site, tags), chaque valeur devinée marquée « deviné » avec sa raison au survol, modifiable en un clic (liste avec recherche, création d'un contexte ou d'un tag sur place). Entrée = Ranger ; « Ranger plus tard » (Arrivée) ; plusieurs fichiers : une proposition chacun et « Tout valider ». Sur une tuile ou la page d'un contexte : ce contexte. Un dossier : « Un projet » ou « Les fichiers un par un ». « Ajouter un lien externe… » (laissé à sa place, non sauvegardé, marqué partout). Doublon : « Déjà dans le coffre : … », « Ouvrir l'existant » / « Garder quand même ». Animation vers la tuile (réglage « Animations », respecte « réduire les animations » du système), message avec « Annuler ».
+- **Coffre — déductions** : extension (nature, langage, application), marque Windows « téléchargé depuis Internet » lue sur l'original (site d'origine, même contexte qu'un fichier déjà rangé du même site), mots du nom ↔ contextes existants et cours de l'Agenda (codes, noms, profs ; service `agenda.courses()` facultatif), année ; sans indice : rien. Une valeur choisie n'est jamais remplacée par une déduction.
+- **Coffre — retrouver et voir** : accueil tableau de bord (recherche Ctrl+K, « En cours », récents, Arrivée, tuiles des contextes par famille, santé du coffre : jauge du disque, éléments, place, corbeille) ; page de contexte (couleur, couverture, cours de l'Agenda : code, profs, prochain créneau ; filtres en pastilles combinables ; cartes ou liste triable, choix retenu) ; vues par attribut (« Python », « Prof … ») ; Arrivée ; corbeille du Coffre (Récupérer, Effacer définitivement après confirmation).
+- **Coffre — aperçu grand format** (Espace ou clic sur l'aperçu) : lecteur au centre, fiche modifiable à côté, ← → suivant / précédent, Échap. Lecteurs par un registre générique : PDF (pdf.js local), images, texte, code coloré, Markdown (sans HTML brut ni image), vidéo et son, page HTML isolée (aucun script, aucune requête).
+- **Coffre — ouvrir** : double-clic = son application ; « Ouvrir dans… » ; projet de code : « Ouvrir dans VS Code » s'il est installé, sinon l'explorateur ; un programme ou un script n'est jamais lancé sans une question qui le nomme (refusé aussi par le socle sans cette confirmation).
+- **Socle** : `ctx.files.libraryDir` / `libraryPath` (fichiers de l'utilisateur gardés par un module, `userData/<module>`, jamais effacés à la désinstallation), `ctx.files.provenance` (Mark of the Web), `ctx.files.open(path, { runnable })` (exécutable refusé sans confirmation) ; `isRunnable`, `parseZoneIdentifier` dans `@hub/sdk/core` ; palette des catégories partagée `@hub/sdk/palette`. ADR 0051, 0052, 0053.
+- **SDK — composants « atelier »** : `Gauge` (jauge circulaire), `Counter`, `ReliefCard` (carte en relief avec aperçu), `FilterPill`, `ContextTile` ; jetons du thème seulement, une seule couleur vive (l'accent).
+- **Agenda** : service en lecture seule `agenda.courses()` (cours importés : nom, code, profs, prochain créneau).
+- **CI Windows** : installation silencieuse, fichier témoin dans le dossier du Coffre, désinstallation, le fichier doit rester (`scripts/uninstall-keeps-data.ps1`).
+
+### Dépendances
+
+- `pdfjs-dist` 6.5.438, `highlight.js` 11.12.0, `markdown-it` 15.0.3 (bundlées, en `devDependencies`) ; aucune alerte `npm audit` les concernant.
+
 ## [0.44.0] — 2026-11-20
 
 Agenda : copier une image du calendrier (la vue affichée) pour partager ses dispos. Aucune migration. Marqué « Expérimental ».

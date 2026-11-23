@@ -261,17 +261,18 @@ sequenceDiagram
 
 ## Données
 
-| Donnée                     | Emplacement (Windows)                                                                                                                                                 |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Base SQLite                | `%APPDATA%\ToolBox\hub.db` (tables `core__*` du socle, `<module>__*` des modules)                                                                                     |
-| Fichiers des modules       | `%APPDATA%\ToolBox\modules\<id>\`                                                                                                                                     |
-| Sauvegardes automatiques   | `%APPDATA%\ToolBox\backups\` (deux rotations séparées : 10 dernières avant migration, 10 dernières avant suppression via `ctx.db.backup`)                             |
-| Journaux                   | `%APPDATA%\ToolBox\logs\` (14 jours)                                                                                                                                  |
-| Comptes connectés          | table `core__accounts` (jetons OAuth chiffrés par safeStorage) ; client OAuth dans `core__settings` (portée `accounts`, secret chiffré)                               |
-| Fichiers générés (vidéos…) | dossier de sortie réglable (par défaut `Vidéos\ToolBox\<id>\`), registre `core__outputs` (vérifié au démarrage et à chaque affichage ; suppression vers la Corbeille) |
-| Application                | dossier d'installation, en lecture seule                                                                                                                              |
+| Donnée                                         | Emplacement (Windows)                                                                                                                                                 |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Base SQLite                                    | `%APPDATA%\ToolBox\hub.db` (tables `core__*` du socle, `<module>__*` des modules)                                                                                     |
+| Fichiers des modules                           | `%APPDATA%\ToolBox\modules\<id>\`                                                                                                                                     |
+| Fichiers de l'utilisateur gardés par un module | `%APPDATA%\ToolBox\<id>\` (`ctx.files.libraryDir`, v0.45 : le Coffre, `%APPDATA%\ToolBox\coffre\Cours\…`, lisible sans ToolBox ; ADR 0051)                            |
+| Sauvegardes automatiques                       | `%APPDATA%\ToolBox\backups\` (deux rotations séparées : 10 dernières avant migration, 10 dernières avant suppression via `ctx.db.backup`)                             |
+| Journaux                                       | `%APPDATA%\ToolBox\logs\` (14 jours)                                                                                                                                  |
+| Comptes connectés                              | table `core__accounts` (jetons OAuth chiffrés par safeStorage) ; client OAuth dans `core__settings` (portée `accounts`, secret chiffré)                               |
+| Fichiers générés (vidéos…)                     | dossier de sortie réglable (par défaut `Vidéos\ToolBox\<id>\`), registre `core__outputs` (vérifié au démarrage et à chaque affichage ; suppression vers la Corbeille) |
+| Application                                    | dossier d'installation, en lecture seule                                                                                                                              |
 
-Rien n'est jamais écrit dans le dossier d'installation. La variable `TOOLBOX_USER_DATA_DIR` permet d'utiliser un profil isolé (tests, CI).
+Rien n'est jamais écrit dans le dossier d'installation. La désinstallation ne supprime pas `%APPDATA%\ToolBox` (`deleteAppDataOnUninstall: false`, vérifié par la CI Windows : `scripts/uninstall-keeps-data.ps1`). La variable `TOOLBOX_USER_DATA_DIR` permet d'utiliser un profil isolé (tests, CI).
 
 **Prêt pour la synchro** (future version Android, MODULES.md §6 bis) : UUID, `created_at` / `updated_at`, suppression logique et journal `<module>__changes` dans Sport, Courses, To-do, Boîte à idées et Timer (ces trois derniers depuis la migration 2 de v0.25, anciennes tables gardées en `<table>_v1`, paires ancien → nouvel id dans `<module>__legacy_ids`). Le socle garde l'identifiant de l'installation dans `core__meta` : graine des UUID donnés aux anciennes lignes numérotées (`MigrationDatabase.legacyId`), les mêmes dans tous les modules. Les modules de musique et l'assistant ne le sont pas encore (raisons et liste : MODULES.md §6 bis).
 

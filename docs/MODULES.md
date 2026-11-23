@@ -98,7 +98,7 @@ Le SDK serveur a deux parties (ADR 0044) :
 
   Ce dont ils ont besoin du système passe par `ctx` (`ctx.files.readFile`, `writeFile`, `outputPath`, `ctx.images.normalise`…), un identifiant se crée avec `newId()` (Web Crypto) et la base64 avec `bytesToBase64` / `base64ToBytes`.
 
-- **`@hub/sdk/backend`, la partie PC** : `core` plus les types de Fastify (`FastifyRequest`, `FastifyReply`). Seuls les modules du PC l'utilisent : la musique et l'assistant, listés dans `PC_ONLY_MODULES` (`eslint.config.js`). Un nouveau module n'y est ajouté que s'il ne peut pas tourner sur le téléphone, sur décision de Thomas.
+- **`@hub/sdk/backend`, la partie PC** : `core` plus les types de Fastify (`FastifyRequest`, `FastifyReply`). Seuls les modules du PC l’utilisent : la musique, l’assistant et le Coffre (v0.45, ADR 0052), listés dans `PC_ONLY_MODULES` (`eslint.config.js`). Un nouveau module n'y est ajouté que s'il ne peut pas tourner sur le téléphone, sur décision de Thomas.
 
 Un handler de route ne lit que `request.params`, `request.query` et `request.body` (types `RouteRequest` / `RouteReply` de `core`).
 
