@@ -4,6 +4,36 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.46.0] — 2026-11-23
+
+Coffre : **le disque externe**. Le PC garde les éléments actifs, le disque garde tout. Tout est marqué « Expérimental ». Migration 2 du Coffre (ajouts seulement, sauvegarde de la base avant).
+
+### Ajouté
+
+- **Disque du coffre** (Réglages › Coffre) : un dossier choisi sur n'importe quel volume ; ToolBox y crée `ToolBox-Coffre` et un fichier d'identité. Le disque est reconnu par cette identité, jamais par sa lettre (E: aujourd'hui, F: demain), et cherché en lecture seule. « Oublier ce disque » ne touche à rien sur le disque. Témoin dans les pages du Coffre (« Disque branché », « Disque absent · dernière mise à jour il y a 3 jours », « 12 éléments seulement sur ce PC ») et point dans la barre latérale.
+- **Trois états** : « pas encore sur le disque » (le seul fragile : marque sur la carte, compteur, filtre, page), « actif », « archivé ». Un fichier modifié sur le PC, même par une autre application, est vu (taille et date, puis empreinte ; fichier par fichier pour un projet).
+- **Mettre à jour, par un clic** (jamais automatique) :
+  - bandeau « 12 à copier, 3 à mettre à jour, 2 à déplacer, 1 vers la corbeille » ;
+  - plan détaillé, place nécessaire et place libre ; refus clair **avant** d'écrire s'il en manque ;
+  - chaque copie : écrite sous un nom temporaire, relue, comparée, puis mise en place sans rien remplacer ; en flux (gros fichiers), avec progression et « Annuler » ;
+  - une annulation ou un débranchement laisse le disque cohérent ;
+  - changements de contexte et renommages reproduits, suppressions vers la corbeille du disque ;
+  - à la fin : copie cohérente de la base, fiches (JSON), manifeste ;
+  - compte rendu et « Éjecter le disque ».
+- **Historique des versions** : une version modifiée envoie l'ancienne dans l'historique du disque, avec une place réservée en Go (20 par défaut). Les plus anciennes partent d'abord ; jamais les fichiers actuels, les archives ni la corbeille. Une version plus grosse que la place réservée est gardée et signalée. « Versions sur le disque » dans l'aperçu, « Restaurer cette version » (confirmation, « Annuler »).
+- **Corbeille du disque** : ce qui est supprimé du Coffre y reste. Rien n'y est effacé seul ; après 30 jours, ToolBox propose de l'effacer (liste, confirmation). « Récupérer » tant qu'il y est, avec sa fiche.
+- **Archiver** (carte, clic droit, sélection multiple) : disque branché et élément actif ; les deux copies sont relues, puis celle du PC est retirée. La confirmation dit la place libérée. Un archivé reste visible (grisé, « sur le disque dur ») et trouvable. Il se lit depuis le disque ; il s'ouvre en « Réactiver pour le modifier » ou « Ouvrir une copie en lecture ». **Réactiver** : place du PC vérifiée, copie relue. Suggestions « pas ouverts depuis 6 mois », jamais appliquées seules.
+- **Restaurer depuis un disque** (Réglages › Coffre, ou l'accueil d'un Coffre vide) : aperçu, puis confirmation explicite. Les fiches sont reprises et les actifs recopiés, empreintes vérifiées ; les archivés restent sur le disque. Un PC qui a déjà des données : la base est sauvegardée avant, et aucun de ses fichiers n'est remplacé.
+- **Santé** : jauge du PC (Coffre / reste / libre), jauge du disque (actuels / historique / corbeille / libre), dernière mise à jour. « Vérifier le disque » relit chaque fichier et compare son empreinte ; rien n'est corrigé seul, « Recopier depuis le PC » est proposé.
+- « Aussi utilisé dans… » dans la fiche ; « Retirer la couverture » d'un contexte.
+- **Socle** : `ctx.files.allowMediaRoot` (lire un dossier externe choisi par l'utilisateur), `ctx.db.snapshotTo` (copie cohérente de la base vers un chemin), `nav.badge` (indicateur d'un module dans la barre latérale). **SDK** : `Gauge` en plusieurs segments. ADR 0054 et 0055.
+- **CI Windows** : le disque du coffre sur un vrai volume NTFS (disque virtuel, lettre changée, chemin long, vérification).
+
+### Changé
+
+- Un contexte ne peut pas prendre le nom `_ToolBox` (dossier de ToolBox sur le disque) ; comparaison sans casse pour `_Arrivée` et `_Corbeille`.
+- Effacer définitivement depuis la corbeille du Coffre garde la fiche d'un élément déjà sur le disque (récupérable depuis la corbeille du disque).
+
 ## [0.45.0] — 2026-11-23
 
 Nouveau module **Coffre** (PC, marqué « Expérimental ») : garder, ranger, retrouver et ouvrir ses fichiers. Cahier des charges complet dans `docs/coffre/CAHIER-DES-CHARGES.md`. Migration 1 du Coffre (création de ses tables) ; aucune autre migration.

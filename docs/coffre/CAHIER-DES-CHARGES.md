@@ -36,13 +36,16 @@ Un mot par notion, partout — code (en anglais entre parenthèses), documentati
 5. **HTML** — affiché isolé : aucun accès réseau, aucun accès aux fichiers, aucun script pour un HTML qui ne vient pas de Thomas. À préciser en **v0.47** pour ses synthèses.
 6. **L'original n'est jamais touché** — le coffre **copie** ; l'original reste où il était (empreinte vérifiée avant et après dans les tests).
 7. **La désinstallation de ToolBox n'efface jamais le dossier de données** (coffre compris) — `deleteAppDataOnUninstall: false` dans `electron-builder.yml`, vérifié par le smoke test et par un vrai essai installation → désinstallation en CI Windows.
-8. **Disque (v0.46)**
-   - reconnu par un **fichier d'identité** (jamais par sa lettre) ;
-   - mise à jour au branchement par **un clic** (jamais automatique) ;
+8. **Disque (v0.46, livré ; détail : ADR 0055)**
+   - le coffre du disque est un dossier `ToolBox-Coffre` sur n'importe quel volume (rien ne dépend du matériel), avec le même arbre que sur le PC ; ToolBox y garde ses affaires dans `_ToolBox` (historique, corbeille, base, fichiers temporaires) ;
+   - reconnu par un **fichier d'identité** (jamais par sa lettre) ; la recherche du disque ne fait que lire ;
+   - mise à jour au branchement par **un clic** (jamais automatique, pas même en option) : plan détaillé et place vérifiée **avant** d'écrire ; chaque copie écrite sous un nom temporaire, relue, comparée, puis mise à sa place sans jamais rien remplacer ; annulation ou débranchement : le disque reste cohérent ;
    - archiver seulement disque branché, après copie relue et empreinte identique ; un archivé ne se modifie pas (le réactiver d'abord, place vérifiée) ;
-   - fiches des archivés toujours sur le PC (grisées, « sur le disque dur », trouvables) ; texte extrait gardé sur le PC (recherche sans le disque) ;
-   - historique des anciennes versions sur le disque, avec un **quota en Go** choisi par Thomas ; les plus anciennes supprimées d'abord ; le quota ne touche **jamais** aux fichiers actuels ni aux archives ;
-   - corbeille du disque ;
+   - fiches des archivés toujours sur le PC (grisées, « sur le disque dur », trouvables) ; texte extrait gardé sur le PC (recherche sans le disque) : **v0.47**, avec la recherche dans le contenu ;
+   - un archivé s'ouvre en « Réactiver pour le modifier » ou en « Ouvrir une copie en lecture » (copie temporaire, retirée ensuite) ;
+   - suggestions d'archivage (« pas ouverts depuis 6 mois ») : livrées en v0.46, jamais appliquées seules ;
+   - historique des anciennes versions sur le disque, avec un **quota en Go** choisi par Thomas (20 par défaut) ; les plus anciennes supprimées d'abord, pendant une mise à jour ; le quota ne touche **jamais** aux fichiers actuels, aux archives ni à la corbeille du disque ; une version plus grosse que le quota est gardée et signalée ;
+   - corbeille du disque : jamais d'effacement automatique ; après 30 jours, ToolBox **propose** de l'effacer (liste, confirmation) ;
    - le disque reçoit une copie des fiches et de la base : il se suffit à lui-même (« Restaurer depuis un disque » testé en réel) ;
    - jauges PC et disque ; « Éjecter le disque » ; vérification complète à la demande (relire les empreintes) ;
    - un seul disque pour l'instant (second disque / NAS **plus tard**).
@@ -53,7 +56,7 @@ Un mot par notion, partout — code (en anglais entre parenthèses), documentati
    - surveillance de Téléchargements, **désactivée par défaut** (attendre la fin des `.crdownload` / `.part`) ;
    - apprentissage des corrections ;
    - « Maintenant » (le cours en cours d'après l'Agenda) ;
-   - suggestions d'archivage (jamais appliquées seules).
+   - suggestions d'archivage : **avancées en v0.46**.
 10. **Plus tard**
     - format de synthèse en composants : bibliothèque **unique** et externe aux documents, vérification avec la ligne en cause, export HTML autonome qui embarque une copie figée, kit pour une IA fabriqué depuis la bibliothèque, mode « l'essentiel seulement » ;
     - liens Agenda / To-do ; dépôts Git rattachés ; vrais projets FL Studio avec leurs samples ; téléphone ; aperçu Office / LaTeX ;

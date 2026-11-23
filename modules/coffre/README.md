@@ -1,6 +1,6 @@
 # Coffre (`coffre`, Expérimental)
 
-Un seul endroit pour **garder, ranger, retrouver et ouvrir** les fichiers qui comptent. Cahier des charges complet : [`docs/coffre/CAHIER-DES-CHARGES.md`](../../docs/coffre/CAHIER-DES-CHARGES.md). ADR 0051 (socle), 0052 (modèle), 0053 (pages, rangement et lecteurs).
+Un seul endroit pour **garder, ranger, retrouver et ouvrir** les fichiers qui comptent. Cahier des charges complet : [`docs/coffre/CAHIER-DES-CHARGES.md`](../../docs/coffre/CAHIER-DES-CHARGES.md). ADR 0051 (socle), 0052 (modèle), 0053 (pages, rangement et lecteurs), 0054 (socle : dossier externe, copie de la base, indicateur), 0055 (le disque externe).
 
 PC seulement (`PC_ONLY_MODULES`) ; dépendance facultative : le service `agenda` (cours importés).
 
@@ -50,3 +50,31 @@ Carte (`Items.tsx`, `ReliefCard` du SDK) : aperçu, nom, nature, contexte (vues 
 Registre générique (`registry.ts`) : un lecteur = un fichier `<nom>.reader.tsx` qui appelle `registerReader({ id, extensions, maxBytes?, thumbMaxBytes?, priority?, component })` ; `readers/index.ts` les trouve tous (aucun autre changement). Fournis : PDF (pdf.js, `pdfjs-dist`, worker servi par l'app), images, texte, code coloré (`highlight.js`, langues choisies), Markdown (`markdown-it`, `html: false`, sans images, liens jamais suivis), vidéo et son (lecteurs du navigateur), HTML **isolé** (cadre `sandbox=""`, politique `default-src 'none'` : aucun script, aucune requête). Sans lecteur : l'icône de sa nature et « Ouvrir dans son application ».
 
 Limites connues : les PDF à images JPEG 2000 ou à polices non incluses s'affichent sans ces images / avec des polices de remplacement (les fichiers WebAssembly et polices de pdf.js ne sont pas chargés : la politique de l'interface n'autorise pas WebAssembly).
+
+## Le disque du coffre (v0.46, ADR 0055)
+
+Réglages › Coffre › « Disque du coffre » : un dossier choisi sur le disque externe ; ToolBox y crée `ToolBox-Coffre/` et `_identite-toolbox-coffre.json`. Le disque est retrouvé par cette identité, jamais par sa lettre (sa dernière place, puis le même chemin sur chaque volume), toutes les 4 s, **en lecture seule** (`backend/volumes.ts`, `disk.ts`). Un seul disque pour l'instant (`coffre__disks` ; une copie par élément et par disque dans `coffre__copies`).
+
+Sur le disque : le même arbre que sur le PC, et `_ToolBox/` :
+
+- `Historique/<élément>/<date> nom` ;
+- `Corbeille/<élément>/nom` ;
+- `Base/hub.db`, `Base/fiches.json`, `Base/manifeste.json` ;
+- `tmp/` (vidé au début de chaque mise à jour), `Deplacement/` et `Abimes/` ;
+- `LISEZ-MOI.txt`.
+
+| Partie                                                                                                                                             | Où                                                                        | Ce qui écrit (toujours un clic) |
+| -------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------- |
+| États (« pas encore sur le disque », actif, archivé), fichiers du PC modifiés (taille + date, puis empreinte ; fichier par fichier pour un projet) | `plan.ts`, `disk.ts` (`scanPc`, au démarrage et avant chaque mise à jour) | la base du PC seulement         |
+| Mise à jour : plan, place, déplacements en deux temps, copies relues (`copy.ts`), historique, quota, base / fiches / manifeste                     | `update.ts` (tâche `disk-update`)                                         | « Mettre à jour »               |
+| Versions, « Restaurer cette version » (confirmée, Annuler) ; corbeille du disque (récupérer, effacer confirmé, proposé après 30 jours)             | `history.ts`                                                              | les boutons                     |
+| Archiver (les deux copies relues) / réactiver (place vérifiée) / copie en lecture / suggestions                                                    | `archive.ts`                                                              | les boutons                     |
+| Restaurer depuis un disque (aperçu, sauvegarde de la base si des données, rien d'écrasé)                                                           | `restore.ts` (tâche `disk-restore`)                                       | « Restaurer » confirmé          |
+| Vérifier le disque (relire toutes les empreintes), « Recopier depuis le PC »                                                                       | `verify.ts` (tâche `disk-verify`)                                         | « Vérifier », « Recopier »      |
+| Éjecter (verbe « Éjecter » de Windows, puis contrôle)                                                                                              | `eject.ts`                                                                | « Éjecter le disque »           |
+
+API : `GET /disk` (état, `?look=1`), `POST /disk/register|forget|update|eject|verify|repair`, `PATCH /disk`, `GET /disk/plan|trash|verify`, `POST /disk/trash/recover|erase`, `GET /items/:id/versions`, `POST /items/:id/versions/:vid/restore`, `POST /items/archive`, `POST /items/:id/reactivate|seen`, `GET /suggestions/archive`, `POST /restore/preview|apply`, `GET /items?state=pending|archived|suggest`.
+
+Réglage : « Place réservée aux anciennes versions sur le disque (Go) », `historyQuotaGb`, 20 par défaut.
+
+Pages : témoin du disque en haut des pages (`disk/DiskWitness.tsx`, « Mettre à jour »), point dans la barre latérale (`disk/DiskBadge.tsx`, `nav.badge`), plan / progression / compte rendu (`disk/UpdateDialog.tsx`), santé (`disk/Health.tsx`), vérification (`disk/VerifyDialog.tsx`), restauration (`disk/RestoreDialog.tsx`), versions dans l'aperçu (`disk/Versions.tsx`), corbeille du disque (`disk/DiskTrash.tsx`), réglages (`disk/DiskSettings.tsx`).
