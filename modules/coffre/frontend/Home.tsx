@@ -9,8 +9,6 @@ import {
   Counter,
   EmptyState,
   ErrorMessage,
-  formatBytes,
-  Gauge,
   Icon,
   Page,
   useApi,
@@ -22,6 +20,8 @@ import type { ContextDto, HomeDto, ItemDto } from '../shared/types';
 import { draggingFiles, useCoffre } from './frame';
 import { Items } from './Items';
 import { familiesOf } from './logic';
+import { Health } from './disk/Health';
+import { RestoreDialog } from './disk/RestoreDialog';
 
 /** A context's tile that takes what is dropped on it. */
 export function Tile(props: { context: ContextDto; showPath?: boolean }) {
@@ -81,6 +81,7 @@ export function HomePage() {
   const linkMenu = useContextMenu();
   const home = useApi<HomeDto>(module.url('/home'));
   const [query, setQuery] = useState('');
+  const [restoring, setRestoring] = useState(false);
   const searching = query.trim() !== '';
   const all = useApi<ItemDto[]>(searching ? module.url('/items') : null);
   const found = useMemo(() => (all.data ? searchItems(all.data, query) : []), [all.data, query]);
@@ -94,10 +95,6 @@ export function HomePage() {
 
   const h = home.data;
   const families = useMemo(() => familiesOf(h?.contexts ?? []), [h?.contexts]);
-  const diskUsed =
-    h?.health.diskTotal && h.health.diskFree !== null
-      ? 1 - h.health.diskFree / h.health.diskTotal
-      : 0;
   const empty = h && !h.health.items && !h.contexts.length;
 
   return (
@@ -153,36 +150,7 @@ export function HomePage() {
           h && (
             <>
               <div className="coffre-dash">
-                <section className="coffre-panel coffre-health" aria-label="Santé du coffre">
-                  <h2 className="coffre-h2">Santé du coffre</h2>
-                  <div className="coffre-health__row">
-                    <Gauge
-                      value={diskUsed}
-                      tone={diskUsed > 0.9 ? 'warn' : 'accent'}
-                      label={h.health.diskTotal ? `${Math.round(diskUsed * 100)} %` : '—'}
-                      sub={
-                        h.health.diskFree !== null
-                          ? `${formatBytes(h.health.diskFree)} libres`
-                          : 'disque inconnu'
-                      }
-                      title="Place occupée sur le disque du PC"
-                    />
-                    <div className="coffre-health__counters">
-                      <Counter value={h.health.items} label="éléments" />
-                      <Counter value={formatBytes(h.health.bytes)} label="dans le Coffre" />
-                      <Link to={coffre.path('corbeille')} className="coffre-health__trash">
-                        <Counter value={h.health.trashCount} label="dans la corbeille" />
-                      </Link>
-                      <Link to={coffre.path('etat/pending')} className="coffre-health__trash">
-                        <Counter
-                          value={h.health.pending}
-                          label="pas encore sur le disque"
-                          tone={h.health.pending ? 'accent' : 'plain'}
-                        />
-                      </Link>
-                    </div>
-                  </div>
-                </section>
+                <Health home={h} disk={coffre.disk} onVerify={coffre.verify} />
                 <section
                   className="coffre-panel coffre-arrival"
                   data-coffre-arrival
@@ -208,6 +176,15 @@ export function HomePage() {
                   <EmptyState title="Le Coffre est vide">
                     Glisse un fichier ou un dossier n’importe où sur cette page : une fenêtre te
                     propose où le ranger. L’original ne bouge pas.
+                    <br />
+                    Un coffre sur un disque externe ?{' '}
+                    <button
+                      type="button"
+                      className="coffre-linklike"
+                      onClick={() => setRestoring(true)}
+                    >
+                      Restaurer depuis un disque…
+                    </button>
                   </EmptyState>
                 </div>
               )}
@@ -238,6 +215,7 @@ export function HomePage() {
         )}
       </div>
       {linkMenu.node}
+      {restoring && <RestoreDialog onClose={() => setRestoring(false)} onDone={coffre.refresh} />}
     </Page>
   );
 }

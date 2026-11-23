@@ -87,6 +87,9 @@ function FilteredItems(props: {
 }) {
   const [selection, setSelection] = useState<FacetSelection>({});
   const [onlyPending, setOnlyPending] = useState(false);
+  const [selecting, setSelecting] = useState(false);
+  const [chosen, setChosen] = useState<Set<string>>(new Set());
+  const coffre = useCoffre();
   const view = useView();
   const pending = props.items.filter((i) => i.diskState === 'pending').length;
   const shown = useMemo(
@@ -115,8 +118,72 @@ function FilteredItems(props: {
         without={props.without}
       />
       <ViewBar count={shown.length} state={view} />
+      {coffre.disk?.disk && (
+        <div className="coffre-selectbar">
+          {selecting ? (
+            <>
+              <span>
+                {chosen.size} sélectionné{chosen.size > 1 ? 's' : ''}
+              </span>
+              <Button
+                variant="secondary"
+                small
+                onClick={() =>
+                  setChosen(new Set(shown.filter((i) => i.diskState === 'active').map((i) => i.id)))
+                }
+              >
+                Tous les actifs
+              </Button>
+              <Button
+                small
+                disabled={!chosen.size || !coffre.disk.connected}
+                title={
+                  coffre.disk.connected
+                    ? undefined
+                    : `Branche le disque « ${coffre.disk.disk.name} »`
+                }
+                onClick={() => {
+                  coffre.archive(shown.filter((i) => chosen.has(i.id)));
+                  setChosen(new Set());
+                  setSelecting(false);
+                }}
+              >
+                Archiver la sélection
+              </Button>
+              <Button
+                variant="secondary"
+                small
+                onClick={() => {
+                  setSelecting(false);
+                  setChosen(new Set());
+                }}
+              >
+                Terminer
+              </Button>
+            </>
+          ) : (
+            <Button variant="secondary" small onClick={() => setSelecting(true)}>
+              Sélectionner…
+            </Button>
+          )}
+        </div>
+      )}
       <Items
         items={shown}
+        select={
+          selecting
+            ? {
+                ids: chosen,
+                toggle: (id) =>
+                  setChosen((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(id)) next.delete(id);
+                    else next.add(id);
+                    return next;
+                  }),
+              }
+            : undefined
+        }
         showContext={props.showContext}
         view={view.view}
         sort={view.sort}
@@ -440,6 +507,12 @@ const STATE_TITLES: Record<string, { title: string; subtitle: string; empty: str
     subtitle:
       'Seulement sur ce PC : nouveaux, ou modifiés depuis la dernière mise à jour du disque.',
     empty: 'Tout est sur le disque.',
+  },
+  suggest: {
+    title: 'Suggestions d’archivage',
+    subtitle:
+      'Sur le disque, pas ouverts depuis 6 mois : « Sélectionner… » puis « Archiver la sélection » libère leur place sur le PC. Rien n’est archivé tout seul.',
+    empty: 'Aucune suggestion.',
   },
   archived: {
     title: 'Archivés',

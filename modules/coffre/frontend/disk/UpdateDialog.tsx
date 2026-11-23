@@ -244,7 +244,7 @@ export function UpdateDialog(props: {
             )}
             {report && report.removedVersions > 0 && (
               <p className="muted">
-                {plural(report.removedVersions, 'ancienne version')} retirée
+                {plural(report.removedVersions, 'ancienne version', 'anciennes versions')} retirée
                 {report.removedVersions > 1 ? 's' : ''} de l'historique (place réservée pleine, les
                 plus anciennes d'abord).
               </p>

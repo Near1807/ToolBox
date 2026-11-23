@@ -19,6 +19,7 @@ import { isRunnable } from '@hub/sdk/core';
 import {
   Button,
   errorMessage,
+  formatBytes,
   getFilePath,
   notifyDataChanged,
   pickFiles,
@@ -30,10 +31,11 @@ import {
   type MenuItem,
   type ModuleContextValue,
 } from '@hub/sdk/frontend';
-import type { ContextDto, ItemDto, ProposalDto } from '../shared/types';
+import type { ContextDto, DiskStatusDto, ItemDto, ProposalDto } from '../shared/types';
 import { Deposit } from './Deposit';
 import { DiskWitness } from './disk/DiskWitness';
 import { UpdateDialog } from './disk/UpdateDialog';
+import { VerifyDialog } from './disk/VerifyDialog';
 import { useDisk } from './disk/useDisk';
 import { entriesOf, type DepositEntry } from './logic';
 import { Preview } from './Preview';
@@ -49,6 +51,9 @@ interface Notice {
   undoId: string | null;
   key: number;
 }
+
+/** How an element opens (« readcopy »: an archived one, as a read-only copy). */
+export type OpenHow = 'app' | 'folder' | 'vscode' | 'readcopy';
 
 export interface CoffreValue {
   api: ModuleContextValue['api'];
@@ -68,13 +73,18 @@ export interface CoffreValue {
   notify(message: string, undoId?: string | null): void;
   fail(error: unknown): void;
   preview(items: ItemDto[], index: number): void;
-  open(item: ItemDto, how?: 'app' | 'folder' | 'vscode'): void;
+  open(item: ItemDto, how?: OpenHow): void;
   trash(item: ItemDto): void;
   pin(item: ItemDto): void;
   move(item: ItemDto, contextId: string | null): void;
   /** The context menu of an element (the same actions as elsewhere, ADR 0048). */
   menuOf(item: ItemDto, extra?: MenuItem[]): MenuItem[];
   bindMenu: ReturnType<typeof useContextMenu>['bind'];
+  /** v0.46.0: the disk's status (null while it is read). */
+  disk: DiskStatusDto | null;
+  verify(): void;
+  archive(items: ItemDto[]): void;
+  reactivate(item: ItemDto): void;
 }
 
 const Ctx = createContext<CoffreValue | null>(null);
@@ -119,6 +129,17 @@ export function CoffreFrame(props: { children: ReactNode }) {
   const values = useApi<Record<string, string[]>>(module.url('/values'));
   const tools = useApi<Tools>(module.url('/tools'));
   const disk = useDisk();
+  const diskName = disk.data?.disk?.name ?? 'du coffre';
+  const [archivedChoice, setArchivedChoice] = useState<ItemDto | null>(null);
+  // Plugged in or unplugged: the pages read their elements again (an archived one opens or not).
+  const connected = disk.data?.connected ?? null;
+  const connectedRef = useRef<boolean | null>(connected);
+  useEffect(() => {
+    if (connectedRef.current !== null && connected !== null && connected !== connectedRef.current)
+      notifyDataChanged([module.id]);
+    connectedRef.current = connected;
+  }, [connected, module.id]);
+  const [verifying, setVerifying] = useState(false);
   const [updating, setUpdating] = useState(false);
   const { reload: reloadDisk } = disk;
   const onDiskChanged = useCallback(() => {
@@ -223,11 +244,22 @@ export function CoffreFrame(props: { children: ReactNode }) {
   );
 
   const open = useCallback(
-    (item: ItemDto, how: 'app' | 'folder' | 'vscode' = 'app') => {
+    (item: ItemDto, how: OpenHow = 'app') => {
+      // v0.46.0: an archived element is on the disk only, and is not modified there.
+      if (item.diskState === 'archived' && how !== 'folder') {
+        if (item.unavailable || !connectedRef.current) {
+          notify(`Branche le disque « ${diskName} » pour ouvrir « ${item.name} ».`);
+          return;
+        }
+        if (how !== 'readcopy') {
+          setArchivedChoice(item);
+          return;
+        }
+      }
       let mode = how;
       if (mode === 'app' && item.kind === 'project') mode = t.vscode ? 'vscode' : 'folder';
       let runnable = false;
-      if (mode === 'app' && isRunnable(item.name)) {
+      if ((mode === 'app' || mode === 'readcopy') && isRunnable(item.name)) {
         // Règle 4: a program or a script is never launched without this question.
         if (
           !window.confirm(
@@ -239,7 +271,59 @@ export function CoffreFrame(props: { children: ReactNode }) {
       }
       module.api.post(`/items/${item.id}/open`, { how: mode, runnable }).catch(fail);
     },
-    [module.api, t.vscode, fail],
+    [module.api, t.vscode, fail, notify, diskName],
+  );
+
+  /** Archive (confirmed, with the room freed): the PC's copy removed after both are read again. */
+  const archive = useCallback(
+    (list: ItemDto[]) => {
+      const ok = list.filter((i) => i.diskState === 'active');
+      if (!ok.length) {
+        notify(
+          'Rien à archiver : seulement un élément déjà sur le disque (mets le disque à jour d’abord).',
+        );
+        return;
+      }
+      const freed = ok.reduce((sum, i) => sum + i.size, 0);
+      if (
+        !window.confirm(
+          `Archiver ${ok.length > 1 ? `ces ${ok.length} éléments` : `« ${ok[0]!.name} »`} ?
+
+Ils restent sur le disque « ${diskName} » (vérifiés avant), et leur copie est retirée de ce PC : ${formatBytes(freed)} libérés. Leurs fiches restent ici ; pour les modifier, il faudra les réactiver (disque branché).`,
+        )
+      )
+        return;
+      module.api
+        .post<{ archived: number; freed: number; refused: { name: string; reason: string }[] }>(
+          '/items/archive',
+          { ids: ok.map((i) => i.id), confirm: true },
+        )
+        .then((r) => {
+          const refused = r.refused.length
+            ? ` Pas archivé${r.refused.length > 1 ? 's' : ''} : ${r.refused.map((x) => `${x.name} (${x.reason})`).join(' ; ')}.`
+            : '';
+          notify(
+            `${r.archived} archivé${r.archived > 1 ? 's' : ''}, ${formatBytes(r.freed)} libérés sur le PC.${refused}`,
+          );
+          refresh();
+          disk.reload();
+        })
+        .catch(fail);
+    },
+    [module.api, notify, refresh, fail, diskName, disk],
+  );
+  const reactivate = useCallback(
+    (item: ItemDto) => {
+      module.api
+        .post(`/items/${item.id}/reactivate`)
+        .then(() => {
+          notify(`« ${item.name} » est de nouveau sur le PC : modifiable.`);
+          refresh();
+          disk.reload();
+        })
+        .catch(fail);
+    },
+    [module.api, notify, refresh, fail, disk],
   );
 
   const trash = useCallback(
@@ -327,6 +411,31 @@ export function CoffreFrame(props: { children: ReactNode }) {
             },
           ]
         : []),
+      ...(item.diskState === 'archived'
+        ? [
+            {
+              label: 'Réactiver (recopier sur le PC)',
+              icon: 'upload' as const,
+              disabled: disk.data?.connected ? false : `Branche le disque « ${diskName} »`,
+              onSelect: () => reactivate(item),
+            },
+          ]
+        : item.kind !== 'link' && !item.trashedAt
+          ? [
+              {
+                label: `Archiver (libère ${formatBytes(item.size)} sur le PC)`,
+                icon: 'disc' as const,
+                disabled: !disk.data?.disk
+                  ? 'Aucun disque du coffre'
+                  : !disk.data.connected
+                    ? `Branche le disque « ${diskName} »`
+                    : item.diskState !== 'active'
+                      ? 'Pas encore sur le disque : mets-le à jour d’abord'
+                      : false,
+                onSelect: () => archive([item]),
+              },
+            ]
+          : []),
       ...extra,
       { separator: true },
       {
@@ -350,7 +459,21 @@ export function CoffreFrame(props: { children: ReactNode }) {
         onSelect: () => trash(item),
       },
     ],
-    [list, move, pin, open, trash, t.vscode, module.api, refresh, fail],
+    [
+      list,
+      move,
+      pin,
+      open,
+      trash,
+      t.vscode,
+      module.api,
+      refresh,
+      fail,
+      disk.data,
+      diskName,
+      archive,
+      reactivate,
+    ],
   );
 
   // Ctrl+K: the Coffre's search, before the sidebar's (capture phase).
@@ -392,6 +515,10 @@ export function CoffreFrame(props: { children: ReactNode }) {
       move,
       menuOf,
       bindMenu: menu.bind,
+      disk: disk.data,
+      verify: () => setVerifying(true),
+      archive,
+      reactivate,
     }),
     [
       module,
@@ -410,6 +537,9 @@ export function CoffreFrame(props: { children: ReactNode }) {
       move,
       menuOf,
       menu.bind,
+      archive,
+      reactivate,
+      disk.data,
     ],
   );
 
@@ -463,6 +593,57 @@ export function CoffreFrame(props: { children: ReactNode }) {
               }
             />
           </div>
+        )}
+        {archivedChoice && (
+          <div
+            className="coffre-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Élément archivé"
+          >
+            <div className="coffre-modal__box coffre-question">
+              <h2>« {archivedChoice.name} » est archivé</h2>
+              <p className="muted">
+                Il est sur le disque « {diskName} » seulement, et ne s'y modifie pas.
+              </p>
+              <Button
+                autoFocus
+                onClick={() => {
+                  const it = archivedChoice;
+                  setArchivedChoice(null);
+                  reactivate(it);
+                }}
+              >
+                Réactiver pour le modifier
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  const it = archivedChoice;
+                  setArchivedChoice(null);
+                  open(it, 'readcopy');
+                }}
+              >
+                Ouvrir une copie en lecture
+              </Button>
+              <Button variant="secondary" onClick={() => setArchivedChoice(null)}>
+                Annuler
+              </Button>
+            </div>
+          </div>
+        )}
+        {verifying && (
+          <VerifyDialog
+            onClose={() => {
+              setVerifying(false);
+              disk.reload();
+            }}
+            onChanged={onDiskChanged}
+            onUpdate={() => {
+              setVerifying(false);
+              setUpdating(true);
+            }}
+          />
         )}
         {updating && disk.data && (
           <UpdateDialog

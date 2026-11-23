@@ -17,6 +17,12 @@ export function Gauge(props: {
   /** « warn » past a threshold the caller decides (the danger token). */
   tone?: 'accent' | 'warn';
   title?: string;
+  /**
+   * v0.46.0: several parts instead of one value (a disk: current / history /
+   * Recycle Bin), each a fraction of the whole (0..1) and its colour (a CSS
+   * value of the theme, « var(--series-2) »). The rest of the ring is « free ».
+   */
+  segments?: { value: number; color: string; label?: string }[];
 }) {
   const size = props.size ?? 112;
   const stroke = Math.max(6, Math.round(size / 12));
@@ -41,15 +47,41 @@ export function Gauge(props: {
           r={r}
           strokeWidth={stroke}
         />
-        <circle
-          className="atelier-gauge__value"
-          cx={size / 2}
-          cy={size / 2}
-          r={r}
-          strokeWidth={stroke}
-          strokeDasharray={`${circumference * value} ${circumference}`}
-          transform={`rotate(-90 ${size / 2} ${size / 2})`}
-        />
+        {props.segments ? (
+          (() => {
+            let start = 0;
+            return props.segments.map((seg, i) => {
+              const part = Math.max(0, Math.min(1 - start, seg.value));
+              const arc = (
+                <circle
+                  key={i}
+                  className="atelier-gauge__segment"
+                  cx={size / 2}
+                  cy={size / 2}
+                  r={r}
+                  strokeWidth={stroke}
+                  style={{ stroke: seg.color }}
+                  strokeDasharray={`${circumference * part} ${circumference}`}
+                  transform={`rotate(${-90 + start * 360} ${size / 2} ${size / 2})`}
+                >
+                  {seg.label && <title>{seg.label}</title>}
+                </circle>
+              );
+              start += part;
+              return arc;
+            });
+          })()
+        ) : (
+          <circle
+            className="atelier-gauge__value"
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            strokeWidth={stroke}
+            strokeDasharray={`${circumference * value} ${circumference}`}
+            transform={`rotate(-90 ${size / 2} ${size / 2})`}
+          />
+        )}
       </svg>
       <div className="atelier-gauge__text">
         <strong>{props.label}</strong>

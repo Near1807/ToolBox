@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { Button, ErrorMessage, errorMessage, pickFolder, useModule } from '@hub/sdk/frontend';
 import type { DiskStatusDto } from '../../shared/types';
 import { witnessText } from './DiskWitness';
+import { RestoreDialog } from './RestoreDialog';
 import { useDisk } from './useDisk';
 
 export function DiskSettings() {
@@ -13,6 +14,7 @@ export function DiskSettings() {
   const [name, setName] = useState('Disque 1 To');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [restoring, setRestoring] = useState(false);
 
   const run = async (job: () => Promise<unknown>) => {
     setBusy(true);
@@ -93,6 +95,15 @@ export function DiskSettings() {
           </Button>
         </>
       )}
+      <h3>Restaurer</h3>
+      <p className="muted small">
+        Sur un PC neuf ou après une perte : reprendre les fiches et les fichiers depuis le dossier «
+        ToolBox-Coffre » d'un disque. Un aperçu d'abord ; rien n'est écrit sans ta confirmation.
+      </p>
+      <Button variant="secondary" onClick={() => setRestoring(true)}>
+        Restaurer depuis un disque…
+      </Button>
+      {restoring && <RestoreDialog onClose={() => setRestoring(false)} onDone={reload} />}
       {error && <ErrorMessage>{error}</ErrorMessage>}
     </div>
   );

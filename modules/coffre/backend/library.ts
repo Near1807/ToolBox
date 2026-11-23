@@ -70,7 +70,15 @@ export async function hashFolder(folder: string): Promise<{
 const DATA_LANGUAGES = new Set(['JSON', 'YAML', 'TOML', 'XML']);
 
 export class Library {
-  constructor(readonly root: string) {}
+  /**
+   * v0.46.0: `reserved(dirRel)` gives the names (lowercase) taken in a folder by
+   * ARCHIVED elements (on the disk only, not in the folder): a new file never
+   * takes one, so the PC and the disk keep the same paths.
+   */
+  constructor(
+    readonly root: string,
+    private readonly reserved: (dirRel: string) => Set<string> = () => new Set(),
+  ) {}
 
   /** The Coffre's own folders, created on first use. */
   ensure(): void {
@@ -88,10 +96,11 @@ export class Library {
   }
 
   /** A free name in a folder (Windows: case does not count). */
-  private freeIn(dirAbs: string, name: string): string {
-    const taken = new Set(
-      existsSync(dirAbs) ? readdirSync(dirAbs).map((n) => n.toLowerCase()) : [],
-    );
+  freeIn(dirAbs: string, name: string): string {
+    const taken = new Set([
+      ...(existsSync(dirAbs) ? readdirSync(dirAbs).map((n) => n.toLowerCase()) : []),
+      ...this.reserved(toRel(path.relative(this.root, dirAbs))),
+    ]);
     return freeName(safeName(name), (candidate) => taken.has(candidate.toLowerCase()));
   }
 

@@ -32,6 +32,11 @@ export function Preview(props: {
   const fresh = useApi<ItemDto>(base ? module.url(`/items/${base.id}`) : null);
   const item = fresh.data?.id === base?.id ? fresh.data : base;
   const { onClose, onIndex, index, items } = props;
+  // v0.46.0: seen (« pas ouverts depuis 6 mois » counts a look as an opening).
+  const seenId = base?.id;
+  useEffect(() => {
+    if (seenId) void module.api.post(`/items/${seenId}/seen`).catch(() => undefined);
+  }, [seenId, module.api]);
 
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
@@ -156,11 +161,13 @@ export function Preview(props: {
             fallback={
               <>
                 <p className="muted">
-                  {item.kind === 'project'
-                    ? 'Un projet (dossier entier).'
-                    : item.kind === 'link'
-                      ? `Lien externe : ${item.externalPath ?? ''}`
-                      : 'Pas d’aperçu pour ce type de fichier.'}
+                  {item.unavailable
+                    ? `Archivé : sur le disque « ${coffre.disk?.disk?.name ?? 'du coffre'} ». Branche-le pour le voir.`
+                    : item.kind === 'project'
+                      ? 'Un projet (dossier entier).'
+                      : item.kind === 'link'
+                        ? `Lien externe : ${item.externalPath ?? ''}`
+                        : 'Pas d’aperçu pour ce type de fichier.'}
                 </p>
                 <Button onClick={() => coffre.open(item)}>
                   {item.kind === 'project' && coffre.tools.vscode

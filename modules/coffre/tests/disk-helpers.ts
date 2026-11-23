@@ -29,17 +29,25 @@ export interface DiskWorld {
 }
 
 /** A hub with the Coffre and two simulated volumes (TOOLBOX_COFFRE_VOLUMES). */
-export async function diskWorld(dataDir?: string): Promise<DiskWorld> {
+export async function diskWorld(
+  options: {
+    dataDir?: string;
+    host?: Parameters<typeof createTestHub>[0]['host'];
+    /** Another world's volumes (a second PC seeing the same disk). */
+    volumes?: { E: string; F: string };
+  } = {},
+): Promise<DiskWorld> {
   const base = mkdtempSync(path.join(tmpdir(), 'coffre-disk-'));
-  const E = path.join(base, 'E');
-  const F = path.join(base, 'F');
+  const E = options.volumes?.E ?? path.join(base, 'E');
+  const F = options.volumes?.F ?? path.join(base, 'F');
   const dl = path.join(base, 'dl');
   for (const d of [E, F, dl]) mkdirSync(d, { recursive: true });
   const before = process.env.TOOLBOX_COFFRE_VOLUMES;
   process.env.TOOLBOX_COFFRE_VOLUMES = [E, F].join(path.delimiter);
   const hub = await createTestHub({
     loadExamples: false,
-    dataDir,
+    dataDir: options.dataDir,
+    host: options.host,
     modules: [await loadModuleFolder(path.resolve(__dirname, '..'))],
   });
   return {

@@ -2645,3 +2645,8 @@ input[type='range'] {
     transform: none;
   }
 }
+/* v0.46.0: a gauge in several parts (the colours are given by the caller, theme tokens) */
+.atelier-gauge__segment {
+  fill: none;
+  stroke-linecap: butt;
+}

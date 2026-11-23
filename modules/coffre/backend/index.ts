@@ -39,6 +39,9 @@ import type { AttributeRow, ContextRow, CopyRow, ItemRow } from './rows';
 import { stateOf } from './plan';
 import { DiskManager, type CoffreDeps } from './disk';
 import { registerDiskRoutes } from './disk-routes';
+import { registerRestoreRoutes } from './restore';
+import { registerVerifyRoutes } from './verify';
+import { cleanReadCopies, readCopy, registerArchiveRoutes, SUGGEST_DAYS } from './archive';
 
 /** An entry of « Ranger » (the rangement window's choice for one dropped path). */
 interface DepositEntry {
@@ -166,7 +169,19 @@ export default defineBackendModule({
     const contexts = ctx.db.table('contexts');
     const attributes = ctx.db.table('attributes');
     const also = ctx.db.table('also');
-    const library = new Library(ctx.files.libraryDir);
+    // v0.46.0: an archived element keeps its name in its folder (it is on the disk at that path).
+    const library = new Library(ctx.files.libraryDir, (dirRel) => {
+      const rows = ctx.db
+        .prepare(
+          `SELECT rel_path FROM ${items} WHERE deleted_at IS NULL AND archived_at IS NOT NULL AND rel_path LIKE ?`,
+        )
+        .all(`${dirRel ? `${dirRel}/` : ''}%`) as { rel_path: string }[];
+      return new Set(
+        rows
+          .filter((r) => path.posix.dirname(r.rel_path) === (dirRel || '.'))
+          .map((r) => path.posix.basename(r.rel_path).toLowerCase()),
+      );
+    });
     // v0.46.0: the disk (ADR 0055).
     const deps: CoffreDeps = {
       ctx,
@@ -470,6 +485,13 @@ export default defineBackendModule({
         .all(...args) as ItemRow[];
       const list = dtos(rows);
       // v0.46.0: « pas encore sur le disque », « archivé »…
+      if (q.state === 'suggest') {
+        const since = new Date(Date.now() - SUGGEST_DAYS * 86_400_000).toISOString();
+        const old = new Set(
+          rows.filter((r) => !r.pinned && (r.opened_at ?? r.created_at) < since).map((r) => r.id),
+        );
+        return list.filter((i) => i.diskState === 'active' && old.has(i.id));
+      }
       return q.state ? list.filter((i) => i.diskState === q.state) : list;
     });
     ctx.routes.get('/items/:id', (request) => one(uuidParam(request.params)));
@@ -761,7 +783,14 @@ export default defineBackendModule({
       const newName = typeof b.name === 'string' && b.name.trim() ? safeName(b.name) : null;
       const before = { rel: row.rel_path, undo: { ...row } };
       let moved: string | null = null;
-      if (row.rel_path && (contextChange || (newName && newName !== row.name))) {
+      if (row.archived_at && row.rel_path && (contextChange || (newName && newName !== row.name))) {
+        // Archived: no file on the PC; its place changes in the sheet, the disk follows at the
+        // next update (a move).
+        const dir = contextId ? folderOf(contextId) : ARRIVAL_FOLDER;
+        const free = library.freeIn(library.abs(dir), newName ?? row.name);
+        fields.rel_path = `${dir}/${free}`;
+        fields.name = free;
+      } else if (row.rel_path && (contextChange || (newName && newName !== row.name))) {
         moved = await library.move(
           row.rel_path,
           contextId ? folderOf(contextId) : ARRIVAL_FOLDER,
@@ -787,7 +816,8 @@ export default defineBackendModule({
           arrival: before.undo.arrival,
           name: before.undo.name,
         };
-        if (now.rel_path && before.rel && now.rel_path !== before.rel) {
+        if (now.archived_at) restore.rel_path = before.rel;
+        else if (now.rel_path && before.rel && now.rel_path !== before.rel) {
           const back = path.posix.dirname(before.rel);
           restore.rel_path = await library.move(
             now.rel_path,
@@ -937,7 +967,8 @@ export default defineBackendModule({
       if (!row.trashed_at) throw new HttpError(409, 'Seulement depuis la corbeille du Coffre');
       if (requestBody(request).confirm !== true)
         throw new HttpError(400, 'Effacement définitif : confirmation nécessaire');
-      if (row.rel_path) await library.erase(row.rel_path);
+      // An archived element has no file on the PC: its path may be another element's now.
+      if (row.rel_path && !row.archived_at) await library.erase(row.rel_path);
       const trashDir = `${TRASH_FOLDER}/${row.id}`;
       if (library.exists(trashDir)) await library.erase(trashDir);
       // v0.46.0: a copy on the disk goes to the disk's Recycle Bin at the next update and can
@@ -993,11 +1024,35 @@ export default defineBackendModule({
     ctx.routes.post('/items/:id/open', async (request) => {
       const row = getRow(uuidParam(request.params));
       const file = absOf(row);
+      if (row.archived_at && !file)
+        throw new HttpError(
+          409,
+          `Branche le disque « ${disk.disk()?.name ?? 'du coffre'} » pour l’ouvrir`,
+        );
       if (!file || !existsSync(file)) throw new HttpError(404, 'Fichier introuvable sur le disque');
       const b = requestBody(request);
+      // v0.46.0: when it was last opened (« pas ouverts depuis 6 mois »: a suggestion only).
+      store.update('items', row.id, { opened_at: new Date().toISOString() });
       if (b.how === 'folder') {
         ctx.files.reveal(file);
         return { ok: true };
+      }
+      // An archived element is not modified: reactivate it, or open a read-only copy.
+      if (row.archived_at && b.how !== 'readcopy')
+        throw new HttpError(
+          409,
+          'Archivé : « Réactiver pour le modifier » ou « Ouvrir une copie en lecture »',
+        );
+      if (b.how === 'readcopy') {
+        if (!row.archived_at) throw new HttpError(400, 'Seulement pour un élément archivé');
+        if (isRunnable(file) && b.runnable !== true)
+          throw new HttpError(
+            409,
+            `« ${path.basename(file)} » lance un programme : confirmation nécessaire`,
+          );
+        const copy = await readCopy(file, row.id);
+        await ctx.files.open(copy, { runnable: b.runnable === true });
+        return { ok: true, copy };
       }
       if (b.how === 'vscode') {
         const exe = vscode();
@@ -1014,7 +1069,17 @@ export default defineBackendModule({
       return { ok: true };
     });
 
+    /** The preview was opened (« pas ouverts depuis 6 mois » counts it as opened). */
+    ctx.routes.post('/items/:id/seen', (request) => {
+      const row = getRow(uuidParam(request.params));
+      store.update('items', row.id, { opened_at: new Date().toISOString() });
+      return { ok: true };
+    });
+
     registerDiskRoutes(deps, disk);
+    registerArchiveRoutes(deps, disk);
+    registerRestoreRoutes(deps, disk);
+    registerVerifyRoutes(deps, disk);
 
     // The Coffre's folders exist from the first opening (readable in the Explorer).
     try {
@@ -1027,6 +1092,7 @@ export default defineBackendModule({
     // ToolBox's own temporary copies on the PC (an element or a version copied back from the
     // disk and never finished; the previous files kept for « Annuler », which a restart ends:
     // those versions are on the disk): removed at startup.
+    cleanReadCopies();
     for (const dir of ['tmp', 'annuler'])
       try {
         rmSync(ctx.files.dataPath(dir), { recursive: true, force: true });

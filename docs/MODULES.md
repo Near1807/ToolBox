@@ -581,7 +581,7 @@ export default defineFrontendModule({
 
 | `Tabs` | v0.41.0 : une page en onglets (« Synchro » / « Réseaux et adresses »), même aspect sur le PC et le téléphone, flèches du clavier |
 | `useModuleNames()` | v0.41.0 : le nom lisible d'un module présent (« Sport »), pour dire d'où vient un élément d'un autre outil ; `null` s'il n'est pas là |
-| `Gauge`, `Counter` | v0.45.0 (« atelier », `packages/sdk/atelier.tsx`) : jauge circulaire (0 à 1, `tone="warn"` au-delà d'un seuil choisi par l'appelant) et grand compteur ; tableau de bord du Coffre |
+| `Gauge`, `Counter` | v0.45.0 (« atelier », `packages/sdk/atelier.tsx`) : jauge circulaire (0 à 1, `tone="warn"` au-delà d'un seuil choisi par l'appelant ; v0.46.0 : `segments` pour plusieurs parts colorées par des jetons du thème, le reste de l'anneau étant « libre ») et grand compteur ; tableau de bord du Coffre |
 | `ReliefCard` | v0.45.0 : carte en relief avec aperçu en haut, titre et lignes, actions au survol (et au clavier), grande variante ; double-clic ou Entrée = ouvrir, clic sur l'aperçu = aperçu |
 | `FilterPill` | v0.45.0 : pastille de filtre allumée / éteinte avec le nombre qu'elle donnerait, point de couleur facultatif |
 | `ContextTile` | v0.45.0 : tuile d'un dossier / contexte (couleur, nom, nombre, pastille « nouveau »), cible de dépôt |

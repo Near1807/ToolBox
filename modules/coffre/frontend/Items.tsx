@@ -144,6 +144,8 @@ export function Items(props: {
   sort?: SortKey;
   onSort?: (sort: SortKey) => void;
   empty?: string;
+  /** v0.46.0: selection mode (a click selects; « Archiver la sélection »). */
+  select?: { ids: Set<string>; toggle: (id: string) => void };
 }) {
   const coffre = useCoffre();
   const own = useContextMenu();
@@ -312,6 +314,17 @@ export function Items(props: {
                 >
                   <Icon name="ellipsis" />
                 </button>
+                {item.diskState === 'active' && coffre.disk?.connected && (
+                  <button
+                    type="button"
+                    className="icon-button coffre-card-action"
+                    title={`Archiver (libère ${formatBytes(item.size)} sur le PC)`}
+                    aria-label="Archiver"
+                    onClick={() => coffre.archive([item])}
+                  >
+                    <Icon name="disc" />
+                  </button>
+                )}
                 <button
                   type="button"
                   className={`icon-button coffre-card-action${item.pinned ? ' coffre-card-action--on' : ''}`}
@@ -324,8 +337,9 @@ export function Items(props: {
                 </button>
               </>
             }
-            onOpen={() => coffre.open(item)}
-            onPreview={() => preview(i)}
+            selected={props.select?.ids.has(item.id)}
+            onOpen={() => (props.select ? props.select.toggle(item.id) : coffre.open(item))}
+            onPreview={() => (props.select ? props.select.toggle(item.id) : preview(i))}
             bind={mergeHandlers(
               { onKeyDown: keys(i) },
               coffre.bindMenu(() => coffre.menuOf(item), item.name),
