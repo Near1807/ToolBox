@@ -18,7 +18,7 @@ import {
 } from './accounts';
 import { AssistantRegistry, rightKey } from './assistant';
 import { registerCoreActions } from './assistant-core';
-import { createAutomaticBackup, restoreBackup } from './backups';
+import { createAutomaticBackup, restoreBackup, snapshotDatabase } from './backups';
 import { coreMigrations } from './core-migrations';
 import { randomUUID } from 'node:crypto';
 import { SyncEngine } from './sync/engine';
@@ -130,6 +130,8 @@ export class Hub {
   readonly modulesDataDir: string;
   /** v0.45.0: the libraries of the loaded modules (served as media). */
   private readonly libraryDirs: string[];
+  /** v0.46.0: folders outside userData a module lets the UI show (ctx.files.allowMediaRoot), by module. */
+  private readonly extraMediaRoots = new Map<string, Set<string>>();
   readonly handle: DatabaseHandle;
   readonly logs: LogStore;
   readonly logger: ModuleLogger;
@@ -168,6 +170,8 @@ export class Hub {
       this.modulesDataDir,
       // v0.45.0: the user's files kept by modules (<userData>/<id>/, ctx.files.libraryDir).
       ...this.libraryDirs,
+      // v0.46.0: an external folder a module was given by the user (the Coffre's disk).
+      ...[...this.extraMediaRoots.values()].flatMap((set) => [...set]),
       this.getOutputRoot(),
       options.assetsRoot,
     ]);
@@ -476,6 +480,11 @@ export class Hub {
         logger.info(`Sauvegarde de la base : ${path.basename(file)}`);
         return path.basename(file);
       },
+      snapshotTo: (file) => {
+        if (!path.isAbsolute(file)) throw new Error('Copie de la base : chemin absolu attendu');
+        snapshotDatabase(this.handle.db, file);
+        logger.info(`Copie de la base écrite : ${file}`);
+      },
     };
 
     const events = this.bus.forSource(id, logger, (off) => disposers.push(off));
@@ -492,6 +501,15 @@ export class Hub {
         getOutputRoot: () => this.getOutputRoot(),
         host: this.host,
         mediaUrl: (filePath) => this.media.url(filePath),
+        allowMediaRoot: (dir) => {
+          const resolved = path.resolve(dir);
+          const set = this.extraMediaRoots.get(id) ?? new Set<string>();
+          set.add(resolved);
+          this.extraMediaRoots.set(id, set);
+          return () => {
+            this.extraMediaRoots.get(id)?.delete(resolved);
+          };
+        },
       }),
       outputs: this.outputs.forModule(id),
       settings: {

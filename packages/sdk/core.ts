@@ -228,6 +228,13 @@ export interface ModuleDatabase {
    */
   backup(reason: string): string;
   /**
+   * v0.46.0 (PC, absent on the phone): writes a consistent copy of the WHOLE
+   * database (SQLite's own copy, never a copy of the open file) to `file`,
+   * an absolute path the module chose (the Coffre's disk: write it under a
+   * temporary name, then rename it). Replaces `file` if it exists.
+   */
+  snapshotTo?(file: string): void;
+  /**
    * The synchronisation's clock (ADR 0044), given by the hub to the modules
    * that declare `sync` (SyncStore writes it in the journal). Absent elsewhere.
    */
@@ -403,6 +410,14 @@ export interface ModuleFiles {
    * itself (an original the user dropped). Null when there is no mark.
    */
   provenance(path: string): FileProvenance | null;
+  /**
+   * v0.46.0 (PC, absent on the phone): lets mediaUrl serve the files of a
+   * folder OUTSIDE ToolBox's own folders — an external disk the user chose
+   * (the Coffre's disk). Returns the function that withdraws it. The module
+   * registers only a folder the user chose, and withdraws it when the folder
+   * goes away (disk unplugged).
+   */
+  allowMediaRoot?(dir: string): () => void;
   /** Read-only files shipped with the module: modules/<id>/assets/ (fonts, images…). */
   readonly assetsDir: string;
   /** Path inside assetsDir; throws if it escapes the folder. */

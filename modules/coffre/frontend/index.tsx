@@ -3,6 +3,8 @@
 // preview, the message with « Annuler ».
 import type { ComponentType } from 'react';
 import { defineFrontendModule } from '@hub/sdk/frontend';
+import { DiskBadge } from './disk/DiskBadge';
+import { DiskSettings } from './disk/DiskSettings';
 import { CoffreFrame } from './frame';
 import { HomePage } from './Home';
 import { ArrivalPage, AttributePage, ContextPage, TrashPage } from './Pages';
@@ -25,4 +27,7 @@ export default defineFrontendModule({
     { path: 'arrivee', component: framed(ArrivalPage) },
     { path: 'corbeille', component: framed(TrashPage) },
   ],
+  // v0.46.0: the disk at a glance in the sidebar, and its panel in Réglages › Coffre.
+  nav: { badge: DiskBadge },
+  settingsPanel: { label: 'Disque du coffre', component: DiskSettings },
 });

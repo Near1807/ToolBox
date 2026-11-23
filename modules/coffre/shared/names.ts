@@ -67,9 +67,14 @@ export function freeName(name: string, taken: (candidate: string) => boolean): s
 /** Folders of the Coffre that are not contexts. */
 export const ARRIVAL_FOLDER = '_Arrivée';
 export const TRASH_FOLDER = '_Corbeille';
+/** v0.46.0: ToolBox's own folder on the disk (history, disk Recycle Bin, database copy). */
+export const DISK_SYSTEM_FOLDER = '_ToolBox';
+const RESERVED_FOLDERS = new Set(
+  [ARRIVAL_FOLDER, TRASH_FOLDER, DISK_SYSTEM_FOLDER].map((n) => n.toLowerCase()),
+);
 
 /** A context's folder name: valid on Windows, never one of the Coffre's own folders. */
 export function folderName(name: string): string {
   const safe = safeName(name, MAX_FOLDER);
-  return safe === ARRIVAL_FOLDER || safe === TRASH_FOLDER ? `${safe}_` : safe;
+  return RESERVED_FOLDERS.has(safe.toLowerCase()) ? `${safe}_` : safe;
 }

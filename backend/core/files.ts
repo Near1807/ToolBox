@@ -26,6 +26,8 @@ export function createModuleFiles(options: {
   getOutputRoot: () => string;
   host: HostAdapter;
   mediaUrl: (filePath: string) => string;
+  /** v0.46.0: an external folder the UI may show (ctx.files.allowMediaRoot). */
+  allowMediaRoot?: (dir: string) => () => void;
 }): ModuleFiles {
   const dataDir = path.join(options.modulesDataDir, options.moduleId);
   mkdirSync(dataDir, { recursive: true });
@@ -43,6 +45,14 @@ export function createModuleFiles(options: {
     assetsDir: options.assetsDir,
     assetPath: (...segments) => safeJoin(options.assetsDir, ...segments),
     mediaUrl: options.mediaUrl,
+    ...(options.allowMediaRoot
+      ? {
+          allowMediaRoot: (dir: string) => {
+            if (!path.isAbsolute(dir)) throw new Error('Dossier externe : chemin absolu attendu');
+            return options.allowMediaRoot!(dir);
+          },
+        }
+      : {}),
     mediaUrlIfExists: (filePath) => {
       if (!filePath || !existsSync(filePath)) return null;
       try {

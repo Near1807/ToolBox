@@ -35,47 +35,9 @@ import {
   type ProposalDto,
 } from '../shared/types';
 import { filesOf, hashFile, hashFolder, Library } from './library';
-
-interface ItemRow {
-  id: string;
-  created_at: string;
-  updated_at: string;
-  deleted_at: string | null;
-  kind: ItemKind;
-  name: string;
-  rel_path: string | null;
-  external_path: string | null;
-  size: number;
-  sha256: string | null;
-  ext: string;
-  context_id: string | null;
-  arrival: number;
-  pinned: number;
-  trashed_at: string | null;
-  trash_from: string | null;
-  source_path: string | null;
-  source_url: string | null;
-  referrer_url: string | null;
-  file_date: string | null;
-}
-interface ContextRow {
-  id: string;
-  created_at: string;
-  deleted_at: string | null;
-  parent_id: string | null;
-  name: string;
-  color: string | null;
-  sort: number | null;
-  cover_item_id: string | null;
-}
-interface AttributeRow {
-  id: string;
-  item_id: string;
-  key: AttributeKey;
-  value: string;
-  origin: 'guessed' | 'chosen';
-  reason: string | null;
-}
+import type { AttributeRow, ContextRow, ItemRow } from './rows';
+import { DiskManager, type CoffreDeps } from './disk';
+import { registerDiskRoutes } from './disk-routes';
 
 /** An entry of « Ranger » (the rangement window's choice for one dropped path). */
 interface DepositEntry {
@@ -153,6 +115,48 @@ export default defineBackendModule({
         ${changesTableSql('coffre__changes')}
       `,
     },
+    {
+      version: 2,
+      description:
+        'v0.46.0 : le disque (disques, copies, anciennes versions), archivés, état des fichiers du PC',
+      up: `
+        ALTER TABLE coffre__items ADD COLUMN archived_at TEXT;
+        ALTER TABLE coffre__items ADD COLUMN stat_json TEXT;
+        ALTER TABLE coffre__items ADD COLUMN opened_at TEXT;
+        CREATE TABLE coffre__disks (
+          ${SYNC_COLUMNS},
+          name TEXT NOT NULL,
+          rel_root TEXT NOT NULL,
+          last_root TEXT,
+          last_update_at TEXT,
+          last_update_json TEXT,
+          last_verify_json TEXT
+        );
+        CREATE TABLE coffre__copies (
+          ${SYNC_COLUMNS},
+          item_id TEXT NOT NULL,
+          disk_id TEXT NOT NULL,
+          rel_path TEXT NOT NULL,
+          sha256 TEXT,
+          size INTEGER NOT NULL DEFAULT 0,
+          copied_at TEXT,
+          trashed_at TEXT,
+          damaged_at TEXT
+        );
+        CREATE INDEX coffre__copies_item ON coffre__copies (item_id);
+        CREATE TABLE coffre__versions (
+          ${SYNC_COLUMNS},
+          item_id TEXT NOT NULL,
+          disk_id TEXT NOT NULL,
+          rel_path TEXT NOT NULL,
+          name TEXT NOT NULL,
+          sha256 TEXT,
+          size INTEGER NOT NULL DEFAULT 0,
+          saved_at TEXT NOT NULL
+        );
+        CREATE INDEX coffre__versions_item ON coffre__versions (item_id);
+      `,
+    },
   ],
 
   register(ctx) {
@@ -162,6 +166,22 @@ export default defineBackendModule({
     const attributes = ctx.db.table('attributes');
     const also = ctx.db.table('also');
     const library = new Library(ctx.files.libraryDir);
+    // v0.46.0: the disk (ADR 0055).
+    const deps: CoffreDeps = {
+      ctx,
+      store,
+      library,
+      t: {
+        items,
+        contexts,
+        attributes,
+        also,
+        disks: ctx.db.table('disks'),
+        copies: ctx.db.table('copies'),
+        versions: ctx.db.table('versions'),
+      },
+    };
+    const disk = new DiskManager(deps);
     const agenda = () => ctx.services.optional<AgendaService>('agenda');
     const undo = new Map<string, { at: number; run: () => Promise<void> }>();
     const remember = (run: () => Promise<void>) => {
@@ -953,11 +973,16 @@ export default defineBackendModule({
       return { ok: true };
     });
 
+    registerDiskRoutes(deps, disk);
+
     // The Coffre's folders exist from the first opening (readable in the Explorer).
     try {
       library.ensure();
     } catch (error) {
       ctx.logger.warn(`Dossier du Coffre non créé : ${String(error)}`);
     }
+    // The disk is looked for every few seconds, READ ONLY (only a click writes on it).
+    disk.start();
+    ctx.onShutdown(() => disk.stop());
   },
 });

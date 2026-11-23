@@ -1,5 +1,12 @@
 import { useEffect, useRef, useState, type DragEvent } from 'react';
-import { Icon, type MenuItem, UndoToast, useContextMenu } from '@hub/sdk/frontend';
+import {
+  ErrorBoundary,
+  Icon,
+  ModuleProvider,
+  type MenuItem,
+  UndoToast,
+  useContextMenu,
+} from '@hub/sdk/frontend';
 import { NavLink, useNavigate } from 'react-router';
 import {
   Activity,
@@ -353,6 +360,13 @@ export function Sidebar(props: { fullscreen: boolean }) {
                       <Icon name={tool.module.manifest.icon} />
                     </span>
                     <span className="nav-link__label">{tool.name}</span>
+                    {tool.module.frontend?.nav?.badge && (
+                      <ErrorBoundary label={`${tool.id} : indicateur`} silent>
+                        <ModuleProvider manifest={tool.module.manifest}>
+                          <tool.module.frontend.nav.badge />
+                        </ModuleProvider>
+                      </ErrorBoundary>
+                    )}
                     {tool.module.manifest.experimental && (
                       <span className="nav-link__tag" title="Expérimental">
                         β

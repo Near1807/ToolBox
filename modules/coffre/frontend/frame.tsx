@@ -32,6 +32,8 @@ import {
 } from '@hub/sdk/frontend';
 import type { ContextDto, ItemDto, ProposalDto } from '../shared/types';
 import { Deposit } from './Deposit';
+import { DiskWitness } from './disk/DiskWitness';
+import { useDisk } from './disk/useDisk';
 import { entriesOf, type DepositEntry } from './logic';
 import { Preview } from './Preview';
 
@@ -115,6 +117,7 @@ export function CoffreFrame(props: { children: ReactNode }) {
   const contexts = useApi<ContextDto[]>(module.url('/contexts'));
   const values = useApi<Record<string, string[]>>(module.url('/values'));
   const tools = useApi<Tools>(module.url('/tools'));
+  const disk = useDisk();
   const [notice, setNotice] = useState<Notice | null>(null);
   const [entries, setEntries] = useState<DepositEntry[] | null>(null);
   const [analyzing, setAnalyzing] = useState<string | null>(null);
@@ -432,6 +435,11 @@ export function CoffreFrame(props: { children: ReactNode }) {
           if (!taken) drop(e.dataTransfer, here.current);
         }}
       >
+        {disk.data && (
+          <div className="coffre-diskbar">
+            <DiskWitness status={disk.data} />
+          </div>
+        )}
         {props.children}
         {over && (
           <div className="coffre-dropzone" aria-hidden="true">

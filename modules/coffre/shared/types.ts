@@ -130,3 +130,62 @@ export interface ProposalDto {
     | null;
   attributes: AttributeDto[];
 }
+
+// --- v0.46.0: the disk ----------------------------------------------------------------
+
+/** An element's state with the disk (ADR 0055). */
+export type DiskState =
+  /** On the PC only (new, or changed since the last update): the one fragile state. */
+  | 'pending'
+  /** On the PC and on the disk, the same (same fingerprint). */
+  | 'active'
+  /** On the disk only. */
+  | 'archived'
+  /** A link left in its place: not saved. */
+  | 'link'
+  /** In the Coffre's Recycle Bin. */
+  | 'trash'
+  /** Its file is not on the PC any more (moved or deleted outside ToolBox). */
+  | 'missing';
+
+/** What a disk update did (also its last one, shown in the Coffre). */
+export interface UpdateReport {
+  at: string;
+  copied: number;
+  updated: number;
+  moved: number;
+  trashed: number;
+  repaired: number;
+  /** Old versions removed by the quota (oldest first). */
+  removedVersions: number;
+  /** Versions larger than the whole quota (kept, reported). */
+  oversized: string[];
+  problems: { itemId: string; name: string; reason: string }[];
+  /** Stopped before the end (cancelled, disk unplugged…): what is done stays valid. */
+  stopped: string | null;
+}
+
+export interface DiskStatusDto {
+  disk: { id: string; name: string; lastRoot: string | null } | null;
+  connected: boolean;
+  root: string | null;
+  free: number | null;
+  total: number | null;
+  lastUpdateAt: string | null;
+  lastUpdate: UpdateReport | null;
+  /** What runs on the disk now (« mise à jour »…). */
+  busy: string | null;
+  /** The running job (update, verification…), to follow its progress. */
+  jobId: string | null;
+  /** Elements « pas encore sur le disque ». */
+  pending: number;
+  archived: number;
+  /** What an update would do now (from the database; the detailed plan reads the disk). */
+  counts: { copy: number; update: number; move: number; trash: number };
+  /** On the disk: current versions, old versions (history), its Recycle Bin. */
+  bytes: { current: number; history: number; trash: number };
+  /** In the disk's Recycle Bin for more than 30 days (ToolBox proposes to erase them). */
+  oldTrash: number;
+  /** The history quota (bytes). */
+  quota: number;
+}

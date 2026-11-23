@@ -972,3 +972,88 @@ button.coffre-value__text:hover {
     animation: none;
   }
 }
+
+/* v0.46.0: the disk — witness, sidebar dot, settings panel */
+.coffre-diskbar {
+  max-width: 1180px;
+  padding: 18px 36px 0;
+}
+.coffre-witness {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 0.86rem;
+  color: var(--text-2);
+}
+.coffre-witness__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--text-3);
+  flex: none;
+}
+.coffre-witness--on .coffre-witness__dot {
+  background: var(--accent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+.coffre-witness--warn {
+  border-color: color-mix(in srgb, var(--warning) 50%, var(--border));
+}
+.coffre-witness--warn .coffre-witness__dot {
+  background: var(--warning);
+}
+.coffre-witness--todo {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+}
+.coffre-witness__text {
+  color: var(--text);
+}
+.coffre-witness__todo {
+  font-weight: 600;
+  color: var(--text);
+}
+.coffre-witness .button {
+  margin-left: auto;
+}
+.coffre-badge {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-left: 6px;
+  flex: none;
+}
+.coffre-badge--on {
+  background: var(--accent);
+}
+.coffre-badge--warn {
+  background: var(--warning);
+}
+.coffre-settings {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+.coffre-settings h3 {
+  margin: 0;
+}
+.coffre-settings__state {
+  margin: 0;
+}
+.coffre-settings__state--on {
+  color: var(--text);
+}
+.coffre-settings__state--warn {
+  color: var(--warning);
+}
+.coffre-settings__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}

@@ -17,6 +17,15 @@
       "label": "Animations",
       "description": "Un fichier rangé file vers sa tuile (courtes ; jamais quand Windows demande de réduire les animations).",
       "default": true
+    },
+    {
+      "key": "historyQuotaGb",
+      "type": "number",
+      "label": "Place réservée aux anciennes versions sur le disque (Go)",
+      "description": "Quand elle est pleine, les anciennes versions les plus anciennes sont retirées d'abord, pendant une mise à jour. Jamais les fichiers actuels, les archives ni la corbeille du disque.",
+      "default": 20,
+      "min": 1,
+      "max": 100000
     }
   ]
 }

@@ -34,8 +34,13 @@ export interface ModulePage {
 export interface FrontendModule {
   /** Pages of the module; the one with path "" is linked from the sidebar and the home card. */
   pages?: ModulePage[];
-  /** Sidebar entry (default: the manifest name). `hidden: true` removes it. */
-  nav?: { label?: string; hidden?: boolean };
+  /**
+   * Sidebar entry (default: the manifest name). `hidden: true` removes it.
+   * v0.46.0: `badge`, a tiny component shown at the end of the entry (a
+   * state at a glance: « disque branché »), rendered in the module's context;
+   * keep it light (it is always mounted). MODULES.md §7.8.
+   */
+  nav?: { label?: string; hidden?: boolean; badge?: ComponentType };
   /** Small component shown in the module's card on the home page. */
   HomeWidget?: ComponentType;
   /**
