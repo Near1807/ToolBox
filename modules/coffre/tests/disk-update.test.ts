@@ -17,7 +17,7 @@ import {
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fullRenderTests } from '@hub/sdk/testing';
-import { DISK_FOLDER } from '../backend/disk-layout';
+import { DISK_FOLDER, IDENTITY_FILE } from '../backend/disk-layout';
 import type { DiskStatusDto, ItemDto, UpdateReport } from '../shared/types';
 import {
   API,
@@ -237,16 +237,24 @@ describe('mettre à jour le disque', () => {
     const big = Buffer.alloc(24 * 1024 * 1024, 3);
     const { created, root } = await setup({ 'film.mkv': big });
     const away = path.join(w.E, '..', 'debranche');
-    hook.onFirstBytes = () => renameSync(path.join(w.E, 'Sauvegardes'), away); // unplugged
+    const identity = path.join(root, IDENTITY_FILE);
+    // Unplugged. Windows refuses to rename a folder holding an open file: there, the disk
+    // « becomes another one » (its identity gone), which ToolBox must notice the same way.
+    const windows = process.platform === 'win32';
+    hook.onFirstBytes = () =>
+      windows
+        ? renameSync(identity, `${identity}.ailleurs`)
+        : renameSync(path.join(w.E, 'Sauvegardes'), away);
     const { jobId } = await ok<{ jobId: string }>(w, 'POST', `${API}/disk/update`);
     const job = await waitJob(w, jobId);
     expect(job.status).toBe('failed');
     // Nothing was written where the disk was (not even a folder: another disk could be there now).
-    expect(existsSync(path.join(w.E, 'Sauvegardes'))).toBe(false);
+    if (!windows) expect(existsSync(path.join(w.E, 'Sauvegardes'))).toBe(false);
     expect((await status(w)).lastUpdate?.stopped).toMatch(
       /débranché|plus là|prochaine mise à jour/,
     );
-    renameSync(away, path.join(w.E, 'Sauvegardes')); // plugged back
+    if (windows) renameSync(`${identity}.ailleurs`, identity);
+    else renameSync(away, path.join(w.E, 'Sauvegardes')); // plugged back
     expect((await status(w)).connected).toBe(true);
     const target = path.join(root, 'Cours', 'Thermo', 'film.mkv');
     expect(existsSync(target)).toBe(false);

@@ -3,10 +3,12 @@
 // folder (to prove nothing was written), waiting for a job.
 import { createHash } from 'node:crypto';
 import {
+  closeSync,
   mkdirSync,
   mkdtempSync,
+  openSync,
   readdirSync,
-  readFileSync,
+  readSync,
   statSync,
   writeFileSync,
 } from 'node:fs';
@@ -16,7 +18,18 @@ import { createTestHub, loadModuleFolder, type TestHub } from '@hub/sdk/testing'
 import type { DiskStatusDto, ItemDto } from '../shared/types';
 
 export const API = '/api/modules/coffre';
-export const sha = (file: string) => createHash('sha256').update(readFileSync(file)).digest('hex');
+/** sha256 of a file, read in pieces (any size: the 2 Go test). */
+export function sha(file: string): string {
+  const hash = createHash('sha256');
+  const fd = openSync(file, 'r');
+  try {
+    const buf = Buffer.allocUnsafe(1024 * 1024);
+    for (let n = readSync(fd, buf); n > 0; n = readSync(fd, buf)) hash.update(buf.subarray(0, n));
+  } finally {
+    closeSync(fd);
+  }
+  return hash.digest('hex');
+}
 
 export interface DiskWorld {
   hub: TestHub;
