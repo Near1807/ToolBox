@@ -86,6 +86,10 @@ export interface ItemDto {
   url: string | null;
   /** Its file on the disk, to open or show in the Explorer. */
   path: string | null;
+  /** v0.46.0: its state with the disk (« pas encore sur le disque », actif, archivé…). */
+  diskState: DiskState;
+  /** v0.46.0: archived and the disk absent: its file cannot be opened now. */
+  unavailable: boolean;
 }
 
 export interface HomeDto {
@@ -100,6 +104,9 @@ export interface HomeDto {
     diskFree: number | null;
     diskTotal: number | null;
     trashCount: number;
+    /** v0.46.0: « pas encore sur le disque » (the one fragile state). */
+    pending: number;
+    archived: number;
   };
 }
 

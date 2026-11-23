@@ -84,10 +84,28 @@ function FilteredItems(props: {
   empty: string;
 }) {
   const [selection, setSelection] = useState<FacetSelection>({});
+  const [onlyPending, setOnlyPending] = useState(false);
   const view = useView();
-  const shown = useMemo(() => filterItems(props.items, selection), [props.items, selection]);
+  const pending = props.items.filter((i) => i.diskState === 'pending').length;
+  const shown = useMemo(
+    () =>
+      filterItems(props.items, selection).filter((i) => !onlyPending || i.diskState === 'pending'),
+    [props.items, selection, onlyPending],
+  );
   return (
     <>
+      {(pending > 0 || onlyPending) && (
+        <div className="coffre-facets__group coffre-facets__disk">
+          <span className="coffre-facets__label">Disque</span>
+          <FilterPill
+            label="Pas encore sur le disque"
+            count={pending}
+            on={onlyPending}
+            onClick={() => setOnlyPending((v) => !v)}
+            title="Seulement sur ce PC : copiés à la prochaine mise à jour du disque"
+          />
+        </div>
+      )}
       <Facets
         items={props.items}
         selection={selection}
@@ -407,6 +425,46 @@ export function TrashPage() {
             </tbody>
           </table>
         )}
+      </div>
+    </Page>
+  );
+}
+
+const STATE_TITLES: Record<string, { title: string; subtitle: string; empty: string }> = {
+  pending: {
+    title: 'Pas encore sur le disque',
+    subtitle:
+      'Seulement sur ce PC : nouveaux, ou modifiés depuis la dernière mise à jour du disque.',
+    empty: 'Tout est sur le disque.',
+  },
+  archived: {
+    title: 'Archivés',
+    subtitle:
+      'Sur le disque seulement : fiches visibles et trouvables ici, fichiers sur le disque dur.',
+    empty: 'Aucun élément archivé.',
+  },
+};
+
+/** v0.46.0: the elements in a disk state (« pas encore sur le disque », archivés). */
+export function StatePage() {
+  const { state = 'pending' } = useParams();
+  const module = useModule();
+  const coffre = useCoffre();
+  const items = useApi<ItemDto[]>(module.url(`/items?state=${encodeURIComponent(state)}`));
+  useEffect(() => coffre.setHere(null), [coffre]);
+  const t = STATE_TITLES[state] ?? STATE_TITLES.pending!;
+  return (
+    <Page
+      title={t.title}
+      subtitle={
+        <span className="coffre-crumbs">
+          <Link to={coffre.path('')}>Coffre</Link> › {t.subtitle}
+        </span>
+      }
+    >
+      <div data-coffre-page>
+        {items.error && <ErrorMessage>{items.error}</ErrorMessage>}
+        {items.data && <FilteredItems items={items.data} showContext empty={t.empty} />}
       </div>
     </Page>
   );

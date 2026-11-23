@@ -173,11 +173,15 @@ export function HomePage() {
                       <Link to={coffre.path('corbeille')} className="coffre-health__trash">
                         <Counter value={h.health.trashCount} label="dans la corbeille" />
                       </Link>
+                      <Link to={coffre.path('etat/pending')} className="coffre-health__trash">
+                        <Counter
+                          value={h.health.pending}
+                          label="pas encore sur le disque"
+                          tone={h.health.pending ? 'accent' : 'plain'}
+                        />
+                      </Link>
                     </div>
                   </div>
-                  <p className="muted coffre-health__next">
-                    Sauvegarde sur un disque externe : prévue en v0.46.
-                  </p>
                 </section>
                 <section
                   className="coffre-panel coffre-arrival"

@@ -7,7 +7,7 @@ import { DiskBadge } from './disk/DiskBadge';
 import { DiskSettings } from './disk/DiskSettings';
 import { CoffreFrame } from './frame';
 import { HomePage } from './Home';
-import { ArrivalPage, AttributePage, ContextPage, TrashPage } from './Pages';
+import { ArrivalPage, AttributePage, ContextPage, StatePage, TrashPage } from './Pages';
 import './coffre.css';
 
 const framed = (Inner: ComponentType) =>
@@ -26,6 +26,7 @@ export default defineFrontendModule({
     { path: 'v/:key/:value', component: framed(AttributePage) },
     { path: 'arrivee', component: framed(ArrivalPage) },
     { path: 'corbeille', component: framed(TrashPage) },
+    { path: 'etat/:state', component: framed(StatePage) },
   ],
   // v0.46.0: the disk at a glance in the sidebar, and its panel in Réglages › Coffre.
   nav: { badge: DiskBadge },

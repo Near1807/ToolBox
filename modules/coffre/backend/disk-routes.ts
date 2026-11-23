@@ -2,6 +2,8 @@
 // pages show (witness, banner, gauges): computed from the database, never by
 // writing on the disk.
 import { HttpError, requestBody } from '@hub/sdk/core';
+import { ejectDisk } from './eject';
+import { buildPlan, runUpdate, type UpdateInput } from './update';
 import type { DiskStatusDto, UpdateReport } from '../shared/types';
 import { isInDiskTrash } from './disk-layout';
 import type { CoffreDeps, DiskManager } from './disk';
@@ -126,6 +128,33 @@ export function registerDiskRoutes(d: CoffreDeps, disk: DiskManager): void {
     if (typeof b.name === 'string') disk.rename(b.name);
     return diskStatus(d, disk);
   });
+  // --- B / C: the plan and the update (one click) -------------------------------------
+
+  /** The detailed plan (read only): what « Mettre à jour » will do, and the room. */
+  ctx.routes.get('/disk/plan', async () => {
+    await disk.lookAgain();
+    // What changed on the PC first (only the PC's database is written).
+    await disk.scanPc();
+    return buildPlan(d, disk);
+  });
+  ctx.jobs.define<UpdateInput, UpdateReport>('disk-update', (job) => runUpdate(d, disk, job));
+  /** « Mettre à jour » (the click): the update runs as a job (progress, « Annuler »). */
+  ctx.routes.post('/disk/update', async () => {
+    disk.rootOrThrow();
+    if (disk.busy) throw new HttpError(409, `Le disque est occupé : ${disk.busy}`);
+    const running = diskStatus(d, disk).jobId;
+    if (running) return { jobId: running };
+    const job = ctx.jobs.enqueue('disk-update', {}, { title: 'Coffre : mise à jour du disque' });
+    return { jobId: job.id };
+  });
+  ctx.routes.post('/disk/eject', async () => {
+    const root = disk.rootOrThrow();
+    if (disk.busy) throw new HttpError(409, `Le disque est occupé : ${disk.busy}`);
+    const result = await ejectDisk(root);
+    await disk.lookAgain();
+    return result;
+  });
+
   /** Forgets the disk on this PC: nothing written or removed on the disk. */
   ctx.routes.post('/disk/forget', () => {
     if (disk.busy) throw new HttpError(409, `Le disque est occupé : ${disk.busy}`);

@@ -35,7 +35,8 @@ import {
   type ProposalDto,
 } from '../shared/types';
 import { filesOf, hashFile, hashFolder, Library } from './library';
-import type { AttributeRow, ContextRow, ItemRow } from './rows';
+import type { AttributeRow, ContextRow, CopyRow, ItemRow } from './rows';
+import { stateOf } from './plan';
 import { DiskManager, type CoffreDeps } from './disk';
 import { registerDiskRoutes } from './disk-routes';
 
@@ -245,16 +246,38 @@ export default defineBackendModule({
       for (const r of rows) out.set(r.item_id, [...(out.get(r.item_id) ?? []), r.context_id]);
       return out;
     };
-    const absOf = (row: ItemRow): string | null =>
-      row.kind === 'link' ? row.external_path : row.rel_path ? library.abs(row.rel_path) : null;
+    /** The current copy of each element on the registered disk (v0.46.0). */
+    const copiesOf = (ids: string[]): Map<string, CopyRow> => {
+      const row = disk.disk();
+      const out = new Map<string, CopyRow>();
+      if (!row || !ids.length) return out;
+      const list = ctx.db
+        .prepare(
+          `SELECT * FROM ${deps.t.copies} WHERE deleted_at IS NULL AND disk_id = ? AND item_id IN (${ids.map(() => '?').join(',')})`,
+        )
+        .all(row.id, ...ids) as CopyRow[];
+      for (const c of list) out.set(c.item_id, c);
+      return out;
+    };
+    /** Its file: on the PC, or on the disk for an archived element (null: the disk is absent). */
+    const absOf = (row: ItemRow, copy?: CopyRow | null): string | null => {
+      if (row.kind === 'link') return row.external_path;
+      if (row.archived_at) {
+        const c = copy === undefined ? copiesOf([row.id]).get(row.id) : copy;
+        return c && disk.state.root ? disk.abs(disk.state.root, c.rel_path) : null;
+      }
+      return row.rel_path ? library.abs(row.rel_path) : null;
+    };
 
     const dtos = (rows: ItemRow[]): ItemDto[] => {
       const byId = new Map(contextRows().map((c) => [c.id, c]));
       const ids = rows.map((r) => r.id);
       const attrs = attributesOf(ids);
       const others = alsoOf(ids);
+      const copies = copiesOf(ids);
       return rows.map((r) => {
-        const file = absOf(r);
+        const copy = copies.get(r.id) ?? null;
+        const file = absOf(r, copy);
         const servable = r.kind === 'file' && file !== null && existsSync(file);
         let url: string | null = null;
         if (servable)
@@ -284,6 +307,8 @@ export default defineBackendModule({
           alsoIn: others.get(r.id) ?? [],
           url,
           path: file,
+          diskState: stateOf(r, copy),
+          unavailable: Boolean(r.archived_at && !file),
         };
       });
     };
@@ -441,7 +466,9 @@ export default defineBackendModule({
       const rows = ctx.db
         .prepare(`SELECT * FROM ${items} WHERE ${where.join(' AND ')} ORDER BY updated_at DESC`)
         .all(...args) as ItemRow[];
-      return dtos(rows);
+      const list = dtos(rows);
+      // v0.46.0: « pas encore sur le disque », « archivé »…
+      return q.state ? list.filter((i) => i.diskState === q.state) : list;
     });
     ctx.routes.get('/items/:id', (request) => one(uuidParam(request.params)));
     /** The values already used, per key (the sheet's suggestions). */
@@ -464,7 +491,9 @@ export default defineBackendModule({
         .all() as ItemRow[];
       const pinned = rows.filter((r) => r.pinned === 1);
       const recent = rows.filter((r) => r.pinned !== 1 && r.arrival !== 1).slice(0, 12);
-      const disk = await library.disk();
+      const pcDisk = await library.disk();
+      const copies = copiesOf(rows.map((r) => r.id));
+      const states = rows.map((r) => stateOf(r, copies.get(r.id) ?? null));
       const trashCount = (
         ctx.db
           .prepare(`SELECT COUNT(*) AS n FROM ${items} WHERE ${live} AND trashed_at IS NOT NULL`)
@@ -477,10 +506,15 @@ export default defineBackendModule({
         contexts: contextDtos(),
         health: {
           items: rows.length,
-          bytes: rows.filter((r) => r.kind !== 'link').reduce((s, r) => s + r.size, 0),
-          diskFree: disk.free,
-          diskTotal: disk.total,
+          // On the PC (an archived element is on the disk only).
+          bytes: rows
+            .filter((r) => r.kind !== 'link' && !r.archived_at)
+            .reduce((s, r) => s + r.size, 0),
+          diskFree: pcDisk.free,
+          diskTotal: pcDisk.total,
           trashCount,
+          pending: states.filter((st) => st === 'pending').length,
+          archived: states.filter((st) => st === 'archived').length,
         },
       };
     });
@@ -983,6 +1017,14 @@ export default defineBackendModule({
     }
     // The disk is looked for every few seconds, READ ONLY (only a click writes on it).
     disk.start();
-    ctx.onShutdown(() => disk.stop());
+    // What changed in the PC's files while ToolBox was closed (only the PC's database is written).
+    const startupScan = setTimeout(() => {
+      disk.scanPc().catch((error) => ctx.logger.warn(`Fichiers du PC : ${String(error)}`));
+    }, 3000);
+    startupScan.unref?.();
+    ctx.onShutdown(() => {
+      clearTimeout(startupScan);
+      disk.stop();
+    });
   },
 });

@@ -1057,3 +1057,106 @@ button.coffre-value__text:hover {
   align-items: center;
   gap: 10px;
 }
+.coffre-chip--warn {
+  border-color: var(--warning);
+  color: var(--warning);
+}
+
+/* v0.46.0: the update window (plan, progress, report) */
+.coffre-update {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: min(760px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+  padding: 18px 22px;
+  overflow: auto;
+}
+.coffre-update__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.coffre-update__head h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+.coffre-update__counters {
+  display: flex;
+  gap: 28px;
+  flex-wrap: wrap;
+}
+.coffre-update__refused,
+.coffre-update__stopped {
+  color: var(--warning);
+  font-weight: 600;
+}
+.coffre-update__plan {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 320px;
+  overflow: auto;
+}
+.coffre-update__plan ul,
+.coffre-update__problems ul {
+  margin: 4px 0 8px;
+  padding-left: 26px;
+  font-size: 0.85rem;
+}
+.coffre-update__plan li {
+  display: flex;
+  flex-direction: column;
+  padding: 2px 0;
+}
+.coffre-update__group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.coffre-update__problems {
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--warning);
+  font-size: 0.86rem;
+}
+.coffre-update__foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.coffre-update__foot .muted {
+  margin-right: auto;
+}
+.coffre-update__progress {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+.coffre-update__message {
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  margin: 0 0 6px;
+  overflow-wrap: anywhere;
+}
+.coffre-update__done {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--success);
+  font-weight: 600;
+}
+.coffre-update__eject {
+  font-weight: 600;
+}
+.coffre-facets__disk {
+  margin-bottom: 8px;
+}

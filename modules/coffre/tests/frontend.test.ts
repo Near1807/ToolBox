@@ -74,6 +74,8 @@ const item = (name: string, over: Partial<ItemDto> = {}): ItemDto => ({
   alsoIn: [],
   url: null,
   path: null,
+  diskState: 'pending',
+  unavailable: false,
   ...over,
 });
 

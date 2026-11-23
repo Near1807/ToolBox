@@ -96,6 +96,34 @@ export function ViewBar(props: { count: number; state: ReturnType<typeof useView
   );
 }
 
+/** The disk's mark on an element: the fragile state, or « sur le disque dur ». */
+export function DiskChip(props: { item: ItemDto }) {
+  const { item } = props;
+  if (item.diskState === 'pending')
+    return (
+      <span
+        className="coffre-chip coffre-chip--warn"
+        title="Seulement sur ce PC : il sera copié à la prochaine mise à jour du disque"
+      >
+        pas encore sur le disque
+      </span>
+    );
+  if (item.diskState === 'archived')
+    return (
+      <span
+        className="coffre-chip"
+        title={
+          item.unavailable
+            ? 'Archivé : branche le disque pour l’ouvrir'
+            : 'Archivé : sur le disque seulement'
+        }
+      >
+        <Icon name="disc" /> sur le disque dur
+      </span>
+    );
+  return null;
+}
+
 export function CardPreview(props: { item: ItemDto }) {
   const { item } = props;
   const source = useMemo(
@@ -217,6 +245,7 @@ export function Items(props: {
                   </button>
                   {item.pinned && <Icon name="star" label="Épinglé" />}
                   {item.kind === 'link' && <span className="coffre-chip">lien externe</span>}
+                  <DiskChip item={item} />
                 </td>
                 <td>{natureOf(item)}</td>
                 {props.showContext && <td>{item.contextPath?.join(' › ') ?? 'Arrivée'}</td>}
@@ -244,8 +273,12 @@ export function Items(props: {
             preview={<CardPreview item={item} />}
             title={item.name}
             meta={meta(item)}
+            muted={item.diskState === 'archived'}
             badges={
-              item.kind === 'link' || item.pinned ? (
+              item.kind === 'link' ||
+              item.pinned ||
+              item.diskState === 'pending' ||
+              item.diskState === 'archived' ? (
                 <>
                   {item.pinned && (
                     <span className="coffre-chip coffre-chip--accent">
@@ -255,6 +288,7 @@ export function Items(props: {
                   {item.kind === 'link' && (
                     <span className="coffre-chip">lien externe, non sauvegardé</span>
                   )}
+                  <DiskChip item={item} />
                 </>
               ) : undefined
             }

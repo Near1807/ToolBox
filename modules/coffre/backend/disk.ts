@@ -51,6 +51,7 @@ export class DiskManager {
   private looking: Promise<void> | null = null;
   private withdrawMedia: (() => void) | null = null;
   private mediaRoot: string | null = null;
+  private scanning: Promise<unknown> | null = null;
   /** What runs on the disk now (one thing at a time). */
   busy: string | null = null;
 
@@ -333,6 +334,18 @@ export class DiskManager {
    * disque » when the disk has another one). Writes only the PC's database.
    */
   async scanPc(options: CopyOptions = {}): Promise<{ changed: number; missing: string[] }> {
+    // One look at a time (the startup's and an update's never overlap).
+    while (this.scanning) await this.scanning.catch(() => undefined);
+    const run = this.scanPcOnce(options);
+    this.scanning = run;
+    try {
+      return await run;
+    } finally {
+      this.scanning = null;
+    }
+  }
+
+  private async scanPcOnce(options: CopyOptions): Promise<{ changed: number; missing: string[] }> {
     const rows = this.d.ctx.db
       .prepare(
         `SELECT * FROM ${this.d.t.items} WHERE deleted_at IS NULL AND trashed_at IS NULL AND archived_at IS NULL AND kind != 'link' AND rel_path IS NOT NULL`,

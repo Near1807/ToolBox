@@ -33,6 +33,7 @@ import {
 import type { ContextDto, ItemDto, ProposalDto } from '../shared/types';
 import { Deposit } from './Deposit';
 import { DiskWitness } from './disk/DiskWitness';
+import { UpdateDialog } from './disk/UpdateDialog';
 import { useDisk } from './disk/useDisk';
 import { entriesOf, type DepositEntry } from './logic';
 import { Preview } from './Preview';
@@ -118,6 +119,12 @@ export function CoffreFrame(props: { children: ReactNode }) {
   const values = useApi<Record<string, string[]>>(module.url('/values'));
   const tools = useApi<Tools>(module.url('/tools'));
   const disk = useDisk();
+  const [updating, setUpdating] = useState(false);
+  const { reload: reloadDisk } = disk;
+  const onDiskChanged = useCallback(() => {
+    reloadDisk();
+    notifyDataChanged([module.id]);
+  }, [reloadDisk, module.id]);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [entries, setEntries] = useState<DepositEntry[] | null>(null);
   const [analyzing, setAnalyzing] = useState<string | null>(null);
@@ -437,8 +444,35 @@ export function CoffreFrame(props: { children: ReactNode }) {
       >
         {disk.data && (
           <div className="coffre-diskbar">
-            <DiskWitness status={disk.data} />
+            <DiskWitness
+              status={disk.data}
+              action={
+                disk.data.jobId ? (
+                  <Button small onClick={() => setUpdating(true)}>
+                    Mise à jour en cours…
+                  </Button>
+                ) : disk.data.connected && Object.values(disk.data.counts).some((n) => n > 0) ? (
+                  <Button small onClick={() => setUpdating(true)}>
+                    Mettre à jour
+                  </Button>
+                ) : disk.data.connected ? (
+                  <Button variant="secondary" small onClick={() => setUpdating(true)}>
+                    Le disque est à jour
+                  </Button>
+                ) : null
+              }
+            />
           </div>
+        )}
+        {updating && disk.data && (
+          <UpdateDialog
+            status={disk.data}
+            onClose={() => {
+              setUpdating(false);
+              disk.reload();
+            }}
+            onChanged={onDiskChanged}
+          />
         )}
         {props.children}
         {over && (
