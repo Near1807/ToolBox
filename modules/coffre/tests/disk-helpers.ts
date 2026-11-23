@@ -35,6 +35,8 @@ export async function diskWorld(
     host?: Parameters<typeof createTestHub>[0]['host'];
     /** Another world's volumes (a second PC seeing the same disk). */
     volumes?: { E: string; F: string };
+    /** The machine's real volumes (C: to Z:), no simulated ones (the Windows CI's virtual disk). */
+    realVolumes?: boolean;
   } = {},
 ): Promise<DiskWorld> {
   const base = mkdtempSync(path.join(tmpdir(), 'coffre-disk-'));
@@ -43,7 +45,8 @@ export async function diskWorld(
   const dl = path.join(base, 'dl');
   for (const d of [E, F, dl]) mkdirSync(d, { recursive: true });
   const before = process.env.TOOLBOX_COFFRE_VOLUMES;
-  process.env.TOOLBOX_COFFRE_VOLUMES = [E, F].join(path.delimiter);
+  if (options.realVolumes) delete process.env.TOOLBOX_COFFRE_VOLUMES;
+  else process.env.TOOLBOX_COFFRE_VOLUMES = [E, F].join(path.delimiter);
   const hub = await createTestHub({
     loadExamples: false,
     dataDir: options.dataDir,

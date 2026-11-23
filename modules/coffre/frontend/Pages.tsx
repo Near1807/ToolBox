@@ -278,6 +278,22 @@ export function ContextPage() {
           <Button variant="secondary" onClick={rename}>
             Renommer
           </Button>
+          {context.coverItemId && (
+            <Button
+              variant="secondary"
+              onClick={() =>
+                coffre.api
+                  .patch(`/contexts/${id}`, { coverItemId: null })
+                  .then(() => {
+                    coffre.notify('Couverture retirée (l’image reste dans le contexte).');
+                    coffre.refresh();
+                  })
+                  .catch(coffre.fail)
+              }
+            >
+              Retirer la couverture
+            </Button>
+          )}
           <label className="coffre-color">
             <span
               className="coffre-color__dot"

@@ -39,6 +39,26 @@ jobs:
       - name: Tests (full suite, with complete renders)
         run: npm run test:full
 
+      - name: Coffre on a real NTFS volume (virtual disk, letter changed)
+        shell: pwsh
+        run: |
+          $vhd = Join-Path $env:RUNNER_TEMP 'coffre-test.vhdx'
+          $script = Join-Path $env:RUNNER_TEMP 'diskpart-coffre.txt'
+          @(
+            "create vdisk file=`"$vhd`" maximum=256 type=expandable",
+            "select vdisk file=`"$vhd`"",
+            'attach vdisk',
+            'create partition primary',
+            'format fs=ntfs quick label=CoffreTest',
+            'assign letter=R'
+          ) | Set-Content -Path $script -Encoding ascii
+          diskpart /s $script
+          if ($LASTEXITCODE -ne 0) { throw "diskpart: $LASTEXITCODE" }
+          $env:COFFRE_TEST_VOLUME = 'R:'
+          $env:COFFRE_TEST_VHD = $vhd
+          npx vitest run modules/coffre/tests/real-volume.test.ts
+          if ($LASTEXITCODE -ne 0) { throw "test sur le vrai volume : $LASTEXITCODE" }
+
       - name: Native modules load in Electron
         run: npm run check:native
 

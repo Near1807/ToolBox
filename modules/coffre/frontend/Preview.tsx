@@ -10,6 +10,7 @@ import { extOfItem, shortDate, type ContextChoice } from './logic';
 import { iconOf, ReaderView } from './ReaderView';
 import { Sheet } from './Sheet';
 import { Versions } from './disk/Versions';
+import { AlsoIn } from './AlsoIn';
 
 const typing = (t: EventTarget | null) =>
   t instanceof HTMLElement &&
@@ -201,6 +202,7 @@ export function Preview(props: {
           >
             <NameField key={`${item.id}:${item.name}`} name={item.name} onRename={rename} />
           </Sheet>
+          <AlsoIn item={item} onChanged={() => fresh.reload()} />
           <Versions item={item} onRestored={() => fresh.reload()} />
           {item.sourcePath && (
             <p className="coffre-preview__origin muted" title={item.sourcePath}>
