@@ -255,3 +255,23 @@ export interface DownloadsDto {
   /** Seen, not stable yet (a download in progress). */
   waiting: number;
 }
+
+/** v0.47.0: one rule the Coffre learned (Réglages › Coffre › « Ce que le Coffre a appris »). */
+export interface LearnedRuleDto {
+  id: string;
+  kind: 'site' | 'word' | 'ext';
+  /** The site, the word, or the extension. */
+  key: string;
+  /** The context it proposes (site, word), or the one the extension is in (ext). */
+  contextId: string;
+  contextPath: string[] | null;
+  /** The nature it proposes (ext). */
+  nature: string | null;
+  hits: number;
+  misses: number;
+  /** hits / (hits + misses). */
+  confidence: number;
+  /** Sure enough to propose. */
+  active: boolean;
+  lastAt: string | null;
+}

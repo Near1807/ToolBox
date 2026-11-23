@@ -5,6 +5,7 @@ import type { ComponentType } from 'react';
 import { defineFrontendModule } from '@hub/sdk/frontend';
 import { DiskBadge } from './disk/DiskBadge';
 import { DiskSettings } from './disk/DiskSettings';
+import { LearnedSettings } from './Learned';
 import { CoffreFrame } from './frame';
 import { HomePage } from './Home';
 import { ViewPage } from './SearchResults';
@@ -40,5 +41,15 @@ export default defineFrontendModule({
   ],
   // v0.46.0: the disk at a glance in the sidebar, and its panel in Réglages › Coffre.
   nav: { badge: DiskBadge },
-  settingsPanel: { label: 'Disque du coffre', component: DiskSettings },
+  settingsPanel: {
+    label: 'Disque du coffre, ce que le Coffre a appris',
+    component: function CoffreSettings() {
+      return (
+        <>
+          <DiskSettings />
+          <LearnedSettings />
+        </>
+      );
+    },
+  },
 });

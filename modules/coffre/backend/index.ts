@@ -20,7 +20,7 @@ import {
 import { isColorValue } from '@hub/sdk/palette';
 import type { AgendaService } from '../../agenda/contract';
 import { contextCss } from '../shared/colors';
-import { deduce, fold, mergeGuesses, type ContextRef } from '../shared/deduce';
+import { deduce, fold, hostOf, mergeGuesses, type ContextRef } from '../shared/deduce';
 import { extOf } from '../shared/kinds';
 import { ARRIVAL_FOLDER, folderName, safeName, TRASH_FOLDER } from '../shared/names';
 import {
@@ -45,6 +45,8 @@ import { cleanReadCopies, readCopy, registerArchiveRoutes, SUGGEST_DAYS } from '
 import { TEXT_MIGRATION_SQL, TextIndex } from './text-index';
 import { registerSearch } from './search';
 import { DOWNLOADS_MIGRATION_SQL, DownloadWatcher } from './downloads';
+import { Learner, RULES_MIGRATION_SQL } from './learning';
+import { applyRules } from '../shared/learn';
 
 /** An entry of « Ranger » (the rangement window's choice for one dropped path). */
 interface DepositEntry {
@@ -177,6 +179,12 @@ export default defineBackendModule({
       description:
         'v0.47.0 : fichiers de Téléchargements suivis (surveillance désactivée par défaut ; état de ce PC)',
       up: DOWNLOADS_MIGRATION_SQL('coffre__downloads'),
+    },
+    {
+      version: 5,
+      description:
+        'v0.47.0 : ce que le Coffre apprend des choix de Thomas (règles, prêt pour la synchro)',
+      up: RULES_MIGRATION_SQL('coffre__rules'),
     },
   ],
 
@@ -382,6 +390,41 @@ export default defineBackendModule({
           coverItemId: c.cover_item_id,
         };
       });
+    };
+
+    // v0.47.0: what the Coffre learns from Thomas's choices (ADR 0061).
+    const contextPathOf = (contextId: string): string[] | null => {
+      const byId = new Map(contextRows().map((c) => [c.id, c]));
+      return byId.has(contextId) ? pathOf(byId, contextId) : null;
+    };
+    const learner = new Learner(ctx, store, contextPathOf);
+    learner.register();
+    /** What a placement of this element teaches (its site, its name, its nature). */
+    const learnFrom = (row: ItemRow, contextId: string | null, nature?: string | null) => {
+      if (row.kind === 'link') return;
+      const site =
+        attributesOf([row.id])
+          .get(row.id)
+          ?.find((a) => a.key === 'site')?.value ??
+        hostOf(row.referrer_url) ??
+        hostOf(row.source_url);
+      const kept =
+        nature !== undefined
+          ? nature
+          : (attributesOf([row.id])
+              .get(row.id)
+              ?.find((a) => a.key === 'nature')?.value ?? null);
+      try {
+        learner.learn({
+          name: row.name,
+          site: site ?? null,
+          ext: row.ext,
+          contextId,
+          nature: kept,
+        });
+      } catch (error) {
+        ctx.logger.warn(`Apprentissage : ${String(error)}`);
+      }
     };
 
     // --- Contexts ----------------------------------------------------------------
@@ -620,7 +663,7 @@ export default defineBackendModule({
           folderLanguage = h.language;
         }
       } else sha256 = await hashFile(source);
-      const guessed = deduce({
+      const deduced = deduce({
         name,
         isDirectory: st.isDirectory(),
         fileDate: st.mtime.toISOString(),
@@ -630,6 +673,18 @@ export default defineBackendModule({
         sites,
         folderLanguage,
       });
+      // v0.47.0: what was learned comes first (« deviné », its reason says « appris »).
+      const provenance = st.isDirectory() ? null : ctx.files.provenance(source);
+      const guessed = applyRules(
+        deduced,
+        learner.rules(),
+        {
+          name,
+          site: hostOf(provenance?.referrerUrl) ?? hostOf(provenance?.hostUrl),
+          ext: st.isDirectory() ? '' : extOf(name),
+        },
+        contextPathOf,
+      );
       return {
         path: source,
         name,
@@ -755,6 +810,8 @@ export default defineBackendModule({
             return made;
           });
           created.push(row.id);
+          // v0.47.0: placed by Thomas (accepted or corrected): the rules learn it.
+          learnFrom(row as ItemRow, contextId);
         }
       } catch (error) {
         // Nothing half done: the copies of this deposit are removed, their sheets too.
@@ -826,6 +883,8 @@ export default defineBackendModule({
       } else if (newName) fields.name = newName;
       try {
         if (Object.keys(fields).length) store.update('items', id, fields);
+        // v0.47.0: moved by Thomas into another context: the rules learn the correction.
+        if (contextChange && contextId !== row.context_id) learnFrom(getRow(id), contextId);
       } catch (error) {
         if (moved && before.rel) {
           const back = path.posix.dirname(before.rel);
@@ -886,6 +945,22 @@ export default defineBackendModule({
           writeAttributes(id, list);
         });
       replace(values.map((value) => ({ key, value, origin: 'chosen', reason: null })));
+      // v0.47.0: a nature chosen in a context: « .pdf in Thermo = synthèse » learns it.
+      if (key === 'nature' && values[0]) {
+        const row = getRow(id);
+        if (row.context_id)
+          try {
+            learner.learn({
+              name: '',
+              site: null,
+              ext: row.ext,
+              contextId: row.context_id,
+              nature: values[0],
+            });
+          } catch (error) {
+            ctx.logger.warn(`Apprentissage : ${String(error)}`);
+          }
+      }
       const undoId = remember(async () => replace(before));
       return { item: one(id), undoId };
     });
@@ -907,7 +982,13 @@ export default defineBackendModule({
         courses: coursesSafe(),
         sites: sitesSeen(),
       });
-      const merged = mergeGuesses(current, guessed.attributes);
+      const learnedGuess = applyRules(
+        guessed,
+        learner.rules(),
+        { name: row.name, site: hostOf(row.referrer_url) ?? hostOf(row.source_url), ext: row.ext },
+        contextPathOf,
+      );
+      const merged = mergeGuesses(current, learnedGuess.attributes);
       ctx.db.transaction(() => {
         const rows = ctx.db
           .prepare(`SELECT id FROM ${attributes} WHERE deleted_at IS NULL AND item_id = ?`)

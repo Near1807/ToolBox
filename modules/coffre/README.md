@@ -25,6 +25,7 @@ Le Coffre **copie** ce qu'on y dépose : l'original n'est jamais modifié ni dé
 | `coffre__changes`    | journal                                                                                                                                                                                                                                                                                              |
 | `coffre__text`       | v0.47.0 : texte des éléments pour la recherche (FTS5, accents et casse ignorés) : `item_id`, `part` (page d'un PDF, diapositive, fichier d'un projet), `body`. Donnée **dérivée**, gardée sur le PC, jamais synchronisée                                                                             |
 | `coffre__downloads`  | v0.47.0 : fichiers du dossier Téléchargements suivis (`baseline` = là avant l'activation, `waiting`, `pending` = proposé, `ignored`, `known` = déjà dans le Coffre, `ranged`), avec taille, date, empreinte. **État de ce PC**, jamais synchronisé                                                   |
+| `coffre__rules`      | v0.47.0 : ce que le Coffre a appris (`kind` site / word / ext, `key`, `value` = contexte ou nature, `hits` confirmations, `misses` corrections) ; prêt pour la synchro. ADR 0061                                                                                                                     |
 | `coffre__text_state` | v0.47.0 : pour chaque élément, l'empreinte dont le texte a été lu et son état (`ok`, `notext` = PDF scanné, `unsupported`, `toobig`, `error`)                                                                                                                                                        |
 
 ## API (`/api/modules/coffre`)
@@ -35,6 +36,7 @@ Le Coffre **copie** ce qu'on y dépose : l'original n'est jamais modifié ni dé
 - `DELETE /items/:id` (corbeille) · `POST /items/:id/restore` · `POST /items/:id/erase { confirm: true }` (depuis la corbeille seulement) · `POST /undo { undoId }`
 - `POST /items/:id/open { how: app | folder | vscode, runnable? }` : un exécutable seulement avec `runnable: true` (confirmation qui le nomme)
 - `POST /contexts { name, parentId?, color? }` · `PATCH /contexts/:id { name?, color?, coverItemId? }` (renommer = le dossier suit)
+- v0.47.0 : `GET /learned` · `PATCH /learned/:id { contextId | nature }` · `DELETE /learned/:id` · `POST /learned/forget { confirm: true }` (« Tout oublier »)
 - v0.47.0 : `GET /downloads` · `POST /downloads/check` (regarder maintenant) · `POST /downloads/ignore { paths }` · `GET /downloads/existing` (ceux d'avant l'activation, à la demande) — surveillance **désactivée par défaut** (réglages `watchDownloads`, `downloadsFolder`, `notifyDownloads`), ADR 0060
 - v0.47.0 : `GET /search?q=&limit=` (noms, fiches **et contenu**, groupés par élément, extraits et pages, temps) · `GET /search/status` (lecture des textes) · `POST /search/refresh` (regarder les fichiers du PC maintenant) · `GET /items/:id/matches?q=` (les pages qui contiennent les mots)
 

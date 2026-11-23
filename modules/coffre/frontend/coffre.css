@@ -1650,3 +1650,26 @@ button.coffre-value__text:hover {
   gap: 8px;
   margin-top: 10px;
 }
+
+/* v0.47.0: « Ce que le Coffre a appris ». */
+.coffre-learned {
+  margin-top: 22px;
+}
+.coffre-learned__table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0 12px;
+}
+.coffre-learned__table th,
+.coffre-learned__table td {
+  text-align: left;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.coffre-learned--weak {
+  color: var(--text-3);
+}
+.coffre-learned__nature {
+  width: 12em;
+}
