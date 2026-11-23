@@ -17,13 +17,17 @@ export interface ImportedRow {
 const fold = (t: string) =>
   t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
 
-/** The teachers of a description (« Ens:PCH », « Ens: Dupont, Martin »). */
-function teachersOf(description: string): string[] {
-  return description
-    .split('\n')
-    .flatMap((l) => /^\s*ens\s*:\s*(.+)$/i.exec(l)?.[1]?.split(/[,;/]/) ?? [])
-    .map((t) => t.trim())
-    .filter(Boolean);
+/** The teachers of a description (« Ens:PCH », « Ens:BRG BRN », « Ens: Dupont, Martin »). */
+export function teachersOf(description: string): string[] {
+  return (
+    description
+      .split('\n')
+      .flatMap((l) => /^\s*ens\s*:\s*(.+)$/i.exec(l)?.[1]?.split(/[,;/]/) ?? [])
+      .map((t) => t.trim())
+      .filter(Boolean)
+      // « BRG BRN VDD »: several codes in a row (each 2 to 5 capitals), one teacher each.
+      .flatMap((t) => (/^[A-Z]{2,5}(\s+[A-Z]{2,5})+$/.test(t) ? t.split(/\s+/) : [t]))
+  );
 }
 
 /**

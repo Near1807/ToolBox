@@ -135,3 +135,11 @@ export const NATURE_CHOICES = [
 ];
 
 export const ORIGIN_CHOICES = ['donné par le prof', 'fait par moi', 'téléchargé'];
+
+/** The languages offered in the sheet (those the extensions know). */
+export const LANGUAGE_CHOICES = [...new Set(Object.values(CODE))].sort((a, b) =>
+  a.localeCompare(b, 'fr'),
+);
+
+/** The language an extension names (« py » → « Python »), for the code reader. */
+export const languageOfExt = (ext: string): string | null => CODE[ext.toLowerCase()] ?? null;

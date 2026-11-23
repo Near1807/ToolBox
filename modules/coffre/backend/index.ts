@@ -28,6 +28,7 @@ import {
   type AttributeDto,
   type AttributeKey,
   type ContextDto,
+  type CourseHint,
   type HomeDto,
   type ItemDto,
   type ItemKind,
@@ -349,6 +350,11 @@ export default defineBackendModule({
           throw new HttpError(400, 'Couleur invalide');
         store.update('contexts', id, { color: (b.color as string | null) ?? null });
       }
+      if ('coverItemId' in b) {
+        const cover = typeof b.coverItemId === 'string' && b.coverItemId ? b.coverItemId : null;
+        if (cover) getRow(cover);
+        store.update('contexts', id, { cover_item_id: cover });
+      }
       if (typeof b.name === 'string' && b.name.trim() && b.name.trim() !== row.name) {
         const name = b.name.replace(/\s+/g, ' ').trim();
         if (
@@ -418,6 +424,17 @@ export default defineBackendModule({
       return dtos(rows);
     });
     ctx.routes.get('/items/:id', (request) => one(uuidParam(request.params)));
+    /** The values already used, per key (the sheet's suggestions). */
+    ctx.routes.get('/values', () => {
+      const rows = ctx.db
+        .prepare(
+          `SELECT DISTINCT a.key, a.value FROM ${attributes} a JOIN ${items} i ON i.id = a.item_id WHERE a.deleted_at IS NULL AND i.deleted_at IS NULL ORDER BY a.value COLLATE NOCASE`,
+        )
+        .all() as { key: string; value: string }[];
+      const out: Record<string, string[]> = {};
+      for (const r of rows) (out[r.key] ??= []).push(r.value);
+      return out;
+    });
 
     ctx.routes.get('/home', async (): Promise<HomeDto> => {
       const rows = ctx.db
@@ -478,6 +495,8 @@ export default defineBackendModule({
         return [];
       }
     };
+    /** The Agenda's courses (a course context's header), empty without the Agenda. */
+    ctx.routes.get('/courses', (): CourseHint[] => coursesSafe());
 
     /** One dropped path: what it is and what the Coffre proposes. Nothing is written. */
     const propose = async (
@@ -898,7 +917,11 @@ export default defineBackendModule({
       ].filter((p): p is string => Boolean(p));
       return candidates.find((p) => existsSync(p)) ?? null;
     };
-    ctx.routes.get('/tools', () => ({ vscode: vscode() !== null }));
+    ctx.routes.get('/tools', () => ({
+      vscode: vscode() !== null,
+      animations: ctx.settings.get<boolean>('animations') !== false,
+      root: library.root,
+    }));
 
     /**
      * POST /items/:id/open { how: 'app' | 'folder' | 'vscode', runnable? }:

@@ -1,14 +1,28 @@
 // v0.45.0 (Expérimental): the Coffre's pages (docs/coffre/CAHIER-DES-CHARGES.md).
-import { defineFrontendModule, EmptyState, Page } from '@hub/sdk/frontend';
+// Every page sits in the same frame: drop anywhere, the rangement window, the
+// preview, the message with « Annuler ».
+import type { ComponentType } from 'react';
+import { defineFrontendModule } from '@hub/sdk/frontend';
+import { CoffreFrame } from './frame';
+import { HomePage } from './Home';
+import { ArrivalPage, AttributePage, ContextPage, TrashPage } from './Pages';
+import './coffre.css';
 
-function HomePage() {
-  return (
-    <Page title="Coffre" subtitle="Garder, ranger, retrouver et ouvrir tes fichiers.">
-      <EmptyState title="Le Coffre est vide">Glisse un fichier ici pour le ranger.</EmptyState>
-    </Page>
-  );
-}
+const framed = (Inner: ComponentType) =>
+  function Framed() {
+    return (
+      <CoffreFrame>
+        <Inner />
+      </CoffreFrame>
+    );
+  };
 
 export default defineFrontendModule({
-  pages: [{ path: '', component: HomePage }],
+  pages: [
+    { path: '', component: framed(HomePage) },
+    { path: 'c/:id', component: framed(ContextPage) },
+    { path: 'v/:key/:value', component: framed(AttributePage) },
+    { path: 'arrivee', component: framed(ArrivalPage) },
+    { path: 'corbeille', component: framed(TrashPage) },
+  ],
 });

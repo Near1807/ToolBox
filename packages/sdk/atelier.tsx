@@ -3,6 +3,7 @@
 // filter pill, a context tile. Only theme tokens (docs/THEMES.md): the ONE
 // vivid colour is the theme's accent, for the action and what matters; each
 // reads in light and dark themes. Styles: frontend/src/styles.css « Atelier ».
+import { useEffect, useRef } from 'react';
 import type { CSSProperties, DragEvent, KeyboardEvent, MouseEvent, ReactNode } from 'react';
 
 /** A circular gauge: `value` from 0 to 1 (clamped), its label in the middle. */
@@ -76,6 +77,9 @@ export function Counter(props: {
   );
 }
 
+/** How long a click on a card's preview waits for a second click. */
+export const DOUBLE_CLICK_MS = 260;
+
 /**
  * A card in relief: its preview on top, its title and lines below; hover
  * actions over the preview. A click (or Entrée) runs `onOpen`.
@@ -97,12 +101,26 @@ export function ReliefCard(props: {
   onOpen?: () => void;
   onPreview?: () => void;
   /** Its own events (right click, drag…), merged by the caller. */
-  bind?: Record<string, unknown>;
+  bind?: object;
   label?: string;
 }) {
+  // A click on the preview waits a moment: a double click opens, it never previews first.
+  const pending = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => clearTimeout(pending.current ?? undefined), []);
   const open = (e: MouseEvent | KeyboardEvent) => {
     if ('key' in e && e.key !== 'Enter') return;
+    clearTimeout(pending.current ?? undefined);
+    pending.current = null;
     props.onOpen?.();
+  };
+  const preview = () => {
+    const run = props.onPreview ?? props.onOpen;
+    if (!run) return;
+    clearTimeout(pending.current ?? undefined);
+    pending.current = setTimeout(() => {
+      pending.current = null;
+      run();
+    }, DOUBLE_CLICK_MS);
   };
   return (
     <article
@@ -116,7 +134,10 @@ export function ReliefCard(props: {
       <button
         type="button"
         className="atelier-card__preview"
-        onClick={props.onPreview ?? props.onOpen}
+        onClick={(e) => {
+          if (e.detail > 1) return;
+          preview();
+        }}
         tabIndex={-1}
         aria-label="Aperçu"
       >
@@ -178,7 +199,7 @@ export function ContextTile(props: {
   dropping?: boolean;
   onDragOver?: (e: DragEvent<HTMLElement>) => void;
   onDragLeave?: (e: DragEvent<HTMLElement>) => void;
-  bind?: Record<string, unknown>;
+  bind?: object;
 }) {
   return (
     <button

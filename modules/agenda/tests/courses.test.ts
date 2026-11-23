@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createTestHub, dumpTables, loadModuleFolder, type TestHub } from '@hub/sdk/testing';
-import { coursesOf, type ImportedRow } from '../shared/courses';
+import { coursesOf, teachersOf, type ImportedRow } from '../shared/courses';
 
 const ICS = readFileSync(path.join(__dirname, 'fixtures', 'horaire-ecam.ics'), 'utf8');
 
@@ -55,5 +55,14 @@ describe('the courses of an imported timetable (service agenda.courses)', () => 
     expect([...names].sort((a, b) => a.localeCompare(b, 'fr'))).toEqual(names);
     // Read only: nothing written by the service's computation.
     expect(courses.length).toBeGreaterThan(3);
+  });
+});
+
+describe('the teachers of a description', () => {
+  it('several codes in a row are several teachers; a full name stays whole', () => {
+    expect(teachersOf('Act:Analyse\nEns:BRG BRN VDD')).toEqual(['BRG', 'BRN', 'VDD']);
+    expect(teachersOf('Ens: Jean Dupont, Marie Martin')).toEqual(['Jean Dupont', 'Marie Martin']);
+    expect(teachersOf('Ens:PCH')).toEqual(['PCH']);
+    expect(teachersOf('Groupe:2BA')).toEqual([]);
   });
 });
