@@ -146,6 +146,8 @@ export function Items(props: {
   empty?: string;
   /** v0.46.0: selection mode (a click selects; « Archiver la sélection »). */
   select?: { ids: Set<string>; toggle: (id: string) => void };
+  /** v0.48.0: Ctrl / Maj + clic selects (true: handled). `order`: the ids as shown. */
+  onModClick?: (e: MouseEvent, id: string, order: readonly string[]) => boolean;
 }) {
   const coffre = useCoffre();
   const own = useContextMenu();
@@ -157,6 +159,12 @@ export function Items(props: {
     return props.empty ? <p className="muted coffre-empty-line">{props.empty}</p> : null;
 
   const preview = (i: number) => coffre.preview(items, i);
+  const order = items.map((x) => x.id);
+  const modClick = (id: string) => ({
+    onClickCapture: (e: MouseEvent) => {
+      props.onModClick?.(e, id, order);
+    },
+  });
   const keys = (i: number) => (e: KeyboardEvent) => {
     if (e.target !== e.currentTarget) return;
     if (e.key === ' ') {
@@ -235,14 +243,28 @@ export function Items(props: {
                 key={item.id}
                 tabIndex={0}
                 onDoubleClick={() => coffre.open(item)}
+                aria-selected={props.select ? props.select.ids.has(item.id) : undefined}
+                className={props.select?.ids.has(item.id) ? 'is-selected' : undefined}
                 {...mergeHandlers(
-                  { onKeyDown: keys(i) },
+                  { onKeyDown: keys(i), ...modClick(item.id) },
                   coffre.bindMenu(() => coffre.menuOf(item), item.name),
                 )}
               >
                 <td className="coffre-table__name">
+                  {props.select && (
+                    <input
+                      type="checkbox"
+                      aria-label={`Sélectionner ${item.name}`}
+                      checked={props.select.ids.has(item.id)}
+                      onChange={() => props.select?.toggle(item.id)}
+                    />
+                  )}
                   <Icon name={iconOf(item)} />
-                  <button type="button" className="coffre-table__open" onClick={() => preview(i)}>
+                  <button
+                    type="button"
+                    className="coffre-table__open"
+                    onClick={() => (props.select ? props.select.toggle(item.id) : preview(i))}
+                  >
                     {item.name}
                   </button>
                   {item.pinned && <Icon name="star" label="Épinglé" />}
@@ -352,7 +374,7 @@ export function Items(props: {
             onOpen={() => (props.select ? props.select.toggle(item.id) : coffre.open(item))}
             onPreview={() => (props.select ? props.select.toggle(item.id) : preview(i))}
             bind={mergeHandlers(
-              { onKeyDown: keys(i) },
+              { onKeyDown: keys(i), ...modClick(item.id) },
               coffre.bindMenu(() => coffre.menuOf(item), item.name),
             )}
           />

@@ -28,6 +28,7 @@ import {
 } from '../shared/types';
 import { useCoffre } from './frame';
 import { useTreeActions } from './tree-actions';
+import { SelectBar, useSelection } from './BatchEdit';
 import { Tile } from './Home';
 import { Items, useView, ViewBar } from './Items';
 import { shortDate } from './logic';
@@ -90,8 +91,7 @@ function FilteredItems(props: {
 }) {
   const [selection, setSelection] = useState<FacetSelection>({});
   const [onlyPending, setOnlyPending] = useState(false);
-  const [selecting, setSelecting] = useState(false);
-  const [chosen, setChosen] = useState<Set<string>>(new Set());
+  const sel = useSelection();
   const coffre = useCoffre();
   const view = useView();
   const pending = props.items.filter((i) => i.diskState === 'pending').length;
@@ -121,72 +121,33 @@ function FilteredItems(props: {
         without={props.without}
       />
       <ViewBar count={shown.length} state={view} />
-      {coffre.disk?.disk && (
-        <div className="coffre-selectbar">
-          {selecting ? (
-            <>
-              <span>
-                {chosen.size} sélectionné{chosen.size > 1 ? 's' : ''}
-              </span>
-              <Button
-                variant="secondary"
-                small
-                onClick={() =>
-                  setChosen(new Set(shown.filter((i) => i.diskState === 'active').map((i) => i.id)))
-                }
-              >
-                Tous les actifs
-              </Button>
-              <Button
-                small
-                disabled={!chosen.size || !coffre.disk.connected}
-                title={
-                  coffre.disk.connected
-                    ? undefined
-                    : `Branche le disque « ${coffre.disk.disk.name} »`
-                }
-                onClick={() => {
-                  coffre.archive(shown.filter((i) => chosen.has(i.id)));
-                  setChosen(new Set());
-                  setSelecting(false);
-                }}
-              >
-                Archiver la sélection
-              </Button>
-              <Button
-                variant="secondary"
-                small
-                onClick={() => {
-                  setSelecting(false);
-                  setChosen(new Set());
-                }}
-              >
-                Terminer
-              </Button>
-            </>
-          ) : (
-            <Button variant="secondary" small onClick={() => setSelecting(true)}>
-              Sélectionner…
+      {/* v0.48.0: select (boxes, Ctrl / Maj + clic), « Modifier la sélection… »; archive with a disk. */}
+      <SelectBar
+        sel={sel}
+        shown={shown}
+        extra={
+          coffre.disk?.disk && (
+            <Button
+              variant="secondary"
+              small
+              disabled={!shown.some((i) => sel.ids.has(i.id)) || !coffre.disk.connected}
+              title={
+                coffre.disk.connected ? undefined : `Branche le disque « ${coffre.disk.disk.name} »`
+              }
+              onClick={() => {
+                coffre.archive(shown.filter((i) => sel.ids.has(i.id) && i.diskState === 'active'));
+                sel.clear();
+              }}
+            >
+              Archiver la sélection
             </Button>
-          )}
-        </div>
-      )}
+          )
+        }
+      />
       <Items
         items={shown}
-        select={
-          selecting
-            ? {
-                ids: chosen,
-                toggle: (id) =>
-                  setChosen((prev) => {
-                    const next = new Set(prev);
-                    if (next.has(id)) next.delete(id);
-                    else next.add(id);
-                    return next;
-                  }),
-              }
-            : undefined
-        }
+        select={sel.selecting ? { ids: sel.ids, toggle: sel.toggle } : undefined}
+        onModClick={sel.modClick}
         showContext={props.showContext}
         view={view.view}
         sort={view.sort}

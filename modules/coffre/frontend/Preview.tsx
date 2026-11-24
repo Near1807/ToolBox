@@ -213,6 +213,12 @@ export function Preview(props: {
             }}
           >
             <NameField key={`${item.id}:${item.name}`} name={item.name} onRename={rename} />
+            {item.originalName && (
+              <p className="coffre-sheet__row muted small" data-coffre-original>
+                <span className="coffre-sheet__label">Nom d’origine</span>
+                <span className="coffre-sheet__value">{item.originalName}</span>
+              </p>
+            )}
           </Sheet>
           <AlsoIn item={item} onChanged={() => fresh.reload()} />
           <Versions item={item} onRestored={() => fresh.reload()} />

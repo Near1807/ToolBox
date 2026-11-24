@@ -614,7 +614,7 @@ mark.coffre-hit--current {
   display: flex;
   flex-direction: column;
   width: min(1100px, calc(100vw - 48px));
-  height: min(720px, calc(100vh - 48px));
+  height: min(820px, calc(100vh - 48px));
 }
 .coffre-deposit--many {
   width: min(1320px, calc(100vw - 48px));
@@ -2133,4 +2133,137 @@ button.coffre-value__text:hover {
 .coffre-treedialog__buttons {
   display: flex;
   gap: 8px;
+}
+
+/* v0.48.0: « Pour tous » (Expérimental) */
+.coffre-deposit__batch {
+  padding: 8px 18px 4px;
+  border-bottom: 1px solid var(--border);
+  max-height: 46%;
+  overflow: auto;
+}
+.coffre-deposit__checkall {
+  margin-top: 4px;
+  font-size: 0.85rem;
+}
+.coffre-deposit__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.coffre-deposit__check {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+.coffre-deposit__exception {
+  grid-column: 2;
+  grid-row: 1;
+  padding: 0 6px;
+  border-radius: 999px;
+  border: 1px solid var(--warning);
+  color: var(--warning);
+  font-size: 0.7rem;
+  align-self: center;
+}
+.coffre-batch {
+  display: grid;
+  gap: 8px;
+}
+.coffre-batch__title {
+  margin: 0;
+  font-size: 0.95rem;
+}
+.coffre-batch__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 6px 14px;
+  align-items: start;
+}
+.coffre-batch__field {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.coffre-batch__route {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  grid-column: span 2;
+}
+.coffre-batch__route .coffre-batch__label {
+  flex-basis: 100%;
+}
+.coffre-batch__route .coffre-picker {
+  left: 0;
+}
+.coffre-batch__label {
+  color: var(--text-3);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.coffre-batch__mixed {
+  font-style: italic;
+  color: var(--text-3);
+}
+.coffre-batch__tags,
+.coffre-batch__rename {
+  grid-column: span 2;
+}
+.coffre-batch__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+.coffre-batch__chips .coffre-batch__tag {
+  flex: 0 1 150px;
+  width: 150px;
+  min-width: 90px;
+}
+.coffre-value--added .coffre-value__text {
+  color: var(--accent);
+}
+.coffre-value--removed .coffre-value__text {
+  color: var(--danger);
+  text-decoration: line-through;
+}
+.coffre-batch__preview {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.85rem;
+  display: grid;
+  gap: 2px;
+}
+.coffre-batch__preview li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.coffre-batchedit {
+  width: min(760px, 94vw);
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+}
+.coffre-table tr.is-selected,
+.coffre-result.is-selected {
+  background: var(--accent-soft);
+}
+.coffre-table__name input[type='checkbox'],
+.coffre-result__check {
+  accent-color: var(--accent);
+  margin-right: 6px;
+}
+.coffre-result__check {
+  float: left;
+  margin-top: 12px;
 }

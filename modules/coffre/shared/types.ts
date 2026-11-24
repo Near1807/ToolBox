@@ -92,6 +92,10 @@ export interface ItemDto {
   diskState: DiskState;
   /** v0.46.0: archived and the disk absent: its file cannot be opened now. */
   unavailable: boolean;
+  /** v0.48.0: the name it had before being renamed (searchable), or null. */
+  originalName: string | null;
+  /** v0.48.0: imported with an arborescence, its sheet not yet checked (« À compléter »). */
+  toComplete: boolean;
 }
 
 export interface HomeDto {

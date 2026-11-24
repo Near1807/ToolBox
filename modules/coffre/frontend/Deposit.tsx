@@ -1,7 +1,9 @@
 // v0.45.0: the rangement window — opened as soon as files are dropped. The
 // preview on the left, the sheet already filled on the right (what was
 // guessed marked « deviné »); Entrée = Ranger; « Ranger plus tard » sends it
-// to Arrivée. Several files: the list, one proposal each, « Tout valider ».
+// to Arrivée. Several files: the list, one proposal each; v0.48.0: « Pour
+// tous » (one setting for the checked ones, exceptions per file), Entrée =
+// « Ranger les cochés » (the unchecked ones to Arrivée), one « Annuler ».
 // Nothing is written before « Ranger » (and « Annuler » undoes it after).
 import { useCallback, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { Button, formatBytes, Icon } from '@hub/sdk/frontend';
@@ -9,7 +11,21 @@ import { extOf } from '../shared/kinds';
 import type { ItemDto } from '../shared/types';
 import { useCoffre } from './frame';
 import { fly } from './fly';
-import { applyEntry, choiceLabel, chooseValues, isHeldDuplicate, type DepositEntry } from './logic';
+import {
+  applyBatch,
+  applyEntry,
+  batchSummary,
+  choiceLabel,
+  chooseValues,
+  emptyBatch,
+  isHeldDuplicate,
+  markException,
+  uncheck,
+  type BatchValues,
+  type DepositEntry,
+} from './logic';
+import { BatchBlock } from './BatchBlock';
+import type { BatchField } from '../shared/batch';
 import { ReaderView } from './ReaderView';
 import { Sheet } from './Sheet';
 
@@ -53,6 +69,24 @@ export function Deposit(props: { entries: DepositEntry[]; onClose: () => void })
 
   const update = (key: string, change: Partial<DepositEntry>) =>
     setEntries((list) => list.map((e) => (e.key === key ? { ...e, ...change } : e)));
+  // v0.48.0: « Pour tous » (several files): the checked ones, the exceptions per file.
+  const [batch, setBatch] = useState<BatchValues>(emptyBatch);
+  const changeBatch = (v: BatchValues) => {
+    const reset = batch.template.trim() !== '' && v.template.trim() === '';
+    setBatch(v);
+    setEntries((list) => applyBatch(list, v, coffre.contexts, undefined, reset));
+  };
+  /** A file's own change: an exception to « Pour tous » for that field. */
+  const own = (e: DepositEntry, field: BatchField, change: Partial<DepositEntry>) =>
+    update(e.key, { ...change, exceptions: many ? markException(e, field, batch) : e.exceptions });
+  const setChecked = (keys: string[], checked: boolean) =>
+    setEntries((list) => {
+      const next = list.map((e) =>
+        keys.includes(e.key) ? (checked ? { ...e, checked } : uncheck(e)) : e,
+      );
+      // Newly checked: « Pour tous » applies to them too.
+      return checked ? applyBatch(next, batch, coffre.contexts) : next;
+    });
 
   const source = useMemo(
     () =>
@@ -69,13 +103,17 @@ export function Deposit(props: { entries: DepositEntry[]; onClose: () => void })
   );
 
   const apply = useCallback(
-    async (list: DepositEntry[], later: boolean) => {
+    async (list: DepositEntry[], laterFor: boolean | ((e: DepositEntry) => boolean)) => {
       if (!list.length || busy) return;
+      const isLater = (e: DepositEntry) =>
+        typeof laterFor === 'function' ? laterFor(e) : laterFor;
+      const later = list.every(isLater);
+      const toArrival = list.filter(isLater).length;
       setBusy(true);
       const from = previewBox.current?.getBoundingClientRect() ?? null;
       try {
         const r = await coffre.api.post<Applied>('/deposit/apply', {
-          entries: list.map((e) => applyEntry(e, later)),
+          entries: list.map((e) => applyEntry(e, isLater(e))),
         });
         const skipped = new Set(r.skipped.map((s) => s.path));
         const next = entries.map((e) =>
@@ -84,7 +122,7 @@ export function Deposit(props: { entries: DepositEntry[]; onClose: () => void })
                 ...e,
                 state: skipped.has(e.proposal.path)
                   ? ('skipped' as const)
-                  : later
+                  : isLater(e)
                     ? ('later' as const)
                     : ('done' as const),
               }
@@ -98,7 +136,11 @@ export function Deposit(props: { entries: DepositEntry[]; onClose: () => void })
             ? 'Rien de rangé (déjà dans le Coffre).'
             : n === 1
               ? `« ${r.created[0]!.name} » rangé dans ${where}.`
-              : `${n} éléments rangés${later ? ' dans Arrivée' : ''}.`;
+              : later
+                ? `${n} éléments mis dans Arrivée.`
+                : toArrival
+                  ? `${n - toArrival} éléments rangés, ${toArrival} dans Arrivée.`
+                  : `${n} éléments rangés.`;
         coffre.notify(
           r.skipped.length
             ? `${message} ${r.skipped.length} doublon(s) laissé(s) de côté.`
@@ -136,6 +178,17 @@ export function Deposit(props: { entries: DepositEntry[]; onClose: () => void })
 
   const todo = entries.filter((e) => e.state === 'todo');
   const validAll = todo.filter((e) => !isHeldDuplicate(e));
+  // v0.48.0: « Ranger les cochés » — the checked ones placed, the others to Arrivée (one « Annuler »).
+  const lot = validAll;
+  const checkedCount = lot.filter((e) => e.checked).length;
+  const summary = batchSummary(
+    todo.filter((e) => e.checked),
+    coffre.contexts,
+  );
+  const preview = todo
+    .filter((e) => e.checked && !e.exceptions.includes('rename'))
+    .slice(0, 4)
+    .map((e) => ({ before: e.proposal.name, after: e.name }));
 
   const onKey = (e: KeyboardEvent) => {
     if (e.key === 'Escape') {
@@ -148,7 +201,9 @@ export function Deposit(props: { entries: DepositEntry[]; onClose: () => void })
     if (target.tagName === 'BUTTON' || target.tagName === 'TEXTAREA') return;
     if (target.closest('.coffre-picker')) return;
     e.preventDefault();
-    if (entry && entry.state === 'todo') void apply([entry], false);
+    if (many) {
+      if (lot.length) void apply(lot, (x) => !x.checked);
+    } else if (entry && entry.state === 'todo') void apply([entry], false);
   };
 
   if (!entry || !source) return null;
@@ -175,11 +230,48 @@ export function Deposit(props: { entries: DepositEntry[]; onClose: () => void })
             <Icon name="close" />
           </button>
         </header>
+        {many && (
+          <div className="coffre-deposit__batch">
+            <BatchBlock
+              count={todo.filter((e) => e.checked).length}
+              values={batch}
+              summary={summary}
+              onChange={changeBatch}
+              preview={preview}
+              arrival
+            />
+            <div className="coffre-deposit__checkall">
+              <button
+                type="button"
+                className="coffre-linklike"
+                onClick={() =>
+                  setChecked(
+                    todo.map((e) => e.key),
+                    !todo.every((e) => e.checked),
+                  )
+                }
+              >
+                {todo.every((e) => e.checked) ? 'Tout décocher' : 'Tout cocher'}
+              </button>
+            </div>
+          </div>
+        )}
         <div className="coffre-deposit__body">
           {many && (
             <ol className="coffre-deposit__list">
               {entries.map((e, i) => (
-                <li key={e.key}>
+                <li key={e.key} className="coffre-deposit__item">
+                  <input
+                    type="checkbox"
+                    className="coffre-deposit__check"
+                    aria-label={`« Pour tous » s’applique à ${e.name}`}
+                    title={
+                      e.checked ? 'Coché : « Pour tous » s’applique' : 'Décoché : ira dans Arrivée'
+                    }
+                    checked={e.checked}
+                    disabled={e.state !== 'todo'}
+                    onChange={(ev) => setChecked([e.key], ev.target.checked)}
+                  />
                   <button
                     type="button"
                     className={`coffre-deposit__line${i === current ? ' coffre-deposit__line--on' : ''}`}
@@ -189,8 +281,18 @@ export function Deposit(props: { entries: DepositEntry[]; onClose: () => void })
                     <span className="coffre-deposit__where">
                       {isHeldDuplicate(e)
                         ? 'déjà dans le Coffre'
-                        : choiceLabel(e.choice, coffre.contexts)}
+                        : e.checked || e.state !== 'todo'
+                          ? choiceLabel(e.choice, coffre.contexts)
+                          : 'Arrivée (décoché)'}
                     </span>
+                    {e.exceptions.length > 0 && e.state === 'todo' && (
+                      <span
+                        className="coffre-deposit__exception"
+                        title={`Changé pour ce fichier seulement : ${e.exceptions.join(', ')}`}
+                      >
+                        exception
+                      </span>
+                    )}
                     {e.state !== 'todo' && (
                       <span className={`coffre-state coffre-state--${e.state}`}>
                         {STATE_LABEL[e.state]}
@@ -251,10 +353,18 @@ export function Deposit(props: { entries: DepositEntry[]; onClose: () => void })
             <Sheet
               link={entry.as === 'link'}
               choice={entry.choice}
-              onChoice={(choice) => update(entry.key, { choice })}
+              onChoice={(choice) => own(entry, 'route', { choice })}
               attributes={entry.attributes}
               onValues={(key, values) =>
-                update(entry.key, { attributes: chooseValues(entry.attributes, key, values) })
+                own(
+                  entry,
+                  key === 'tag'
+                    ? 'tags'
+                    : key === 'nature' || key === 'origin' || key === 'year'
+                      ? key
+                      : 'tags',
+                  { attributes: chooseValues(entry.attributes, key, values) },
+                )
               }
             >
               <label className="coffre-sheet__row">
@@ -262,14 +372,35 @@ export function Deposit(props: { entries: DepositEntry[]; onClose: () => void })
                 <input
                   className="input coffre-sheet__name"
                   value={entry.name}
-                  onChange={(e) => update(entry.key, { name: e.target.value })}
+                  onChange={(e) => own(entry, 'rename', { name: e.target.value })}
                 />
               </label>
             </Sheet>
           </div>
         </div>
         <footer className="coffre-deposit__foot">
-          {entry.state !== 'todo' ? (
+          {many ? (
+            <>
+              <Button
+                variant="secondary"
+                disabled={busy || !lot.length}
+                onClick={() => void apply(lot, true)}
+                title="Tous dans Arrivée, à ranger plus tard"
+              >
+                Tout ranger plus tard
+              </Button>
+              <Button
+                autoFocus
+                disabled={busy || !lot.length}
+                onClick={() => void apply(lot, (x) => !x.checked)}
+                title="Entrée — les décochés vont dans Arrivée ; un seul « Annuler » pour le lot"
+                data-coffre-range-lot
+              >
+                Ranger les cochés ({checkedCount})
+                {lot.length > checkedCount ? ` · ${lot.length - checkedCount} plus tard` : ''}
+              </Button>
+            </>
+          ) : entry.state !== 'todo' ? (
             <span className="muted">Celui-ci est fait ({STATE_LABEL[entry.state]}).</span>
           ) : (
             <>
@@ -294,16 +425,6 @@ export function Deposit(props: { entries: DepositEntry[]; onClose: () => void })
                 Ranger
               </Button>
             </>
-          )}
-          {many && (
-            <Button
-              variant="secondary"
-              disabled={busy || !validAll.length}
-              onClick={() => void apply(validAll, false)}
-              title="Chacun selon sa proposition (sans proposition : dans Arrivée)"
-            >
-              Tout valider ({validAll.length})
-            </Button>
           )}
         </footer>
       </div>

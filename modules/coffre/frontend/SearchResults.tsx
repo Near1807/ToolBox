@@ -4,10 +4,18 @@
 // PAGE, the words marked. Filtered by the Coffre's pills.
 import { useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import { useParams, useSearchParams } from 'react-router';
-import { ErrorMessage, Icon, MarkedText, useApi, useModule } from '@hub/sdk/frontend';
+import {
+  ErrorMessage,
+  Icon,
+  MarkedText,
+  mergeHandlers,
+  useApi,
+  useModule,
+} from '@hub/sdk/frontend';
 import { filterItems, type FacetSelection } from '../shared/facets';
 import type { ItemDto, SearchDto, SearchHitDto } from '../shared/types';
 import { useCoffre } from './frame';
+import { SelectBar, useSelection } from './BatchEdit';
 import { Facets } from './Pages';
 import { iconOf } from './ReaderView';
 
@@ -48,6 +56,9 @@ export function SearchResults(props: { query: string }) {
   }, [data, selection]);
   const items = useMemo(() => results.map((x) => x.item), [results]);
   const index = data?.index;
+  // v0.48.0: « Modifier la sélection » from the search too.
+  const sel = useSelection();
+  const order = items.map((i) => i.id);
 
   return (
     <section className="coffre-section" data-coffre-results>
@@ -75,21 +86,36 @@ export function SearchResults(props: { query: string }) {
         </p>
       )}
       {!data && <p className="muted coffre-empty-line">Recherche…</p>}
+      {results.length > 0 && <SelectBar sel={sel} shown={items} />}
       <ul className="coffre-results">
         {results.map((hit, i) => (
           <li
             key={hit.item.id}
-            className={`coffre-result${hit.item.unavailable ? ' coffre-result--away' : ''}`}
-            {...coffre.bindMenu(() => coffre.menuOf(hit.item), hit.item.name)}
+            className={`coffre-result${hit.item.unavailable ? ' coffre-result--away' : ''}${sel.ids.has(hit.item.id) ? ' is-selected' : ''}`}
+            {...mergeHandlers(
+              { onClickCapture: (e: React.MouseEvent) => void sel.modClick(e, hit.item.id, order) },
+              coffre.bindMenu(() => coffre.menuOf(hit.item), hit.item.name),
+            )}
           >
+            {sel.selecting && (
+              <input
+                type="checkbox"
+                className="coffre-result__check"
+                aria-label={`Sélectionner ${hit.item.name}`}
+                checked={sel.ids.has(hit.item.id)}
+                onChange={() => sel.toggle(hit.item.id)}
+              />
+            )}
             <button
               type="button"
               className="coffre-result__head"
               onClick={() =>
-                coffre.preview(items, i, {
-                  page: Number(hit.hits[0]?.part) || undefined,
-                  query: hit.hits.length ? q : undefined,
-                })
+                sel.selecting
+                  ? sel.toggle(hit.item.id)
+                  : coffre.preview(items, i, {
+                      page: Number(hit.hits[0]?.part) || undefined,
+                      query: hit.hits.length ? q : undefined,
+                    })
               }
             >
               <Icon name={iconOf(hit.item)} />

@@ -47,6 +47,7 @@ import { cleanReadCopies, readCopy, registerArchiveRoutes, SUGGEST_DAYS } from '
 import { TEXT_MIGRATION_SQL, TextIndex } from './text-index';
 import { registerSearch } from './search';
 import { registerTreeRoutes } from './tree';
+import { IMPORTS_MIGRATION_SQL } from './import';
 import { DOWNLOADS_MIGRATION_SQL, DownloadWatcher } from './downloads';
 import { Learner, RULES_MIGRATION_SQL } from './learning';
 import { applyRules } from '../shared/learn';
@@ -194,6 +195,16 @@ export default defineBackendModule({
       version: 6,
       description: 'v0.47.0 : « Lié au cours … » d’un contexte (« Maintenant »)',
       up: `ALTER TABLE coffre__contexts ADD COLUMN course_name TEXT;`,
+    },
+    {
+      version: 7,
+      description:
+        'v0.48.0 : nom d’origine d’un élément, marque « à compléter », imports d’arborescence (état de ce PC, reprise)',
+      up: `
+        ALTER TABLE coffre__items ADD COLUMN original_name TEXT;
+        ALTER TABLE coffre__items ADD COLUMN to_complete INTEGER NOT NULL DEFAULT 0;
+        ${IMPORTS_MIGRATION_SQL('coffre__imports')}
+      `,
     },
   ],
 
@@ -364,6 +375,8 @@ export default defineBackendModule({
           path: file,
           diskState: stateOf(r, copy),
           unavailable: Boolean(r.archived_at && !file),
+          originalName: r.original_name && r.original_name !== r.name ? r.original_name : null,
+          toComplete: r.to_complete === 1,
         };
       });
     };
@@ -476,6 +489,18 @@ export default defineBackendModule({
       remember: (run) => remember(run),
       busy: () => disk.busy,
     });
+
+    /** v0.48.0: contexts created for a route, removed (deepest first) while they are empty. */
+    const removeIfEmpty = async (ids: readonly string[]) => {
+      const byId = new Map(contextRows().map((c) => [c.id, c]));
+      const sorted = ids
+        .filter((id) => byId.has(id))
+        .sort((a, b) => pathOf(byId, b).length - pathOf(byId, a).length);
+      for (const id of sorted) {
+        const c = tree.contentOf(id);
+        if (!c.items && !c.links && !c.children) await tree.remove(id).catch(() => undefined);
+      }
+    };
 
     ctx.routes.get('/contexts', () => contextDtos());
     ctx.routes.post('/contexts', (request) => {
@@ -795,6 +820,7 @@ export default defineBackendModule({
       const entries = (Array.isArray(b.entries) ? b.entries : []) as DepositEntry[];
       if (!entries.length) throw new HttpError(400, 'Rien à ranger');
       library.ensure();
+      const contextsBefore = new Set(contextRows().map((c) => c.id));
       const created: string[] = [];
       const copies: string[] = [];
       const skipped: { path: string; duplicate: NonNullable<ReturnType<typeof duplicateOf>> }[] =
@@ -859,6 +885,8 @@ export default defineBackendModule({
               source_url: provenance?.hostUrl ?? null,
               referrer_url: provenance?.referrerUrl ?? null,
               file_date: st.mtime.toISOString(),
+              // v0.48.0: the name it had (renamed by « Pour tous »: still searchable).
+              original_name: path.basename(e.path),
             });
             writeAttributes(made.id, attrs);
             return made;
@@ -873,6 +901,10 @@ export default defineBackendModule({
         for (const id of created) store.remove('items', id);
         throw error;
       }
+      // v0.48.0: the contexts of a new route, created at the validation, go with « Annuler ».
+      const newContexts = contextRows()
+        .filter((c) => !contextsBefore.has(c.id))
+        .map((c) => c.id);
       const undoId = created.length
         ? remember(async () => {
             for (const id of created) {
@@ -883,6 +915,7 @@ export default defineBackendModule({
               if (row?.rel_path) await library.erase(row.rel_path).catch(() => undefined);
               store.remove('items', id);
             }
+            await removeIfEmpty(newContexts);
           })
         : null;
       if (created.length) textIndex.kick();
@@ -894,39 +927,36 @@ export default defineBackendModule({
     // --- Changing an element -------------------------------------------------------------
 
     /** Name, context (the file moves: one transaction, back on failure), pinned, Arrivée. */
-    ctx.routes.patch('/items/:id', async (request) => {
-      const id = uuidParam(request.params);
+    /**
+     * Moves and / or renames an element: its file follows (one block, back on a
+     * failure); archived, only its sheet (the disk follows at the next update).
+     * `target`: its new context (null: Arrivée), or undefined (unchanged).
+     * Returns what puts it back (« Annuler »).
+     */
+    const relocate = async (
+      id: string,
+      target: string | null | undefined,
+      wantedName: string | null,
+    ): Promise<() => Promise<void>> => {
       const row = getRow(id);
-      if (row.trashed_at) throw new HttpError(409, 'Dans la corbeille : le récupérer d’abord');
-      const b = requestBody(request);
       const fields: Record<string, string | number | null> = {};
-      if (typeof b.pinned === 'boolean') fields.pinned = b.pinned ? 1 : 0;
-      const contextChange = 'contextId' in b || 'newContext' in b || b.arrival === true;
-      let contextId = row.context_id;
+      const contextChange = target !== undefined;
+      const contextId = contextChange ? target : row.context_id;
       if (contextChange) {
-        contextId =
-          b.arrival === true
-            ? null
-            : Array.isArray(b.newContext) && b.newContext.length
-              ? ensureContext(b.newContext.map(String))
-              : typeof b.contextId === 'string' && b.contextId
-                ? b.contextId
-                : null;
         if (contextId) folderOf(contextId); // 404 when it does not exist
         fields.context_id = contextId;
         fields.arrival = contextId ? 0 : 1;
       }
-      const newName = typeof b.name === 'string' && b.name.trim() ? safeName(b.name) : null;
+      const newName = wantedName?.trim() ? safeName(wantedName) : null;
+      const renamed = newName !== null && newName !== row.name;
       const before = { rel: row.rel_path, undo: { ...row } };
       let moved: string | null = null;
-      if (row.archived_at && row.rel_path && (contextChange || (newName && newName !== row.name))) {
-        // Archived: no file on the PC; its place changes in the sheet, the disk follows at the
-        // next update (a move).
+      if (row.archived_at && row.rel_path && (contextChange || renamed)) {
         const dir = contextId ? folderOf(contextId) : ARRIVAL_FOLDER;
         const free = library.freeIn(library.abs(dir), newName ?? row.name);
         fields.rel_path = `${dir}/${free}`;
         fields.name = free;
-      } else if (row.rel_path && (contextChange || (newName && newName !== row.name))) {
+      } else if (row.rel_path && (contextChange || renamed)) {
         moved = await library.move(
           row.rel_path,
           contextId ? folderOf(contextId) : ARRIVAL_FOLDER,
@@ -935,6 +965,9 @@ export default defineBackendModule({
         fields.rel_path = moved;
         fields.name = path.posix.basename(moved);
       } else if (newName) fields.name = newName;
+      // v0.48.0: renamed, the first name is kept (searchable).
+      if (fields.name !== undefined && fields.name !== row.name && !row.original_name)
+        fields.original_name = row.name;
       try {
         if (Object.keys(fields).length) store.update('items', id, fields);
         // v0.47.0: moved by Thomas into another context: the rules learn the correction.
@@ -946,13 +979,13 @@ export default defineBackendModule({
         }
         throw error;
       }
-      const undoId = remember(async () => {
+      return async () => {
         const now = getRow(id);
         const restore: Record<string, string | number | null> = {
-          pinned: before.undo.pinned,
           context_id: before.undo.context_id,
           arrival: before.undo.arrival,
           name: before.undo.name,
+          original_name: before.undo.original_name,
         };
         if (now.archived_at) restore.rel_path = before.rel;
         else if (now.rel_path && before.rel && now.rel_path !== before.rel) {
@@ -965,8 +998,133 @@ export default defineBackendModule({
           restore.name = path.posix.basename(String(restore.rel_path));
         }
         store.update('items', id, restore);
+      };
+    };
+
+    /** A context given as `contextId`, `newContext` (created now) or `arrival`; undefined: unchanged. */
+    const targetOf = (b: Record<string, unknown>): string | null | undefined => {
+      if (b.arrival === true) return null;
+      if (Array.isArray(b.newContext) && b.newContext.length)
+        return ensureContext(b.newContext.map(String));
+      if ('contextId' in b)
+        return typeof b.contextId === 'string' && b.contextId ? b.contextId : null;
+      return undefined;
+    };
+
+    /** Name, context (the file moves: one transaction, back on failure), pinned, Arrivée. */
+    ctx.routes.patch('/items/:id', async (request) => {
+      const id = uuidParam(request.params);
+      const row = getRow(id);
+      if (row.trashed_at) throw new HttpError(409, 'Dans la corbeille : le récupérer d’abord');
+      const b = requestBody(request);
+      const put = await relocate(
+        id,
+        targetOf(b),
+        typeof b.name === 'string' && b.name.trim() ? b.name : null,
+      );
+      const pinned = row.pinned;
+      if (typeof b.pinned === 'boolean') store.update('items', id, { pinned: b.pinned ? 1 : 0 });
+      const undoId = remember(async () => {
+        await put();
+        store.update('items', id, { pinned });
       });
       return { item: one(id), undoId };
+    });
+
+    /** The values of one key replaced (one transaction); returns the ones before. */
+    const replaceKey = (id: string, key: AttributeKey, list: AttributeDto[]): AttributeDto[] => {
+      const before =
+        attributesOf([id])
+          .get(id)
+          ?.filter((a) => a.key === key) ?? [];
+      ctx.db.transaction(() => {
+        const rows = ctx.db
+          .prepare(
+            `SELECT id FROM ${attributes} WHERE deleted_at IS NULL AND item_id = ? AND key = ?`,
+          )
+          .all(id, key) as { id: string }[];
+        for (const r of rows) store.remove('attributes', r.id);
+        writeAttributes(id, list);
+      });
+      return before;
+    };
+
+    /**
+     * v0.48.0 (Expérimental): « Modifier la sélection » — one setting for several
+     * elements already stored: their context (a route created now), nature,
+     * origin, year (null removes), tags added / removed, their names (computed by
+     * the page from the template). Every value is « choisi ». All or nothing;
+     * ONE « Annuler » for the lot.
+     */
+    ctx.routes.post('/items/batch', async (request) => {
+      const b = requestBody(request);
+      const ids = (Array.isArray(b.ids) ? b.ids : []).map(String);
+      if (!ids.length) throw new HttpError(400, 'Aucun élément choisi');
+      if (ids.length > 2000) throw new HttpError(400, 'Trop d’éléments à la fois');
+      for (const id of ids) {
+        const row = getRow(id);
+        if (row.trashed_at) throw new HttpError(409, `« ${row.name} » est dans la corbeille`);
+      }
+      const names = (b.names && typeof b.names === 'object' ? b.names : {}) as Record<
+        string,
+        unknown
+      >;
+      const set = (b.set && typeof b.set === 'object' ? b.set : {}) as Record<string, unknown>;
+      const tagsAdd = (Array.isArray(b.tagsAdd) ? b.tagsAdd : []).map((t) => String(t).trim());
+      const tagsRemove = (Array.isArray(b.tagsRemove) ? b.tagsRemove : []).map((t) =>
+        String(t).trim().toLowerCase(),
+      );
+      const contextsBefore = new Set(contextRows().map((c) => c.id));
+      const journal: (() => Promise<void> | void)[] = [];
+      try {
+        const target = targetOf(b);
+        for (const id of ids) {
+          const name = typeof names[id] === 'string' ? (names[id] as string) : null;
+          if (target !== undefined || name) journal.push(await relocate(id, target, name));
+          for (const key of ['nature', 'origin', 'year'] as const) {
+            if (!(key in set)) continue;
+            const v = set[key];
+            const value = typeof v === 'string' ? v.trim() : '';
+            const old = replaceKey(
+              id,
+              key,
+              value ? [{ key, value, origin: 'chosen', reason: null }] : [],
+            );
+            journal.push(() => void replaceKey(id, key, old));
+          }
+          if (tagsAdd.length || tagsRemove.length) {
+            const now = (attributesOf([id]).get(id) ?? []).filter((a) => a.key === 'tag');
+            const kept = now.filter((a) => !tagsRemove.includes(a.value.toLowerCase()));
+            const added = tagsAdd
+              .filter(Boolean)
+              .filter((t) => !kept.some((a) => a.value.toLowerCase() === t.toLowerCase()))
+              .map((value) => ({
+                key: 'tag' as const,
+                value,
+                origin: 'chosen' as const,
+                reason: null,
+              }));
+            const old = replaceKey(id, 'tag', [...kept, ...added]);
+            journal.push(() => void replaceKey(id, 'tag', old));
+          }
+        }
+      } catch (error) {
+        for (const step of [...journal].reverse()) await step();
+        await removeIfEmpty(
+          contextRows()
+            .filter((c) => !contextsBefore.has(c.id))
+            .map((c) => c.id),
+        );
+        throw error;
+      }
+      const newContexts = contextRows()
+        .filter((c) => !contextsBefore.has(c.id))
+        .map((c) => c.id);
+      const undoId = remember(async () => {
+        for (const step of [...journal].reverse()) await step();
+        await removeIfEmpty(newContexts);
+      });
+      return { items: dtos(ids.map((id) => getRow(id))), undoId };
     });
 
     /**
@@ -984,21 +1142,11 @@ export default defineBackendModule({
         .filter(Boolean);
       if (key !== 'tag' && values.length > 1)
         throw new HttpError(400, 'Une seule valeur pour cet attribut');
-      const before =
-        attributesOf([id])
-          .get(id)
-          ?.filter((a) => a.key === key) ?? [];
-      const replace = (list: AttributeDto[]) =>
-        ctx.db.transaction(() => {
-          const rows = ctx.db
-            .prepare(
-              `SELECT id FROM ${attributes} WHERE deleted_at IS NULL AND item_id = ? AND key = ?`,
-            )
-            .all(id, key) as { id: string }[];
-          for (const r of rows) store.remove('attributes', r.id);
-          writeAttributes(id, list);
-        });
-      replace(values.map((value) => ({ key, value, origin: 'chosen', reason: null })));
+      const before = replaceKey(
+        id,
+        key,
+        values.map((value) => ({ key, value, origin: 'chosen', reason: null })),
+      );
       // v0.47.0: a nature chosen in a context: « .pdf in Thermo = synthèse » learns it.
       if (key === 'nature' && values[0]) {
         const row = getRow(id);
@@ -1015,7 +1163,7 @@ export default defineBackendModule({
             ctx.logger.warn(`Apprentissage : ${String(error)}`);
           }
       }
-      const undoId = remember(async () => replace(before));
+      const undoId = remember(async () => void replaceKey(id, key, before));
       return { item: one(id), undoId };
     });
 
