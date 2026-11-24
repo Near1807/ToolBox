@@ -4,6 +4,28 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.47.0] — 2026-11-24
+
+Coffre : **retrouver et ranger plus vite** ; socle : **recherche partout**, **fenêtres de lecture**, **fichiers envoyés par Windows**, **restaurer ToolBox depuis une sauvegarde**. Tout est marqué « Expérimental ». Migrations 3 à 6 du Coffre (ajouts seulement, sauvegarde de la base avant).
+
+### Ajouté
+
+- **Recherche dans le contenu** (Coffre) : texte des PDF (par page), Markdown, texte, HTML (sans script ni style), code, Word / PowerPoint (par diapositive) / Excel, et des fichiers texte d'un projet ; extrait en arrière-plan (priorité basse, interrompu à la fermeture, repris au démarrage, progression dans la Santé) dans un index gardé sur le PC (les archivés restent cherchables disque débranché). Insensible aux accents et à la casse. PDF scanné : « pas de texte » (pas d'OCR). Résultats groupés par élément, extraits surlignés, page ; un clic ouvre l'aperçu à la bonne page, le mot surligné ; pastilles. Mesure : 3000 éléments, 5 à 19 ms côté serveur.
+- **Recherche partout** (Ctrl+K, toutes les pages) : les outils et les résultats des modules qui la fournissent (`ctx.search`, le Coffre d'abord) ; « Tous les résultats ». Le champ de la barre latérale reste un filtre des outils.
+- **Lecteurs** : PDF (pages à la demande, zoom, aller à la page, chercher dans le document, texte sélectionnable), code avec numéros de ligne, sommaire d'un Markdown, zoom d'une image.
+- **Lire en plein écran** (aperçu, carte, clic droit) : une **fenêtre à part** (Alt+Tab, plusieurs à la fois), sans l'interface de ToolBox, les mêmes lecteurs ; F11 ; place et taille retenues ; « Ouvrir dans VS Code » pour du code ; un archivé lu depuis le disque.
+- **« Ranger dans ToolBox »** dans le clic droit de l'explorateur et dans « Envoyer vers » (pour ton compte, sans administrateur) : ajoutés par l'installateur, retirés par la désinstallation (vérifié par la CI), à retirer / remettre dans Réglages › Général. Plusieurs fichiers : une seule fenêtre de rangement ; ToolBox fermé : il démarre et l'ouvre.
+- **Proposer de ranger mes nouveaux téléchargements** (Réglages › Coffre, **désactivé par défaut**) : seulement les fichiers arrivés après l'activation, téléchargements en cours attendus, ceux déjà dans le Coffre écartés ; un compteur (accueil, barre latérale), « Ranger » / « Ignorer » ; « Proposer aussi les fichiers déjà présents ». Notification Windows à part, désactivée aussi. L'original n'est jamais déplacé ni supprimé.
+- **Apprentissage des corrections** : site → contexte, mot du nom → contexte, extension dans un contexte → nature ; confiance qui monte (confirmée) ou baisse (corrigée) ; raison au survol ; « Ce que le Coffre a appris » dans Réglages › Coffre (modifier, supprimer, « Tout oublier »). Une valeur choisie n'est jamais remplacée.
+- **« Maintenant »** : pendant un cours de l'Agenda (ou 15 min avant), son contexte et ses éléments récents en haut de l'accueil du Coffre ; « Lié au cours … » sur la page d'un contexte. Agenda : `coursesNow` (lecture seule).
+- **Restaurer ToolBox depuis une sauvegarde** (Réglages › Sauvegardes) : aperçu (date, version, modules, éléments), base plus récente refusée, base actuelle sauvegardée d'abord, remplacement au redémarrage, retour automatique si échec ; le téléphone refait une première synchro (Fusionner). Le Coffre propose ensuite de récupérer ses fichiers depuis le disque.
+- Smoke test : pdf.js dans l'app empaquetée, fenêtre de lecture. ADR 0056 à 0063.
+
+### Changé
+
+- Ctrl+K ouvre la recherche du socle partout (avant : le champ de la barre latérale, ou la recherche du Coffre dans le Coffre).
+- La base garde la version de ToolBox qui l'a ouverte en dernier (`core__meta.app_version`).
+
 ## [0.46.0] — 2026-11-23
 
 Coffre : **le disque externe**. Le PC garde les éléments actifs, le disque garde tout. Tout est marqué « Expérimental ». Migration 2 du Coffre (ajouts seulement, sauvegarde de la base avant).

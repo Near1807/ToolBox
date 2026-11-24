@@ -49,15 +49,18 @@ Un mot par notion, partout — code (en anglais entre parenthèses), documentati
    - le disque reçoit une copie des fiches et de la base : il se suffit à lui-même (« Restaurer depuis un disque » testé en réel) ;
    - jauges PC et disque ; « Éjecter le disque » ; vérification complète à la demande (relire les empreintes) ;
    - un seul disque pour l'instant (second disque / NAS **plus tard**).
-9. **v0.47**
-   - recherche dans le **contenu** (texte des PDF, Markdown, HTML, code) ;
-   - lecture plein écran dans une **fenêtre séparée** (Alt+Tab possible) ;
-   - « Ranger dans ToolBox » / « Envoyer vers » dans le clic droit de Windows (ajouté à l'installation, retiré à la désinstallation) ;
-   - surveillance de Téléchargements, **désactivée par défaut** (attendre la fin des `.crdownload` / `.part`) ;
-   - apprentissage des corrections ;
-   - « Maintenant » (le cours en cours d'après l'Agenda) ;
+9. **v0.47 (livré, Expérimental)**
+   - recherche dans le **contenu** (PDF par page, Markdown, texte, HTML, code, docx / pptx / xlsx), texte gardé sur le PC (archivés cherchables disque débranché), PDF scanné « pas de texte » (pas d'OCR), ouverture à la bonne page, mot surligné ; Ctrl+K partout (ADR 0056, 0057) ;
+   - lecture plein écran dans une **fenêtre séparée** (Alt+Tab, plusieurs, F11, place retenue, mêmes lecteurs, même isolation du HTML ; ADR 0058) ;
+   - « Ranger dans ToolBox » / « Envoyer vers » (HKCU, ajouté à l'installation, retiré à la désinstallation, vérifié en CI ; plusieurs fichiers = une fenêtre ; ADR 0059) ;
+   - surveillance de Téléchargements, **désactivée par défaut** (après activation seulement, partiels ignorés, taille stable, déjà rangés écartés, rien sans clic ; ADR 0060) ;
+   - apprentissage des corrections (règles avec confiance, « Ce que le Coffre a appris », jamais à la place d'un « choisi » ; ADR 0061) ;
+   - « Maintenant » (le cours de l'Agenda en cours ou dans 15 min ; « Lié au cours … » ; ADR 0062) ;
+   - socle : restaurer ToolBox depuis une sauvegarde (la copie de la base du disque comprise), puis « Restaurer le Coffre depuis le disque » (ADR 0063) ;
+   - règle 5 (HTML de Thomas) : inchangée, toujours isolé ;
    - suggestions d'archivage : **avancées en v0.46**.
 10. **Plus tard**
+    - OCR des PDF scannés (à décider) ; entrée de premier niveau dans le menu court de Windows 11 (extension COM signée) ;
     - format de synthèse en composants : bibliothèque **unique** et externe aux documents, vérification avec la ligne en cause, export HTML autonome qui embarque une copie figée, kit pour une IA fabriqué depuis la bibliothèque, mode « l'essentiel seulement » ;
     - liens Agenda / To-do ; dépôts Git rattachés ; vrais projets FL Studio avec leurs samples ; téléphone ; aperçu Office / LaTeX ;
     - déplacer tout le dossier de données de ToolBox d'un bloc ; second disque / NAS.

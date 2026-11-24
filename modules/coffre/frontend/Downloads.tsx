@@ -8,15 +8,15 @@ import { Button, Counter, formatBytes, useApi, useModule } from '@hub/sdk/fronte
 import type { DownloadDto, DownloadsDto } from '../shared/types';
 import { useCoffre } from './frame';
 
-/** The watching's state, read again every few seconds while it is on. */
+/** The watching's state, read again every few seconds (every 15 s at least while it is off). */
 export function useDownloads(everyMs = 5000) {
   const module = useModule();
   const state = useApi<DownloadsDto>(module.url('/downloads'));
   const { reload } = state;
+  // Read again regularly, also while it is off (switched on later in Réglages: seen).
   const on = state.data?.enabled === true;
   useEffect(() => {
-    if (!on) return;
-    const t = setInterval(reload, everyMs);
+    const t = setInterval(reload, on ? everyMs : Math.max(everyMs, 15_000));
     return () => clearInterval(t);
   }, [on, reload, everyMs]);
   return state;
