@@ -81,3 +81,4 @@ Modèle :
 | 0060 | [Coffre : proposer de ranger les nouveaux téléchargements (désactivé par défaut)](0060-coffre-surveillance-telechargements.md)                                   |
 | 0061 | [Coffre : apprendre des choix et des corrections de Thomas](0061-coffre-apprentissage-des-corrections.md)                                                        |
 | 0062 | [Coffre : « Maintenant » (le cours en cours d'après l'Agenda)](0062-coffre-maintenant.md)                                                                        |
+| 0063 | [Socle : restaurer ToolBox depuis une sauvegarde (au redémarrage, avec retour automatique)](0063-socle-restaurer-depuis-une-sauvegarde.md)                       |

@@ -21,6 +21,7 @@ import { showTool } from '../navigation';
 import { AppearanceCard } from './AppearanceCard';
 import { SyncSection } from './SyncCard';
 import { WindowsCard } from './WindowsCard';
+import { RestoreCard } from './RestoreCard';
 import { SettingsForm, type SettingsSectionData } from './SettingsForm';
 
 const STATUS_LABELS = {
@@ -603,7 +604,14 @@ export function SettingsPage() {
       id: 'backups',
       title: 'Sauvegardes',
       group: GENERAL_GROUP,
-      entries: [{ key: 'backups', label: 'Exporter une sauvegarde', description: 'automatiques' }],
+      entries: [
+        { key: 'backups', label: 'Exporter une sauvegarde', description: 'automatiques' },
+        {
+          key: 'restore',
+          label: 'Restaurer ToolBox depuis une sauvegarde',
+          description: 'disque du coffre, sauvegarde automatique',
+        },
+      ],
     },
     {
       id: 'about',
@@ -736,6 +744,7 @@ export function SettingsPage() {
             </>
           )}
           {current.id === 'backups' && <BackupsCard />}
+          {current.id === 'backups' && <RestoreCard />}
           {current.id === 'about' && <AboutCard />}
           {current.group !== GENERAL_GROUP && (
             <Card

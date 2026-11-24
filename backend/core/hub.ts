@@ -1,5 +1,13 @@
 import { CalendarRegistry } from './calendar';
 import { SearchRegistry } from './search';
+import {
+  applyPendingRestore,
+  finishRestore,
+  raiseJournalFloors,
+  resetSyncAfterRestore,
+  rollbackRestore,
+  type PendingRestore,
+} from './restore';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
@@ -190,15 +198,60 @@ export class Hub {
   }
 
   static async create(options: HubOptions): Promise<Hub> {
-    const hub = new Hub(options);
+    // v0.47.0 (ADR 0063): a restore confirmed before the restart takes place now,
+    // BEFORE the base is opened; any failure brings the base of before back.
+    let pending: PendingRestore | null = null;
     try {
-      await hub.initialize();
+      pending = applyPendingRestore(options.dataDir);
     } catch (error) {
-      hub.handle.close();
-      throw error;
+      console.error('Restauration de la base : mise en place impossible', error);
+    }
+    let hub: Hub | null = null;
+    try {
+      hub = new Hub(options);
+      await hub.initialize();
+      if (pending && hub.migrationFailures.length)
+        throw new Error(hub.migrationFailures.join(' ; '));
+    } catch (error) {
+      if (hub) await hub.stop().catch(() => hub?.handle.close());
+      if (!pending) throw error;
+      rollbackRestore(options.dataDir, pending, errorMessage(error));
+      const again = await Hub.create(options);
+      again.logger.error(
+        `Restauration annulée, la base d’avant est revenue : ${errorMessage(error)}`,
+      );
+      return again;
+    }
+    if (pending) {
+      raiseJournalFloors(hub.handle.db, pending.seqFloors, () => randomUUID());
+      resetSyncAfterRestore(hub.handle.db);
+      finishRestore(options.dataDir, pending);
+      hub.logger.info(`Base restaurée depuis ${pending.source}`);
     }
     return hub;
   }
+
+  /**
+   * v0.47.0: the last migration this ToolBox knows for each scope (core and
+   * every module it ships, loaded or not): a base with a higher one was written
+   * by a newer ToolBox (a restore refuses it).
+   */
+  knownMigrations(): Map<string, number> {
+    const out = new Map<string, number>([
+      [CORE_SCOPE, Math.max(0, ...coreMigrations.map((m) => m.version))],
+    ]);
+    for (const r of this.records.values())
+      out.set(r.id, Math.max(0, ...(r.backend?.migrations ?? []).map((m) => m.version)));
+    return out;
+  }
+
+  /** v0.47.0: a module's name (its manifest), else its id. */
+  moduleName(id: string): string {
+    return this.records.get(id)?.manifest?.name ?? id;
+  }
+
+  /** v0.47.0: the migrations that failed at this start (a restore is then undone). */
+  readonly migrationFailures: string[] = [];
 
   get host(): HostAdapter {
     return this.options.host;
@@ -221,6 +274,12 @@ export class Hub {
     ensureMigrationsTable(this.handle.db);
     const coreFailure = this.migrateScope(CORE_SCOPE, coreMigrations);
     if (coreFailure) throw new Error(coreFailure);
+    // v0.47.0: the ToolBox that last opened this base (a restore's preview shows it).
+    this.handle.db
+      .prepare(
+        "INSERT INTO core__meta (key, value) VALUES ('app_version', ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value",
+      )
+      .run(this.options.appVersion);
     this.sync = new SyncEngine({
       db: this.handle.db,
       role: 'pc',
@@ -342,6 +401,7 @@ export class Hub {
           ? error.message
           : `Mise à jour de la base de « ${scope} » impossible : ${errorMessage(error)}`;
       this.logger.error(message, error);
+      this.migrationFailures.push(message);
       if (backupFile) {
         restoreBackup(this.handle, backupFile);
         this.logger.warn(`Base restaurée depuis ${path.basename(backupFile)}`);

@@ -37,6 +37,8 @@ L'avertissement réapparaît à chaque nouvelle version (nouveau fichier non sig
 - **Automatiques** : avant chaque mise à jour du schéma de la base, ToolBox copie `hub.db` dans `%APPDATA%\ToolBox\backups\` (10 dernières conservées) ; avant certaines suppressions (imports des Stats YouTube…), une autre copie, comptée à part (10 dernières), qui ne remplace jamais celles d'avant mise à jour. Si une mise à jour échoue, l'app restaure elle-même la copie et désactive l'outil concerné (message dans Réglages > Modules).
 - **Manuelles** : Réglages > Sauvegardes > **Exporter une sauvegarde** crée un `.zip` avec la base et les fichiers des outils (morceaux, covers…). À faire avant une grosse manipulation, et de temps en temps sur un disque externe ou un cloud.
 
+- **Depuis l'app** (v0.47.0, Expérimental) : Réglages > Sauvegardes > **Restaurer ToolBox depuis une sauvegarde**. Choisir une sauvegarde automatique ou un fichier `hub.db` (le disque du coffre en garde une copie : `ToolBox-Coffre\_ToolBox\Base\hub.db`) ; un aperçu montre sa date, la version de ToolBox qui l'a écrite, ses modules et leurs éléments (une base écrite par un ToolBox plus récent est refusée). Confirmé : la base actuelle est sauvegardée d'abord, la copie la remplace **au prochain démarrage** ; si quelque chose échoue au démarrage, la base d'avant revient toute seule (Réglages > Sauvegardes dit pourquoi). Ensuite, le téléphone demande une première synchro : choisir « Fusionner ». ADR 0063.
+
 Restaurer à la main (app **fermée**, y compris dans la zone de notification) :
 
 1. Ouvrir `%APPDATA%\ToolBox\` (Réglages > À propos > Ouvrir).

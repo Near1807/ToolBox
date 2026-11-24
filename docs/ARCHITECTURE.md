@@ -42,20 +42,21 @@ Le SDK serveur a une **partie portable** (`@hub/sdk/core` : le contrat, sans Nod
 
 ## Le socle backend
 
-| Fichier                                    | Rôle                                                                                               |
-| ------------------------------------------ | -------------------------------------------------------------------------------------------------- |
-| `backend/server.ts`                        | Construit Fastify : sécurité, routes du socle, routes des modules, interface statique              |
-| `backend/core/hub.ts`                      | **Hub** : ouvre la base, applique les migrations, charge les modules, construit leur `ctx`         |
-| `backend/core/modules/`                    | Validation des manifests (zod), plan de dépendances, montage isolé des routes                      |
-| `backend/core/migrations.ts`, `backups.ts` | Migrations préfixées et transactionnelles ; sauvegarde, rotation, restauration de `hub.db`         |
-| `backend/core/settings.ts`                 | Réglages du socle et des modules (`core__settings`), secrets chiffrés via `HostAdapter`            |
-| `backend/core/jobs.ts`, `scheduler.ts`     | Tâches longues (file, progression, annulation) ; tâches périodiques avec rattrapage                |
-| `backend/core/events.ts`, `services.ts`    | Bus d'événements et registre de services entre modules                                             |
-| `backend/core/logger.ts`                   | Journaux JSON lines dans `userData/logs/` (fichiers : ils survivent à une restauration de la base) |
-| `backend/core/export.ts`                   | Export d'une sauvegarde complète en `.zip`                                                         |
-| `backend/core/accounts.ts`                 | Comptes connectés (`ctx.accounts`) : OAuth installé (boucle locale + PKCE), jetons chiffrés        |
-| `backend/core/notifications.ts`            | Notifications Windows des modules (`ctx.notifications`)                                            |
-| `backend/routes/core.ts`                   | API générique `/api/core/*`                                                                        |
+| Fichier                                    | Rôle                                                                                                                                                                                                                            |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `backend/server.ts`                        | Construit Fastify : sécurité, routes du socle, routes des modules, interface statique                                                                                                                                           |
+| `backend/core/hub.ts`                      | **Hub** : ouvre la base, applique les migrations, charge les modules, construit leur `ctx`                                                                                                                                      |
+| `backend/core/modules/`                    | Validation des manifests (zod), plan de dépendances, montage isolé des routes                                                                                                                                                   |
+| `backend/core/migrations.ts`, `backups.ts` | Migrations préfixées et transactionnelles ; sauvegarde, rotation, restauration de `hub.db`                                                                                                                                      |
+| `backend/core/settings.ts`                 | Réglages du socle et des modules (`core__settings`), secrets chiffrés via `HostAdapter`                                                                                                                                         |
+| `backend/core/jobs.ts`, `scheduler.ts`     | Tâches longues (file, progression, annulation) ; tâches périodiques avec rattrapage                                                                                                                                             |
+| `backend/core/events.ts`, `services.ts`    | Bus d'événements et registre de services entre modules                                                                                                                                                                          |
+| `backend/core/logger.ts`                   | Journaux JSON lines dans `userData/logs/` (fichiers : ils survivent à une restauration de la base)                                                                                                                              |
+| `backend/core/export.ts`                   | Export d'une sauvegarde complète en `.zip`                                                                                                                                                                                      |
+| `backend/core/restore.ts`                  | v0.47.0 : restaurer depuis une copie de `hub.db` (aperçu, refus d'une base plus récente, remplacement au démarrage avant l'ouverture de la base, retour automatique si échec, synchro remise en « première synchro »), ADR 0063 |
+| `backend/core/accounts.ts`                 | Comptes connectés (`ctx.accounts`) : OAuth installé (boucle locale + PKCE), jetons chiffrés                                                                                                                                     |
+| `backend/core/notifications.ts`            | Notifications Windows des modules (`ctx.notifications`)                                                                                                                                                                         |
+| `backend/routes/core.ts`                   | API générique `/api/core/*`                                                                                                                                                                                                     |
 
 ### Séquence de démarrage
 

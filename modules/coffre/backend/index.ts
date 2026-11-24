@@ -617,6 +617,13 @@ export default defineBackendModule({
           pending: states.filter((st) => st === 'pending').length,
           archived: states.filter((st) => st === 'archived').length,
           index: textIndex.status(),
+          missingOnPc: rows.filter(
+            (r) =>
+              r.kind !== 'link' &&
+              !r.archived_at &&
+              r.rel_path &&
+              !existsSync(library.abs(r.rel_path)),
+          ).length,
         },
       };
     });

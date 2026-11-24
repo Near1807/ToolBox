@@ -3,6 +3,14 @@ import type { FastifyInstance } from 'fastify';
 import { AccountError, openEventStream, type JobInfo } from '../../packages/sdk/backend';
 import { localToday } from '../../packages/sdk/dates';
 import { KEPT_BACKUPS, listAutomaticBackups } from '../core/backups';
+import {
+  cancelRestore,
+  dismissRestoreResult,
+  inspectBackup,
+  pendingRestore,
+  restoreResult,
+  stageRestore,
+} from '../core/restore';
 import { getSqliteVersion } from '../core/database';
 import { exportBackupZip } from '../core/export';
 import { getBinaryVersion, getFfmpegPath, getFfprobePath } from '../core/ffmpeg-binaries';
@@ -318,6 +326,67 @@ export function registerCoreRoutes(app: FastifyInstance, hub: Hub, appVersion: s
       createdAt,
     })),
   }));
+
+  // v0.47.0: restore ToolBox from a copy of its base (ADR 0063).
+  const inspect = (file: unknown) => {
+    if (typeof file !== 'string' || !path.isAbsolute(file)) throw new Error('Fichier invalide');
+    return inspectBackup(file, {
+      appVersion: hub.options.appVersion,
+      known: hub.knownMigrations(),
+      nameOf: (scope) => hub.moduleName(scope),
+    });
+  };
+  app.get('/api/core/restore', async () => ({
+    pending: pendingRestore(hub.dataDir),
+    result: restoreResult(hub.dataDir),
+    automatic: listAutomaticBackups(hub.backupsDir).map(
+      ({ file, name, kind, size, createdAt }) => ({
+        file,
+        name,
+        kind,
+        size,
+        createdAt,
+      }),
+    ),
+  }));
+  /** What a copy holds (read only). */
+  app.post<{ Body: { file?: unknown } }>('/api/core/restore/preview', async (request, reply) => {
+    try {
+      return inspect(request.body?.file);
+    } catch (error) {
+      return reply
+        .code(400)
+        .send({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+  /** Confirmed: the current base saved, the copy put aside; replaced at the next start. */
+  app.post<{ Body: { file?: unknown; confirm?: unknown } }>(
+    '/api/core/restore/stage',
+    async (request, reply) => {
+      if (request.body?.confirm !== true)
+        return reply.code(400).send({ error: 'Restauration : confirmation nécessaire' });
+      try {
+        const preview = inspect(request.body?.file);
+        if (preview.refused) return reply.code(409).send({ error: preview.refused });
+        const pending = stageRestore(hub.handle.db, hub.dataDir, hub.backupsDir, preview);
+        hub.logger.info(`Restauration préparée depuis ${preview.file} (au prochain démarrage)`);
+        return pending;
+      } catch (error) {
+        return reply
+          .code(400)
+          .send({ error: error instanceof Error ? error.message : String(error) });
+      }
+    },
+  );
+  app.post('/api/core/restore/cancel', async () => {
+    cancelRestore(hub.dataDir);
+    hub.logger.info('Restauration annulée avant le redémarrage');
+    return { ok: true };
+  });
+  app.delete('/api/core/restore/result', async () => {
+    dismissRestoreResult(hub.dataDir);
+    return { ok: true };
+  });
 
   app.post('/api/core/backups/open-folder', async () => {
     await hub.host.openPath(hub.backupsDir);

@@ -147,6 +147,18 @@ export function HomePage() {
         ) : (
           h && (
             <>
+              {h.health.missingOnPc > 0 && coffre.disk?.disk && (
+                <div className="coffre-banner" role="status" data-coffre-missing>
+                  <span>
+                    {h.health.missingOnPc} élément{h.health.missingOnPc > 1 ? 's' : ''} de ta base
+                    {h.health.missingOnPc > 1 ? ' ne sont' : ' n’est'} pas sur ce PC (une base
+                    restaurée ?). Le disque « {coffre.disk.disk.name} » les a peut-être.
+                  </span>
+                  <Button onClick={() => setRestoring(true)}>
+                    Restaurer le Coffre depuis le disque…
+                  </Button>
+                </div>
+              )}
               <NowPanel />
               <div className="coffre-dash">
                 <Health home={h} disk={coffre.disk} onVerify={coffre.verify} />

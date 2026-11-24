@@ -111,6 +111,11 @@ export interface HomeDto {
     archived: number;
     /** v0.47.0: the search in the content (texts read in the background). */
     index: IndexStatusDto;
+    /**
+     * v0.47.0: elements meant to be on this PC whose file is not here (a base
+     * restored, a folder emptied by hand): « Restaurer le Coffre depuis le disque ».
+     */
+    missingOnPc: number;
   };
 }
 

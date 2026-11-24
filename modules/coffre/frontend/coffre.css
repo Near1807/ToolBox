@@ -1694,3 +1694,17 @@ button.coffre-value__text:hover {
 .coffre-context__course-link .input {
   width: auto;
 }
+
+/* v0.47.0: elements of a restored base not on this PC: « Restaurer le Coffre depuis le disque ». */
+.coffre-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  border: 1px solid var(--border-strong);
+  border-left: 3px solid var(--warning);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}

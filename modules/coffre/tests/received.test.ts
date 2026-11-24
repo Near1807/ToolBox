@@ -1,7 +1,7 @@
 // v0.47.0 C: files sent by Windows to the Coffre — ten files, ONE batch (one
 // rangement window); nothing written before « Ranger »; then the same rules
 // as a drop (the original untouched).
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createTestHost } from '@hub/sdk/testing';
@@ -46,5 +46,18 @@ describe('ranger depuis Windows', () => {
     expect(
       (await w.hub.request('GET', `${API}/received/00000000-0000-4000-8000-000000000000`)).status,
     ).toBe(404);
+  });
+
+  it('v0.47.0 G : des éléments de la base absents du PC sont comptés (bandeau « Restaurer depuis le disque »)', async () => {
+    w = await diskWorld();
+    const p = path.join(w.dl, 'cours.txt');
+    writeFileSync(p, 'x');
+    await ok(w, 'POST', `${API}/deposit/apply`, {
+      entries: [{ path: p, newContext: ['Cours'], attributes: [] }],
+    });
+    const home = () => ok<{ health: { missingOnPc: number } }>(w, 'GET', `${API}/home`);
+    expect((await home()).health.missingOnPc).toBe(0);
+    rmSync(path.join(w.hub.dataDir, 'coffre', 'Cours', 'cours.txt'));
+    expect((await home()).health.missingOnPc).toBe(1);
   });
 });

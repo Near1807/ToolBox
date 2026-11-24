@@ -2740,3 +2740,29 @@ input[type='range'] {
   display: flex;
   flex-direction: column;
 }
+
+/* v0.47.0: Réglages › Sauvegardes › Restaurer. */
+.settings-restore__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 6px 0;
+}
+.settings-restore__list .list__item {
+  align-items: center;
+}
+.settings-restore__preview {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.settings-restore__table {
+  border-collapse: collapse;
+  margin: 8px 0 12px;
+}
+.settings-restore__table th,
+.settings-restore__table td {
+  text-align: left;
+  padding: 3px 14px 3px 0;
+  border-bottom: 1px solid var(--border);
+}
