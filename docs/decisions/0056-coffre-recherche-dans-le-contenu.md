@@ -45,3 +45,9 @@ Thomas veut retrouver un fichier par un mot qu'il contient (« transistor » dan
 - Un PDF scanné reste introuvable par son contenu (pas d'OCR) : son nom et sa fiche restent cherchables.
 - `.doc`, `.ppt`, `.xls` (anciens formats binaires), `.odt` : pas lus (plus tard si besoin).
 - Changer ces règles : `modules/coffre/backend/extract.ts` (formats, limites), `text-index.ts` (index, priorité), `search.ts` (résultats).
+
+## Note v0.47.1
+
+- La lecture se fait dans un **worker** (`worker_threads`) : un gros fichier Office, lu d'un seul tenant, bloquait le fil du serveur plus d'une demi-seconde (mesure du rapport v0.47.1). 60 s au plus par fichier : au-delà, « illisible : trop long », relu une fois au démarrage suivant ; un worker qui s'arrête est remplacé.
+- Fichiers Office : décompression **bornée** (100 Mo par partie et en tout, 10 000 parties), « illisible : trop gros » au-delà.
+- pdf.js 6 n'a plus l'option `isEvalSupported` ni aucun chemin `eval` / `new Function` ; un test le vérifie à chaque mise à jour de pdf.js (aperçu et extraction), et la page de ToolBox interdit `eval`.

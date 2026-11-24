@@ -38,7 +38,10 @@ function inTurn<T>(job: () => Promise<T>): Promise<T> {
 async function open(source: ReaderSource): Promise<PdfDocument> {
   const lib = await pdfjs();
   const data = new Uint8Array(await bytesOf(source));
-  // No script of the PDF ever runs, no XFA form; nothing fetched from outside.
+  // No script of the PDF ever runs, no XFA form; nothing fetched from outside. v0.47.1: no
+  // code built from the PDF's data either: pdf.js 6 has no eval path (its option
+  // `isEvalSupported` is gone) and the page's policy forbids eval — both checked by
+  // pdf-no-eval.test.ts.
   return lib.getDocument({ data, enableXfa: false, stopAtErrors: false }).promise;
 }
 

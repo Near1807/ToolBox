@@ -9,7 +9,7 @@ import { existsSync } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { strFromU8, unzipSync } from 'fflate';
+import { strFromU8, Unzip, UnzipInflate } from 'fflate';
 import { extOf, languageOfExt } from '../shared/kinds';
 import { filesOf as listFiles } from './library';
 
@@ -18,7 +18,14 @@ export interface TextPart {
   part: string;
   text: string;
 }
-export type ExtractStatus = 'ok' | 'notext' | 'unsupported' | 'toobig' | 'error';
+export type ExtractStatus =
+  | 'ok'
+  | 'notext'
+  | 'unsupported'
+  | 'toobig'
+  | 'error'
+  /** v0.47.1: longer than the maximum time: read again at the next start. */
+  | 'toolong';
 export interface Extracted {
   status: ExtractStatus;
   parts: TextPart[];
@@ -120,6 +127,86 @@ export function htmlText(html: string): string {
   return squeeze(decodeEntities(body));
 }
 
+/**
+ * v0.47.1: limits of an Office file's DECOMPRESSED content (a small .docx may
+ * unfold to gigabytes: a « zip bomb »). Beyond: « illisible : trop gros ».
+ */
+export const ZIP_LIMITS = {
+  /** All the parts read, together. */
+  totalBytes: 100 * 1024 * 1024,
+  /** One part. */
+  entryBytes: 100 * 1024 * 1024,
+  /** Entries in the archive (read or not). */
+  entries: 10_000,
+};
+
+/** Too large once decompressed (see ZIP_LIMITS): nothing else is read. */
+export class TooBig extends Error {
+  constructor(what: string) {
+    super(`illisible : trop gros (${what})`);
+  }
+}
+
+/**
+ * v0.47.1: the parts of a zip whose name `want` accepts, decompressed in small
+ * steps and counted as they come: it stops as soon as a limit is passed
+ * (never the whole content in memory first).
+ */
+export function unzipBounded(
+  bytes: Uint8Array,
+  want: (name: string) => boolean,
+  limits = ZIP_LIMITS,
+): Record<string, Uint8Array> {
+  const out: Record<string, Uint8Array> = {};
+  let entries = 0;
+  let total = 0;
+  let failure: Error | null = null;
+  const unzip = new Unzip((file) => {
+    if (failure) return;
+    if (++entries > limits.entries) {
+      failure = new TooBig(`plus de ${limits.entries} parties`);
+      return;
+    }
+    if (!want(file.name)) return;
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    file.ondata = (error, chunk, final) => {
+      if (failure) return;
+      if (error) {
+        failure = error;
+        return;
+      }
+      size += chunk.length;
+      total += chunk.length;
+      if (size > limits.entryBytes)
+        failure = new TooBig(`« ${file.name} » dépasse ${limits.entryBytes} octets`);
+      else if (total > limits.totalBytes)
+        failure = new TooBig(`plus de ${limits.totalBytes} octets en tout`);
+      if (failure) {
+        file.terminate();
+        return;
+      }
+      chunks.push(chunk);
+      if (final) {
+        const whole = new Uint8Array(size);
+        let at = 0;
+        for (const c of chunks) {
+          whole.set(c, at);
+          at += c.length;
+        }
+        out[file.name] = whole;
+      }
+    };
+    file.start();
+  });
+  unzip.register(UnzipInflate);
+  const STEP = 64 * 1024;
+  for (let at = 0; at < bytes.length && !failure; at += STEP)
+    unzip.push(bytes.subarray(at, Math.min(bytes.length, at + STEP)), at + STEP >= bytes.length);
+  if (failure) throw failure;
+  return out;
+}
+
 /** The text runs of an Office XML part (`w:t`, `a:t`, `t`), paragraphs on their own lines. */
 function xmlRuns(xml: string, run: string, paragraph: string): string {
   const out: string[] = [];
@@ -143,7 +230,7 @@ export function officeText(bytes: Uint8Array, ext: string): TextPart[] {
       : ext === 'pptx'
         ? /^ppt\/(slides\/slide\d+|notesSlides\/notesSlide\d+)\.xml$/.test(name)
         : /^xl\/(sharedStrings|worksheets\/sheet\d+)\.xml$/.test(name);
-  const files = unzipSync(bytes, { filter: (f) => want(f.name) });
+  const files = unzipBounded(bytes, want);
   const num = (name: string) => Number(/(\d+)\.xml$/.exec(name)?.[1] ?? 0);
   if (ext === 'docx') {
     const order = [
@@ -205,7 +292,13 @@ let pdfjs: Promise<PdfJs> | null = null;
  * pdf.js's Node build (an ES module): copied next to the bundle by the build
  * (build/main/pdfjs/, unpacked from app.asar), else node_modules (dev, tests).
  */
-function pdfjsFile(): string {
+let pdfjsOverride: string | null = null;
+/** v0.47.1: the worker is told where pdf.js is (found by the main thread). */
+export function setPdfjsFile(file: string): void {
+  pdfjsOverride = file;
+}
+export function pdfjsFile(): string {
+  if (pdfjsOverride) return pdfjsOverride;
   const built = path
     .join(__dirname, 'pdfjs', 'pdf.mjs')
     .replace(/app\.asar([\\/])/, 'app.asar.unpacked$1');
@@ -226,9 +319,10 @@ export async function pdfText(
   signal?: { stopped: boolean },
 ): Promise<TextPart[]> {
   const lib = await loadPdfjs();
+  // v0.47.1: no code is ever built from the PDF's data — pdf.js 6 has no eval
+  // path at all (its option `isEvalSupported` is gone; checked by pdf-no-eval.test.ts).
   const task = lib.getDocument({
     data: bytes,
-    isEvalSupported: false,
     disableFontFace: true,
     useSystemFonts: false,
     verbosity: 0,
@@ -280,6 +374,8 @@ export async function extractFile(
     return { status: parts.length ? 'ok' : 'notext', parts };
   } catch (error) {
     if (signal?.stopped) throw error;
+    // v0.47.1: an archive that unfolds too much: « illisible : trop gros », nothing else.
+    if (error instanceof TooBig) return { status: 'toobig', parts: [], error: error.message };
     return { status: 'error', parts: [], error: String(error) };
   }
 }

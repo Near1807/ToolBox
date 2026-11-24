@@ -9,7 +9,8 @@ import { existsSync } from 'node:fs';
 import type { ModuleContext } from '@hub/sdk/core';
 import { fold } from '../shared/deduce';
 import type { IndexStatusDto } from '../shared/types';
-import { extractFile, extractProject, readable, yieldNow, type ExtractStatus } from './extract';
+import { readable, yieldNow, type ExtractStatus } from './extract';
+import { ExtractPool } from './extract-pool';
 import type { ItemRow } from './rows';
 
 export const TEXT_MIGRATION_SQL = (text: string, state: string) => `
@@ -67,6 +68,10 @@ export class TextIndex {
   private again = false;
   private current: string | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
+  /** v0.47.1: the worker thread that reads the texts (a maximum time per file). */
+  readonly pool = new ExtractPool();
+  /** A file « trop long » is read again once per start (after this moment). */
+  private readonly startedAt = new Date().toISOString();
   /** Pause between two files (low priority); the tests' measures set it to 0. */
   pauseMs = Number(process.env.TOOLBOX_COFFRE_INDEX_PAUSE_MS ?? 30);
 
@@ -82,10 +87,11 @@ export class TextIndex {
       .prepare(
         `SELECT i.* FROM ${this.o.items} i LEFT JOIN ${this.state} s ON s.item_id = i.id
          WHERE i.deleted_at IS NULL AND i.trashed_at IS NULL AND i.kind IN ('file', 'project')
-           AND i.sha256 IS NOT NULL AND (s.item_id IS NULL OR s.sha256 IS NOT i.sha256)
+           AND i.sha256 IS NOT NULL AND (s.item_id IS NULL OR s.sha256 IS NOT i.sha256
+             OR (s.status = 'toolong' AND s.extracted_at < ?))
          ORDER BY i.updated_at DESC LIMIT ?`,
       )
-      .all(limit) as ItemRow[];
+      .all(this.startedAt, limit) as ItemRow[];
   }
 
   status(): IndexStatusDto {
@@ -106,7 +112,7 @@ export class TextIndex {
       pending: total - done,
       withText: by('ok'),
       noText: by('notext'),
-      errors: by('error'),
+      errors: by('error') + by('toolong') + by('toobig'),
       running: this.running !== null,
     };
   }
@@ -155,6 +161,7 @@ export class TextIndex {
     this.signal.stopped = true;
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
+    await this.pool.stop();
     await this.running?.catch(() => undefined);
   }
 
@@ -178,11 +185,12 @@ export class TextIndex {
         }
         this.current = row.name;
         try {
+          // v0.47.1: read in the worker thread (the server's thread stays free).
           const r =
             row.kind === 'project'
-              ? await extractProject(file, this.signal)
+              ? await this.pool.run('project', file, '')
               : readable(row.ext)
-                ? await extractFile(file, row.ext, this.signal)
+                ? await this.pool.run('file', file, row.ext)
                 : { status: 'unsupported' as const, parts: [] };
           if (this.signal.stopped) return;
           if (r.error) this.ctx.logger.warn(`Texte de « ${row.name} » illisible : ${r.error}`);

@@ -6,7 +6,8 @@ import { mkdtempSync, renameSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { extractFile, htmlText } from '../backend/extract';
+import { strToU8, zipSync } from 'fflate';
+import { extractFile, htmlText, TooBig, unzipBounded } from '../backend/extract';
 import { ftsQuery } from '../backend/text-index';
 import type { HomeDto, SearchDto, UpdateReport } from '../shared/types';
 import {
@@ -258,4 +259,41 @@ describe('recherche dans le contenu', () => {
     }
     expect(Math.max(...times)).toBeLessThan(1500);
   }, 600_000);
+});
+
+describe('v0.47.1 — fichier Office qui gonfle à la décompression', () => {
+  it('au-delà du plafond (par partie, en tout, nombre de parties) : « illisible : trop gros », rien d’autre', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'coffre-bomb-'));
+    // 120 Mo of the same letter: a few hundred Ko once compressed.
+    const huge = new Uint8Array(120 * 1024 * 1024).fill(0x61);
+    const bomb = Buffer.from(
+      zipSync(
+        { 'word/document.xml': huge, '[Content_Types].xml': strToU8('<Types/>') },
+        { level: 9 },
+      ),
+    );
+    expect(bomb.length).toBeLessThan(2 * 1024 * 1024);
+    const p = path.join(dir, 'piege.docx');
+    writeFileSync(p, bomb);
+    const r = await extractFile(p);
+    expect(r.status).toBe('toobig');
+    expect(r.parts).toEqual([]);
+    expect(r.error).toMatch(/illisible : trop gros/);
+    expect(r.error).toMatch(/dépasse 104857600 octets/);
+    // Many small parts, and the total.
+    const many: Record<string, Uint8Array> = {};
+    for (let i = 0; i < 30; i++) many[`ppt/slides/slide${i + 1}.xml`] = new Uint8Array(1024);
+    expect(() =>
+      unzipBounded(zipSync(many), () => true, { totalBytes: 1e9, entryBytes: 1e9, entries: 20 }),
+    ).toThrow(TooBig);
+    expect(() =>
+      unzipBounded(zipSync(many), () => true, {
+        totalBytes: 10_000,
+        entryBytes: 1e9,
+        entries: 100,
+      }),
+    ).toThrow(/plus de 10000 octets en tout/);
+    // Within the limits: read as before.
+    expect(Object.keys(unzipBounded(zipSync(many), () => true))).toHaveLength(30);
+  }, 60_000);
 });

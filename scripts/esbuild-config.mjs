@@ -89,13 +89,35 @@ export const copyPdfjsPlugin = {
 };
 
 /**
+ * v0.47.1: the worker threads of the modules (`modules/<folder>/backend/*.worker.ts`),
+ * each bundled next to the main bundle: build/main/workers/<folder>/<name>.worker.cjs
+ * (a module finds it from its own code with `__dirname`).
+ */
+function workerEntries() {
+  const out = {};
+  if (!existsSync(modulesDir)) return out;
+  for (const folder of readdirSync(modulesDir)) {
+    const dir = path.join(modulesDir, folder, 'backend');
+    if (!existsSync(dir)) continue;
+    for (const file of readdirSync(dir))
+      if (file.endsWith('.worker.ts'))
+        out[`workers/${folder}/${file.replace(/\.ts$/, '')}`] = path.join(dir, file);
+  }
+  return out;
+}
+
+/**
  * Main process + backend + module backends in one bundle. Runtime
  * `dependencies` stay external: they are shipped in node_modules by
  * electron-builder (native addons, binaries). Everything else is bundled.
  */
 export const mainBuildOptions = {
   absWorkingDir: root,
-  entryPoints: { main: 'electron/main.ts', preload: 'electron/preload.ts' },
+  entryPoints: {
+    main: 'electron/main.ts',
+    preload: 'electron/preload.ts',
+    ...workerEntries(),
+  },
   outdir: 'build/main',
   outExtension: { '.js': '.cjs' },
   bundle: true,
