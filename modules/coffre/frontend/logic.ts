@@ -5,6 +5,7 @@ import { isRunnable } from '@hub/sdk/core';
 import { fold } from '../shared/deduce';
 import { languageOfExt } from '../shared/kinds';
 import type { AttributeDto, AttributeKey, ContextDto, ItemDto, ProposalDto } from '../shared/types';
+import type { RoutePick } from '../shared/route';
 
 /** Where an element goes: an existing context, one to create (its path), or Arrivée (null). */
 export type ContextChoice =
@@ -96,6 +97,22 @@ export function parseContextPath(text: string): string[] {
 export function contextOfPath(contexts: readonly ContextDto[], names: readonly string[]) {
   const wanted = names.map(fold).join('\u0000');
   return contexts.find((c) => c.path.map(fold).join('\u0000') === wanted) ?? null;
+}
+
+/** v0.48.0: what the route picker gave, as a choice (« choisi »). */
+export function pickToChoice(pick: RoutePick): ContextChoice {
+  if (pick.kind === 'existing')
+    return { kind: 'existing', id: pick.id, origin: 'chosen', reason: null };
+  if (pick.kind === 'new') return { kind: 'new', path: pick.path, origin: 'chosen', reason: null };
+  return null;
+}
+
+/** A choice, as the route picker's line. */
+export function choiceToPick(choice: ContextChoice): RoutePick {
+  if (!choice) return { kind: 'arrival' };
+  return choice.kind === 'existing'
+    ? { kind: 'existing', id: choice.id }
+    : { kind: 'new', path: choice.path };
 }
 
 /** How a choice reads (« Cours › Thermo », « nouveau : Cours › Réseaux », « Arrivée »). */

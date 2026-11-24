@@ -12,6 +12,7 @@ import {
   Icon,
   Page,
   useApi,
+  useContextMenu,
   useModule,
 } from '@hub/sdk/frontend';
 import { PALETTE } from '@hub/sdk/palette';
@@ -26,6 +27,7 @@ import {
   type ItemDto,
 } from '../shared/types';
 import { useCoffre } from './frame';
+import { useTreeActions } from './tree-actions';
 import { Tile } from './Home';
 import { Items, useView, ViewBar } from './Items';
 import { shortDate } from './logic';
@@ -210,6 +212,8 @@ export function ContextPage() {
   const navigate = useNavigate();
   const items = useApi<ItemDto[]>(module.url(`/items?context=${encodeURIComponent(id)}`));
   const courses = useApi<CourseHint[]>(module.url('/courses'));
+  const tree = useTreeActions();
+  const treeMenu = useContextMenu();
   const context = coffre.contexts.find((c) => c.id === id);
   const children = coffre.contexts.filter((c) => c.parentId === id);
   useEffect(() => {
@@ -238,17 +242,6 @@ export function ContextPage() {
       </Page>
     );
 
-  const rename = () => {
-    const name = window.prompt('Nouveau nom du contexte (son dossier suit) :', context.name);
-    if (!name?.trim() || name.trim() === context.name) return;
-    coffre.api
-      .patch(`/contexts/${id}`, { name })
-      .then(() => {
-        coffre.notify(`Contexte renommé en « ${name.trim()} ».`);
-        coffre.refresh();
-      })
-      .catch(coffre.fail);
-  };
   const recolor = (color: string) =>
     coffre.api
       .patch(`/contexts/${id}`, { color: color || null })
@@ -277,8 +270,20 @@ export function ContextPage() {
       actions={
         <>
           <Button onClick={() => coffre.pick(id)}>Ranger des fichiers ici…</Button>
-          <Button variant="secondary" onClick={rename}>
+          {/* v0.48.0: the same actions as the tree and the map (ADR 0064). */}
+          <Button variant="secondary" onClick={() => tree.rename(context)}>
             Renommer
+          </Button>
+          <Button
+            variant="secondary"
+            aria-haspopup="menu"
+            onClick={(e) => {
+              const r = e.currentTarget.getBoundingClientRect();
+              treeMenu.openAt(() => tree.menuOf(context), r.left, r.bottom + 4);
+            }}
+            {...treeMenu.bind(() => tree.menuOf(context), context.name)}
+          >
+            Organiser…
           </Button>
           {context.coverItemId && (
             <Button
@@ -394,6 +399,8 @@ export function ContextPage() {
           </button>
         </p>
       </div>
+      {treeMenu.node}
+      {tree.node}
     </Page>
   );
 }

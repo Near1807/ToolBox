@@ -99,6 +99,8 @@ export interface HomeDto {
   recent: ItemDto[];
   arrivalCount: number;
   contexts: ContextDto[];
+  /** v0.48.0: « pas encore sur le disque » per context (the map's marks). */
+  pendingByContext: Record<string, number>;
   health: {
     items: number;
     bytes: number;

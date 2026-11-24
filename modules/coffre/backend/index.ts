@@ -483,12 +483,20 @@ export default defineBackendModule({
       const parentId = typeof b.parentId === 'string' && b.parentId ? b.parentId : null;
       if (parentId && !contextRows().some((c) => c.id === parentId))
         throw new HttpError(404, 'Contexte parent introuvable');
+      const before = new Set(contextRows().map((c) => c.id));
       const id = ensureContext([String(b.name ?? '')], parentId);
       if (b.color !== undefined && b.color !== null) {
         if (!isColorValue(b.color)) throw new HttpError(400, 'Couleur invalide');
         store.update('contexts', id, { color: String(b.color) });
       }
-      return contextDtos().find((c) => c.id === id);
+      // v0.48.0: « Annuler » a creation (only while it is still empty).
+      const undoId = before.has(id)
+        ? undefined
+        : remember(async () => {
+            await tree.remove(id);
+          });
+      const dto = contextDtos().find((c) => c.id === id);
+      return dto && undoId ? { ...dto, undoId, created: true } : dto;
     });
     /** Rename (its folder follows, its elements' paths too: one transaction) or recolour a context. */
     ctx.routes.patch('/contexts/:id', async (request) => {
@@ -589,6 +597,11 @@ export default defineBackendModule({
         recent: dtos(recent),
         arrivalCount: rows.filter((r) => r.arrival === 1).length,
         contexts: contextDtos(),
+        pendingByContext: rows.reduce<Record<string, number>>((acc, r, i) => {
+          if (states[i] === 'pending' && r.context_id)
+            acc[r.context_id] = (acc[r.context_id] ?? 0) + 1;
+          return acc;
+        }, {}),
         health: {
           items: rows.length,
           // On the PC (an archived element is on the disk only).

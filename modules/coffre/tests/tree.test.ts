@@ -221,4 +221,22 @@ describe('arbre des contextes', () => {
     expect(bad.status).toBe(400);
     expect((await contexts()).some((c) => c.name === 'Cours')).toBe(false);
   });
+
+  it('créer un contexte : Annuler le retire (seulement tant qu’il est vide)', async () => {
+    w = await diskWorld();
+    const c = await ok<ContextDto & { undoId: string }>(w, 'POST', `${API}/contexts`, {
+      name: 'Cours',
+    });
+    expect(c.undoId).toBeTruthy();
+    await undo(c.undoId);
+    expect((await contexts()).some((x) => x.id === c.id)).toBe(false);
+    // Filled meanwhile: « Annuler » refuses (nothing is lost).
+    const d = await ok<ContextDto & { undoId: string }>(w, 'POST', `${API}/contexts`, {
+      name: 'Perso',
+    });
+    await deposit(w, { 'a.md': 'a' }, ['Perso']);
+    const r = await w.hub.request('POST', `${API}/undo`, { undoId: d.undoId });
+    expect(r.status).toBe(409);
+    expect((await contexts()).some((x) => x.id === d.id)).toBe(true);
+  });
 });

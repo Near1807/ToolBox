@@ -91,6 +91,8 @@ export interface CoffreValue {
   /** v0.46.0: the disk's status (null while it is read). */
   disk: DiskStatusDto | null;
   verify(): void;
+  /** v0.48.0: the disk's update window (plan, update, eject), from the « Gestion » tab. */
+  update(): void;
   archive(items: ItemDto[]): void;
   reactivate(item: ItemDto): void;
 }
@@ -568,6 +570,7 @@ Ils restent sur le disque « ${diskName} » (vérifiés avant), et leur copie es
       bindMenu: menu.bind,
       disk: disk.data,
       verify: () => setVerifying(true),
+      update: () => setUpdating(true),
       archive,
       reactivate,
     }),

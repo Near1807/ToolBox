@@ -5,8 +5,7 @@ import { useState } from 'react';
 import { Icon } from '@hub/sdk/frontend';
 import type { ItemDto } from '../shared/types';
 import { useCoffre } from './frame';
-import { Picker } from './Picker';
-import { contextOptions } from './Sheet';
+import { RoutePicker } from './RoutePicker';
 
 export function AlsoIn(props: { item: ItemDto; onChanged: () => void }) {
   const coffre = useCoffre();
@@ -49,15 +48,16 @@ export function AlsoIn(props: { item: ItemDto; onChanged: () => void }) {
           + Aussi utilisé dans…
         </button>
         {picking && (
-          <Picker
+          <RoutePicker
             label="Aussi utilisé dans"
-            options={contextOptions(coffre.contexts).filter(
-              (o) => o.value !== item.contextId && !item.alsoIn.includes(o.value),
-            )}
+            contexts={coffre.contexts}
+            allowNew={false}
+            exclude={new Set([...(item.contextId ? [item.contextId] : []), ...item.alsoIn])}
             onClose={() => setPicking(false)}
-            onPick={(contextId) => {
+            onPick={(pick) => {
               setPicking(false);
-              void change(() => coffre.api.post(`/items/${item.id}/also`, { contextId }));
+              if (pick.kind !== 'existing') return;
+              void change(() => coffre.api.post(`/items/${item.id}/also`, { contextId: pick.id }));
             }}
           />
         )}
