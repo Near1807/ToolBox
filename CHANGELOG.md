@@ -4,6 +4,25 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.47.1] — 2026-11-24
+
+Correctifs issus de l'audit v0.45–v0.47. Aucune migration.
+
+### Sécurité
+
+- **Fichiers qui exécutent du code** : la liste des extensions jamais ouvertes sans la question qui nomme le fichier est complétée d'après les pièces jointes bloquées par Outlook et les types dangereux de Windows (Python `.py`, `.pyw`, `.pyz`…, `.ahk`, `.chm`, `.appref-ms`, `.settingcontent-ms`, `.ws`, `.vb`, `.psd1`, `.ps1xml`, `.mst`…). Les images de disque (`.iso`, `.img`, `.vhd`, `.vhdx`) demandent aussi confirmation : les ouvrir monte un lecteur.
+- **Coffre** : un double-clic sur un fichier de code (`.py`, `.js`, `.ps1`, `.sh`, `.bat`…) ouvre VS Code s'il est installé, sinon l'aperçu de ToolBox ; jamais l'application associée de Windows (qui pourrait le lancer).
+- **Fichiers Office** : décompression bornée (100 Mo par partie et en tout, 10 000 parties) ; au-delà, « illisible : trop gros ».
+- **PDF** : pdf.js 6 n'exécute aucun code construit depuis le fichier (plus d'option `isEvalSupported` ni de chemin `eval`) ; un test le vérifie pour l'aperçu et l'extraction.
+
+### Changé
+
+- **Coffre** : la lecture des textes se fait hors du fil du serveur (un worker) ; 60 s au plus par fichier (« illisible : trop long », relu au démarrage suivant) ; un worker qui s'arrête est remplacé. ToolBox reste fluide pendant la première lecture.
+
+### Corrigé
+
+- Test de synchro instable (« Facultatif changé des deux côtés ») : le moteur était déterministe, le test supposait un ordre d'horloge ; rendu déterministe, et un test vérifie le même gagnant sur les deux appareils à horloge égale.
+
 ## [0.47.0] — 2026-11-24
 
 Coffre : **retrouver et ranger plus vite** ; socle : **recherche partout**, **fenêtres de lecture**, **fichiers envoyés par Windows**, **restaurer ToolBox depuis une sauvegarde**. Tout est marqué « Expérimental ». Migrations 3 à 6 du Coffre (ajouts seulement, sauvegarde de la base avant).
