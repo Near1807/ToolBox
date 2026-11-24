@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { ModuleFiles } from '../../packages/sdk/backend';
-import { isRunnable, parseZoneIdentifier } from '../../packages/sdk/core';
+import { isRunnable, mountsDisk, parseZoneIdentifier } from '../../packages/sdk/core';
 import type { HostAdapter } from './host';
 
 /** Resolves `segments` inside `root`, refusing any path that escapes it. */
@@ -112,7 +112,7 @@ export function createModuleFiles(options: {
       // v0.45.0: never run a program, a script or a shortcut without a confirmation that named it.
       if (isRunnable(target) && !openOptions?.runnable)
         throw new Error(
-          `Refus : « ${path.basename(target)} » lance un programme (confirmation nécessaire)`,
+          `Refus : « ${path.basename(target)} » ${mountsDisk(target) ? 'monte une image de disque' : 'lance un programme'} (confirmation nécessaire)`,
         );
       await options.host.openPath(target);
     },

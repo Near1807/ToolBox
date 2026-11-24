@@ -11,6 +11,7 @@ import {
   defineBackendModule,
   HttpError,
   isRunnable,
+  mountsDisk,
   newId,
   requestBody,
   SYNC_COLUMNS,
@@ -1211,7 +1212,7 @@ export default defineBackendModule({
         if (isRunnable(file) && b.runnable !== true)
           throw new HttpError(
             409,
-            `« ${path.basename(file)} » lance un programme : confirmation nécessaire`,
+            `« ${path.basename(file)} » ${mountsDisk(file) ? 'monte une image de disque' : 'lance un programme'} : confirmation nécessaire`,
           );
         const copy = await readCopy(file, row.id);
         await ctx.files.open(copy, { runnable: b.runnable === true });

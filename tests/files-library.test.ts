@@ -5,7 +5,12 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { isRunnable, parseZoneIdentifier } from '../packages/sdk/core';
+import {
+  isRunnable,
+  mountsDisk,
+  parseZoneIdentifier,
+  runnableQuestion,
+} from '../packages/sdk/core';
 import { createModuleFiles } from '../backend/core/files';
 import { createNullHost } from '../backend/core/host';
 
@@ -46,10 +51,39 @@ describe('ctx.files: the user files kept by a module', () => {
       'z.scr',
       'c.com',
       'j.js',
+      // v0.47.1: Python, AutoHotkey, help, ClickOnce, settings shortcuts, Windows Script, VB,
+      // PowerShell data / formats, installer transforms, and disk images (mounted when opened).
+      'main.py',
+      'gui.PYW',
+      'app.pyz',
+      'macro.ahk',
+      'aide.chm',
+      'outil.appref-ms',
+      'r.settingcontent-ms',
+      'x.ws',
+      'm.vb',
+      'mod.psd1',
+      'f.ps1xml',
+      't.mst',
+      'win.iso',
+      'd.img',
+      'v.vhd',
+      'v.vhdx',
     ])
       expect(isRunnable(name), name).toBe(true);
-    for (const name of ['cours.pdf', 'main.py', 'photo.jpg', 'exe', 'notes.md'])
+    for (const name of ['cours.pdf', 'photo.jpg', 'exe', 'notes.md', 'data.json', 'main.c', 'py'])
       expect(isRunnable(name), name).toBe(false);
+    expect(mountsDisk('win.ISO')).toBe(true);
+    expect(mountsDisk('main.py')).toBe(false);
+    expect(runnableQuestion('win.iso')).toMatch(
+      /« win\.iso » est une image de disque : l’ouvrir la MONTE/,
+    );
+    expect(runnableQuestion('main.py')).toMatch(
+      /« main\.py » est un programme ou un script : l’ouvrir le LANCE/,
+    );
+    for (const name of ['C:/x/main.py', 'C:/x/gui.pyw', 'C:/x/j.js', 'C:/x/s.ps1'])
+      await expect(files.open(name)).rejects.toThrow(/lance un programme/);
+    await expect(files.open('C:/x/win.iso')).rejects.toThrow(/monte une image de disque/);
     await expect(files.open('C:/x/setup.exe')).rejects.toThrow(/lance un programme/);
     expect(opened).toEqual([]);
     await files.open('C:/x/setup.exe', { runnable: true });

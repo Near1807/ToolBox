@@ -6,7 +6,7 @@
 // An archived element is read from the disk (plugged in).
 import { useEffect, useMemo } from 'react';
 import { useParams, useSearchParams } from 'react-router';
-import { isRunnable } from '@hub/sdk/core';
+import { isRunnable, runnableQuestion } from '@hub/sdk/core';
 import { Button, ErrorMessage, formatBytes, useApi, useModule } from '@hub/sdk/frontend';
 import type { ItemDto } from '../shared/types';
 import { extOfItem } from './logic';
@@ -45,11 +45,7 @@ export function ReaderPage() {
   const code = it.attributes.some((a) => a.key === 'nature' && a.value === 'code');
   const openIn = (how: 'app' | 'vscode' | 'folder') => {
     const runnable =
-      how === 'app' && isRunnable(it.name)
-        ? window.confirm(
-            `« ${it.name} » est un programme ou un script : l’ouvrir le LANCE sur ce PC.\n\nLe lancer quand même ?`,
-          )
-        : false;
+      how === 'app' && isRunnable(it.name) ? window.confirm(runnableQuestion(it.name)) : false;
     if (how === 'app' && isRunnable(it.name) && !runnable) return;
     void module.api
       .post(`/items/${it.id}/open`, {

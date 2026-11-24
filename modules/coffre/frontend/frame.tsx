@@ -14,7 +14,7 @@ import {
   type DragEvent,
   type ReactNode,
 } from 'react';
-import { isRunnable } from '@hub/sdk/core';
+import { isRunnable, runnableQuestion } from '@hub/sdk/core';
 import {
   Button,
   errorMessage,
@@ -36,7 +36,7 @@ import { DiskWitness } from './disk/DiskWitness';
 import { UpdateDialog } from './disk/UpdateDialog';
 import { VerifyDialog } from './disk/VerifyDialog';
 import { useDisk } from './disk/useDisk';
-import { entriesOf, type DepositEntry } from './logic';
+import { entriesOf, openPlan, type DepositEntry } from './logic';
 import { Preview } from './Preview';
 import type { ReaderLocate } from './readers';
 
@@ -302,21 +302,25 @@ export function CoffreFrame(props: { children: ReactNode }) {
         }
       }
       let mode = how;
-      if (mode === 'app' && item.kind === 'project') mode = t.vscode ? 'vscode' : 'folder';
+      // v0.47.1: a file of code goes to VS Code (else the preview), never to the
+      // application Windows associates with it (which may run it).
+      if (mode === 'app') {
+        const plan = openPlan(item, t);
+        if (plan.kind === 'preview') {
+          setPreview({ items: [item], index: 0 });
+          return;
+        }
+        if (plan.kind !== 'app') mode = plan.kind;
+      }
       let runnable = false;
       if ((mode === 'app' || mode === 'readcopy') && isRunnable(item.name)) {
         // Règle 4: a program or a script is never launched without this question.
-        if (
-          !window.confirm(
-            `« ${item.name} » est un programme ou un script : l’ouvrir le LANCE sur ce PC.\n\nLe lancer quand même ?`,
-          )
-        )
-          return;
+        if (!window.confirm(runnableQuestion(item.name))) return;
         runnable = true;
       }
       module.api.post(`/items/${item.id}/open`, { how: mode, runnable }).catch(fail);
     },
-    [module.api, t.vscode, fail, notify, diskName],
+    [module.api, t, fail, notify, diskName],
   );
 
   /** Archive (confirmed, with the room freed): the PC's copy removed after both are read again. */
@@ -493,8 +497,12 @@ Ils restent sur le disque « ${diskName} » (vérifiés avant), et leur copie es
           ]
         : []),
       {
-        label:
-          item.kind === 'project' && t.vscode ? 'Ouvrir dans VS Code' : 'Ouvrir avec l’application',
+        label: {
+          vscode: 'Ouvrir dans VS Code',
+          preview: 'Aperçu (code : jamais lancé)',
+          folder: 'Afficher le dossier',
+          app: 'Ouvrir avec l’application',
+        }[openPlan(item, t).kind],
         icon: 'external-link',
         shortcut: 'Double-clic',
         onSelect: () => open(item),
@@ -520,7 +528,7 @@ Ils restent sur le disque « ${diskName} » (vérifiés avant), et leur copie es
       pin,
       open,
       trash,
-      t.vscode,
+      t,
       module.api,
       refresh,
       fail,

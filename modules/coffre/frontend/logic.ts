@@ -1,7 +1,9 @@
 // v0.45.0: the Coffre's page logic that needs no screen (tested): the
 // entries of the rangement window, what « Ranger » sends, the context typed
 // in the sheet, the sorts and the families of the tiles.
+import { isRunnable } from '@hub/sdk/core';
 import { fold } from '../shared/deduce';
+import { languageOfExt } from '../shared/kinds';
 import type { AttributeDto, AttributeKey, ContextDto, ItemDto, ProposalDto } from '../shared/types';
 
 /** Where an element goes: an existing context, one to create (its path), or Arrivée (null). */
@@ -180,3 +182,24 @@ export function shortDate(iso: string | null, now = new Date()): string {
 /** The extension a card or a reader uses (« pdf »; « » for a project). */
 export const extOfItem = (item: Pick<ItemDto, 'kind' | 'ext'>) =>
   item.kind === 'project' ? '' : item.ext.toLowerCase();
+
+/**
+ * v0.47.1: what a double-click (or Entrée, « Ouvrir ») does with an element.
+ * A file of code (Python, JavaScript, PowerShell, shell, batch…) is never
+ * handed to Windows' associated application — which may RUN it: VS Code when
+ * it is installed, else ToolBox's own preview. A project goes to VS Code (or
+ * its folder). Anything else: its application (a program or a script only
+ * after the question that names it, `confirm`).
+ */
+export type OpenPlan =
+  { kind: 'vscode' } | { kind: 'preview' } | { kind: 'folder' } | { kind: 'app'; confirm: boolean };
+
+export function openPlan(
+  item: Pick<ItemDto, 'kind' | 'name' | 'ext'>,
+  tools: { vscode: boolean },
+): OpenPlan {
+  if (item.kind === 'project') return tools.vscode ? { kind: 'vscode' } : { kind: 'folder' };
+  if (item.kind === 'file' && languageOfExt(item.ext) !== null)
+    return tools.vscode ? { kind: 'vscode' } : { kind: 'preview' };
+  return { kind: 'app', confirm: isRunnable(item.name) };
+}

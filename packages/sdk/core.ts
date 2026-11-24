@@ -273,44 +273,167 @@ export interface FileProvenance {
  * v0.45.0: the extensions of files that RUN something when opened (programs,
  * installers, scripts, shortcuts). ctx.files.open refuses them without a
  * confirmation that named the file.
+ * v0.47.1: completed from Microsoft's list of attachments Outlook blocks
+ * (« Blocked attachments in Outlook », level 1) and Windows' own dangerous
+ * types: scripts (Python, AutoHotkey, PowerShell data / formats, Windows
+ * Script), help files, ClickOnce and settings shortcuts, installer
+ * transforms, Office add-ins, and disk images (opening one MOUNTS it as a
+ * drive, whose autorun or shortcuts may then run).
  */
 export const RUNNABLE_EXTENSIONS: readonly string[] = [
+  // Programs and installers.
   'exe',
-  'msi',
-  'msp',
-  'msix',
-  'appx',
-  'bat',
-  'cmd',
   'com',
   'scr',
   'pif',
   'cpl',
-  'ps1',
-  'psm1',
-  'vbs',
-  'vbe',
-  'js',
-  'jse',
-  'wsf',
-  'wsh',
-  'hta',
-  'lnk',
-  'url',
-  'jar',
-  'reg',
-  'inf',
+  'msi',
+  'msp',
+  'mst',
+  'msu',
+  'msix',
+  'msixbundle',
+  'appx',
+  'appxbundle',
   'application',
+  'appref-ms',
+  'xbap',
   'gadget',
   'msc',
-  'scf',
+  'cab',
+  'diagcab',
+  'jar',
+  'jnlp',
+  'xll',
+  'ade',
+  'adp',
+  'app',
+  'mde',
+  'mda',
+  'mdb',
+  'mdt',
+  'mdw',
+  'mdz',
+  'ops',
+  'prg',
+  'fxp',
+  'vsmacros',
+  'vsw',
+  'wsb',
+  'printerexport',
+  'theme',
+  'themepack',
+  'deskthemepack',
+  // Scripts.
+  'bat',
+  'cmd',
+  'ps1',
+  'ps1xml',
+  'ps2',
+  'ps2xml',
+  'psc1',
+  'psc2',
+  'psd1',
+  'psm1',
+  'psdm1',
+  'pssc',
+  'msh',
+  'msh1',
+  'msh2',
+  'mshxml',
+  'msh1xml',
+  'msh2xml',
+  'vb',
+  'vbe',
+  'vbp',
+  'vbs',
+  'js',
+  'jse',
+  'ws',
+  'wsc',
+  'wsf',
+  'wsh',
+  'sct',
+  'hta',
+  'htc',
+  'py',
+  'pyc',
+  'pyo',
+  'pyw',
+  'pyz',
+  'pyzw',
+  'pl',
+  'rb',
   'sh',
+  'csh',
+  'ksh',
+  'ahk',
+  'bas',
+  'shb',
+  'shs',
+  // Shortcuts and system settings that point to something run.
+  'lnk',
+  'url',
+  'website',
+  'scf',
+  'settingcontent-ms',
+  'library-ms',
+  'search-ms',
+  'searchconnector-ms',
+  'reg',
+  'inf',
+  'ins',
+  'isp',
+  'its',
+  'mcf',
+  'udl',
+  'webpnp',
+  'grp',
+  'cnt',
+  'hlp',
+  'hpj',
+  'chm',
+  'xnk',
+  'plg',
+  'prf',
+  'osd',
+  'pcd',
+  'bgi',
+  'crt',
+  'cer',
+  'der',
+  // Disk images: opening one MOUNTS it (its programs are then one click away).
+  'iso',
+  'img',
+  'vhd',
+  'vhdx',
 ];
+
+/** v0.47.1: the disk images (opening one mounts a drive): named so by the confirmation. */
+export const MOUNTING_EXTENSIONS: readonly string[] = ['iso', 'img', 'vhd', 'vhdx'];
+
+const extOfName = (name: string) => /\.([^./\\]+)$/.exec(name.trim().toLowerCase())?.[1];
 
 /** Does opening this file run something (see RUNNABLE_EXTENSIONS)? */
 export function isRunnable(name: string): boolean {
-  const ext = /\.([^./\\]+)$/.exec(name.trim().toLowerCase())?.[1];
+  const ext = extOfName(name);
   return ext !== undefined && RUNNABLE_EXTENSIONS.includes(ext);
+}
+
+/** v0.47.1: does opening this file mount a drive (a disk image)? */
+export function mountsDisk(name: string): boolean {
+  const ext = extOfName(name);
+  return ext !== undefined && MOUNTING_EXTENSIONS.includes(ext);
+}
+
+/**
+ * v0.47.1: the question asked before opening a runnable file — it names the
+ * file and what opening it does (runs it, or mounts a disk image).
+ */
+export function runnableQuestion(name: string): string {
+  return mountsDisk(name)
+    ? `« ${name} » est une image de disque : l’ouvrir la MONTE comme un lecteur sur ce PC (ses programmes seront alors à un clic).\n\nL’ouvrir quand même ?`
+    : `« ${name} » est un programme ou un script : l’ouvrir le LANCE sur ce PC.\n\nLe lancer quand même ?`;
 }
 
 /**

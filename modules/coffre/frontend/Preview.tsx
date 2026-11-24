@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router';
 import { Button, formatBytes, Icon, useApi, useModule } from '@hub/sdk/frontend';
 import type { AttributeKey, ItemDto } from '../shared/types';
 import { useCoffre } from './frame';
-import { extOfItem, shortDate, type ContextChoice } from './logic';
+import { extOfItem, openPlan, shortDate, type ContextChoice } from './logic';
 import { iconOf, ReaderView } from './ReaderView';
 import type { ReaderLocate } from './readers';
 import { Sheet } from './Sheet';
@@ -131,9 +131,12 @@ export function Preview(props: {
             {index + 1} / {items.length}
           </span>
         )}
-        <Button onClick={() => coffre.open(item)}>
-          {item.kind === 'project' && coffre.tools.vscode ? 'Ouvrir dans VS Code' : 'Ouvrir'}
-        </Button>
+        {/* v0.47.1: code without VS Code: the preview is the opening (never run). */}
+        {openPlan(item, coffre.tools).kind !== 'preview' && (
+          <Button onClick={() => coffre.open(item)}>
+            {openPlan(item, coffre.tools).kind === 'vscode' ? 'Ouvrir dans VS Code' : 'Ouvrir'}
+          </Button>
+        )}
         {item.kind === 'file' && (
           <Button variant="secondary" onClick={() => coffre.readWindow(item)}>
             Lire en plein écran
