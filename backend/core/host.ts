@@ -53,6 +53,19 @@ export interface HostAdapter {
   /** Shows or hides the floating indicator window (always on top, never takes the focus). */
   setOverlayVisible(visible: boolean): void;
   /**
+   * v0.47.0: opens a UI route in a reading window of its own, without the
+   * ToolBox interface (ADR 0058). Absent outside the desktop app.
+   */
+  openWindow?(route: string, options: { title: string }): void;
+  /**
+   * v0.47.0: Windows' right click « Ranger dans ToolBox » and « Envoyer vers »
+   * (HKCU, no administrator; ADR 0059). Absent outside Windows' desktop app.
+   */
+  shellIntegration?: {
+    get(): Promise<{ menu: boolean; sendTo: boolean }>;
+    set(enabled: boolean): Promise<{ menu: boolean; sendTo: boolean }>;
+  };
+  /**
    * System-wide keyboard hook (push-to-talk), absent outside the desktop app.
    * start() throws when the hook cannot run.
    */

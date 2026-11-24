@@ -1,0 +1,38 @@
+// Public types of the Agenda's service `agenda` (types only: the only import
+// allowed between modules, docs/MODULES.md §5.8). v0.45.0, read only.
+
+/** A course of the imported timetables (ICS, CSV, Excel): what other tools may recognise. */
+export interface AgendaCourse {
+  /** Its name (« Thermo »), as the Agenda shows it. */
+  name: string;
+  /** Its code in the school's file (« TH2C »), or null. */
+  code: string | null;
+  /** Its teachers' names or initials (the file's « Ens: » lines), sorted. */
+  teachers: string[];
+  /** Its next occurrence from now, or null. */
+  next: { start: string; end: string; location: string | null } | null;
+}
+
+/** v0.47.0: a course happening now, or starting within the next minutes. */
+export interface AgendaCourseNow {
+  name: string;
+  code: string | null;
+  teachers: string[];
+  /** « YYYY-MM-DDTHH:mm », local. */
+  start: string;
+  end: string;
+  location: string | null;
+  /** Started already (else: starts within the minutes asked). */
+  inProgress: boolean;
+}
+
+export interface AgendaService {
+  /** The courses of the imported timetables (read only; nothing is written). */
+  courses(): AgendaCourse[];
+  /**
+   * v0.47.0: the imported courses happening now or starting within
+   * `withinMinutes` (read only), the one in progress first. Optional: an older
+   * Agenda does not have it.
+   */
+  coursesNow?(withinMinutes: number): AgendaCourseNow[];
+}

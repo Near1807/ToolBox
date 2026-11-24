@@ -20,6 +20,8 @@ const phoneAppDir = path.join(root, 'mobile', 'app', 'src');
  */
 export const PC_ONLY_MODULES = [
   'assistant',
+  // v0.45.0: keeps the user's files and opens their applications (PC only, ADR 0052).
+  'coffre',
   'custom-reels',
   'instagram-video',
   'master-analysis',
@@ -37,6 +39,7 @@ export const PHONE_SHARED_FILES = [
   'packages/sdk/sync.ts',
   'packages/sdk/dates.ts',
   'packages/sdk/manifest.ts',
+  'packages/sdk/palette.ts',
   'backend/core/migrations-core.ts',
   'backend/core/core-migrations.ts',
   'backend/core/settings-validation.ts',

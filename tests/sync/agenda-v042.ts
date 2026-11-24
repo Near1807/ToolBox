@@ -11,6 +11,8 @@ export async function agendaV042(): Promise<DiscoveredModule> {
   const backend = real.backend!;
   return {
     ...real,
+    // v0.42 provided no service (`agenda` arrived in v0.45.0).
+    manifest: { ...(real.manifest as Record<string, unknown>), provides: undefined },
     backend: {
       ...backend,
       migrations: backend.migrations!.slice(0, 6),

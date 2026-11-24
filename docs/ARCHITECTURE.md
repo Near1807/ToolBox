@@ -42,20 +42,21 @@ Le SDK serveur a une **partie portable** (`@hub/sdk/core` : le contrat, sans Nod
 
 ## Le socle backend
 
-| Fichier                                    | Rôle                                                                                               |
-| ------------------------------------------ | -------------------------------------------------------------------------------------------------- |
-| `backend/server.ts`                        | Construit Fastify : sécurité, routes du socle, routes des modules, interface statique              |
-| `backend/core/hub.ts`                      | **Hub** : ouvre la base, applique les migrations, charge les modules, construit leur `ctx`         |
-| `backend/core/modules/`                    | Validation des manifests (zod), plan de dépendances, montage isolé des routes                      |
-| `backend/core/migrations.ts`, `backups.ts` | Migrations préfixées et transactionnelles ; sauvegarde, rotation, restauration de `hub.db`         |
-| `backend/core/settings.ts`                 | Réglages du socle et des modules (`core__settings`), secrets chiffrés via `HostAdapter`            |
-| `backend/core/jobs.ts`, `scheduler.ts`     | Tâches longues (file, progression, annulation) ; tâches périodiques avec rattrapage                |
-| `backend/core/events.ts`, `services.ts`    | Bus d'événements et registre de services entre modules                                             |
-| `backend/core/logger.ts`                   | Journaux JSON lines dans `userData/logs/` (fichiers : ils survivent à une restauration de la base) |
-| `backend/core/export.ts`                   | Export d'une sauvegarde complète en `.zip`                                                         |
-| `backend/core/accounts.ts`                 | Comptes connectés (`ctx.accounts`) : OAuth installé (boucle locale + PKCE), jetons chiffrés        |
-| `backend/core/notifications.ts`            | Notifications Windows des modules (`ctx.notifications`)                                            |
-| `backend/routes/core.ts`                   | API générique `/api/core/*`                                                                        |
+| Fichier                                    | Rôle                                                                                                                                                                                                                            |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `backend/server.ts`                        | Construit Fastify : sécurité, routes du socle, routes des modules, interface statique                                                                                                                                           |
+| `backend/core/hub.ts`                      | **Hub** : ouvre la base, applique les migrations, charge les modules, construit leur `ctx`                                                                                                                                      |
+| `backend/core/modules/`                    | Validation des manifests (zod), plan de dépendances, montage isolé des routes                                                                                                                                                   |
+| `backend/core/migrations.ts`, `backups.ts` | Migrations préfixées et transactionnelles ; sauvegarde, rotation, restauration de `hub.db`                                                                                                                                      |
+| `backend/core/settings.ts`                 | Réglages du socle et des modules (`core__settings`), secrets chiffrés via `HostAdapter`                                                                                                                                         |
+| `backend/core/jobs.ts`, `scheduler.ts`     | Tâches longues (file, progression, annulation) ; tâches périodiques avec rattrapage                                                                                                                                             |
+| `backend/core/events.ts`, `services.ts`    | Bus d'événements et registre de services entre modules                                                                                                                                                                          |
+| `backend/core/logger.ts`                   | Journaux JSON lines dans `userData/logs/` (fichiers : ils survivent à une restauration de la base)                                                                                                                              |
+| `backend/core/export.ts`                   | Export d'une sauvegarde complète en `.zip`                                                                                                                                                                                      |
+| `backend/core/restore.ts`                  | v0.47.0 : restaurer depuis une copie de `hub.db` (aperçu, refus d'une base plus récente, remplacement au démarrage avant l'ouverture de la base, retour automatique si échec, synchro remise en « première synchro »), ADR 0063 |
+| `backend/core/accounts.ts`                 | Comptes connectés (`ctx.accounts`) : OAuth installé (boucle locale + PKCE), jetons chiffrés                                                                                                                                     |
+| `backend/core/notifications.ts`            | Notifications Windows des modules (`ctx.notifications`)                                                                                                                                                                         |
+| `backend/routes/core.ts`                   | API générique `/api/core/*`                                                                                                                                                                                                     |
 
 ### Séquence de démarrage
 
@@ -175,13 +176,16 @@ Un ticket ne vaut donc que pour ouvrir un flux, et ne peut être ni rejoué ni u
 
 ### Ce que le preload expose
 
-L'interface n'a accès qu'à cinq choses hors de l'API REST (`electron/preload.ts`) :
+L'interface n'a accès qu'à six choses hors de l'API REST (`electron/preload.ts`) :
 
 - le jeton de session ;
 - le chemin réel d'un fichier glissé **dans** la fenêtre (`webUtils.getPathForFile`) ;
 - le glisser d'un fichier **hors** de la fenêtre (`startDrag`) ;
+- une image mise dans le **presse-papiers** (`copyImage`, v0.44.0 : un PNG fait par la page, l'image du calendrier de l'Agenda) ;
 - les boutons de la fenêtre (`window` : plein écran, réduire, fermer, thème clair/sombre de la barre de titre) ;
 - la page à ouvrir quand on clique une notification (`onNavigate`, une route de l'interface uniquement).
+
+`copyImage` n'accepte que la fenêtre principale, un vrai PNG (signature vérifiée) de 40 Mo au plus ; le process principal le met dans le presse-papiers (`clipboard.write`), rien n'est écrit sur le disque. Côté module : `copyImage(png)` de `@hub/sdk/frontend` (dans un navigateur : le presse-papiers du navigateur).
 
 Le glisser hors de la fenêtre ne reçoit qu'une URL de média signée : le process principal en vérifie la signature (`hub.media.resolve`) avant d'appeler `webContents.startDrag`, si bien qu'une page ne peut pas faire glisser un fichier arbitraire.
 
@@ -213,6 +217,18 @@ La disposition est un JSON dans le réglage caché `ui.navigation` (`{ categorie
   - Chaque notification est aussi consignée dans les journaux du module.
 
 Fermer la fenêtre alors que des tâches tournent (envoi YouTube, rendu) — zone de notification désactivée — ouvre une confirmation qui les liste (`electron/desktop.ts`) : elles s'arrêtent avec l'app ; un envoi YouTube reprend au lancement suivant là où il s'était arrêté, les autres tâches (rendus) sont marquées « interrompues » et sont à relancer.
+
+### Workers des modules (v0.47.1)
+
+Un module PC peut faire tourner un travail lourd hors du fil du serveur : un fichier `modules/<dossier>/backend/<nom>.worker.ts` est construit par `scripts/esbuild-config.mjs` dans `build/main/workers/<dossier>/<nom>.worker.cjs` (dépaqueté de l'asar), que le module lance avec `worker_threads`. En développement et dans les tests, le module le construit lui-même à la volée (esbuild). Premier usage : la lecture des textes du Coffre.
+
+### Fenêtres de lecture (v0.47.0, ADR 0058)
+
+`HostAdapter.openWindow(route, { title })` (facultatif, présent dans l'app de bureau) : `electron/reader-windows.ts` ouvre une `BrowserWindow` par appel sur `#/w<route>` (une page de module seule, `WindowLayout`, sans barre latérale), avec le même preload, `sandbox`, `contextIsolation`, le même refus des navigations hors de l'app et des fenêtres ouvertes par la page. F11 bascule le plein écran de cette fenêtre (le choix de la fenêtre principale n'est pas touché) ; Échap ne ferme rien. La dernière place donnée par Thomas (déplacée, redimensionnée, agrandie) est retenue dans `<userData>/reader-window.json` ; une nouvelle fenêtre se décale de 32 px par fenêtre ouverte. Elles se ferment avec la fenêtre principale. Le smoke test en ouvre une.
+
+### Fichiers envoyés par Windows (v0.47.0, ADR 0059)
+
+Clic droit « Ranger dans ToolBox » (registre `HKCU`, ajouté par `resources/build/installer.nsh`, retiré à la désinstallation, retiré / remis par Réglages › Général via `HostAdapter.shellIntegration` = `electron/shell-integration.ts`) et « Envoyer vers » lancent `ToolBox.exe --ranger <chemins>`. L'instance unique reçoit les arguments (`second-instance`) ; `backend/core/received-files.ts` les lit et les regroupe (1,5 s) ; `Hub.receiveFiles` les donne au module qui reçoit (`ctx.ui.receiveFiles`) et montre la fenêtre sur sa route.
 
 ### Assistant : actions des modules, touche globale, fenêtre flottante
 
@@ -258,17 +274,18 @@ sequenceDiagram
 
 ## Données
 
-| Donnée                     | Emplacement (Windows)                                                                                                                                                 |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Base SQLite                | `%APPDATA%\ToolBox\hub.db` (tables `core__*` du socle, `<module>__*` des modules)                                                                                     |
-| Fichiers des modules       | `%APPDATA%\ToolBox\modules\<id>\`                                                                                                                                     |
-| Sauvegardes automatiques   | `%APPDATA%\ToolBox\backups\` (deux rotations séparées : 10 dernières avant migration, 10 dernières avant suppression via `ctx.db.backup`)                             |
-| Journaux                   | `%APPDATA%\ToolBox\logs\` (14 jours)                                                                                                                                  |
-| Comptes connectés          | table `core__accounts` (jetons OAuth chiffrés par safeStorage) ; client OAuth dans `core__settings` (portée `accounts`, secret chiffré)                               |
-| Fichiers générés (vidéos…) | dossier de sortie réglable (par défaut `Vidéos\ToolBox\<id>\`), registre `core__outputs` (vérifié au démarrage et à chaque affichage ; suppression vers la Corbeille) |
-| Application                | dossier d'installation, en lecture seule                                                                                                                              |
+| Donnée                                         | Emplacement (Windows)                                                                                                                                                 |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Base SQLite                                    | `%APPDATA%\ToolBox\hub.db` (tables `core__*` du socle, `<module>__*` des modules)                                                                                     |
+| Fichiers des modules                           | `%APPDATA%\ToolBox\modules\<id>\`                                                                                                                                     |
+| Fichiers de l'utilisateur gardés par un module | `%APPDATA%\ToolBox\<id>\` (`ctx.files.libraryDir`, v0.45 : le Coffre, `%APPDATA%\ToolBox\coffre\Cours\…`, lisible sans ToolBox ; ADR 0051)                            |
+| Sauvegardes automatiques                       | `%APPDATA%\ToolBox\backups\` (deux rotations séparées : 10 dernières avant migration, 10 dernières avant suppression via `ctx.db.backup`)                             |
+| Journaux                                       | `%APPDATA%\ToolBox\logs\` (14 jours)                                                                                                                                  |
+| Comptes connectés                              | table `core__accounts` (jetons OAuth chiffrés par safeStorage) ; client OAuth dans `core__settings` (portée `accounts`, secret chiffré)                               |
+| Fichiers générés (vidéos…)                     | dossier de sortie réglable (par défaut `Vidéos\ToolBox\<id>\`), registre `core__outputs` (vérifié au démarrage et à chaque affichage ; suppression vers la Corbeille) |
+| Application                                    | dossier d'installation, en lecture seule                                                                                                                              |
 
-Rien n'est jamais écrit dans le dossier d'installation. La variable `TOOLBOX_USER_DATA_DIR` permet d'utiliser un profil isolé (tests, CI).
+Rien n'est jamais écrit dans le dossier d'installation. La désinstallation ne supprime pas `%APPDATA%\ToolBox` (`deleteAppDataOnUninstall: false`, vérifié par la CI Windows : `scripts/uninstall-keeps-data.ps1`). La variable `TOOLBOX_USER_DATA_DIR` permet d'utiliser un profil isolé (tests, CI).
 
 **Prêt pour la synchro** (future version Android, MODULES.md §6 bis) : UUID, `created_at` / `updated_at`, suppression logique et journal `<module>__changes` dans Sport, Courses, To-do, Boîte à idées et Timer (ces trois derniers depuis la migration 2 de v0.25, anciennes tables gardées en `<table>_v1`, paires ancien → nouvel id dans `<module>__legacy_ids`). Le socle garde l'identifiant de l'installation dans `core__meta` : graine des UUID donnés aux anciennes lignes numérotées (`MigrationDatabase.legacyId`), les mêmes dans tous les modules. Les modules de musique et l'assistant ne le sont pas encore (raisons et liste : MODULES.md §6 bis).
 

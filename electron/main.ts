@@ -1,6 +1,16 @@
 import path from 'node:path';
 import { existsSync } from 'node:fs';
-import { app, BrowserWindow, dialog, ipcMain, nativeImage, session, shell } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  clipboard,
+  ClipboardItem,
+  dialog,
+  ipcMain,
+  nativeImage,
+  session,
+  shell,
+} from 'electron';
 import discoveredModules from 'virtual:toolbox-modules';
 import { toUnpackedPath } from '../backend/core/ffmpeg-binaries';
 import { mediaTokenFromUrl } from '../backend/core/media';
@@ -8,6 +18,8 @@ import { generateToken } from '../backend/core/security';
 import { startServer, type RunningServer } from '../backend/server';
 import { attachDesktop, showWindow, startedHidden } from './desktop';
 import { closeOverlay, initOverlay } from './overlay';
+import { closeReaderWindows, initReaderWindows } from './reader-windows';
+import { FileBatcher, pathsFromArgv } from '../backend/core/received-files';
 import { createElectronHost } from './host';
 import { runSmokeTest } from './smoke-test';
 import {
@@ -44,8 +56,37 @@ process.on('unhandledRejection', (reason) => {
 let server: RunningServer | null = null;
 let mainWindow: BrowserWindow | null = null;
 
+// v0.47.0: files sent by Windows (« Ranger dans ToolBox », « Envoyer vers »,
+// ADR 0059): every launch's paths, gathered into one batch (one window), held
+// until ToolBox has started.
+// Windows starts one ToolBox per file of a right click: they arrive over a second or two.
+const received = new FileBatcher((paths) => {
+  void server?.hub.receiveFiles(paths);
+}, 1500);
+received.hold();
+const appFolders = () => [app.getAppPath()];
+const sentAtStart = pathsFromArgv(process.argv, appFolders());
+if (sentAtStart?.length) received.add(sentAtStart);
+
 ipcMain.on('toolbox:get-config', (event) => {
   event.returnValue = { token };
+});
+
+// v0.44.0: an image the page made (the Agenda's calendar) into the system's
+// clipboard. Only from the main window, only a PNG (its signature checked),
+// 40 MB at most; nothing is written on disk. Returns its size, or null.
+const MAX_CLIPBOARD_IMAGE = 40 * 1024 * 1024;
+const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+ipcMain.handle('toolbox:copy-image', async (event, png: unknown) => {
+  if (!mainWindow || event.sender !== mainWindow.webContents) return null;
+  if (!(png instanceof Uint8Array) || png.byteLength > MAX_CLIPBOARD_IMAGE) return null;
+  if (PNG_SIGNATURE.some((byte, i) => png[i] !== byte)) return null;
+  const image = nativeImage.createFromBuffer(Buffer.from(png));
+  if (image.isEmpty()) return null;
+  await clipboard.write([
+    new ClipboardItem({ 'image/png': new Blob([png as BlobPart], { type: 'image/png' }) }),
+  ]);
+  return image.getSize();
 });
 
 // Drag a generated file out of the window (to a browser, the Explorer…). Only
@@ -152,7 +193,11 @@ async function bootstrap(): Promise<void> {
   const appUrl = isDev && devServerUrl ? devServerUrl : `${server.url}/`;
   allowOnlyMicrophone(appUrl);
   mainWindow = createWindow(appUrl);
+  mainWindow.on('closed', closeReaderWindows);
   initOverlay(appUrl);
+  initReaderWindows(appUrl, path.join(__dirname, 'preload.cjs'));
+  // Started by a right click while closed: the rangement window once the page is there.
+  mainWindow.webContents.once('did-finish-load', () => received.release());
 
   if (smokeTestFile) {
     const window = mainWindow;
@@ -170,7 +215,11 @@ async function bootstrap(): Promise<void> {
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
-  app.on('second-instance', () => showWindow());
+  app.on('second-instance', (_event, argv) => {
+    const sent = pathsFromArgv(argv, appFolders());
+    if (sent?.length) received.add(sent);
+    else showWindow();
+  });
 
   app
     .whenReady()
@@ -188,6 +237,7 @@ if (!app.requestSingleInstanceLock()) {
     const closing = server;
     server = null;
     closeOverlay();
+    closeReaderWindows();
     // Never hang on exit: give the hub 5 s to stop cleanly.
     const timeout = new Promise((resolve) => setTimeout(resolve, 5000));
     // app.quit() is ignored once will-quit was prevented: exit explicitly.

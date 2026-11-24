@@ -17,54 +17,68 @@ Modèle :
 ## Conséquences
 ```
 
-| N°   | Décision                                                                                                                             |
-| ---- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| 0001 | [Electron, backend dans le process principal](0001-electron-backend-dans-le-main.md)                                                 |
-| 0002 | [API REST Fastify sécurisée, interface même origine](0002-api-fastify-securite.md)                                                   |
-| 0003 | [SQLite avec better-sqlite3 (N-API, sans rebuild)](0003-sqlite-better-sqlite3.md)                                                    |
-| 0004 | [Frontend React + Vite, HashRouter](0004-frontend-react-vite.md)                                                                     |
-| 0005 | [Modules compilés dans l'app](0005-modules-compiles-dans-l-app.md)                                                                   |
-| 0006 | [FFmpeg embarqué, licence GPL](0006-ffmpeg-embarque-gpl.md)                                                                          |
-| 0007 | [Distribution Windows non signée, CI GitHub Actions](0007-distribution-windows.md)                                                   |
-| 0008 | [Outillage : TypeScript 6, esbuild, Vitest sous Node](0008-outillage.md)                                                             |
-| 0009 | [Cycle de vie et frontières des modules](0009-cycle-de-vie-des-modules.md)                                                           |
-| 0010 | [Sécurité des données : sauvegardes, restauration, export](0010-securite-des-donnees.md)                                             |
-| 0011 | [Tâches longues et planificateur dans le process](0011-taches-et-planificateur.md)                                                   |
-| 0012 | [Fichiers locaux, médias et texte dans les vidéos](0012-fichiers-medias-et-texte-video.md)                                           |
-| 0013 | [Glisser des fichiers hors de l'application](0013-glisser-deposer-vers-l-exterieur.md)                                               |
-| 0014 | [Registre des fichiers générés (`ctx.outputs`)](0014-registre-des-fichiers-generes.md)                                               |
-| 0015 | [Reels : quatre styles, sans spectre](0015-styles-de-reels.md) — remplacée par 0016                                                  |
-| 0016 | [Direction artistique sobre](0016-direction-artistique-sobre.md)                                                                     |
-| 0017 | [Reels rendus image par image, mouvement piloté par le son](0017-rendu-image-par-image.md)                                           |
-| 0018 | [Comptes connectés : OAuth « application installée », dans le socle](0018-comptes-oauth.md)                                          |
-| 0019 | [Notifications Windows et démarrage dans la zone de notification](0019-notifications-et-zone-de-notification.md)                     |
-| 0020 | [Planning de sortie : programmation sur YouTube, rappels pour Instagram](0020-planning-de-sortie.md)                                 |
-| 0021 | [Interface : thèmes par variables CSS, composants partagés, navigation à catégories](0021-interface-themes-composants-navigation.md) |
-| 0022 | [Tout élément généré appartient à un projet (le morceau)](0022-projets.md)                                                           |
-| 0023 | [Reels depuis les vidéos de l'utilisateur : module séparé, banque d'effets](0023-reels-depuis-mes-videos.md)                         |
-| 0024 | [Services facultatifs : un module n'exige que ce sans quoi il n'a aucun sens](0024-services-facultatifs.md)                          |
-| 0025 | [Rattachement complet : chaque module suit (`ctx.outputs.onReattach`)](0025-rattachement-complet.md)                                 |
-| 0026 | [Reels perso : passage = départ + durée du Reel, son au choix, morceau synchronisé](0026-son-et-passages-des-reels-perso.md)         |
-| 0027 | [Stats YouTube : données locales, niveaux de confiance, démo, CSV en repli](0027-stats-youtube.md)                                   |
-| 0028 | [Actions des modules pour l'assistant, touche globale, indicateur flottant](0028-actions-des-modules-pour-l-assistant.md)            |
-| 0029 | [Assistant vocal local : whisper.cpp, Ollama, Piper](0029-assistant-vocal-local.md)                                                  |
-| 0030 | [Commandes standardisées de l'assistant, interrupteur « IA », droits un par un](0030-commandes-standardisees.md)                     |
-| 0031 | [Quota YouTube partagé : le Planning passe avant les Stats](0031-quota-youtube-planning-avant-stats.md)                              |
-| 0032 | [Mots de l'assistant : mots attendus, corrections, surnoms, noms au son](0032-mots-de-l-assistant.md)                                |
-| 0033 | [Stats YouTube : deux sources dites, l'API avant le CSV, imports supprimables](0033-stats-youtube-sources-et-imports.md)             |
-| 0034 | [Analyse du master : mesures vérifiées contre ebur128, cache par contenu, intégrations facultatives](0034-analyse-du-master.md)      |
-| 0035 | [Timer : temps tiré de l'heure réelle, une seule session, To-do facultative](0035-timer.md)                                          |
-| 0036 | [Une seule fenêtre flottante, partagée, à panneaux empilés](0036-fenetre-flottante-partagee.md)                                      |
-| 0037 | [Barre de commande écrite de l'assistant : même chemin que la voix, touche partagée possible](0037-barre-de-commande-ecrite.md)      |
-| 0038 | [Boîte à idées : un module à part, pas une variante de la To-do](0038-boite-a-idees.md)                                              |
-| 0039 | [La fenêtre flottante prend le clavier par étapes, et le dit quand elle n'y arrive pas](0039-clavier-de-la-fenetre-flottante.md)     |
-| 0040 | [Batch cooking : un calcul exact qui propose, des plans validés qui ne touchent à rien](0040-batch-cooking.md)                       |
-| 0041 | [Préparations : une seule fonction de dépliage, et le batch par préparation](0041-preparations.md)                                   |
-| 0042 | [Batch : « Pourrait aussi servir », un gain pur, et l'inclusion par préparation](0042-batch-suggestions.md)                          |
-| 0043 | [Batch en deux temps : éléments de base et doubles doses](0043-batch-deux-temps.md)                                                  |
-| 0044 | [Version mobile et synchro LAN (acceptée)](0044-version-mobile-synchro-lan.md)                                                       |
-| 0045 | [Calendrier : catégories, plusieurs jours, éléments à caser](0045-calendrier-categories-a-caser.md)                                  |
-| 0046 | [Entre modules : composants prêtés et destinations « Ajouter »](0046-entre-modules-composants-ajout-rapide.md)                       |
-| 0047 | [Agenda : importer un calendrier dans une source liée à des catégories](0047-agenda-import-sources.md)                               |
-| 0048 | [Menu contextuel commun (clic droit, clavier, appui long)](0048-menu-contextuel-commun.md)                                           |
-| 0049 | [Agenda : catégories objets et types portés par l'élément](0049-agenda-categories-objets-et-types.md)                                |
+| N°   | Décision                                                                                                                                                         |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0001 | [Electron, backend dans le process principal](0001-electron-backend-dans-le-main.md)                                                                             |
+| 0002 | [API REST Fastify sécurisée, interface même origine](0002-api-fastify-securite.md)                                                                               |
+| 0003 | [SQLite avec better-sqlite3 (N-API, sans rebuild)](0003-sqlite-better-sqlite3.md)                                                                                |
+| 0004 | [Frontend React + Vite, HashRouter](0004-frontend-react-vite.md)                                                                                                 |
+| 0005 | [Modules compilés dans l'app](0005-modules-compiles-dans-l-app.md)                                                                                               |
+| 0006 | [FFmpeg embarqué, licence GPL](0006-ffmpeg-embarque-gpl.md)                                                                                                      |
+| 0007 | [Distribution Windows non signée, CI GitHub Actions](0007-distribution-windows.md)                                                                               |
+| 0008 | [Outillage : TypeScript 6, esbuild, Vitest sous Node](0008-outillage.md)                                                                                         |
+| 0009 | [Cycle de vie et frontières des modules](0009-cycle-de-vie-des-modules.md)                                                                                       |
+| 0010 | [Sécurité des données : sauvegardes, restauration, export](0010-securite-des-donnees.md)                                                                         |
+| 0011 | [Tâches longues et planificateur dans le process](0011-taches-et-planificateur.md)                                                                               |
+| 0012 | [Fichiers locaux, médias et texte dans les vidéos](0012-fichiers-medias-et-texte-video.md)                                                                       |
+| 0013 | [Glisser des fichiers hors de l'application](0013-glisser-deposer-vers-l-exterieur.md)                                                                           |
+| 0014 | [Registre des fichiers générés (`ctx.outputs`)](0014-registre-des-fichiers-generes.md)                                                                           |
+| 0015 | [Reels : quatre styles, sans spectre](0015-styles-de-reels.md) — remplacée par 0016                                                                              |
+| 0016 | [Direction artistique sobre](0016-direction-artistique-sobre.md)                                                                                                 |
+| 0017 | [Reels rendus image par image, mouvement piloté par le son](0017-rendu-image-par-image.md)                                                                       |
+| 0018 | [Comptes connectés : OAuth « application installée », dans le socle](0018-comptes-oauth.md)                                                                      |
+| 0019 | [Notifications Windows et démarrage dans la zone de notification](0019-notifications-et-zone-de-notification.md)                                                 |
+| 0020 | [Planning de sortie : programmation sur YouTube, rappels pour Instagram](0020-planning-de-sortie.md)                                                             |
+| 0021 | [Interface : thèmes par variables CSS, composants partagés, navigation à catégories](0021-interface-themes-composants-navigation.md)                             |
+| 0022 | [Tout élément généré appartient à un projet (le morceau)](0022-projets.md)                                                                                       |
+| 0023 | [Reels depuis les vidéos de l'utilisateur : module séparé, banque d'effets](0023-reels-depuis-mes-videos.md)                                                     |
+| 0024 | [Services facultatifs : un module n'exige que ce sans quoi il n'a aucun sens](0024-services-facultatifs.md)                                                      |
+| 0025 | [Rattachement complet : chaque module suit (`ctx.outputs.onReattach`)](0025-rattachement-complet.md)                                                             |
+| 0026 | [Reels perso : passage = départ + durée du Reel, son au choix, morceau synchronisé](0026-son-et-passages-des-reels-perso.md)                                     |
+| 0027 | [Stats YouTube : données locales, niveaux de confiance, démo, CSV en repli](0027-stats-youtube.md)                                                               |
+| 0028 | [Actions des modules pour l'assistant, touche globale, indicateur flottant](0028-actions-des-modules-pour-l-assistant.md)                                        |
+| 0029 | [Assistant vocal local : whisper.cpp, Ollama, Piper](0029-assistant-vocal-local.md)                                                                              |
+| 0030 | [Commandes standardisées de l'assistant, interrupteur « IA », droits un par un](0030-commandes-standardisees.md)                                                 |
+| 0031 | [Quota YouTube partagé : le Planning passe avant les Stats](0031-quota-youtube-planning-avant-stats.md)                                                          |
+| 0032 | [Mots de l'assistant : mots attendus, corrections, surnoms, noms au son](0032-mots-de-l-assistant.md)                                                            |
+| 0033 | [Stats YouTube : deux sources dites, l'API avant le CSV, imports supprimables](0033-stats-youtube-sources-et-imports.md)                                         |
+| 0034 | [Analyse du master : mesures vérifiées contre ebur128, cache par contenu, intégrations facultatives](0034-analyse-du-master.md)                                  |
+| 0035 | [Timer : temps tiré de l'heure réelle, une seule session, To-do facultative](0035-timer.md)                                                                      |
+| 0036 | [Une seule fenêtre flottante, partagée, à panneaux empilés](0036-fenetre-flottante-partagee.md)                                                                  |
+| 0037 | [Barre de commande écrite de l'assistant : même chemin que la voix, touche partagée possible](0037-barre-de-commande-ecrite.md)                                  |
+| 0038 | [Boîte à idées : un module à part, pas une variante de la To-do](0038-boite-a-idees.md)                                                                          |
+| 0039 | [La fenêtre flottante prend le clavier par étapes, et le dit quand elle n'y arrive pas](0039-clavier-de-la-fenetre-flottante.md)                                 |
+| 0040 | [Batch cooking : un calcul exact qui propose, des plans validés qui ne touchent à rien](0040-batch-cooking.md)                                                   |
+| 0041 | [Préparations : une seule fonction de dépliage, et le batch par préparation](0041-preparations.md)                                                               |
+| 0042 | [Batch : « Pourrait aussi servir », un gain pur, et l'inclusion par préparation](0042-batch-suggestions.md)                                                      |
+| 0043 | [Batch en deux temps : éléments de base et doubles doses](0043-batch-deux-temps.md)                                                                              |
+| 0044 | [Version mobile et synchro LAN (acceptée)](0044-version-mobile-synchro-lan.md)                                                                                   |
+| 0045 | [Calendrier : catégories, plusieurs jours, éléments à caser](0045-calendrier-categories-a-caser.md)                                                              |
+| 0046 | [Entre modules : composants prêtés et destinations « Ajouter »](0046-entre-modules-composants-ajout-rapide.md)                                                   |
+| 0047 | [Agenda : importer un calendrier dans une source liée à des catégories](0047-agenda-import-sources.md)                                                           |
+| 0048 | [Menu contextuel commun (clic droit, clavier, appui long)](0048-menu-contextuel-commun.md)                                                                       |
+| 0049 | [Agenda : catégories objets et types portés par l'élément](0049-agenda-categories-objets-et-types.md)                                                            |
+| 0050 | [Agenda : image du calendrier (copier, partager)](0050-agenda-image-du-calendrier.md)                                                                            |
+| 0051 | [Fichiers de l'utilisateur gardés par un module](0051-fichiers-de-l-utilisateur-gardes-par-un-module.md)                                                         |
+| 0052 | [Coffre : éléments, contextes, attributs, disque lisible sans ToolBox](0052-coffre-modele-et-stockage.md)                                                        |
+| 0053 | [Coffre : fenêtre de rangement, aperçu et registre de lecteurs](0053-coffre-rangement-et-lecteurs.md)                                                            |
+| 0054 | [Socle : dossier externe servi aux lecteurs, copie cohérente de la base, indicateur dans la barre latérale](0054-socle-dossier-externe-copie-base-indicateur.md) |
+| 0055 | [Coffre : le disque externe (identité, états, mise à jour sûre, historique, corbeille, restauration)](0055-coffre-disque-externe.md)                             |
+| 0056 | [Coffre : la recherche dans le contenu (texte extrait, index FTS5 gardé sur le PC)](0056-coffre-recherche-dans-le-contenu.md)                                    |
+| 0057 | [Socle : la recherche partout (Ctrl+K), contrat `ctx.search`](0057-socle-recherche-partout.md)                                                                   |
+| 0058 | [Socle : les fenêtres de lecture (une page de module dans sa propre fenêtre)](0058-socle-fenetres-de-lecture.md)                                                 |
+| 0059 | [Socle : les fichiers envoyés par Windows (« Ranger dans ToolBox », « Envoyer vers »)](0059-socle-fichiers-envoyes-par-windows.md)                               |
+| 0060 | [Coffre : proposer de ranger les nouveaux téléchargements (désactivé par défaut)](0060-coffre-surveillance-telechargements.md)                                   |
+| 0061 | [Coffre : apprendre des choix et des corrections de Thomas](0061-coffre-apprentissage-des-corrections.md)                                                        |
+| 0062 | [Coffre : « Maintenant » (le cours en cours d'après l'Agenda)](0062-coffre-maintenant.md)                                                                        |
+| 0063 | [Socle : restaurer ToolBox depuis une sauvegarde (au redémarrage, avec retour automatique)](0063-socle-restaurer-depuis-une-sauvegarde.md)                       |

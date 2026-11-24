@@ -7,6 +7,7 @@
 // `todo`, optional). Portable (phone), « Prêt pour la synchro » (UUIDs,
 // journal, tombstones, `sync`), « Prêt pour le calendrier » (its own events).
 import {
+  base64ToBytes,
   changesTableSql,
   defineBackendModule,
   HttpError,
@@ -27,13 +28,15 @@ import {
   DEFAULT_CATEGORY,
   DEFAULT_OFF,
 } from '../shared/categories';
-import { AHEAD_DAYS, dueMoment, OVERDUE_DAYS } from '../shared/deadline';
+import { AHEAD_DAYS, dueMoment, localNow, OVERDUE_DAYS } from '../shared/deadline';
 import { MIN_BLOCK_MIN } from '../shared/drag';
 import { parseQuick, type Parsed } from '../shared/parse';
 import { occurrences, type OccurrenceException } from '../shared/recurrence';
 import { addDays, addMinutes, daysBetween, minutesBetween } from '../shared/time';
 import { readOrigin } from '../shared/importing';
 import { registerImports } from './imports';
+import type { AgendaService } from '../contract';
+import { coursesNow, coursesOf, type ImportedRow } from '../shared/courses';
 import { type CategoryLookup, migrateCategoriesToObjects, registerCategories } from './categories';
 import type {
   AgendaEventDto,
@@ -219,6 +222,32 @@ export default defineBackendModule({
 
     const categories = registerCategories(ctx, store);
     registerImports(ctx, store, categories);
+    // v0.45.0: the courses of the imported timetables, read only (the Coffre recognises them).
+    ctx.services.provide<AgendaService>('agenda', {
+      courses: () =>
+        coursesOf(
+          ctx.db
+            .prepare(
+              `SELECT title, start_at, end_at, location, origin FROM ${events} WHERE deleted_at IS NULL AND source_id IS NOT NULL ORDER BY start_at`,
+            )
+            .all() as ImportedRow[],
+          localNow(),
+        ),
+      // v0.47.0: « Maintenant » of the Coffre — the slots around now only (read only).
+      coursesNow: (withinMinutes) => {
+        const now = localNow();
+        const within = Math.max(0, Math.min(180, withinMinutes));
+        return coursesNow(
+          ctx.db
+            .prepare(
+              `SELECT title, start_at, end_at, location, origin FROM ${events} WHERE deleted_at IS NULL AND source_id IS NOT NULL AND start_at <= ? AND end_at > ? ORDER BY start_at`,
+            )
+            .all(addMinutes(now, within), now) as ImportedRow[],
+          now,
+          within,
+        );
+      },
+    });
     /** v0.37.0: the name of each source, for the detail of its events. */
     const sourceNames = () =>
       new Map(
@@ -657,6 +686,36 @@ export default defineBackendModule({
     };
 
     // --- Routes ---------------------------------------------------------------
+
+    // --- v0.44.0: the calendar's image (drawn by the page) -----------------------
+    // « Enregistrer l'image… »: the OS's « Enregistrer sous » on the PC, Android's
+    // share sheet on the phone (ctx.files.saveAs). Only a PNG; nothing is kept.
+    const PNG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+    ctx.routes.post(
+      '/image/save',
+      async (request) => {
+        const body = requestBody(request);
+        const name = typeof body.name === 'string' ? body.name.trim() : '';
+        if (!/^[^\\/:*?"<>|]{1,120}\.png$/.test(name))
+          throw new HttpError(400, 'Nom de fichier invalide (…png)');
+        let png: Uint8Array;
+        try {
+          png = base64ToBytes(String(body.png ?? ''));
+        } catch {
+          throw new HttpError(400, 'Image illisible');
+        }
+        if (png.length < PNG.length || PNG.some((b, i) => png[i] !== b))
+          throw new HttpError(400, 'Ce n’est pas une image PNG');
+        const saved = await ctx.files.saveAs({
+          title: typeof body.title === 'string' && body.title ? body.title : 'Enregistrer l’image',
+          defaultName: name,
+          filters: [{ name: 'Image PNG', extensions: ['png'] }],
+          data: png,
+        });
+        return saved ? { path: saved } : { cancelled: true };
+      },
+      { bodyLimit: 40 * 1024 * 1024 },
+    );
 
     ctx.routes.get('/range', (request) => {
       const { from, to } = period(request.query);

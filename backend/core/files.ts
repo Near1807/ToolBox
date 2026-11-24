@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { ModuleFiles } from '../../packages/sdk/backend';
+import { isRunnable, mountsDisk, parseZoneIdentifier } from '../../packages/sdk/core';
 import type { HostAdapter } from './host';
 
 /** Resolves `segments` inside `root`, refusing any path that escapes it. */
@@ -13,16 +14,28 @@ export function safeJoin(root: string, ...segments: string[]): string {
   return target;
 }
 
+/** Names a module library may not take (the hub's own folders and files in userData). */
+const RESERVED_LIBRARY_NAMES = new Set(['modules', 'backups', 'logs', 'outputs', 'sync', 'hub.db']);
+
 export function createModuleFiles(options: {
   moduleId: string;
   modulesDataDir: string;
+  /** v0.45.0: <userData>/<id>/, the user's files kept by the module (see ModuleFiles.libraryDir). */
+  libraryDir?: string;
   assetsDir: string;
   getOutputRoot: () => string;
   host: HostAdapter;
   mediaUrl: (filePath: string) => string;
+  /** v0.46.0: an external folder the UI may show (ctx.files.allowMediaRoot). */
+  allowMediaRoot?: (dir: string) => () => void;
 }): ModuleFiles {
   const dataDir = path.join(options.modulesDataDir, options.moduleId);
   mkdirSync(dataDir, { recursive: true });
+  const libraryDir = () => {
+    if (RESERVED_LIBRARY_NAMES.has(options.moduleId.toLowerCase()))
+      throw new Error(`Nom de module réservé pour un dossier de fichiers : ${options.moduleId}`);
+    return options.libraryDir ?? path.join(path.dirname(options.modulesDataDir), options.moduleId);
+  };
   const outputDir = () => {
     const dir = path.join(options.getOutputRoot(), options.moduleId);
     mkdirSync(dir, { recursive: true });
@@ -32,6 +45,14 @@ export function createModuleFiles(options: {
     assetsDir: options.assetsDir,
     assetPath: (...segments) => safeJoin(options.assetsDir, ...segments),
     mediaUrl: options.mediaUrl,
+    ...(options.allowMediaRoot
+      ? {
+          allowMediaRoot: (dir: string) => {
+            if (!path.isAbsolute(dir)) throw new Error('Dossier externe : chemin absolu attendu');
+            return options.allowMediaRoot!(dir);
+          },
+        }
+      : {}),
     mediaUrlIfExists: (filePath) => {
       if (!filePath || !existsSync(filePath)) return null;
       try {
@@ -87,7 +108,24 @@ export function createModuleFiles(options: {
     removeFile: (target) => {
       unlinkSync(safeJoin(dataDir, path.relative(dataDir, path.resolve(target))));
     },
-    open: (target) => options.host.openPath(target),
+    open: async (target, openOptions) => {
+      // v0.45.0: never run a program, a script or a shortcut without a confirmation that named it.
+      if (isRunnable(target) && !openOptions?.runnable)
+        throw new Error(
+          `Refus : « ${path.basename(target)} » ${mountsDisk(target) ? 'monte une image de disque' : 'lance un programme'} (confirmation nécessaire)`,
+        );
+      await options.host.openPath(target);
+    },
+    libraryDir: libraryDir(),
+    libraryPath: (...segments) => safeJoin(libraryDir(), ...segments),
+    provenance: (target) => {
+      try {
+        // NTFS keeps it in the file's alternate stream « :Zone.Identifier ».
+        return parseZoneIdentifier(readFileSync(`${target}:Zone.Identifier`, 'utf8'));
+      } catch {
+        return null;
+      }
+    },
     reveal: (target) => options.host.showItemInFolder(target),
   };
 }

@@ -20,6 +20,8 @@ import { useNavigation } from '../NavigationContext';
 import { showTool } from '../navigation';
 import { AppearanceCard } from './AppearanceCard';
 import { SyncSection } from './SyncCard';
+import { WindowsCard } from './WindowsCard';
+import { RestoreCard } from './RestoreCard';
 import { SettingsForm, type SettingsSectionData } from './SettingsForm';
 
 const STATUS_LABELS = {
@@ -529,7 +531,19 @@ export function SettingsPage() {
     }));
 
   const sections: Section[] = [
-    { id: 'general', title: 'Général', group: GENERAL_GROUP, entries: fieldsOf('core') },
+    {
+      id: 'general',
+      title: 'Général',
+      group: GENERAL_GROUP,
+      entries: [
+        ...fieldsOf('core'),
+        {
+          key: 'windows-menu',
+          label: 'Clic droit de Windows : « Ranger dans ToolBox »',
+          description: 'Envoyer vers',
+        },
+      ],
+    },
     {
       id: 'appearance',
       title: 'Apparence',
@@ -590,7 +604,14 @@ export function SettingsPage() {
       id: 'backups',
       title: 'Sauvegardes',
       group: GENERAL_GROUP,
-      entries: [{ key: 'backups', label: 'Exporter une sauvegarde', description: 'automatiques' }],
+      entries: [
+        { key: 'backups', label: 'Exporter une sauvegarde', description: 'automatiques' },
+        {
+          key: 'restore',
+          label: 'Restaurer ToolBox depuis une sauvegarde',
+          description: 'disque du coffre, sauvegarde automatique',
+        },
+      ],
     },
     {
       id: 'about',
@@ -708,6 +729,7 @@ export function SettingsPage() {
               <SettingsForm section={general} onSaved={settings.reload} />
             </Card>
           )}
+          {current.id === 'general' && <WindowsCard />}
           {current.id === 'appearance' && <AppearanceCard />}
           {current.id === 'floating' && <FloatingCard />}
           {current.id === 'rights' && <RightsCard />}
@@ -722,6 +744,7 @@ export function SettingsPage() {
             </>
           )}
           {current.id === 'backups' && <BackupsCard />}
+          {current.id === 'backups' && <RestoreCard />}
           {current.id === 'about' && <AboutCard />}
           {current.group !== GENERAL_GROUP && (
             <Card

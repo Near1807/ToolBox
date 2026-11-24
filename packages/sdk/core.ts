@@ -170,6 +170,8 @@ export interface ModuleContext {
   readonly images: ModuleImages;
   /** « Prêt pour le calendrier »: the module's dated items, for the general calendar (§5.17). */
   readonly calendar: ModuleCalendar;
+  /** v0.47.0: what the module offers to the hub's search (Ctrl+K anywhere, §5.18). */
+  readonly search: ModuleSearch;
   readonly binaries: ModuleBinaries;
   readonly logger: ModuleLogger;
   /** Called when the hub shuts down (close watchers, kill processes…). */
@@ -228,6 +230,13 @@ export interface ModuleDatabase {
    */
   backup(reason: string): string;
   /**
+   * v0.46.0 (PC, absent on the phone): writes a consistent copy of the WHOLE
+   * database (SQLite's own copy, never a copy of the open file) to `file`,
+   * an absolute path the module chose (the Coffre's disk: write it under a
+   * temporary name, then rename it). Replaces `file` if it exists.
+   */
+  snapshotTo?(file: string): void;
+  /**
    * The synchronisation's clock (ADR 0044), given by the hub to the modules
    * that declare `sync` (SyncStore writes it in the journal). Absent elsewhere.
    */
@@ -250,6 +259,200 @@ export interface SyncClock {
   onReceived?(handler: (tools: SyncTools & { master: boolean }) => void): () => void;
 }
 
+/** v0.45.0: Windows' « Mark of the Web » of a downloaded file. */
+export interface FileProvenance {
+  /** 3 = Internet, 2 = trusted sites, 1 = intranet… (null when not written). */
+  zone: number | null;
+  /** The address of the file itself. */
+  hostUrl: string | null;
+  /** The page it was downloaded from. */
+  referrerUrl: string | null;
+}
+
+/**
+ * v0.45.0: the extensions of files that RUN something when opened (programs,
+ * installers, scripts, shortcuts). ctx.files.open refuses them without a
+ * confirmation that named the file.
+ * v0.47.1: completed from Microsoft's list of attachments Outlook blocks
+ * (« Blocked attachments in Outlook », level 1) and Windows' own dangerous
+ * types: scripts (Python, AutoHotkey, PowerShell data / formats, Windows
+ * Script), help files, ClickOnce and settings shortcuts, installer
+ * transforms, Office add-ins, and disk images (opening one MOUNTS it as a
+ * drive, whose autorun or shortcuts may then run).
+ */
+export const RUNNABLE_EXTENSIONS: readonly string[] = [
+  // Programs and installers.
+  'exe',
+  'com',
+  'scr',
+  'pif',
+  'cpl',
+  'msi',
+  'msp',
+  'mst',
+  'msu',
+  'msix',
+  'msixbundle',
+  'appx',
+  'appxbundle',
+  'application',
+  'appref-ms',
+  'xbap',
+  'gadget',
+  'msc',
+  'cab',
+  'diagcab',
+  'jar',
+  'jnlp',
+  'xll',
+  'ade',
+  'adp',
+  'app',
+  'mde',
+  'mda',
+  'mdb',
+  'mdt',
+  'mdw',
+  'mdz',
+  'ops',
+  'prg',
+  'fxp',
+  'vsmacros',
+  'vsw',
+  'wsb',
+  'printerexport',
+  'theme',
+  'themepack',
+  'deskthemepack',
+  // Scripts.
+  'bat',
+  'cmd',
+  'ps1',
+  'ps1xml',
+  'ps2',
+  'ps2xml',
+  'psc1',
+  'psc2',
+  'psd1',
+  'psm1',
+  'psdm1',
+  'pssc',
+  'msh',
+  'msh1',
+  'msh2',
+  'mshxml',
+  'msh1xml',
+  'msh2xml',
+  'vb',
+  'vbe',
+  'vbp',
+  'vbs',
+  'js',
+  'jse',
+  'ws',
+  'wsc',
+  'wsf',
+  'wsh',
+  'sct',
+  'hta',
+  'htc',
+  'py',
+  'pyc',
+  'pyo',
+  'pyw',
+  'pyz',
+  'pyzw',
+  'pl',
+  'rb',
+  'sh',
+  'csh',
+  'ksh',
+  'ahk',
+  'bas',
+  'shb',
+  'shs',
+  // Shortcuts and system settings that point to something run.
+  'lnk',
+  'url',
+  'website',
+  'scf',
+  'settingcontent-ms',
+  'library-ms',
+  'search-ms',
+  'searchconnector-ms',
+  'reg',
+  'inf',
+  'ins',
+  'isp',
+  'its',
+  'mcf',
+  'udl',
+  'webpnp',
+  'grp',
+  'cnt',
+  'hlp',
+  'hpj',
+  'chm',
+  'xnk',
+  'plg',
+  'prf',
+  'osd',
+  'pcd',
+  'bgi',
+  'crt',
+  'cer',
+  'der',
+  // Disk images: opening one MOUNTS it (its programs are then one click away).
+  'iso',
+  'img',
+  'vhd',
+  'vhdx',
+];
+
+/** v0.47.1: the disk images (opening one mounts a drive): named so by the confirmation. */
+export const MOUNTING_EXTENSIONS: readonly string[] = ['iso', 'img', 'vhd', 'vhdx'];
+
+const extOfName = (name: string) => /\.([^./\\]+)$/.exec(name.trim().toLowerCase())?.[1];
+
+/** Does opening this file run something (see RUNNABLE_EXTENSIONS)? */
+export function isRunnable(name: string): boolean {
+  const ext = extOfName(name);
+  return ext !== undefined && RUNNABLE_EXTENSIONS.includes(ext);
+}
+
+/** v0.47.1: does opening this file mount a drive (a disk image)? */
+export function mountsDisk(name: string): boolean {
+  const ext = extOfName(name);
+  return ext !== undefined && MOUNTING_EXTENSIONS.includes(ext);
+}
+
+/**
+ * v0.47.1: the question asked before opening a runnable file — it names the
+ * file and what opening it does (runs it, or mounts a disk image).
+ */
+export function runnableQuestion(name: string): string {
+  return mountsDisk(name)
+    ? `« ${name} » est une image de disque : l’ouvrir la MONTE comme un lecteur sur ce PC (ses programmes seront alors à un clic).\n\nL’ouvrir quand même ?`
+    : `« ${name} » est un programme ou un script : l’ouvrir le LANCE sur ce PC.\n\nLe lancer quand même ?`;
+}
+
+/**
+ * v0.45.0: the « Mark of the Web » text (a :Zone.Identifier stream, INI) →
+ * its zone and addresses; null when it holds none of them.
+ */
+export function parseZoneIdentifier(text: string): FileProvenance | null {
+  const value = (key: string) => {
+    const m = new RegExp(`^\\s*${key}\\s*=\\s*(.*?)\\s*$`, 'im').exec(text);
+    return m?.[1] ? m[1] : null;
+  };
+  const zoneText = value('ZoneId');
+  const zone = zoneText !== null && /^\d+$/.test(zoneText) ? Number(zoneText) : null;
+  const hostUrl = value('HostUrl');
+  const referrerUrl = value('ReferrerUrl');
+  if (zone === null && !hostUrl && !referrerUrl) return null;
+  return { zone, hostUrl, referrerUrl };
+}
+
 export interface ModuleFiles {
   /** Private data folder: <userData>/modules/<id>/ (created when the module loads). */
   readonly dataDir: string;
@@ -259,8 +462,13 @@ export interface ModuleFiles {
   outputDir(): string;
   /** Path inside outputDir() (for a generated file); throws if it escapes the folder. */
   outputPath(...segments: string[]): string;
-  /** Opens a file or folder with the OS (Explorer, default app). */
-  open(path: string): Promise<void>;
+  /**
+   * Opens a file or folder with the OS (Explorer, default app). v0.45.0: a
+   * file that RUNS something (an executable, a script, a shortcut: see
+   * isRunnable) is refused unless `runnable: true` says the user confirmed,
+   * in a question that named it.
+   */
+  open(path: string, options?: { runnable?: boolean }): Promise<void>;
   /** Shows a file selected in the OS file explorer. */
   reveal(path: string): void;
   /**
@@ -311,6 +519,30 @@ export interface ModuleFiles {
    * save that failed). A deletion the user asked for goes through trash().
    */
   removeFile(path: string): void;
+  /**
+   * v0.45.0 (PC): the folder of the USER's files the module keeps for them
+   * (not generated files, not its internal data): <userData>/<id>/, beside
+   * the modules' data — the whole of ToolBox in one folder, never removed by
+   * the uninstaller. Created on first use; served by mediaUrl. The module
+   * keeps its files readable without ToolBox (clear names and folders).
+   */
+  readonly libraryDir: string;
+  /** Path inside libraryDir; throws if it escapes the folder. */
+  libraryPath(...segments: string[]): string;
+  /**
+   * v0.45.0 (PC): where a file was downloaded from, as Windows marked it
+   * (« Mark of the Web », its :Zone.Identifier stream): read on the file
+   * itself (an original the user dropped). Null when there is no mark.
+   */
+  provenance(path: string): FileProvenance | null;
+  /**
+   * v0.46.0 (PC, absent on the phone): lets mediaUrl serve the files of a
+   * folder OUTSIDE ToolBox's own folders — an external disk the user chose
+   * (the Coffre's disk). Returns the function that withdraws it. The module
+   * registers only a folder the user chose, and withdraws it when the folder
+   * goes away (disk unplugged).
+   */
+  allowMediaRoot?(dir: string): () => void;
   /** Read-only files shipped with the module: modules/<id>/assets/ (fonts, images…). */
   readonly assetsDir: string;
   /** Path inside assetsDir; throws if it escapes the folder. */
@@ -711,6 +943,42 @@ export interface ModuleCalendar {
   query(from: string, to: string): Promise<CalendarView>;
 }
 
+/** v0.47.0: the marks around a found word in `SearchResult.snippet` (U+0001 … U+0002). */
+export const SEARCH_MARK_OPEN = '\u0001';
+export const SEARCH_MARK_CLOSE = '\u0002';
+
+/** v0.47.0: one result of the hub's search (Ctrl+K anywhere, MODULES.md §5.18). */
+export interface SearchResult {
+  /** Stable id inside the module. */
+  id: string;
+  title: string;
+  /** An extract, the found words between SEARCH_MARK_OPEN and SEARCH_MARK_CLOSE. */
+  snippet?: string;
+  /** A short line under the title (« Cours › Thermo · page 3 »). */
+  hint?: string;
+  /** An icon of the SDK (« file », « folder »…); the module's own by default. */
+  icon?: string;
+  /** UI route that opens the result (« /m/coffre/voir/<id>?page=3&q=mot »). */
+  open: string;
+}
+
+export interface SearchProvider {
+  /** The group's title (the module's name by default). */
+  label?: string;
+  /**
+   * The results for a query (at most `limit`), most relevant first. Read
+   * only: never changes anything; fast (it runs while Thomas types).
+   */
+  search(query: string, limit: number): SearchResult[] | Promise<SearchResult[]>;
+  /** Optional: the module's own page with every result (« Tous les résultats »). */
+  more?(query: string): string;
+}
+
+export interface ModuleSearch {
+  /** Registers the module's provider (one per module; replaces the previous one). */
+  provide(provider: SearchProvider): void;
+}
+
 export interface ModuleServices {
   /** Registers a service declared in manifest.provides.services. */
   provide<T extends object>(name: string, implementation: T): void;
@@ -984,6 +1252,21 @@ export interface ModuleUi {
    * module's `Overlay` component (always on top, shared by all modules: MODULES.md §5.16).
    */
   setOverlay(visible: boolean): void;
+  /**
+   * v0.47.0: opens one of the module's routes (« /m/coffre/lire/<id> ») in a
+   * window of its own, without the ToolBox interface (Alt+Tab, several at
+   * once, F11; ADR 0058). Returns false where there is no such window (the
+   * phone, the tests without a desktop host).
+   */
+  openWindow(route: string, options: { title: string }): boolean;
+  /**
+   * v0.47.0: the module receives the files Windows sends to ToolBox (the
+   * Explorer's « Ranger dans ToolBox », « Envoyer vers », ADR 0059): one batch
+   * (several files sent together) at a time; the handler answers with the
+   * route that shows them (the window comes to the front there), or null.
+   * One module only (the first to ask); read only until Thomas acts.
+   */
+  receiveFiles(handler: (paths: string[]) => string | null | Promise<string | null>): void;
 }
 
 export interface ModuleLogger {

@@ -258,6 +258,24 @@ export function GuidePage() {
           ou un défilement ferme le menu.
         </p>
       </Card>
+      <Card title="Copier une image du calendrier (Expérimental)">
+        <p>
+          Pour envoyer tes dispos : le bouton <Icon name="image" /> de la barre (sur le téléphone{' '}
+          <Icon name="share" />) fait une <strong>image</strong> de ce que tu regardes — la semaine
+          affichée, le mois, ou le jour sur le téléphone. Sur le PC elle va dans le presse-papiers :
+          colle-la dans ta discussion avec <strong>Ctrl+V</strong>. Sur le téléphone, le menu de
+          partage s’ouvre (WhatsApp, Messenger…) ; rien n’est gardé sur le téléphone après. Aussi au
+          clic droit sur le fond de la grille.
+        </p>
+        <p>
+          L’image suit tes interrupteurs (ce qui est éteint n’y est pas) et tes couleurs, avec
+          toutes les heures de la période, sans rien de l’écran autour. La petite flèche à côté du
+          bouton : <strong>Détails</strong> (titres et lieux) ou <strong>Dispos seulement</strong>{' '}
+          (chaque bloc dit « Occupé », sans titre ni lieu ; pas de deadlines ni de légende) ; thème
+          clair (le plus lisible dans une discussion) ou thème de l’app ; « Enregistrer l’image… ».
+          Tes choix restent sur cet appareil.
+        </p>
+      </Card>
       <Card title="Deadlines (Expérimental)">
         <p>
           Une <strong>deadline</strong> est un <strong>type</strong> d’élément (comme « Rendez-vous

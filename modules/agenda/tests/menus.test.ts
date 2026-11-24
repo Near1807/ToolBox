@@ -266,6 +266,25 @@ describe('what each action writes, and its « Annuler »', () => {
     expect(calls[1]).toContain('"kind":"rendez-vous"');
     expect(calls[1]).toContain('"end":');
   });
+  it('the background (v0.44.0): « Copier l’image de cette semaine » only, and nothing without it', () => {
+    const { d } = deps();
+    expect(agendaMenuItems({ kind: 'background' }, d)).toEqual([]);
+    let copied = 0;
+    const items = agendaMenuItems(
+      { kind: 'background' },
+      {
+        ...d,
+        snapshot: () => ({
+          label: 'Copier l’image de cette semaine',
+          icon: 'image',
+          onSelect: () => copied++,
+        }),
+      },
+    );
+    expect(labels(items)).toEqual(['Copier l’image de cette semaine']);
+    runItem(items[0]!);
+    expect(copied).toBe(1);
+  });
   it('Supprimer: asks first; « Annuler » of the question = nothing; then DELETE, Annuler = restore', () => {
     const { d, calls } = deps();
     const del = pick(agendaMenuItems(target(event()), d), 'Supprimer');

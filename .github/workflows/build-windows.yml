@@ -39,6 +39,33 @@ jobs:
       - name: Tests (full suite, with complete renders)
         run: npm run test:full
 
+      - name: Coffre on a real NTFS volume (virtual disk, letter changed) and a 2 GB file
+        shell: pwsh
+        run: |
+          $vhd = Join-Path $env:RUNNER_TEMP 'coffre-test.vhdx'
+          $script = Join-Path $env:RUNNER_TEMP 'diskpart-coffre.txt'
+          @(
+            "create vdisk file=`"$vhd`" maximum=256 type=expandable",
+            "select vdisk file=`"$vhd`"",
+            'attach vdisk',
+            'create partition primary',
+            'format fs=ntfs quick label=CoffreTest',
+            'assign letter=R'
+          ) | Set-Content -Path $script -Encoding ascii
+          diskpart /s $script
+          if ($LASTEXITCODE -ne 0) { throw "diskpart: $LASTEXITCODE" }
+          $env:COFFRE_TEST_VOLUME = 'R:'
+          $env:COFFRE_TEST_VHD = $vhd
+          npx vitest run modules/coffre/tests/real-volume.test.ts
+          if ($LASTEXITCODE -ne 0) { throw "test sur le vrai volume : $LASTEXITCODE" }
+          # The 2 Go file, alone (not in parallel with the rest of the suite).
+          $env:COFFRE_TEST_BIG = '1'
+          npx vitest run modules/coffre/tests/disk-update.test.ts -t 'gros fichier'
+          if ($LASTEXITCODE -ne 0) { throw "gros fichier : $LASTEXITCODE" }
+          # v0.47.0: the search's time on 3000 elements (measured, in the report).
+          npx vitest run modules/coffre/tests/search.test.ts -t 'temps mesuré'
+          if ($LASTEXITCODE -ne 0) { throw "recherche sur 3000 éléments : $LASTEXITCODE" }
+
       - name: Native modules load in Electron
         run: npm run check:native
 
@@ -50,6 +77,12 @@ jobs:
 
       - name: Smoke test packaged app (backend, SQLite, FFmpeg, UI)
         run: node scripts/smoke-test.mjs dist/win-unpacked/ToolBox.exe
+
+      - name: User data survives uninstalling (install, marker, uninstall)
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem dist -Filter 'ToolBox-Setup-*.exe' | Select-Object -First 1
+          ./scripts/uninstall-keeps-data.ps1 -Installer $setup.FullName
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v5

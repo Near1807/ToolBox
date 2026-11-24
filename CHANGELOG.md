@@ -4,6 +4,111 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.47.1] — 2026-11-24
+
+Correctifs issus de l'audit v0.45–v0.47. Aucune migration.
+
+### Sécurité
+
+- **Fichiers qui exécutent du code** : la liste des extensions jamais ouvertes sans la question qui nomme le fichier est complétée d'après les pièces jointes bloquées par Outlook et les types dangereux de Windows (Python `.py`, `.pyw`, `.pyz`…, `.ahk`, `.chm`, `.appref-ms`, `.settingcontent-ms`, `.ws`, `.vb`, `.psd1`, `.ps1xml`, `.mst`…). Les images de disque (`.iso`, `.img`, `.vhd`, `.vhdx`) demandent aussi confirmation : les ouvrir monte un lecteur.
+- **Coffre** : un double-clic sur un fichier de code (`.py`, `.js`, `.ps1`, `.sh`, `.bat`…) ouvre VS Code s'il est installé, sinon l'aperçu de ToolBox ; jamais l'application associée de Windows (qui pourrait le lancer).
+- **Fichiers Office** : décompression bornée (100 Mo par partie et en tout, 10 000 parties) ; au-delà, « illisible : trop gros ».
+- **PDF** : pdf.js 6 n'exécute aucun code construit depuis le fichier (plus d'option `isEvalSupported` ni de chemin `eval`) ; un test le vérifie pour l'aperçu et l'extraction.
+
+### Changé
+
+- **Coffre** : la lecture des textes se fait hors du fil du serveur (un worker) ; 60 s au plus par fichier (« illisible : trop long », relu au démarrage suivant) ; un worker qui s'arrête est remplacé. ToolBox reste fluide pendant la première lecture.
+
+### Corrigé
+
+- Test de synchro instable (« Facultatif changé des deux côtés ») : le moteur était déterministe, le test supposait un ordre d'horloge ; rendu déterministe, et un test vérifie le même gagnant sur les deux appareils à horloge égale.
+
+## [0.47.0] — 2026-11-24
+
+Coffre : **retrouver et ranger plus vite** ; socle : **recherche partout**, **fenêtres de lecture**, **fichiers envoyés par Windows**, **restaurer ToolBox depuis une sauvegarde**. Tout est marqué « Expérimental ». Migrations 3 à 6 du Coffre (ajouts seulement, sauvegarde de la base avant).
+
+### Ajouté
+
+- **Recherche dans le contenu** (Coffre) : texte des PDF (par page), Markdown, texte, HTML (sans script ni style), code, Word / PowerPoint (par diapositive) / Excel, et des fichiers texte d'un projet ; extrait en arrière-plan (priorité basse, interrompu à la fermeture, repris au démarrage, progression dans la Santé) dans un index gardé sur le PC (les archivés restent cherchables disque débranché). Insensible aux accents et à la casse. PDF scanné : « pas de texte » (pas d'OCR). Résultats groupés par élément, extraits surlignés, page ; un clic ouvre l'aperçu à la bonne page, le mot surligné ; pastilles. Mesure : 3000 éléments, 5 à 19 ms côté serveur.
+- **Recherche partout** (Ctrl+K, toutes les pages) : les outils et les résultats des modules qui la fournissent (`ctx.search`, le Coffre d'abord) ; « Tous les résultats ». Le champ de la barre latérale reste un filtre des outils.
+- **Lecteurs** : PDF (pages à la demande, zoom, aller à la page, chercher dans le document, texte sélectionnable), code avec numéros de ligne, sommaire d'un Markdown, zoom d'une image.
+- **Lire en plein écran** (aperçu, carte, clic droit) : une **fenêtre à part** (Alt+Tab, plusieurs à la fois), sans l'interface de ToolBox, les mêmes lecteurs ; F11 ; place et taille retenues ; « Ouvrir dans VS Code » pour du code ; un archivé lu depuis le disque.
+- **« Ranger dans ToolBox »** dans le clic droit de l'explorateur et dans « Envoyer vers » (pour ton compte, sans administrateur) : ajoutés par l'installateur, retirés par la désinstallation (vérifié par la CI), à retirer / remettre dans Réglages › Général. Plusieurs fichiers : une seule fenêtre de rangement ; ToolBox fermé : il démarre et l'ouvre.
+- **Proposer de ranger mes nouveaux téléchargements** (Réglages › Coffre, **désactivé par défaut**) : seulement les fichiers arrivés après l'activation, téléchargements en cours attendus, ceux déjà dans le Coffre écartés ; un compteur (accueil, barre latérale), « Ranger » / « Ignorer » ; « Proposer aussi les fichiers déjà présents ». Notification Windows à part, désactivée aussi. L'original n'est jamais déplacé ni supprimé.
+- **Apprentissage des corrections** : site → contexte, mot du nom → contexte, extension dans un contexte → nature ; confiance qui monte (confirmée) ou baisse (corrigée) ; raison au survol ; « Ce que le Coffre a appris » dans Réglages › Coffre (modifier, supprimer, « Tout oublier »). Une valeur choisie n'est jamais remplacée.
+- **« Maintenant »** : pendant un cours de l'Agenda (ou 15 min avant), son contexte et ses éléments récents en haut de l'accueil du Coffre ; « Lié au cours … » sur la page d'un contexte. Agenda : `coursesNow` (lecture seule).
+- **Restaurer ToolBox depuis une sauvegarde** (Réglages › Sauvegardes) : aperçu (date, version, modules, éléments), base plus récente refusée, base actuelle sauvegardée d'abord, remplacement au redémarrage, retour automatique si échec ; le téléphone refait une première synchro (Fusionner). Le Coffre propose ensuite de récupérer ses fichiers depuis le disque.
+- Smoke test : pdf.js dans l'app empaquetée, fenêtre de lecture. ADR 0056 à 0063.
+
+### Changé
+
+- Ctrl+K ouvre la recherche du socle partout (avant : le champ de la barre latérale, ou la recherche du Coffre dans le Coffre).
+- La base garde la version de ToolBox qui l'a ouverte en dernier (`core__meta.app_version`).
+
+## [0.46.0] — 2026-11-23
+
+Coffre : **le disque externe**. Le PC garde les éléments actifs, le disque garde tout. Tout est marqué « Expérimental ». Migration 2 du Coffre (ajouts seulement, sauvegarde de la base avant).
+
+### Ajouté
+
+- **Disque du coffre** (Réglages › Coffre) : un dossier choisi sur n'importe quel volume ; ToolBox y crée `ToolBox-Coffre` et un fichier d'identité. Le disque est reconnu par cette identité, jamais par sa lettre (E: aujourd'hui, F: demain), et cherché en lecture seule. « Oublier ce disque » ne touche à rien sur le disque. Témoin dans les pages du Coffre (« Disque branché », « Disque absent · dernière mise à jour il y a 3 jours », « 12 éléments seulement sur ce PC ») et point dans la barre latérale.
+- **Trois états** : « pas encore sur le disque » (le seul fragile : marque sur la carte, compteur, filtre, page), « actif », « archivé ». Un fichier modifié sur le PC, même par une autre application, est vu (taille et date, puis empreinte ; fichier par fichier pour un projet).
+- **Mettre à jour, par un clic** (jamais automatique) :
+  - bandeau « 12 à copier, 3 à mettre à jour, 2 à déplacer, 1 vers la corbeille » ;
+  - plan détaillé, place nécessaire et place libre ; refus clair **avant** d'écrire s'il en manque ;
+  - chaque copie : écrite sous un nom temporaire, relue, comparée, puis mise en place sans rien remplacer ; en flux (gros fichiers), avec progression et « Annuler » ;
+  - une annulation ou un débranchement laisse le disque cohérent ;
+  - changements de contexte et renommages reproduits, suppressions vers la corbeille du disque ;
+  - à la fin : copie cohérente de la base, fiches (JSON), manifeste ;
+  - compte rendu et « Éjecter le disque ».
+- **Historique des versions** : une version modifiée envoie l'ancienne dans l'historique du disque, avec une place réservée en Go (20 par défaut). Les plus anciennes partent d'abord ; jamais les fichiers actuels, les archives ni la corbeille. Une version plus grosse que la place réservée est gardée et signalée. « Versions sur le disque » dans l'aperçu, « Restaurer cette version » (confirmation, « Annuler »).
+- **Corbeille du disque** : ce qui est supprimé du Coffre y reste. Rien n'y est effacé seul ; après 30 jours, ToolBox propose de l'effacer (liste, confirmation). « Récupérer » tant qu'il y est, avec sa fiche.
+- **Archiver** (carte, clic droit, sélection multiple) : disque branché et élément actif ; les deux copies sont relues, puis celle du PC est retirée. La confirmation dit la place libérée. Un archivé reste visible (grisé, « sur le disque dur ») et trouvable. Il se lit depuis le disque ; il s'ouvre en « Réactiver pour le modifier » ou « Ouvrir une copie en lecture ». **Réactiver** : place du PC vérifiée, copie relue. Suggestions « pas ouverts depuis 6 mois », jamais appliquées seules.
+- **Restaurer depuis un disque** (Réglages › Coffre, ou l'accueil d'un Coffre vide) : aperçu, puis confirmation explicite. Les fiches sont reprises et les actifs recopiés, empreintes vérifiées ; les archivés restent sur le disque. Un PC qui a déjà des données : la base est sauvegardée avant, et aucun de ses fichiers n'est remplacé.
+- **Santé** : jauge du PC (Coffre / reste / libre), jauge du disque (actuels / historique / corbeille / libre), dernière mise à jour. « Vérifier le disque » relit chaque fichier et compare son empreinte ; rien n'est corrigé seul, « Recopier depuis le PC » est proposé.
+- « Aussi utilisé dans… » dans la fiche ; « Retirer la couverture » d'un contexte.
+- **Socle** : `ctx.files.allowMediaRoot` (lire un dossier externe choisi par l'utilisateur), `ctx.db.snapshotTo` (copie cohérente de la base vers un chemin), `nav.badge` (indicateur d'un module dans la barre latérale). **SDK** : `Gauge` en plusieurs segments. ADR 0054 et 0055.
+- **CI Windows** : le disque du coffre sur un vrai volume NTFS (disque virtuel, lettre changée, chemin long, vérification).
+
+### Changé
+
+- Un contexte ne peut pas prendre le nom `_ToolBox` (dossier de ToolBox sur le disque) ; comparaison sans casse pour `_Arrivée` et `_Corbeille`.
+- Effacer définitivement depuis la corbeille du Coffre garde la fiche d'un élément déjà sur le disque (récupérable depuis la corbeille du disque).
+
+## [0.45.0] — 2026-11-23
+
+Nouveau module **Coffre** (PC, marqué « Expérimental ») : garder, ranger, retrouver et ouvrir ses fichiers. Cahier des charges complet dans `docs/coffre/CAHIER-DES-CHARGES.md`. Migration 1 du Coffre (création de ses tables) ; aucune autre migration.
+
+### Ajouté
+
+- **Coffre — déposer et ranger** : glisser des fichiers ou des dossiers n'importe où sur une page du Coffre ouvre la fenêtre de rangement : aperçu à gauche, fiche pré-remplie à droite (contexte, nature, origine, langage, application, prof, année, site, tags), chaque valeur devinée marquée « deviné » avec sa raison au survol, modifiable en un clic (liste avec recherche, création d'un contexte ou d'un tag sur place). Entrée = Ranger ; « Ranger plus tard » (Arrivée) ; plusieurs fichiers : une proposition chacun et « Tout valider ». Sur une tuile ou la page d'un contexte : ce contexte. Un dossier : « Un projet » ou « Les fichiers un par un ». « Ajouter un lien externe… » (laissé à sa place, non sauvegardé, marqué partout). Doublon : « Déjà dans le coffre : … », « Ouvrir l'existant » / « Garder quand même ». Animation vers la tuile (réglage « Animations », respecte « réduire les animations » du système), message avec « Annuler ».
+- **Coffre — déductions** : extension (nature, langage, application), marque Windows « téléchargé depuis Internet » lue sur l'original (site d'origine, même contexte qu'un fichier déjà rangé du même site), mots du nom ↔ contextes existants et cours de l'Agenda (codes, noms, profs ; service `agenda.courses()` facultatif), année ; sans indice : rien. Une valeur choisie n'est jamais remplacée par une déduction.
+- **Coffre — retrouver et voir** : accueil tableau de bord (recherche Ctrl+K, « En cours », récents, Arrivée, tuiles des contextes par famille, santé du coffre : jauge du disque, éléments, place, corbeille) ; page de contexte (couleur, couverture, cours de l'Agenda : code, profs, prochain créneau ; filtres en pastilles combinables ; cartes ou liste triable, choix retenu) ; vues par attribut (« Python », « Prof … ») ; Arrivée ; corbeille du Coffre (Récupérer, Effacer définitivement après confirmation).
+- **Coffre — aperçu grand format** (Espace ou clic sur l'aperçu) : lecteur au centre, fiche modifiable à côté, ← → suivant / précédent, Échap. Lecteurs par un registre générique : PDF (pdf.js local), images, texte, code coloré, Markdown (sans HTML brut ni image), vidéo et son, page HTML isolée (aucun script, aucune requête).
+- **Coffre — ouvrir** : double-clic = son application ; « Ouvrir dans… » ; projet de code : « Ouvrir dans VS Code » s'il est installé, sinon l'explorateur ; un programme ou un script n'est jamais lancé sans une question qui le nomme (refusé aussi par le socle sans cette confirmation).
+- **Socle** : `ctx.files.libraryDir` / `libraryPath` (fichiers de l'utilisateur gardés par un module, `userData/<module>`, jamais effacés à la désinstallation), `ctx.files.provenance` (Mark of the Web), `ctx.files.open(path, { runnable })` (exécutable refusé sans confirmation) ; `isRunnable`, `parseZoneIdentifier` dans `@hub/sdk/core` ; palette des catégories partagée `@hub/sdk/palette`. ADR 0051, 0052, 0053.
+- **SDK — composants « atelier »** : `Gauge` (jauge circulaire), `Counter`, `ReliefCard` (carte en relief avec aperçu), `FilterPill`, `ContextTile` ; jetons du thème seulement, une seule couleur vive (l'accent).
+- **Agenda** : service en lecture seule `agenda.courses()` (cours importés : nom, code, profs, prochain créneau).
+- **CI Windows** : installation silencieuse, fichier témoin dans le dossier du Coffre, désinstallation, le fichier doit rester (`scripts/uninstall-keeps-data.ps1`).
+
+### Dépendances
+
+- `pdfjs-dist` 6.5.438, `highlight.js` 11.12.0, `markdown-it` 15.0.3 (bundlées, en `devDependencies`) ; aucune alerte `npm audit` les concernant.
+
+## [0.44.0] — 2026-11-20
+
+Agenda : copier une image du calendrier (la vue affichée) pour partager ses dispos. Aucune migration. Marqué « Expérimental ».
+
+### Ajouté
+
+- **Agenda — « Copier l'image »** (bouton de la barre et clic droit sur le fond de la grille) : une image dédiée de la vue affichée — semaine (passée ou future), mois, jour sur le téléphone — avec toute la plage d'heures, les catégories allumées et leurs couleurs, les journées, les deadlines, les facultatifs hachurés et la légende ; rien de l'interface. PC : dans le presse-papiers (Ctrl+V dans une discussion) ; téléphone : menu de partage d'Android.
+- Menu de l'image : « Détails » / « Dispos seulement » (chaque bloc dit « Occupé », sans titre, lieu ni note ; sans deadlines ni légende), « Thème clair » / « Thème de l'app » (retenus sur l'appareil), « Enregistrer l'image… ».
+- SDK : `copyImage` (presse-papiers), `useContextMenu().openAt` (menu d'un bouton), icône `share`.
+
+### Changé
+
+- Téléphone : une copie mise dans le cache pour un partage (« Enregistrer sous ») est supprimée ensuite (au retour sur l'app, 5 min au plus, tout de suite si le partage est annulé ; balayage au démarrage).
+
 ## [0.43.0] — 2026-11-18
 
 Agenda : les catégories deviennent de vrais objets (identifiant, réglages qui agissent) et le type (Rendez-vous, Deadline) est porté par chaque élément ; correctif prévu en v0.41.1 (Rendez-vous par défaut, jamais de tâche par la destination Rendez-vous, « Convertir »). Migration 7 de l'Agenda (ajouts seulement, sauvegarde avant). Tout est marqué « Expérimental ».

@@ -488,7 +488,17 @@ export function useContextMenu() {
   const node: ReactNode = open ? (
     <ContextMenu items={open.items} x={open.x} y={open.y} label={open.label} onClose={close} />
   ) : null;
-  return { bind, node, close, isOpen: open !== null };
+  /**
+   * v0.44.0: opens the menu at a point (a button's own menu, under it): the
+   * same menu, keyboard and rules as the right click.
+   */
+  const openAt = useCallback(
+    (build: () => MenuItem[], x: number, y: number, label?: string) => {
+      show(build, x, y, label);
+    },
+    [show],
+  );
+  return { bind, node, close, openAt, isOpen: open !== null };
 }
 
 /**

@@ -9,6 +9,9 @@
   "dependsOn": {
     "optionalServices": ["todo", "timer"]
   },
+  "provides": {
+    "services": ["agenda"]
+  },
   "settings": [
     {
       "key": "dayStartHour",

@@ -1,0 +1,52 @@
+{
+  "id": "coffre",
+  "name": "Coffre",
+  "description": "Un seul endroit pour garder, ranger, retrouver et ouvrir les fichiers qui comptent : cours, synthèses, code, rapports, contrats, fichiers d'applications. Glisse, le Coffre propose où ranger ; Entrée, c'est rangé.",
+  "version": "0.1.0",
+  "section": "Outils",
+  "icon": "package",
+  "order": 7,
+  "experimental": true,
+  "dependsOn": {
+    "optionalServices": ["agenda"]
+  },
+  "settings": [
+    {
+      "key": "animations",
+      "type": "boolean",
+      "label": "Animations",
+      "description": "Un fichier rangé file vers sa tuile (courtes ; jamais quand Windows demande de réduire les animations).",
+      "default": true
+    },
+    {
+      "key": "historyQuotaGb",
+      "type": "number",
+      "label": "Place réservée aux anciennes versions sur le disque (Go)",
+      "description": "Quand elle est pleine, les anciennes versions les plus anciennes sont retirées d'abord, pendant une mise à jour. Jamais les fichiers actuels, les archives ni la corbeille du disque.",
+      "default": 20,
+      "min": 0.001,
+      "max": 100000
+    },
+    {
+      "key": "watchDownloads",
+      "type": "boolean",
+      "label": "Proposer de ranger mes nouveaux téléchargements (Expérimental)",
+      "description": "Désactivé par défaut. Seulement les fichiers arrivés APRÈS l'activation ; ceux en cours de téléchargement (.crdownload, .part…) attendus ; ceux déjà dans le Coffre écartés. Rien n'est rangé sans ton clic ; l'original n'est jamais déplacé ni supprimé.",
+      "default": false
+    },
+    {
+      "key": "downloadsFolder",
+      "type": "folder",
+      "label": "Dossier surveillé",
+      "description": "Vide : ton dossier Téléchargements.",
+      "default": ""
+    },
+    {
+      "key": "notifyDownloads",
+      "type": "boolean",
+      "label": "Notification Windows pour un nouveau téléchargement",
+      "description": "Désactivée par défaut (le compteur du Coffre suffit).",
+      "default": false
+    }
+  ]
+}

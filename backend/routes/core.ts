@@ -3,6 +3,14 @@ import type { FastifyInstance } from 'fastify';
 import { AccountError, openEventStream, type JobInfo } from '../../packages/sdk/backend';
 import { localToday } from '../../packages/sdk/dates';
 import { KEPT_BACKUPS, listAutomaticBackups } from '../core/backups';
+import {
+  cancelRestore,
+  dismissRestoreResult,
+  inspectBackup,
+  pendingRestore,
+  restoreResult,
+  stageRestore,
+} from '../core/restore';
 import { getSqliteVersion } from '../core/database';
 import { exportBackupZip } from '../core/export';
 import { getBinaryVersion, getFfmpegPath, getFfprobePath } from '../core/ffmpeg-binaries';
@@ -83,6 +91,35 @@ export function registerCoreRoutes(app: FastifyInstance, hub: Hub, appVersion: s
       };
     },
   );
+
+  // v0.47.0: « Ranger dans ToolBox » in Windows' right click and « Envoyer vers » (ADR 0059).
+  app.get('/api/core/shell-integration', async () => {
+    const integration = hub.host.shellIntegration;
+    if (!integration) return { available: false, menu: false, sendTo: false };
+    return { available: true, ...(await integration.get()) };
+  });
+  app.put<{ Body: { enabled?: unknown } }>(
+    '/api/core/shell-integration',
+    async (request, reply) => {
+      const integration = hub.host.shellIntegration;
+      if (!integration)
+        return reply.code(409).send({ error: 'Seulement dans l’app ToolBox sous Windows' });
+      if (typeof request.body?.enabled !== 'boolean')
+        return reply.code(400).send({ error: 'Champ « enabled » (booléen) attendu' });
+      hub.logger.info(
+        `Clic droit de Windows « Ranger dans ToolBox » : ${request.body.enabled ? 'remis' : 'retiré'}`,
+      );
+      return { available: true, ...(await integration.set(request.body.enabled)) };
+    },
+  );
+
+  // v0.47.0: the hub's search (Ctrl+K anywhere, MODULES.md §5.18): every module's results.
+  app.get<{ Querystring: { q?: string; limit?: string } }>('/api/core/search', async (request) => {
+    const t0 = performance.now();
+    const limit = Math.max(1, Math.min(50, Number(request.query.limit) || 8));
+    const groups = await hub.search.search(String(request.query.q ?? ''), limit);
+    return { groups, ms: Math.round((performance.now() - t0) * 10) / 10 };
+  });
 
   app.put<{ Params: { id: string }; Body: { enabled?: unknown } }>(
     '/api/core/modules/:id/enabled',
@@ -289,6 +326,67 @@ export function registerCoreRoutes(app: FastifyInstance, hub: Hub, appVersion: s
       createdAt,
     })),
   }));
+
+  // v0.47.0: restore ToolBox from a copy of its base (ADR 0063).
+  const inspect = (file: unknown) => {
+    if (typeof file !== 'string' || !path.isAbsolute(file)) throw new Error('Fichier invalide');
+    return inspectBackup(file, {
+      appVersion: hub.options.appVersion,
+      known: hub.knownMigrations(),
+      nameOf: (scope) => hub.moduleName(scope),
+    });
+  };
+  app.get('/api/core/restore', async () => ({
+    pending: pendingRestore(hub.dataDir),
+    result: restoreResult(hub.dataDir),
+    automatic: listAutomaticBackups(hub.backupsDir).map(
+      ({ file, name, kind, size, createdAt }) => ({
+        file,
+        name,
+        kind,
+        size,
+        createdAt,
+      }),
+    ),
+  }));
+  /** What a copy holds (read only). */
+  app.post<{ Body: { file?: unknown } }>('/api/core/restore/preview', async (request, reply) => {
+    try {
+      return inspect(request.body?.file);
+    } catch (error) {
+      return reply
+        .code(400)
+        .send({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+  /** Confirmed: the current base saved, the copy put aside; replaced at the next start. */
+  app.post<{ Body: { file?: unknown; confirm?: unknown } }>(
+    '/api/core/restore/stage',
+    async (request, reply) => {
+      if (request.body?.confirm !== true)
+        return reply.code(400).send({ error: 'Restauration : confirmation nécessaire' });
+      try {
+        const preview = inspect(request.body?.file);
+        if (preview.refused) return reply.code(409).send({ error: preview.refused });
+        const pending = stageRestore(hub.handle.db, hub.dataDir, hub.backupsDir, preview);
+        hub.logger.info(`Restauration préparée depuis ${preview.file} (au prochain démarrage)`);
+        return pending;
+      } catch (error) {
+        return reply
+          .code(400)
+          .send({ error: error instanceof Error ? error.message : String(error) });
+      }
+    },
+  );
+  app.post('/api/core/restore/cancel', async () => {
+    cancelRestore(hub.dataDir);
+    hub.logger.info('Restauration annulée avant le redémarrage');
+    return { ok: true };
+  });
+  app.delete('/api/core/restore/result', async () => {
+    dismissRestoreResult(hub.dataDir);
+    return { ok: true };
+  });
 
   app.post('/api/core/backups/open-folder', async () => {
     await hub.host.openPath(hub.backupsDir);

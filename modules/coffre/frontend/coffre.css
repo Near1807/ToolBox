@@ -1,0 +1,1710 @@
+/* v0.45.0: the Coffre's pages — « atelier » look (docs/coffre/): dark or light
+   per the theme, the accent as the one vivid colour; theme tokens only. */
+
+.coffre {
+  position: relative;
+  min-height: 100%;
+}
+.coffre-dropzone {
+  position: fixed;
+  inset: 12px;
+  z-index: 700;
+  display: grid;
+  place-items: center;
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  pointer-events: none;
+}
+.coffre-dropzone span {
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: var(--surface-solid);
+  box-shadow: var(--elev-popover);
+  font-weight: 600;
+}
+.coffre-busy {
+  position: fixed;
+  left: 50%;
+  top: 24px;
+  transform: translateX(-50%);
+  z-index: 1050;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: var(--surface-solid);
+  box-shadow: var(--elev-popover);
+}
+.coffre-toast .ui-undo {
+  z-index: 1050;
+}
+.coffre-fly {
+  position: fixed;
+  z-index: 1200;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--accent);
+  background: var(--surface-solid);
+  box-shadow: var(--glow), var(--elev-popover);
+  font-size: 0.8rem;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+.coffre-landed {
+  animation: coffre-land 0.6s ease;
+}
+@keyframes coffre-land {
+  40% {
+    box-shadow:
+      0 0 0 3px var(--accent),
+      var(--elev-hover);
+  }
+}
+
+/* Sections and dashboard */
+.coffre-h2 {
+  margin: 0 0 10px;
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
+  color: var(--text-2);
+  text-transform: uppercase;
+}
+.coffre-section {
+  margin-top: 22px;
+}
+.coffre-dash {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(220px, 1fr);
+  gap: 14px;
+}
+.coffre-panel {
+  padding: 16px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--elev-raised);
+}
+.coffre-health__row {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.coffre-health__counters {
+  display: flex;
+  gap: 28px;
+  flex-wrap: wrap;
+}
+.coffre-health__trash {
+  color: inherit;
+  text-decoration: none;
+}
+.coffre-health__next {
+  margin: 12px 0 0;
+  font-size: 0.8rem;
+}
+.coffre-arrival {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+.coffre-arrival__done {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--success);
+  font-weight: 600;
+}
+.coffre-welcome {
+  margin-top: 22px;
+}
+.coffre-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 12px;
+}
+.coffre-tiles--small {
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  margin-bottom: 16px;
+}
+.coffre-tiles--small .atelier-tile {
+  min-height: 72px;
+}
+.coffre-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 14px;
+}
+.coffre-cards--large {
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+}
+.coffre-empty-line {
+  margin: 8px 0;
+}
+.coffre-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 260px;
+}
+.coffre-search .input {
+  flex: 1;
+}
+
+/* Chips on cards */
+.coffre-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--surface-solid);
+  border: 1px solid var(--border);
+  font-size: 0.7rem;
+  color: var(--text-2);
+}
+.coffre-chip--accent {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.atelier-card__actions .coffre-card-action {
+  background: var(--surface-solid);
+  box-shadow: var(--elev-popover);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.atelier-card__actions .coffre-card-action--on {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* Previews in cards */
+.coffre-reader-icon,
+.coffre-reader-none {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  height: 100%;
+  color: var(--text-3);
+}
+.coffre-reader-icon svg {
+  width: 36px;
+  height: 36px;
+}
+.coffre-reader-none svg {
+  width: 64px;
+  height: 64px;
+}
+.coffre-reader-thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.coffre-reader-thumb-pdf {
+  display: block;
+  width: 100% !important;
+  height: auto;
+  background: var(--media-bg);
+}
+.coffre-reader-thumb-text,
+.coffre-reader-thumb-md {
+  margin: 0;
+  padding: 8px 10px;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  text-align: left;
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  line-height: 1.35;
+  color: var(--text-2);
+  white-space: pre;
+}
+.coffre-reader-thumb-md {
+  font-family: inherit;
+  white-space: normal;
+}
+.coffre-reader-thumb-md * {
+  margin: 0 0 4px;
+  padding: 0;
+  font-size: inherit;
+  line-height: inherit;
+}
+.coffre-reader-thumb-md :is(h1, h2, h3) {
+  font-weight: 700;
+  color: var(--text);
+}
+.coffre-reader-thumb-md ul {
+  padding-left: 12px;
+}
+.coffre-reader-thumb-frame {
+  width: 200%;
+  height: 200%;
+  transform: scale(0.5);
+  transform-origin: 0 0;
+  border: 0;
+  pointer-events: none;
+  background: var(--media-bg);
+}
+
+/* Full readers */
+.coffre-reader-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  display: block;
+  margin: auto;
+  cursor: zoom-in;
+}
+/* v0.47.0: the image with its zoom. */
+.coffre-reader-image-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+.coffre-reader-image-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.coffre-reader-image-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+  padding: 12px;
+}
+.coffre-reader-image-view--zoomed {
+  overflow: auto;
+}
+.coffre-reader-image-view--zoomed .coffre-reader-image {
+  cursor: zoom-out;
+  margin: 0;
+}
+.coffre-reader-video {
+  max-width: 100%;
+  max-height: 100%;
+  display: block;
+  margin: auto;
+  background: var(--media-bg);
+}
+.coffre-reader-audio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  margin: auto;
+  color: var(--text-3);
+}
+.coffre-reader-audio svg {
+  width: 64px;
+  height: 64px;
+}
+.coffre-reader-text,
+.coffre-reader-code {
+  margin: 0;
+  padding: 16px 18px;
+  width: 100%;
+  min-height: 100%;
+  overflow: auto;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  white-space: pre;
+  tab-size: 4;
+  background: var(--surface-2);
+  color: var(--text);
+}
+.coffre-reader-markdown {
+  padding: 18px 26px;
+  max-width: 860px;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+.coffre-reader-markdown pre,
+.coffre-reader-markdown code {
+  font-family: var(--font-mono);
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+}
+.coffre-reader-markdown pre {
+  padding: 10px 12px;
+  overflow: auto;
+}
+.coffre-reader-markdown a {
+  color: var(--accent);
+  cursor: default;
+}
+.coffre-reader-frame {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: var(--media-bg);
+}
+.coffre-reader-pdf-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 0;
+  height: 100%;
+}
+.coffre-reader-pdf {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  width: 100%;
+}
+/* v0.47.0: one page (drawn when seen), its text layer above (selectable, the words marked). */
+.coffre-reader-pdf__page {
+  position: relative;
+  flex: none;
+  box-shadow: var(--elev-raised);
+  background: var(--media-bg);
+  --scale-round-x: 1px;
+  --scale-round-y: 1px;
+}
+.coffre-reader-pdf__page canvas {
+  display: block;
+}
+.coffre-reader-pdf__page .textLayer {
+  position: absolute;
+  inset: 0;
+  overflow: clip;
+  line-height: 1;
+  text-align: initial;
+  transform-origin: 0 0;
+  forced-color-adjust: none;
+  --min-font-size: 1;
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
+}
+.coffre-reader-pdf__page .textLayer :is(span, br) {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+  user-select: text;
+}
+.coffre-reader-pdf__page .textLayer > :not(.markedContent),
+.coffre-reader-pdf__page .textLayer .markedContent span:not(.markedContent) {
+  --font-height: 0;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  --scale-x: 1;
+  --rotate: 0deg;
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+}
+.coffre-reader-pdf__page .textLayer .markedContent {
+  display: contents;
+}
+.coffre-reader-pdf__page .textLayer ::selection {
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.coffre-reader-pdf__page .textLayer mark.coffre-hit {
+  color: transparent;
+  background: color-mix(in srgb, var(--warning) 45%, transparent);
+}
+.coffre-reader-pdf__page .textLayer mark.coffre-hit--current {
+  background: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.coffre-reader-pdf__tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.coffre-reader-pdf__goto,
+.coffre-reader-pdf__zoom,
+.coffre-reader-pdf__find {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.coffre-reader-pdf__goto .input {
+  width: 4.5em;
+  text-align: right;
+}
+.coffre-reader-pdf__pct {
+  min-width: 3.5em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.coffre-reader-pdf__find {
+  margin-left: auto;
+}
+.coffre-reader-pdf__find .input {
+  width: 16em;
+}
+.coffre-reader-pdf__count {
+  font-variant-numeric: tabular-nums;
+}
+/* v0.47.0: a search's words in the text readers. */
+mark.coffre-hit {
+  background: color-mix(in srgb, var(--warning) 40%, transparent);
+  color: inherit;
+  border-radius: 2px;
+}
+mark.coffre-hit--current {
+  background: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+/* v0.47.0: code with its line numbers. */
+.coffre-reader-lines {
+  display: flex;
+  width: 100%;
+  min-height: 100%;
+  background: var(--surface-2);
+}
+.coffre-reader-lines .coffre-reader-code {
+  flex: 1;
+  min-width: 0;
+}
+.coffre-reader-lines__numbers {
+  margin: 0;
+  padding: 16px 8px 16px 14px;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  text-align: right;
+  color: var(--text-3);
+  background: var(--surface-2);
+  border-right: 1px solid var(--border);
+  user-select: none;
+}
+/* v0.47.0: a Markdown's table of contents (reading window). */
+.coffre-reader-md-layout {
+  display: grid;
+  grid-template-columns: minmax(180px, 260px) 1fr;
+  width: 100%;
+  min-height: 0;
+}
+.coffre-reader-toc {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  max-height: 100vh;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 18px 10px;
+  border-right: 1px solid var(--border);
+}
+.coffre-reader-toc__title {
+  padding: 0 8px 6px;
+}
+.coffre-reader-toc__item {
+  border: 0;
+  background: none;
+  text-align: left;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  cursor: pointer;
+}
+.coffre-reader-toc__item:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+.coffre-reader-toc__item--2 {
+  padding-left: 20px;
+}
+.coffre-reader-toc__item--3 {
+  padding-left: 32px;
+  font-size: 0.9em;
+}
+.coffre-reader-error,
+.coffre-reader-wait {
+  margin: auto;
+  padding: 16px;
+}
+.coffre-reader-error {
+  color: var(--danger);
+}
+
+/* Code colours: the theme's series (no fixed colour). */
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-built_in,
+.hljs-type {
+  color: var(--series-1);
+}
+.hljs-string,
+.hljs-regexp,
+.hljs-attr {
+  color: var(--series-2);
+}
+.hljs-number,
+.hljs-literal,
+.hljs-symbol {
+  color: var(--series-3);
+}
+.hljs-title,
+.hljs-section,
+.hljs-function .hljs-title {
+  color: var(--series-4);
+}
+.hljs-comment,
+.hljs-quote,
+.hljs-meta {
+  color: var(--text-3);
+  font-style: italic;
+}
+.hljs-variable,
+.hljs-template-variable,
+.hljs-params {
+  color: var(--series-5);
+}
+.hljs-tag,
+.hljs-name {
+  color: var(--series-6);
+}
+
+/* Modal windows (rangement, question) */
+.coffre-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 800;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--overlay);
+}
+.coffre-modal__box {
+  position: relative;
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-solid);
+  box-shadow: var(--elev-modal);
+}
+.coffre-question {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 20px 24px;
+  min-width: 320px;
+}
+.coffre-question h2 {
+  margin: 0 0 6px;
+  font-size: 1.05rem;
+}
+.coffre-deposit {
+  display: flex;
+  flex-direction: column;
+  width: min(1100px, calc(100vw - 48px));
+  height: min(720px, calc(100vh - 48px));
+}
+.coffre-deposit--many {
+  width: min(1320px, calc(100vw - 48px));
+}
+.coffre-deposit__head {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.coffre-deposit__head h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+.coffre-deposit__head .icon-button {
+  margin-left: auto;
+  align-self: center;
+}
+.coffre-deposit__body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+.coffre-deposit--many .coffre-deposit__body {
+  grid-template-columns: minmax(200px, 0.7fr) minmax(0, 1.1fr) minmax(320px, 1fr);
+}
+.coffre-deposit__list {
+  margin: 0;
+  padding: 8px;
+  list-style: none;
+  overflow: auto;
+  border-right: 1px solid var(--border);
+}
+.coffre-deposit__line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.coffre-deposit__line:hover {
+  background: var(--surface-hover);
+}
+.coffre-deposit__line--on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.coffre-deposit__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.coffre-deposit__where {
+  grid-column: 1;
+  font-size: 0.75rem;
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.coffre-state {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+  font-size: 0.7rem;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-2);
+}
+.coffre-state--done {
+  color: var(--success);
+}
+.coffre-deposit__preview {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  background: var(--surface-2);
+}
+.coffre-deposit__view {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+}
+.coffre-deposit__path {
+  margin: 0;
+  padding: 6px 12px;
+  font-size: 0.72rem;
+  color: var(--text-3);
+  border-top: 1px solid var(--border);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.coffre-deposit__sheet {
+  padding: 14px 16px;
+  overflow: auto;
+  border-left: 1px solid var(--border);
+}
+.coffre-deposit__foot {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--border);
+}
+.coffre-duplicate {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--warning);
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+}
+.coffre-duplicate p {
+  margin: 0 0 8px;
+}
+.coffre-duplicate__actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* The sheet */
+.coffre-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.coffre-sheet__row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+}
+.coffre-sheet__label {
+  font-size: 0.8rem;
+  color: var(--text-2);
+}
+.coffre-sheet__value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.coffre-sheet__name {
+  width: 100%;
+}
+.coffre-sheet__pick {
+  max-width: 100%;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--control-border);
+  background: var(--field);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.coffre-sheet__pick:hover {
+  border-color: var(--accent);
+}
+.coffre-sheet__pick--empty {
+  color: var(--text-3);
+  border-style: dashed;
+}
+.coffre-sheet__change {
+  width: 26px;
+  height: 26px;
+}
+.coffre-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+}
+.coffre-value__text {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+button.coffre-value__text:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+.coffre-value__remove {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--text-3);
+  cursor: pointer;
+}
+.coffre-value__remove:hover {
+  color: var(--danger);
+  background: var(--surface-hover);
+}
+.coffre-value__remove svg {
+  width: 12px;
+  height: 12px;
+}
+.coffre-guess {
+  font-size: 0.66rem;
+  padding: 0 6px;
+  border-radius: 999px;
+  border: 1px dashed var(--accent);
+  color: var(--accent);
+  cursor: help;
+  white-space: nowrap;
+}
+.coffre-link-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  border: 1px solid var(--warning);
+  font-size: 0.8rem;
+}
+
+/* The picker */
+.coffre-picker {
+  position: absolute;
+  z-index: 900;
+  left: 96px;
+  top: calc(100% - 2px);
+  width: min(360px, 100%);
+  padding: 6px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-solid);
+  box-shadow: var(--elev-popover);
+}
+.coffre-picker .input {
+  width: 100%;
+}
+.coffre-picker__list {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  max-height: 240px;
+  overflow: auto;
+}
+.coffre-picker__item {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.coffre-picker__item--on {
+  background: var(--accent-soft);
+}
+.coffre-picker__item--new {
+  color: var(--accent);
+  font-weight: 600;
+}
+.coffre-picker__hint,
+.coffre-picker__empty {
+  color: var(--text-3);
+  font-size: 0.8rem;
+}
+.coffre-picker__empty {
+  padding: 6px 8px;
+}
+
+/* The large preview */
+.coffre-preview {
+  position: fixed;
+  inset: 0;
+  z-index: 800;
+  display: flex;
+  flex-direction: column;
+  background: var(--overlay);
+  backdrop-filter: blur(var(--blur));
+}
+.coffre-preview__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: var(--surface-solid);
+  border-bottom: 1px solid var(--border);
+}
+.coffre-preview__title {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  margin-right: auto;
+}
+.coffre-preview__title strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.coffre-preview__title .muted {
+  font-size: 0.78rem;
+}
+.coffre-preview__count {
+  font-family: var(--font-mono);
+  color: var(--text-2);
+}
+.coffre-preview__body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 44px minmax(300px, 380px);
+}
+.coffre-preview__reader {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  background: var(--surface-2);
+}
+.coffre-preview__nav {
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: var(--surface-2);
+  color: var(--text-2);
+  cursor: pointer;
+}
+.coffre-preview__nav:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.coffre-preview__nav:not(:disabled):hover {
+  color: var(--accent);
+}
+.coffre-preview__nav--prev svg {
+  transform: rotate(180deg);
+}
+.coffre-preview__sheet {
+  padding: 14px 16px;
+  overflow: auto;
+  background: var(--surface-solid);
+  border-left: 1px solid var(--border);
+}
+.coffre-preview__origin {
+  margin-top: 16px;
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+/* Context page, filters, list */
+.coffre-context {
+  position: relative;
+}
+.coffre-context__band {
+  height: 4px;
+  margin-bottom: 14px;
+  border-radius: 999px;
+  background: var(--context-color);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--context-color) 50%, transparent);
+}
+.coffre-context__head {
+  display: flex;
+  gap: 16px;
+  align-items: stretch;
+  margin-bottom: 16px;
+}
+.coffre-context__cover {
+  width: 220px;
+  max-height: 140px;
+  object-fit: contain;
+  border-radius: var(--radius);
+  background: var(--media-bg);
+}
+.coffre-context__foot {
+  margin-top: 24px;
+}
+.coffre-course {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--elev-raised);
+}
+.coffre-course__tag {
+  font-size: 0.72rem;
+  color: var(--text-3);
+  text-transform: uppercase;
+}
+.coffre-course__code {
+  font-family: var(--font-mono);
+  color: var(--accent);
+}
+.coffre-crumbs a {
+  color: inherit;
+}
+.coffre-color {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.coffre-color__dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+}
+.coffre-facets {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.coffre-facets__group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.coffre-facets__label {
+  width: 96px;
+  font-size: 0.78rem;
+  color: var(--text-2);
+}
+.coffre-facets > .button {
+  align-self: flex-start;
+}
+.coffre-viewbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+.coffre-viewbar__sort {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+.coffre-viewbar__modes {
+  display: flex;
+  gap: 4px;
+}
+.coffre-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+.coffre-table th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-2);
+  border-bottom: 1px solid var(--border-strong);
+  padding: 6px 8px;
+}
+.coffre-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.coffre-table tbody tr:hover,
+.coffre-table tbody tr:focus-visible {
+  background: var(--surface-hover);
+}
+.coffre-table__name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.coffre-table__open {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: zoom-in;
+}
+.coffre-table__num {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.coffre-table__actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+.coffre-th {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.coffre-th--on {
+  color: var(--accent);
+}
+.coffre-linklike {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-2);
+  font: inherit;
+  cursor: pointer;
+}
+
+@media (max-width: 900px) {
+  .coffre-dash,
+  .coffre-deposit__body,
+  .coffre-deposit--many .coffre-deposit__body {
+    grid-template-columns: 1fr;
+  }
+  .coffre-preview__body {
+    grid-template-columns: 32px minmax(0, 1fr) 32px;
+  }
+  .coffre-preview__sheet {
+    grid-column: 1 / -1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .coffre-landed {
+    animation: none;
+  }
+}
+
+/* v0.46.0: the disk — witness, sidebar dot, settings panel */
+.coffre-diskbar {
+  max-width: 1180px;
+  padding: 18px 36px 0;
+}
+.coffre-witness {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 0.86rem;
+  color: var(--text-2);
+}
+.coffre-witness__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--text-3);
+  flex: none;
+}
+.coffre-witness--on .coffre-witness__dot {
+  background: var(--accent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+.coffre-witness--warn {
+  border-color: color-mix(in srgb, var(--warning) 50%, var(--border));
+}
+.coffre-witness--warn .coffre-witness__dot {
+  background: var(--warning);
+}
+.coffre-witness--todo {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+}
+.coffre-witness__text {
+  color: var(--text);
+}
+.coffre-witness__todo {
+  font-weight: 600;
+  color: var(--text);
+}
+.coffre-witness .button {
+  margin-left: auto;
+}
+.coffre-badge {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-left: 6px;
+  flex: none;
+}
+.coffre-badge--on {
+  background: var(--accent);
+}
+.coffre-badge--warn {
+  background: var(--warning);
+}
+.coffre-settings {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+.coffre-settings h3 {
+  margin: 0;
+}
+.coffre-settings__state {
+  margin: 0;
+}
+.coffre-settings__state--on {
+  color: var(--text);
+}
+.coffre-settings__state--warn {
+  color: var(--warning);
+}
+.coffre-settings__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.coffre-chip--warn {
+  border-color: var(--warning);
+  color: var(--warning);
+}
+
+/* v0.46.0: the update window (plan, progress, report) */
+.coffre-update {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: min(760px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+  padding: 18px 22px;
+  overflow: auto;
+}
+.coffre-update__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.coffre-update__head h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+.coffre-update__counters {
+  display: flex;
+  gap: 28px;
+  flex-wrap: wrap;
+}
+.coffre-update__refused,
+.coffre-update__stopped {
+  color: var(--warning);
+  font-weight: 600;
+}
+.coffre-update__plan {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 320px;
+  overflow: auto;
+}
+.coffre-update__plan ul,
+.coffre-update__problems ul {
+  margin: 4px 0 8px;
+  padding-left: 26px;
+  font-size: 0.85rem;
+}
+.coffre-update__plan li {
+  display: flex;
+  flex-direction: column;
+  padding: 2px 0;
+}
+.coffre-update__group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.coffre-update__problems {
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--warning);
+  font-size: 0.86rem;
+}
+.coffre-update__foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.coffre-update__foot .muted {
+  margin-right: auto;
+}
+.coffre-update__progress {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+.coffre-update__message {
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  margin: 0 0 6px;
+  overflow-wrap: anywhere;
+}
+.coffre-update__done {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--success);
+  font-weight: 600;
+}
+.coffre-update__eject {
+  font-weight: 600;
+}
+.coffre-facets__disk {
+  margin-bottom: 8px;
+}
+.coffre-witness__link {
+  color: var(--warning);
+}
+.coffre-versions {
+  margin-top: 18px;
+}
+.coffre-versions h3 {
+  margin: 0 0 6px;
+  font-size: 0.9rem;
+}
+.coffre-versions ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.coffre-versions li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.85rem;
+}
+.coffre-disktrash {
+  margin-top: 30px;
+}
+.coffre-proposal {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 0 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--warning);
+}
+
+/* v0.46.0: health, selection, restoration */
+.coffre-health__gauges {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  flex-wrap: wrap;
+}
+.coffre-health__gauge {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+}
+.coffre-health__gauge figcaption {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.78rem;
+  color: var(--text-2);
+}
+.coffre-health__gauge figcaption strong {
+  color: var(--text);
+  font-size: 0.86rem;
+}
+.coffre-health__gauge--off {
+  opacity: 0.6;
+}
+.coffre-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 4px;
+}
+.coffre-dot--accent {
+  background: var(--accent);
+}
+.coffre-dot--1 {
+  background: var(--series-1);
+}
+.coffre-dot--2 {
+  background: var(--series-2);
+}
+.coffre-dot--3 {
+  background: var(--series-3);
+}
+.coffre-health__foot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-top: 12px;
+  font-size: 0.82rem;
+  color: var(--text-2);
+}
+.coffre-health__bad {
+  color: var(--warning);
+}
+.coffre-health__suggest {
+  margin: 10px 0 0;
+  font-size: 0.82rem;
+}
+.coffre-selectbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: -4px 0 12px;
+  font-size: 0.86rem;
+}
+.coffre-restore__facts {
+  margin: 0;
+  padding-left: 20px;
+  line-height: 1.6;
+}
+.coffre-restore__confirm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+/* v0.47.0: the search's results, grouped by element, their extracts and pages. */
+.coffre-results {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.coffre-result {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  padding: 6px 8px;
+}
+.coffre-result--away {
+  opacity: 0.75;
+}
+.coffre-result__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: 0;
+  background: none;
+  padding: 4px;
+  text-align: left;
+  color: var(--text);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+.coffre-result__head:hover,
+.coffre-result__hit:hover {
+  background: var(--surface-hover);
+}
+.coffre-result__hits {
+  list-style: none;
+  margin: 2px 0 0 28px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.coffre-result__hit {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  width: 100%;
+  border: 0;
+  background: none;
+  padding: 3px 6px;
+  text-align: left;
+  color: var(--text-2);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  font-size: 0.9rem;
+}
+.coffre-result__part {
+  flex: none;
+  min-width: 5.5em;
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 0.82rem;
+}
+.coffre-results__exp {
+  margin-left: 8px;
+  vertical-align: middle;
+}
+.coffre-results__reading,
+.coffre-results__time {
+  margin: 4px 0;
+}
+.coffre-health__index {
+  margin: 8px 0 0;
+  color: var(--text-2);
+}
+.coffre-reader-pdf__zoom .icon-button,
+.coffre-reader-image-tools .icon-button {
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+/* v0.47.0: the reading window (an element alone, its reader filling the window). */
+.coffre-readwin {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.coffre-readwin__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.coffre-readwin__title {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  margin-right: auto;
+}
+.coffre-readwin__title strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.coffre-readwin__body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  background: var(--surface-2);
+}
+
+/* v0.47.0: new downloads (the home's panel, the sidebar's count). */
+.coffre-dash__side {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+.coffre-downloads__list {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.9rem;
+}
+.coffre-downloads__list li {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.coffre-downloads__actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.coffre-badge-count {
+  margin-left: 6px;
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--text-on-accent);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+.coffre-existing {
+  max-width: 560px;
+}
+.coffre-existing__list {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+  max-height: 50vh;
+  overflow: auto;
+}
+.coffre-existing__list li {
+  padding: 3px 0;
+}
+.coffre-existing__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+/* v0.47.0: « Ce que le Coffre a appris ». */
+.coffre-learned {
+  margin-top: 22px;
+}
+.coffre-learned__table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0 12px;
+}
+.coffre-learned__table th,
+.coffre-learned__table td {
+  text-align: left;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.coffre-learned--weak {
+  color: var(--text-3);
+}
+.coffre-learned__nature {
+  width: 12em;
+}
+
+/* v0.47.0: « Maintenant » (a course of the Agenda now) and « Lié au cours ». */
+.coffre-now {
+  border: 1px solid var(--accent-soft);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  background: var(--surface);
+  margin-bottom: 14px;
+}
+.coffre-now__course {
+  margin: 0 0 10px;
+}
+.coffre-context__course-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 10px;
+}
+.coffre-context__course-link .input {
+  width: auto;
+}
+
+/* v0.47.0: elements of a restored base not on this PC: « Restaurer le Coffre depuis le disque ». */
+.coffre-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  border: 1px solid var(--border-strong);
+  border-left: 3px solid var(--warning);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}

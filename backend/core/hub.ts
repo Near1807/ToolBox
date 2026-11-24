@@ -1,4 +1,13 @@
 import { CalendarRegistry } from './calendar';
+import { SearchRegistry } from './search';
+import {
+  applyPendingRestore,
+  finishRestore,
+  raiseJournalFloors,
+  resetSyncAfterRestore,
+  rollbackRestore,
+  type PendingRestore,
+} from './restore';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
@@ -18,7 +27,7 @@ import {
 } from './accounts';
 import { AssistantRegistry, rightKey } from './assistant';
 import { registerCoreActions } from './assistant-core';
-import { createAutomaticBackup, restoreBackup } from './backups';
+import { createAutomaticBackup, restoreBackup, snapshotDatabase } from './backups';
 import { coreMigrations } from './core-migrations';
 import { randomUUID } from 'node:crypto';
 import { SyncEngine } from './sync/engine';
@@ -128,6 +137,10 @@ export class Hub {
   readonly dataDir: string;
   readonly backupsDir: string;
   readonly modulesDataDir: string;
+  /** v0.45.0: the libraries of the loaded modules (served as media). */
+  private readonly libraryDirs: string[];
+  /** v0.46.0: folders outside userData a module lets the UI show (ctx.files.allowMediaRoot), by module. */
+  private readonly extraMediaRoots = new Map<string, Set<string>>();
   readonly handle: DatabaseHandle;
   readonly logs: LogStore;
   readonly logger: ModuleLogger;
@@ -143,6 +156,8 @@ export class Hub {
   readonly accounts: AccountManager;
   readonly assistant = new AssistantRegistry();
   readonly calendar = new CalendarRegistry((id) => this.records.get(id)?.manifest?.name ?? id);
+  /** v0.47.0: the search of every module (Ctrl+K anywhere, §5.18). */
+  readonly search = new SearchRegistry((id) => this.records.get(id)?.manifest?.name ?? id);
   readonly hotkeys: HotkeyManager;
   /** Modules currently asking for the floating indicator. */
   private readonly overlayRequests = new Set<string>();
@@ -152,6 +167,7 @@ export class Hub {
     this.dataDir = options.dataDir;
     this.backupsDir = path.join(options.dataDir, 'backups');
     this.modulesDataDir = path.join(options.dataDir, 'modules');
+    this.libraryDirs = [];
     for (const dir of [this.dataDir, this.backupsDir, this.modulesDataDir]) {
       mkdirSync(dir, { recursive: true });
     }
@@ -163,6 +179,10 @@ export class Hub {
     this.scheduler = new Scheduler(this.handle);
     this.media = new MediaSigner(() => [
       this.modulesDataDir,
+      // v0.45.0: the user's files kept by modules (<userData>/<id>/, ctx.files.libraryDir).
+      ...this.libraryDirs,
+      // v0.46.0: an external folder a module was given by the user (the Coffre's disk).
+      ...[...this.extraMediaRoots.values()].flatMap((set) => [...set]),
       this.getOutputRoot(),
       options.assetsRoot,
     ]);
@@ -178,21 +198,73 @@ export class Hub {
   }
 
   static async create(options: HubOptions): Promise<Hub> {
-    const hub = new Hub(options);
+    // v0.47.0 (ADR 0063): a restore confirmed before the restart takes place now,
+    // BEFORE the base is opened; any failure brings the base of before back.
+    let pending: PendingRestore | null = null;
     try {
-      await hub.initialize();
+      pending = applyPendingRestore(options.dataDir);
     } catch (error) {
-      hub.handle.close();
-      throw error;
+      console.error('Restauration de la base : mise en place impossible', error);
+    }
+    let hub: Hub | null = null;
+    try {
+      hub = new Hub(options);
+      await hub.initialize();
+      if (pending && hub.migrationFailures.length)
+        throw new Error(hub.migrationFailures.join(' ; '));
+    } catch (error) {
+      if (hub) await hub.stop().catch(() => hub?.handle.close());
+      if (!pending) throw error;
+      rollbackRestore(options.dataDir, pending, errorMessage(error));
+      const again = await Hub.create(options);
+      again.logger.error(
+        `Restauration annulée, la base d’avant est revenue : ${errorMessage(error)}`,
+      );
+      return again;
+    }
+    if (pending) {
+      raiseJournalFloors(hub.handle.db, pending.seqFloors, () => randomUUID());
+      resetSyncAfterRestore(hub.handle.db);
+      finishRestore(options.dataDir, pending);
+      hub.logger.info(`Base restaurée depuis ${pending.source}`);
     }
     return hub;
   }
+
+  /**
+   * v0.47.0: the last migration this ToolBox knows for each scope (core and
+   * every module it ships, loaded or not): a base with a higher one was written
+   * by a newer ToolBox (a restore refuses it).
+   */
+  knownMigrations(): Map<string, number> {
+    const out = new Map<string, number>([
+      [CORE_SCOPE, Math.max(0, ...coreMigrations.map((m) => m.version))],
+    ]);
+    for (const r of this.records.values())
+      out.set(r.id, Math.max(0, ...(r.backend?.migrations ?? []).map((m) => m.version)));
+    return out;
+  }
+
+  /** v0.47.0: a module's name (its manifest), else its id. */
+  moduleName(id: string): string {
+    return this.records.get(id)?.manifest?.name ?? id;
+  }
+
+  /** v0.47.0: the migrations that failed at this start (a restore is then undone). */
+  readonly migrationFailures: string[] = [];
 
   get host(): HostAdapter {
     return this.options.host;
   }
 
   /** Root folder for generated files (core setting "outputRoot"). */
+  /** v0.45.0: <userData>/<id>/, the user's files a module keeps (ctx.files.libraryDir), served as media. */
+  private libraryDirOf(id: string): string {
+    const dir = path.join(this.dataDir, id);
+    if (!this.libraryDirs.includes(dir)) this.libraryDirs.push(dir);
+    return dir;
+  }
+
   getOutputRoot(): string {
     return String(this.settings.get(CORE_SCOPE, 'outputRoot') ?? this.host.getDefaultOutputRoot());
   }
@@ -202,6 +274,12 @@ export class Hub {
     ensureMigrationsTable(this.handle.db);
     const coreFailure = this.migrateScope(CORE_SCOPE, coreMigrations);
     if (coreFailure) throw new Error(coreFailure);
+    // v0.47.0: the ToolBox that last opened this base (a restore's preview shows it).
+    this.handle.db
+      .prepare(
+        "INSERT INTO core__meta (key, value) VALUES ('app_version', ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value",
+      )
+      .run(this.options.appVersion);
     this.sync = new SyncEngine({
       db: this.handle.db,
       role: 'pc',
@@ -323,6 +401,7 @@ export class Hub {
           ? error.message
           : `Mise à jour de la base de « ${scope} » impossible : ${errorMessage(error)}`;
       this.logger.error(message, error);
+      this.migrationFailures.push(message);
       if (backupFile) {
         restoreBackup(this.handle, backupFile);
         this.logger.warn(`Base restaurée depuis ${path.basename(backupFile)}`);
@@ -464,6 +543,11 @@ export class Hub {
         logger.info(`Sauvegarde de la base : ${path.basename(file)}`);
         return path.basename(file);
       },
+      snapshotTo: (file) => {
+        if (!path.isAbsolute(file)) throw new Error('Copie de la base : chemin absolu attendu');
+        snapshotDatabase(this.handle.db, file);
+        logger.info(`Copie de la base écrite : ${file}`);
+      },
     };
 
     const events = this.bus.forSource(id, logger, (off) => disposers.push(off));
@@ -475,10 +559,20 @@ export class Hub {
       files: createModuleFiles({
         moduleId: id,
         modulesDataDir: this.modulesDataDir,
+        libraryDir: this.libraryDirOf(id),
         assetsDir: path.join(this.options.assetsRoot, record.folder, 'assets'),
         getOutputRoot: () => this.getOutputRoot(),
         host: this.host,
         mediaUrl: (filePath) => this.media.url(filePath),
+        allowMediaRoot: (dir) => {
+          const resolved = path.resolve(dir);
+          const set = this.extraMediaRoots.get(id) ?? new Set<string>();
+          set.add(resolved);
+          this.extraMediaRoots.set(id, set);
+          return () => {
+            this.extraMediaRoots.get(id)?.delete(resolved);
+          };
+        },
       }),
       outputs: this.outputs.forModule(id),
       settings: {
@@ -502,6 +596,7 @@ export class Hub {
       notifications: createModuleNotifications(id, this.host, logger),
       assistant: this.assistant.forModule(manifest, logger, (off) => disposers.push(off)),
       calendar: this.calendar.forModule(id, (off) => disposers.push(off)),
+      search: this.search.forModule(id, (off) => disposers.push(off)),
       hotkeys: this.hotkeys.forModule(id, manifest.permissions?.globalKeys === true, (off) =>
         disposers.push(off),
       ),
@@ -511,6 +606,24 @@ export class Hub {
           this.host.showWindow(route);
         },
         setOverlay: (visible) => this.setOverlay(id, visible),
+        openWindow: (route, options) => {
+          if (!route.startsWith(`/m/${id}/`)) throw new Error(`Route invalide « ${route} »`);
+          if (!this.host.openWindow) return false;
+          this.host.openWindow(route, { title: String(options?.title ?? '').slice(0, 200) });
+          return true;
+        },
+        receiveFiles: (handler) => {
+          if (this.fileReceiver && this.fileReceiver.moduleId !== id) {
+            logger.warn(
+              `Fichiers envoyés par Windows : déjà reçus par « ${this.fileReceiver.moduleId} »`,
+            );
+            return;
+          }
+          this.fileReceiver = { moduleId: id, handler };
+          disposers.push(() => {
+            if (this.fileReceiver?.moduleId === id) this.fileReceiver = null;
+          });
+        },
       },
       images: { normalise: normaliseImage },
       binaries: {
@@ -553,6 +666,32 @@ export class Hub {
       logger.error(record.error, error);
       return false;
     }
+  }
+
+  /** v0.47.0: the module that receives the files Windows sends (ADR 0059). */
+  private fileReceiver: {
+    moduleId: string;
+    handler: (paths: string[]) => string | null | Promise<string | null>;
+  } | null = null;
+
+  /**
+   * v0.47.0: files sent by Windows (right click « Ranger dans ToolBox »,
+   * « Envoyer vers »), one batch: given to the receiving module, then the
+   * window comes to the front on the route it answers. Absolute paths only.
+   */
+  async receiveFiles(paths: readonly string[]): Promise<string | null> {
+    const list = paths.filter((p) => typeof p === 'string' && path.isAbsolute(p));
+    if (!list.length) return null;
+    let route: string | null = null;
+    if (this.fileReceiver)
+      try {
+        route = await this.fileReceiver.handler([...list]);
+      } catch (error) {
+        this.logger.error('Fichiers envoyés par Windows : échec', error);
+      }
+    else this.logger.warn('Fichiers envoyés par Windows : aucun outil pour les recevoir');
+    this.host.showWindow(route ?? undefined);
+    return route;
   }
 
   private setOverlay(moduleId: string, visible: boolean): void {

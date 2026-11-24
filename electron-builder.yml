@@ -24,6 +24,10 @@ extraResources:
 
 asarUnpack:
   - build/modules/*/assets/**
+  # v0.47.0: pdf.js (Node build), loaded by Node for the Coffre's search.
+  - build/main/pdfjs/**
+  # v0.47.1: the modules' worker threads (the Coffre's text reading), started from a real file.
+  - build/main/workers/**
   - node_modules/ffmpeg-static/**
   - node_modules/@derhuerst/ffprobe-static/**
   - node_modules/better-sqlite3/**
@@ -59,6 +63,8 @@ nsis:
   shortcutName: ToolBox
   # Keep user data (settings, library, stats) when uninstalling.
   deleteAppDataOnUninstall: false
+  # v0.47.0: « Ranger dans ToolBox » (right click, Envoyer vers): added, then removed at uninstall.
+  include: resources/build/installer.nsh
   artifactName: ToolBox-Setup-${version}.exe
 
 portable:

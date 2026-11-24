@@ -4,6 +4,8 @@ import type { HostAdapter } from '../backend/core/host';
 import { notify, setLaunchAtStartup, showWindow } from './desktop';
 import { createGlobalKeys } from './global-keys';
 import { setOverlayVisible } from './overlay';
+import { openReaderWindow } from './reader-windows';
+import { getShellIntegration, setShellIntegration } from './shell-integration';
 
 /** Electron implementation of the backend's HostAdapter. */
 export function createElectronHost(): HostAdapter {
@@ -67,6 +69,10 @@ export function createElectronHost(): HostAdapter {
     setLaunchAtStartup,
     showWindow,
     setOverlayVisible,
+    openWindow: (route, options) => openReaderWindow(route, options.title),
+    ...(process.platform === 'win32'
+      ? { shellIntegration: { get: getShellIntegration, set: setShellIntegration } }
+      : {}),
     globalKeys: createGlobalKeys(),
     isEncryptionAvailable: () => safeStorage.isEncryptionAvailable(),
     encryptString: (plainText) => safeStorage.encryptString(plainText),

@@ -1164,3 +1164,21 @@
   background: var(--surface-solid);
   box-shadow: var(--elev-popover);
 }
+
+/* v0.44.0 (Expérimental): « Copier l'image » and its small menu, in the bar. */
+.ag-snapshot {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.ag-snapshot .button > svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+.ag-snapshot__more {
+  padding: 0 6px;
+}
+.ag-snapshot__badge {
+  margin-left: 6px;
+}
