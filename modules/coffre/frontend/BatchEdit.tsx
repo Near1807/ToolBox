@@ -57,6 +57,9 @@ export function BatchEdit(props: { items: ItemDto[]; onClose: () => void; onDone
   const [v, setV] = useState<BatchValues>(emptyBatch);
   const [busy, setBusy] = useState(false);
   const { items } = props;
+  // v0.48.0: elements « à compléter » in the selection: their sheet checked with the lot.
+  const someToComplete = items.some((i) => i.toComplete);
+  const [complete, setComplete] = useState(someToComplete);
   const summary = useMemo(
     () =>
       batchSummary(
@@ -95,7 +98,8 @@ export function BatchEdit(props: { items: ItemDto[]; onClose: () => void; onDone
     v.year !== undefined ||
     v.tagsAdd.length > 0 ||
     v.tagsRemove.length > 0 ||
-    names.size > 0;
+    names.size > 0 ||
+    (someToComplete && complete);
 
   const apply = async () => {
     if (!changes || busy) return;
@@ -118,6 +122,7 @@ export function BatchEdit(props: { items: ItemDto[]; onClose: () => void; onDone
         tagsAdd: v.tagsAdd,
         tagsRemove: v.tagsRemove,
         names: Object.fromEntries(names),
+        complete: someToComplete && complete,
       });
       coffre.notify(
         `${items.length} élément${items.length > 1 ? 's' : ''} modifié${items.length > 1 ? 's' : ''}.`,
@@ -164,6 +169,16 @@ export function BatchEdit(props: { items: ItemDto[]; onClose: () => void; onDone
             .map((i) => ({ before: i.name, after: names.get(i.id) ?? i.name }))}
           arrival
         />
+        {someToComplete && (
+          <label className="small">
+            <input
+              type="checkbox"
+              checked={complete}
+              onChange={(e) => setComplete(e.target.checked)}
+            />{' '}
+            Marquer leurs fiches comme vérifiées (plus « à compléter »)
+          </label>
+        )}
         <div className="coffre-treedialog__buttons">
           <Button disabled={!changes || busy} onClick={() => void apply()} data-coffre-batch-apply>
             Appliquer à {items.length}

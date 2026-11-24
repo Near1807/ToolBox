@@ -47,7 +47,7 @@ import { cleanReadCopies, readCopy, registerArchiveRoutes, SUGGEST_DAYS } from '
 import { TEXT_MIGRATION_SQL, TextIndex } from './text-index';
 import { registerSearch } from './search';
 import { registerTreeRoutes } from './tree';
-import { IMPORTS_MIGRATION_SQL } from './import';
+import { IMPORTS_MIGRATION_SQL, registerImport } from './import';
 import { DOWNLOADS_MIGRATION_SQL, DownloadWatcher } from './downloads';
 import { Learner, RULES_MIGRATION_SQL } from './learning';
 import { applyRules } from '../shared/learn';
@@ -586,6 +586,8 @@ export default defineBackendModule({
         );
         return list.filter((i) => i.diskState === 'active' && old.has(i.id));
       }
+      // v0.48.0: « À compléter » (imported, sheet not checked yet).
+      if (q.state === 'tocomplete') return list.filter((i) => i.toComplete);
       return q.state ? list.filter((i) => i.diskState === q.state) : list;
     });
     ctx.routes.get('/items/:id', (request) => one(uuidParam(request.params)));
@@ -622,6 +624,8 @@ export default defineBackendModule({
         recent: dtos(recent),
         arrivalCount: rows.filter((r) => r.arrival === 1).length,
         contexts: contextDtos(),
+        toCompleteCount: rows.filter((r) => r.to_complete === 1).length,
+        foundCount,
         pendingByContext: rows.reduce<Record<string, number>>((acc, r, i) => {
           if (states[i] === 'pending' && r.context_id)
             acc[r.context_id] = (acc[r.context_id] ?? 0) + 1;
@@ -924,6 +928,38 @@ export default defineBackendModule({
       return { created: dtos(created.map((id) => getRow(id))), skipped, undoId };
     });
 
+    // --- v0.48.0: importing an arborescence (ADR 0065) ----------------------------------
+    const imports = registerImport({
+      ctx,
+      store,
+      library,
+      t: { items, imports: ctx.db.table('imports') },
+      contextRows,
+      pathOf,
+      folderOf,
+      ensureContext: (names) => ensureContext(names),
+      propose: (abs) => propose(abs, contextRefs(), coursesSafe(), sitesSeen()),
+      duplicateOf,
+      writeAttributes: (id, list) => writeAttributes(id, list),
+      remember: (run) => remember(run),
+      removeIfEmpty: (ids) => removeIfEmpty(ids),
+      dtos,
+      kick: () => {
+        textIndex.kick();
+        lookForFolders();
+      },
+      busy: () => disk.busy,
+    });
+    /** Folders put in the Coffre by hand: looked at the start and every few minutes (proposed only). */
+    let foundCount = 0;
+    const lookForFolders = () => {
+      try {
+        foundCount = imports.imp.found().length;
+      } catch (error) {
+        ctx.logger.warn(`Dossiers ajoutés à la main : ${String(error)}`);
+      }
+    };
+
     // --- Changing an element -------------------------------------------------------------
 
     /** Name, context (the file moves: one transaction, back on failure), pinned, Arrivée. */
@@ -1024,9 +1060,12 @@ export default defineBackendModule({
       );
       const pinned = row.pinned;
       if (typeof b.pinned === 'boolean') store.update('items', id, { pinned: b.pinned ? 1 : 0 });
+      // v0.48.0: « Fiche vérifiée »: no longer « à compléter ».
+      const toComplete = row.to_complete;
+      if (b.toComplete === false) store.update('items', id, { to_complete: 0 });
       const undoId = remember(async () => {
         await put();
-        store.update('items', id, { pinned });
+        store.update('items', id, { pinned, to_complete: toComplete });
       });
       return { item: one(id), undoId };
     });
@@ -1091,6 +1130,11 @@ export default defineBackendModule({
               value ? [{ key, value, origin: 'chosen', reason: null }] : [],
             );
             journal.push(() => void replaceKey(id, key, old));
+          }
+          if (b.complete === true) {
+            const was = getRow(id).to_complete;
+            store.update('items', id, { to_complete: 0 });
+            journal.push(() => void store.update('items', id, { to_complete: was }));
           }
           if (tagsAdd.length || tagsRemove.length) {
             const now = (attributesOf([id]).get(id) ?? []).filter((a) => a.key === 'tag');
@@ -1482,20 +1526,32 @@ export default defineBackendModule({
     // v0.47.0: then the texts not read yet (the existing elements once; what changed) — in the
     // background, interruptible, resumed at the next start.
     textIndex.forgetErased();
+    // v0.48.0: an import that was running when ToolBox closed is resumed where it stopped.
+    const resumeImports = setTimeout(() => {
+      try {
+        imports.resume();
+      } catch (error) {
+        ctx.logger.warn(`Reprise des imports : ${String(error)}`);
+      }
+    }, 2000);
+    resumeImports.unref?.();
     const startupScan = setTimeout(() => {
       disk
         .scanPc()
         .catch((error) => ctx.logger.warn(`Fichiers du PC : ${String(error)}`))
         .finally(() => textIndex.kick());
+      lookForFolders();
     }, 3000);
     startupScan.unref?.();
     // v0.47.0: a file changed in its folder while ToolBox is open (opened from the Explorer)
     // is seen within the next minutes (sizes and dates compared; only what changed is read).
     const rescan = setInterval(() => {
       disk.scanPc().catch((error) => ctx.logger.warn(`Fichiers du PC : ${String(error)}`));
+      lookForFolders();
     }, RESCAN_MS);
     rescan.unref?.();
     ctx.onShutdown(async () => {
+      clearTimeout(resumeImports);
       clearTimeout(startupScan);
       clearInterval(rescan);
       disk.stop();

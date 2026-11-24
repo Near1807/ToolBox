@@ -2267,3 +2267,107 @@ button.coffre-value__text:hover {
   float: left;
   margin-top: 12px;
 }
+
+/* v0.48.0: importing an arborescence (Expérimental) */
+.coffre-import {
+  display: flex;
+  flex-direction: column;
+  width: min(920px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+}
+.coffre-import__body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 18px;
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+.coffre-import__source {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.coffre-import__route {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.coffre-import__route .coffre-picker {
+  left: 40px;
+}
+.coffre-import__tree {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.coffre-import__root {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px;
+  max-height: 46vh;
+  overflow: auto;
+}
+.coffre-import__line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  padding: 3px 6px;
+  border-radius: var(--radius-sm);
+}
+.coffre-import__line:hover {
+  background: var(--surface-hover);
+}
+.coffre-import__project {
+  margin-left: auto;
+  font-size: 0.8rem;
+  color: var(--text-2);
+}
+.coffre-import__deps {
+  list-style: none;
+  margin: 0 0 4px;
+  font-size: 0.85rem;
+}
+.coffre-import__notes {
+  display: grid;
+  gap: 4px;
+}
+.coffre-import__progress {
+  display: grid;
+  gap: 6px;
+}
+.coffre-imports {
+  margin-top: 16px;
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+.coffre-imports__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  width: 100%;
+}
+.coffre-tocomplete {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
+  font-size: 0.88rem;
+}
+.coffre-import__line:not(:hover):not(:focus-within) .coffre-import__project--off {
+  visibility: hidden;
+}

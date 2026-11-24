@@ -29,6 +29,7 @@ import { RestoreDialog } from './disk/RestoreDialog';
 import { DiskSettings } from './disk/DiskSettings';
 import { LearnedSettings } from './Learned';
 import { Atlas } from './Atlas';
+import { ImportsPanel } from './Import';
 
 /** A context's tile that takes what is dropped on it. */
 export function Tile(props: { context: ContextDto; showPath?: boolean }) {
@@ -294,6 +295,27 @@ function ContentTab(props: {
               : 'Tout est sauvegardé'}
           <span className="coffre-chip__more">Gestion</span>
         </button>
+        {h.toCompleteCount > 0 && (
+          <Link
+            to={coffre.path('etat/tocomplete')}
+            className="coffre-chip coffre-chip--accent"
+            data-coffre-tocomplete
+          >
+            <Icon name="pencil" />À compléter : {h.toCompleteCount}
+          </Link>
+        )}
+        {h.foundCount > 0 && (
+          <button
+            type="button"
+            className="coffre-chip coffre-chip--warn"
+            onClick={props.onManage}
+            title="Un dossier ajouté à la main dans le Coffre : l’adopter depuis Gestion"
+            data-coffre-found-witness
+          >
+            <Icon name="folder-plus" />
+            {h.foundCount} dossier{h.foundCount > 1 ? 's' : ''} à adopter
+          </button>
+        )}
       </div>
       <NowPanel />
       {props.empty && (
@@ -384,6 +406,7 @@ function ManageTab(props: { home: HomeDto; onRestore: () => void }) {
           <DownloadsPanel />
         </div>
       </div>
+      <ImportsPanel />
       <section className="coffre-section coffre-manage" aria-label="Réglages du Coffre">
         <DiskSettings />
         <LearnedSettings />

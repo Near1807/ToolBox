@@ -98,6 +98,12 @@ export function Preview(props: {
       .put<{ undoId: string }>(`/items/${item.id}/attributes`, { key, values })
       .then((r) => done(r, 'Fiche modifiée.'))
       .catch(coffre.fail);
+  /** v0.48.0: « Fiche vérifiée »: no longer « à compléter » (Annuler). */
+  const checked = () =>
+    coffre.api
+      .patch<{ undoId: string }>(`/items/${item.id}`, { toComplete: false })
+      .then((r) => done(r, 'Fiche vérifiée.'))
+      .catch(coffre.fail);
   const rename = (name: string) => {
     if (!name.trim() || name.trim() === item.name) return;
     coffre.api
@@ -213,6 +219,18 @@ export function Preview(props: {
             }}
           >
             <NameField key={`${item.id}:${item.name}`} name={item.name} onRename={rename} />
+            {item.toComplete && (
+              <div className="coffre-tocomplete" role="status" data-coffre-tocomplete-sheet>
+                <span>Importé : fiche devinée, à compléter.</span>
+                <button
+                  type="button"
+                  className="button button--small button--secondary"
+                  onClick={() => void checked()}
+                >
+                  Fiche vérifiée
+                </button>
+              </div>
+            )}
             {item.originalName && (
               <p className="coffre-sheet__row muted small" data-coffre-original>
                 <span className="coffre-sheet__label">Nom d’origine</span>

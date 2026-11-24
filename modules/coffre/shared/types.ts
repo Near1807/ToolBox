@@ -105,6 +105,10 @@ export interface HomeDto {
   contexts: ContextDto[];
   /** v0.48.0: « pas encore sur le disque » per context (the map's marks). */
   pendingByContext: Record<string, number>;
+  /** v0.48.0: elements imported whose sheet is not yet checked (« À compléter »). */
+  toCompleteCount: number;
+  /** v0.48.0: folders put in the Coffre by hand, proposed for adoption. */
+  foundCount: number;
   health: {
     items: number;
     bytes: number;
@@ -302,4 +306,87 @@ export interface NowDto {
   context: ContextDto | null;
   /** The context's elements, the most recent first. */
   items: ItemDto[];
+}
+
+// --- v0.48.0: importing an arborescence (ADR 0065) ----------------------------------
+
+/** One folder of the tree to import: a context, or ONE project element. */
+export interface ImportNodeDto {
+  /** Relative to the folder imported (« » for itself). */
+  rel: string;
+  name: string;
+  /** Why it is a code project (« .git », « package.json », « fichiers de code »), or null. */
+  marker: string | null;
+  /** Its own files (a project: all its files, its dependencies apart) and their size. */
+  files: number;
+  bytes: number;
+  /** With its sub-folders. */
+  totalFiles: number;
+  totalBytes: number;
+  /** Dependencies and build folders found in it (left out by default). */
+  deps: { rel: string; name: string; files: number; bytes: number }[];
+  /** A context of that route already exists: merged with it. */
+  exists: boolean;
+  children: ImportNodeDto[];
+  /** Its name changed to be a valid folder name, or null. */
+  invalidName: string | null;
+}
+
+export interface ImportPreviewDto {
+  source: string;
+  mode: 'copy' | 'adopt';
+  /** Where it goes (the names of the route, [] = the root). */
+  route: string[];
+  tree: ImportNodeDto;
+  totals: {
+    folders: number;
+    files: number;
+    bytes: number;
+    projects: number;
+    ignored: number;
+    duplicates: number;
+    depsFiles: number;
+    depsBytes: number;
+  };
+  /** Files already in the Coffre (same fingerprint) or twice in the import. */
+  duplicates: {
+    rel: string;
+    existing: { id: string; name: string; contextPath: string[] | null } | null;
+    twinOf: string | null;
+  }[];
+  /** System and temporary files, never imported. */
+  ignored: string[];
+  /** Existing contexts that receive files (merged). */
+  merges: string[][];
+}
+
+export interface ImportStatusDto {
+  id: string;
+  source: string;
+  mode: 'copy' | 'adopt';
+  state: 'running' | 'done' | 'cancelled' | 'failed' | 'undone';
+  done: number;
+  total: number;
+  bytesDone: number;
+  bytesTotal: number;
+  /** Elements and contexts made so far. */
+  items: number;
+  contexts: number;
+  error: string | null;
+  /** « Annuler » the whole import (for a while after it ended). */
+  undoId: string | null;
+  jobId: string | null;
+  createdAt: string;
+}
+
+/** A folder put in the Coffre by hand: ToolBox proposes to adopt it. */
+export interface FoundFolderDto {
+  rel: string;
+  name: string;
+  /** Its absolute path (the adoption's source). */
+  path: string;
+  files: number;
+  bytes: number;
+  /** The route of its parent context ([] = the root). */
+  route: string[];
 }

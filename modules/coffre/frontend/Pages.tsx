@@ -527,6 +527,13 @@ const STATE_TITLES: Record<string, { title: string; subtitle: string; empty: str
       'Sur le disque seulement : fiches visibles et trouvables ici, fichiers sur le disque dur.',
     empty: 'Aucun élément archivé.',
   },
+  // v0.48.0: imported with an arborescence, sheet not yet checked.
+  tocomplete: {
+    title: 'À compléter',
+    subtitle:
+      'Importés avec une arborescence : leur fiche est devinée. « Sélectionner… » puis « Modifier la sélection » pour en compléter plusieurs ; « Fiche vérifiée » dans l’aperçu pour un seul.',
+    empty: 'Rien à compléter.',
+  },
 };
 
 /** v0.46.0: the elements in a disk state (« pas encore sur le disque », archivés). */
