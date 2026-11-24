@@ -61,11 +61,23 @@ describe('carte des contextes', () => {
   });
 
   it('300 contextes : disposés en quelques millisecondes, sans chevauchement de deux voisins', () => {
-    const tree = bigTree(300);
+    // Regular branches AND a small shallow one (« Cours » and 3 leaves): the case seen on screen.
+    const tree = [
+      ...bigTree(296),
+      { id: 'cours', parentId: null, name: 'Cours', sort: null, count: 0 },
+      ...['GPU', 'Réseaux', 'Thermo'].map((name) => ({
+        id: name,
+        parentId: 'cours',
+        name,
+        sort: null,
+        count: 2,
+      })),
+    ];
     const t0 = performance.now();
     const l = layoutMap(tree);
     const ms = performance.now() - t0;
     expect(l.nodes).toHaveLength(300);
+    expect(ms).toBeLessThan(50);
     expect(ms).toBeLessThan(50);
     // Neighbours on the same ring: their centres at least their radii apart.
     let overlaps = 0;
@@ -73,9 +85,9 @@ describe('carte des contextes', () => {
     for (const n of l.nodes) byDepth.set(n.depth, [...(byDepth.get(n.depth) ?? []), n]);
     for (const ring of byDepth.values()) {
       const sorted = [...ring].sort((a, b) => a.angle - b.angle);
-      for (let i = 1; i < sorted.length; i++) {
-        const a = sorted[i - 1]!;
-        const b = sorted[i]!;
+      for (let i = 0; i < sorted.length && sorted.length > 1; i++) {
+        const a = sorted[i]!;
+        const b = sorted[(i + 1) % sorted.length]!;
         if (Math.hypot(a.x - b.x, a.y - b.y) < a.r + b.r) overlaps++;
       }
     }

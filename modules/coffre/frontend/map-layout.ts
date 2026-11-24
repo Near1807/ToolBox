@@ -2,8 +2,8 @@
 // (no physics): the same tree always gives the same picture, nothing
 // « dances », and adding a context only opens a little room among its
 // siblings. Each context gets an angular sector in proportion to its leaves
-// (so a big branch gets more room), its depth gives its ring; the rings move
-// apart when there are many leaves so that two neighbours never overlap.
+// (so a big branch gets more room), its depth gives its ring; each ring is
+// far enough for two neighbours on it never to overlap.
 // Pure (tested), no screen.
 
 export interface MapInput {
@@ -38,8 +38,8 @@ export interface MapLayout {
 
 /** The distance between two rings, at least. */
 export const RING = 130;
-/** Two neighbouring leaves on the outer ring: at least this far apart. */
-const LEAF_GAP = 30;
+/** The margin between two neighbouring nodes of a ring (their radii apart). */
+const LEAF_GAP = 16;
 const LABEL_ROOM = 120;
 
 /** The size of a node from its number of elements (descendants included). */
@@ -82,29 +82,14 @@ export function layoutMap(input: readonly MapInput[]): MapLayout {
   const seen = new Set<string>();
   const roots = kids.get(null) ?? [];
   for (const r of roots) measure(r, 1, seen);
-  const allLeaves = roots.reduce((s, r) => s + (leaves.get(r.id) ?? 1), 0) || 1;
-  // The rings move apart when the outer ring would be crowded.
-  const ring = Math.max(RING, (LEAF_GAP * allLeaves) / (2 * Math.PI * Math.max(1, maxDepth)));
+  const allLeaves = roots.reduce((sum, r) => sum + (leaves.get(r.id) ?? 1), 0) || 1;
 
-  const nodes: MapNode[] = [];
+  // 1. The angles: each context a sector in proportion to its leaves (radii come after).
+  const placed: { c: MapInput; depth: number; angle: number; total: number }[] = [];
   const place = (c: MapInput, depth: number, from: number, to: number) => {
-    const angle = (from + to) / 2;
-    // A lone root sits in the middle.
-    const radius = roots.length === 1 && depth === 1 ? 0 : depth * ring;
-    const total = totals.get(c.id) ?? c.count;
-    nodes.push({
-      id: c.id,
-      parentId: c.parentId && ids.has(c.parentId) ? c.parentId : null,
-      name: c.name,
-      depth,
-      x: Math.round(Math.cos(angle) * radius * 10) / 10,
-      y: Math.round(Math.sin(angle) * radius * 10) / 10,
-      r: radiusOf(total),
-      total,
-      angle,
-    });
+    placed.push({ c, depth, angle: (from + to) / 2, total: totals.get(c.id) ?? c.count });
     const list = kids.get(c.id) ?? [];
-    const sum = list.reduce((s, k) => s + (leaves.get(k.id) ?? 1), 0) || 1;
+    const sum = list.reduce((acc, k) => acc + (leaves.get(k.id) ?? 1), 0) || 1;
     let at = from;
     for (const k of list) {
       const share = ((to - from) * (leaves.get(k.id) ?? 1)) / sum;
@@ -113,12 +98,48 @@ export function layoutMap(input: readonly MapInput[]): MapLayout {
     }
   };
   // From the top (-90°), clockwise.
-  let at = -Math.PI / 2;
+  let start = -Math.PI / 2;
   for (const r of roots) {
     const share = (2 * Math.PI * (leaves.get(r.id) ?? 1)) / allLeaves;
-    place(r, 1, at, at + share);
-    at += share;
+    place(r, 1, start, start + share);
+    start += share;
   }
+
+  // 2. The rings: each one far enough for two neighbours on it never to overlap
+  // (their chord at least their two radii and a margin), and a ring further than the last.
+  const lone = roots.length === 1;
+  const radii: number[] = [0];
+  for (let depth = 1; depth <= maxDepth; depth++) {
+    const ring = placed.filter((p) => p.depth === depth).sort((x, y) => x.angle - y.angle);
+    let need = lone && depth === 1 ? 0 : (radii[depth - 1] ?? 0) + RING;
+    if (ring.length > 1 && !(lone && depth === 1))
+      for (let i = 0; i < ring.length; i++) {
+        const a = ring[i]!;
+        const b = ring[(i + 1) % ring.length]!;
+        let delta = b.angle - a.angle;
+        if (delta <= 0) delta += 2 * Math.PI;
+        if (delta >= Math.PI) continue;
+        const gap = radiusOf(a.total) + radiusOf(b.total) + LEAF_GAP / 2;
+        need = Math.max(need, gap / (2 * Math.sin(delta / 2)));
+      }
+    radii[depth] = Math.ceil(need);
+  }
+
+  // 3. The positions.
+  const nodes: MapNode[] = placed.map((p) => {
+    const radius = radii[p.depth] ?? p.depth * RING;
+    return {
+      id: p.c.id,
+      parentId: p.c.parentId && ids.has(p.c.parentId) ? p.c.parentId : null,
+      name: p.c.name,
+      depth: p.depth,
+      x: Math.round(Math.cos(p.angle) * radius * 10) / 10,
+      y: Math.round(Math.sin(p.angle) * radius * 10) / 10,
+      r: radiusOf(p.total),
+      total: p.total,
+      angle: p.angle,
+    };
+  });
 
   let minX = 0;
   let minY = 0;
