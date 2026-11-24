@@ -23,7 +23,7 @@ import type { AgendaService } from '../../agenda/contract';
 import { contextCss } from '../shared/colors';
 import { deduce, fold, hostOf, mergeGuesses, type ContextRef } from '../shared/deduce';
 import { extOf } from '../shared/kinds';
-import { ARRIVAL_FOLDER, folderName, safeName, TRASH_FOLDER } from '../shared/names';
+import { ARRIVAL_FOLDER, folderName, invalidName, safeName, TRASH_FOLDER } from '../shared/names';
 import {
   ATTRIBUTE_KEYS,
   type AttributeDto,
@@ -46,6 +46,7 @@ import { registerVerifyRoutes } from './verify';
 import { cleanReadCopies, readCopy, registerArchiveRoutes, SUGGEST_DAYS } from './archive';
 import { TEXT_MIGRATION_SQL, TextIndex } from './text-index';
 import { registerSearch } from './search';
+import { registerTreeRoutes } from './tree';
 import { DOWNLOADS_MIGRATION_SQL, DownloadWatcher } from './downloads';
 import { Learner, RULES_MIGRATION_SQL } from './learning';
 import { applyRules } from '../shared/learn';
@@ -447,6 +448,9 @@ export default defineBackendModule({
         const found = contextRows().find(
           (c) => c.parent_id === parent && fold(c.name) === fold(name),
         );
+        // v0.48.0: a new folder carries exactly the context's name (valid on Windows).
+        const bad = found ? null : invalidName(name);
+        if (bad) throw new HttpError(400, bad);
         parent = found
           ? found.id
           : store.create<ContextRow & { updated_at: string }>('contexts', {
@@ -460,6 +464,18 @@ export default defineBackendModule({
       if (!parent) throw new HttpError(400, 'Contexte vide');
       return parent;
     };
+
+    // v0.48.0: the tree of the contexts (move, merge, delete when empty, reorder; ADR 0064).
+    const tree = registerTreeRoutes({
+      ctx,
+      store,
+      library,
+      t: { items, contexts, also, rules: ctx.db.table('rules') },
+      contextRows,
+      folderOf,
+      remember: (run) => remember(run),
+      busy: () => disk.busy,
+    });
 
     ctx.routes.get('/contexts', () => contextDtos());
     ctx.routes.post('/contexts', (request) => {
@@ -495,45 +511,12 @@ export default defineBackendModule({
         if (cover) getRow(cover);
         store.update('contexts', id, { cover_item_id: cover });
       }
-      if (typeof b.name === 'string' && b.name.trim() && b.name.trim() !== row.name) {
-        const name = b.name.replace(/\s+/g, ' ').trim();
-        if (
-          contextRows().some(
-            (c) => c.id !== id && c.parent_id === row.parent_id && fold(c.name) === fold(name),
-          )
-        )
-          throw new HttpError(409, `« ${name} » existe déjà ici`);
-        const before = folderOf(id);
-        const after = [...before.split('/').slice(0, -1), folderName(name)].join('/');
-        const moved = library.exists(before) && before !== after;
-        if (moved)
-          await library.move(
-            before,
-            path.posix.dirname(after) === '.' ? '' : path.posix.dirname(after),
-            folderName(name),
-          );
-        try {
-          ctx.db.transaction(() => {
-            store.update('contexts', id, { name });
-            const rows = ctx.db
-              .prepare(
-                `SELECT id, rel_path FROM ${items} WHERE deleted_at IS NULL AND rel_path LIKE ?`,
-              )
-              .all(`${before}/%`) as { id: string; rel_path: string }[];
-            for (const r of rows)
-              store.update('items', r.id, { rel_path: after + r.rel_path.slice(before.length) });
-          });
-        } catch (error) {
-          if (moved)
-            await library.move(
-              after,
-              path.posix.dirname(before) === '.' ? '' : path.posix.dirname(before),
-              path.posix.basename(before),
-            );
-          throw error;
-        }
-      }
-      return contextDtos().find((c) => c.id === id);
+      // v0.48.0: renamed by the tree (its folder follows; « Annuler »; ADR 0064).
+      let undoId: string | undefined;
+      if (typeof b.name === 'string' && b.name.trim() && b.name.trim() !== row.name)
+        undoId = await tree.rename(id, b.name);
+      const dto = contextDtos().find((c) => c.id === id);
+      return dto && undoId ? { ...dto, undoId } : dto;
     });
 
     // --- Lists ----------------------------------------------------------------------

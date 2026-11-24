@@ -36,6 +36,7 @@ Le Coffre **copie** ce qu'on y dépose : l'original n'est jamais modifié ni dé
 - `DELETE /items/:id` (corbeille) · `POST /items/:id/restore` · `POST /items/:id/erase { confirm: true }` (depuis la corbeille seulement) · `POST /undo { undoId }`
 - `POST /items/:id/open { how: app | folder | vscode, runnable? }` : un exécutable seulement avec `runnable: true` (confirmation qui le nomme)
 - `POST /contexts { name, parentId?, color? }` · `PATCH /contexts/:id { name?, color?, coverItemId? }` (renommer = le dossier suit)
+- v0.48.0 (ADR 0064) : `POST /contexts/:id/move { parentId }` · `POST /contexts/:id/merge { into }` · `DELETE /contexts/:id` (vide seulement) · `POST /contexts/:id/reorder { beforeId }` · `GET /contexts/:id/content` — fichiers et fiches ensemble (`backend/tree.ts`, journal d'opérations : retour arrière, `undoId`)
 - v0.47.0 : `GET /now` (« Maintenant » : le cours de l'Agenda en cours ou dans 15 min, son contexte, ses éléments récents ; `null` sans Agenda) · `PATCH /contexts/:id { courseName }` (« Lié au cours … » ; `null` automatique, `-` aucun), ADR 0062
 - v0.47.0 : `GET /learned` · `PATCH /learned/:id { contextId | nature }` · `DELETE /learned/:id` · `POST /learned/forget { confirm: true }` (« Tout oublier »)
 - v0.47.0 : `GET /downloads` · `POST /downloads/check` (regarder maintenant) · `POST /downloads/ignore { paths }` · `GET /downloads/existing` (ceux d'avant l'activation, à la demande) — surveillance **désactivée par défaut** (réglages `watchDownloads`, `downloadsFolder`, `notifyDownloads`), ADR 0060
