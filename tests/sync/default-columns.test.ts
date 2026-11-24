@@ -5,7 +5,7 @@
 // field on the other device, made before it, was lost on one side only.
 // It is now lent the HLC of the row's creation (its oldest clock); a row
 // without any clock (data from before the synchronisation) is unchanged.
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ModuleDatabase } from '@hub/sdk/core';
 import { SyncStore } from '@hub/sdk/sync';
 import type { SqlDatabase } from '../../packages/phone/database';
@@ -50,8 +50,26 @@ const clocks = (d: Devices, side: 'pc' | 'phone', module: string, id: string) =>
     .prepare(`SELECT field FROM ${module}__field_clock WHERE row_id = ? ORDER BY field`)
     .all(id)
     .map((r) => (r as { field: string }).field);
+/** The HLC of the last change of a field of an event on one device. */
+function fieldClock(d: Devices, side: 'pc' | 'phone', id: string, field: string): string {
+  const db = (
+    side === 'pc' ? (d.pc.hub as unknown as { handle: { db: unknown } }).handle.db : d.phoneDb
+  ) as { prepare(sql: string): { get(...a: unknown[]): unknown } };
+  const row = db
+    .prepare(`SELECT hlc FROM agenda__field_clock WHERE row_id = ? AND field = ?`)
+    .get(id, field) as { hlc: string };
+  return row.hlc;
+}
 const event = (d: Devices, side: 'pc' | 'phone', id: string) =>
   d.rows(side, 'agenda').events!.find((e) => e.id === id)!;
+
+/** Waits until the wall clock shows a later millisecond (a change « after » another). */
+function nextMillisecond(): void {
+  const t = Date.now();
+  while (Date.now() <= t) {
+    // busy wait: at most one millisecond
+  }
+}
 
 describe('a field still at its default value, over the synchronisation (v0.40.1)', () => {
   let d: Devices;
@@ -103,12 +121,47 @@ describe('a field still at its default value, over the synchronisation (v0.40.1)
     // The PC sets it, then unsets it; the phone sets it after: the phone's is the most recent.
     await d.onPc('PATCH', `${AGENDA}/events/${id}`, { optional: true });
     await d.onPc('PATCH', `${AGENDA}/events/${id}`, { optional: false });
+    // v0.47.1: « after » must be a later millisecond. In the same one, the PC's
+    // counter (two writes) or, at equal counters, the devices' ids decide — the
+    // same winner on both devices (test below), but not « the phone's ».
+    nextMillisecond();
     await d.onPhone('PATCH', `${AGENDA}/events/${id}`, { optional: true });
     expect(d.exchange().conflicts).toBeGreaterThan(0);
     for (const side of ['pc', 'phone'] as const) expect(event(d, side, id).optional).toBe(1);
     for (const engine of [d.pcEngine, d.phoneEngine]) {
       const c = engine.conflicts().find((x) => x.field === 'optional')!;
       expect(c).toMatchObject({ kind: 'field', kept: '1', discarded: '0' });
+    }
+  });
+
+  it('v0.47.1 — the same millisecond on both devices: one winner, the same on the PC and the phone', async () => {
+    const id = await oneEvent();
+    // Every clock reads the same instant: only the counters, then the devices' ids, decide.
+    const frozen = Date.now() + 1000;
+    let expected: string | undefined;
+    const spy = vi.spyOn(Date, 'now').mockReturnValue(frozen);
+    try {
+      await d.onPc('PATCH', `${AGENDA}/events/${id}`, { note: 'écrit sur le PC' });
+      await d.onPhone('PATCH', `${AGENDA}/events/${id}`, { note: 'écrit sur le téléphone' });
+      // Equal walls: only the counters, then the devices' ids, tell the two changes apart.
+      const pcHlc = fieldClock(d, 'pc', id, 'note');
+      const phoneHlc = fieldClock(d, 'phone', id, 'note');
+      expect(pcHlc.split('.')[0]).toBe(phoneHlc.split('.')[0]);
+      expect(pcHlc).not.toBe(phoneHlc);
+      expected = pcHlc > phoneHlc ? 'écrit sur le PC' : 'écrit sur le téléphone';
+      d.exchange();
+    } finally {
+      spy.mockRestore();
+    }
+    const pc = event(d, 'pc', id).note;
+    const phone = event(d, 'phone', id).note;
+    // The greater clock « wall.counter.device » wins, the same on both devices.
+    expect(pc).toBe(expected);
+    expect(phone).toBe(expected);
+    // The winner is the change with the greater clock « wall.counter.device » on both sides.
+    for (const engine of [d.pcEngine, d.phoneEngine]) {
+      const c = engine.conflicts().find((x) => x.field === 'note')!;
+      expect(JSON.parse(c.kept ?? 'null')).toBe(expected);
     }
   });
 
