@@ -27,6 +27,11 @@ export interface ItemRow {
   /** The PC file's last known size and date (a project: per file), to see changes. */
   stat_json: string | null;
   opened_at: string | null;
+  // v0.48.0 (migration 7)
+  /** The name the file had before Thomas renamed it (kept, searchable). */
+  original_name: string | null;
+  /** 1: imported with an arborescence, its sheet not yet checked (« À compléter »). */
+  to_complete: number;
 }
 export interface ContextRow {
   id: string;

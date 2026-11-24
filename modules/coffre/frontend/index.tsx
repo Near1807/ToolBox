@@ -8,6 +8,7 @@ import { DiskSettings } from './disk/DiskSettings';
 import { LearnedSettings } from './Learned';
 import { CoffreFrame } from './frame';
 import { HomePage } from './Home';
+import { MapPage } from './Atlas';
 import { ViewPage } from './SearchResults';
 import { ReaderPage } from './ReaderPage';
 import { ReceivedPage } from './Received';
@@ -30,6 +31,8 @@ export default defineFrontendModule({
     { path: 'v/:key/:value', component: framed(AttributePage) },
     { path: 'arrivee', component: framed(ArrivalPage) },
     { path: 'corbeille', component: framed(TrashPage) },
+    // v0.48.0: the map and the tree of the contexts, in full.
+    { path: 'carte', component: framed(MapPage) },
     { path: 'etat/:state', component: framed(StatePage) },
     // v0.47.0: the hub's search (Ctrl+K): « Tous les résultats », a result at its page.
     { path: 'chercher', component: framed(HomePage) },

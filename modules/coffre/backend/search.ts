@@ -47,7 +47,13 @@ export function searchCoffre(d: Deps, query: string, limit = MAX_RESULTS): Searc
       pathCache.set(r.context_id!, ctxPath);
     }
     const hay = fold(
-      [r.name, ctxPath, ...(values.get(r.id) ?? []), r.external_path ?? ''].join(' '),
+      [
+        r.name,
+        r.original_name ?? '',
+        ctxPath,
+        ...(values.get(r.id) ?? []),
+        r.external_path ?? '',
+      ].join(' '),
     );
     if (words.every((w) => hay.includes(w))) byName.add(r.id);
   }

@@ -82,3 +82,5 @@ Modèle :
 | 0061 | [Coffre : apprendre des choix et des corrections de Thomas](0061-coffre-apprentissage-des-corrections.md)                                                        |
 | 0062 | [Coffre : « Maintenant » (le cours en cours d'après l'Agenda)](0062-coffre-maintenant.md)                                                                        |
 | 0063 | [Socle : restaurer ToolBox depuis une sauvegarde (au redémarrage, avec retour automatique)](0063-socle-restaurer-depuis-une-sauvegarde.md)                       |
+| 0064 | [Coffre : gérer l'arbre des contextes (déplacer, fusionner, supprimer, réordonner)](0064-coffre-arbre-des-contextes.md)                                          |
+| 0065 | [Coffre : importer une arborescence existante (copie ou adoption)](0065-coffre-importer-une-arborescence.md)                                                     |

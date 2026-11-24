@@ -33,6 +33,7 @@ import {
 import type { ContextDto, DiskStatusDto, ItemDto, ProposalDto } from '../shared/types';
 import { Deposit } from './Deposit';
 import { DiskWitness } from './disk/DiskWitness';
+import { ImportDialog } from './Import';
 import { UpdateDialog } from './disk/UpdateDialog';
 import { VerifyDialog } from './disk/VerifyDialog';
 import { useDisk } from './disk/useDisk';
@@ -91,6 +92,14 @@ export interface CoffreValue {
   /** v0.46.0: the disk's status (null while it is read). */
   disk: DiskStatusDto | null;
   verify(): void;
+  /** v0.48.0: the disk's update window (plan, update, eject), from the « Gestion » tab. */
+  update(): void;
+  /**
+   * v0.48.0: « Importer une arborescence » — a folder (or the folder picker),
+   * its preview, then the import in the background. `adopt`: a folder already
+   * in the Coffre (no copy). `route`: a context where it goes (dropped on it).
+   */
+  importTree(source?: string | null, options?: { adopt?: boolean; route?: string | null }): void;
   archive(items: ItemDto[]): void;
   reactivate(item: ItemDto): void;
 }
@@ -160,6 +169,11 @@ export function CoffreFrame(props: { children: ReactNode }) {
     entriesOpen.current = entries !== null;
   }, [entries]);
   const [analyzing, setAnalyzing] = useState<string | null>(null);
+  const [importing, setImporting] = useState<{
+    source: string;
+    adopt: boolean;
+    route: string | null;
+  } | null>(null);
   const [folderQuestion, setFolderQuestion] = useState<{
     paths: string[];
     files: Map<string, File>;
@@ -568,6 +582,19 @@ Ils restent sur le disque « ${diskName} » (vérifiés avant), et leur copie es
       bindMenu: menu.bind,
       disk: disk.data,
       verify: () => setVerifying(true),
+      update: () => setUpdating(true),
+      importTree: (source, options) => {
+        if (source) {
+          setImporting({ source, adopt: options?.adopt === true, route: options?.route ?? null });
+          return;
+        }
+        void pickFolder({ title: 'Importer une arborescence : choisir le dossier' })
+          .then((folder) => {
+            if (folder)
+              setImporting({ source: folder, adopt: false, route: options?.route ?? null });
+          })
+          .catch(fail);
+      },
       archive,
       reactivate,
     }),
@@ -747,6 +774,23 @@ Ils restent sur le disque « ${diskName} » (vérifiés avant), et leur copie es
             >
               Les fichiers un par un
             </Button>
+            <Button
+              variant="secondary"
+              disabled={folderQuestion.paths.length !== 1}
+              title={
+                folderQuestion.paths.length !== 1
+                  ? 'Un dossier à la fois'
+                  : 'Ses sous-dossiers deviennent des contextes, ses fichiers y vont (aperçu d’abord)'
+              }
+              onClick={() => {
+                const q = folderQuestion;
+                setFolderQuestion(null);
+                setImporting({ source: q.paths[0]!, adopt: false, route: q.fixed });
+              }}
+              data-coffre-import-tree
+            >
+              Importer comme arborescence de contextes
+            </Button>
             <Button variant="secondary" onClick={() => setFolderQuestion(null)}>
               Annuler
             </Button>
@@ -754,6 +798,14 @@ Ils restent sur le disque « ${diskName} » (vérifiés avant), et leur copie es
         </div>
       )}
       {entries && <Deposit entries={entries} onClose={() => setEntries(null)} />}
+      {importing && (
+        <ImportDialog
+          source={importing.source}
+          adopt={importing.adopt}
+          route={importing.route}
+          onClose={() => setImporting(null)}
+        />
+      )}
       {preview && (
         <Preview
           items={preview.items}

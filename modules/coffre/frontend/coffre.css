@@ -614,7 +614,7 @@ mark.coffre-hit--current {
   display: flex;
   flex-direction: column;
   width: min(1100px, calc(100vw - 48px));
-  height: min(720px, calc(100vh - 48px));
+  height: min(820px, calc(100vh - 48px));
 }
 .coffre-deposit--many {
   width: min(1320px, calc(100vw - 48px));
@@ -1707,4 +1707,667 @@ button.coffre-value__text:hover {
   border-left: 3px solid var(--warning);
   border-radius: var(--radius-sm);
   background: var(--surface);
+}
+
+/* v0.48.0: the route picker (Expérimental) */
+.coffre-route {
+  width: min(420px, 100%);
+}
+.coffre-route--inline {
+  position: static;
+  width: 100%;
+  box-shadow: none;
+}
+.coffre-route__bar {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.coffre-route__bar .input {
+  flex: 1;
+  min-width: 0;
+}
+.coffre-route__help {
+  margin: 4px 2px 0;
+  color: var(--text-3);
+  font-size: 0.75rem;
+}
+.coffre-route__segments {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px;
+}
+.coffre-route__new {
+  color: var(--accent);
+}
+.coffre-route__badge {
+  margin-left: 4px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+.coffre-route__error {
+  flex-basis: 100%;
+  color: var(--danger);
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+.coffre-route__tree {
+  margin: 6px 0 0;
+  padding: 6px 0 0;
+  border-top: 1px solid var(--border);
+  list-style: none;
+  max-height: 220px;
+  overflow: auto;
+}
+.coffre-route__node {
+  display: flex;
+  align-items: center;
+}
+.coffre-route__pick {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.coffre-route__pick:hover,
+.coffre-route__pick:focus-visible {
+  background: var(--accent-soft);
+}
+.coffre-route__add {
+  opacity: 0.6;
+}
+.coffre-route__node:hover .coffre-route__add {
+  opacity: 1;
+}
+
+/* v0.48.0: two pages, « Contenu » and « Gestion » (Expérimental) */
+.coffre-tabs {
+  display: flex;
+  gap: 4px;
+  margin: 0 0 14px;
+  border-bottom: 1px solid var(--border);
+}
+.coffre-tabs__tab {
+  padding: 8px 16px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--text-2);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  margin-bottom: -1px;
+}
+.coffre-tabs__tab:hover {
+  color: var(--text);
+}
+.coffre-tabs__tab.is-on {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.coffre-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.coffre-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.88rem;
+  text-decoration: none;
+  cursor: pointer;
+}
+.coffre-chip:hover {
+  background: var(--surface-hover);
+}
+.coffre-chip--accent {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.coffre-chip--warn {
+  border-color: var(--warning);
+  color: var(--warning);
+}
+.coffre-chip__more {
+  color: var(--text-3);
+  font-size: 0.78rem;
+}
+.coffre-manage__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.coffre-manage {
+  display: grid;
+  gap: 16px;
+}
+
+/* v0.48.0: the map and the tree of the contexts */
+.coffre-atlas {
+  margin: 18px 0;
+}
+.coffre-atlas__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.coffre-atlas__fold {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: none;
+  color: var(--text);
+  padding: 0;
+  cursor: pointer;
+}
+.coffre-atlas__fold .coffre-h2 {
+  margin: 0;
+}
+.coffre-atlas__big {
+  margin-left: auto;
+  font-size: 0.88rem;
+}
+.coffre-atlas__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 12px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .coffre-atlas__body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.coffre-map {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  overflow: hidden;
+}
+.coffre-map__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.coffre-map__search {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 220px;
+  max-width: 340px;
+}
+.coffre-map__search .input {
+  flex: 1;
+  min-width: 0;
+}
+.coffre-map__tools {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: auto;
+}
+.coffre-map__minus {
+  display: inline-block;
+  width: 12px;
+  height: 2px;
+  background: currentcolor;
+  vertical-align: middle;
+}
+.coffre-map__svg {
+  display: block;
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+}
+.coffre-map__svg:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.coffre-map__svg.is-dragging {
+  cursor: grabbing;
+}
+.coffre-map__edges line {
+  stroke: var(--border-strong);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+.coffre-map__edges line.is-lit {
+  stroke: var(--accent);
+  stroke-width: 3;
+}
+.coffre-map__root circle {
+  fill: var(--surface-2);
+  stroke: var(--border-strong);
+  stroke-width: 1.5;
+}
+.coffre-map__root text,
+.coffre-map__label {
+  fill: var(--text);
+  font-size: 13px;
+  font-family: var(--font-sans);
+  paint-order: stroke;
+  stroke: var(--surface-solid);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+.coffre-map__root.is-target circle {
+  stroke: var(--accent);
+  stroke-width: 3;
+}
+.coffre-map__node {
+  cursor: pointer;
+  outline: none;
+}
+.coffre-map__dot {
+  fill: var(--node-color);
+  fill-opacity: 0.85;
+  stroke: var(--surface-solid);
+  stroke-width: 2;
+}
+.coffre-map__node:hover .coffre-map__dot,
+.coffre-map__node:focus-visible .coffre-map__dot {
+  stroke: var(--text);
+}
+.coffre-map__node.is-lit .coffre-map__dot {
+  stroke: var(--accent);
+  stroke-width: 4;
+}
+.coffre-map__node.is-lit .coffre-map__label {
+  font-weight: 700;
+}
+.coffre-map__node.is-target .coffre-map__dot {
+  stroke: var(--accent);
+  stroke-width: 5;
+  stroke-dasharray: 4 3;
+}
+.coffre-map__node.is-dragging {
+  opacity: 0.4;
+}
+.coffre-map__ghost {
+  fill: var(--accent-soft);
+  stroke: var(--accent);
+  stroke-width: 2;
+  pointer-events: none;
+}
+.coffre-map__fresh {
+  fill: var(--accent);
+  stroke: var(--surface-solid);
+  stroke-width: 1.5;
+}
+.coffre-map__pending {
+  fill: var(--warning);
+  stroke: var(--surface-solid);
+  stroke-width: 1.5;
+}
+.coffre-map__info {
+  margin: 0;
+  padding: 6px 10px;
+  border-top: 1px solid var(--border);
+  color: var(--text-2);
+  min-height: 1.6em;
+}
+.coffre-tree {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  padding: 8px;
+}
+.coffre-tree__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4px 6px;
+}
+.coffre-tree__head .coffre-h2 {
+  margin: 0;
+}
+.coffre-tree__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 420px;
+  overflow: auto;
+  border-radius: var(--radius-sm);
+}
+.coffre-atlas--full .coffre-tree__list {
+  max-height: 640px;
+}
+.coffre-tree__list.is-target {
+  outline: 2px dashed var(--accent);
+}
+.coffre-tree__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  outline: none;
+}
+.coffre-tree__row:hover {
+  background: var(--surface-hover);
+}
+.coffre-tree__row:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.coffre-tree__row.is-current {
+  background: var(--accent-soft);
+}
+.coffre-tree__row.is-target {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.coffre-tree__twisty {
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-3);
+  cursor: pointer;
+  flex: none;
+}
+.coffre-tree__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: none;
+}
+.coffre-tree__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.coffre-tree__fresh {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex: none;
+}
+.coffre-tree__count {
+  color: var(--text-3);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+.coffre-treedialog {
+  width: min(520px, 94vw);
+  display: grid;
+  gap: 10px;
+}
+.coffre-treedialog form {
+  display: grid;
+  gap: 10px;
+}
+.coffre-treedialog__buttons {
+  display: flex;
+  gap: 8px;
+}
+
+/* v0.48.0: « Pour tous » (Expérimental) */
+.coffre-deposit__batch {
+  padding: 8px 18px 4px;
+  border-bottom: 1px solid var(--border);
+  max-height: 46%;
+  overflow: auto;
+}
+.coffre-deposit__checkall {
+  margin-top: 4px;
+  font-size: 0.85rem;
+}
+.coffre-deposit__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.coffre-deposit__check {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+.coffre-deposit__exception {
+  grid-column: 2;
+  grid-row: 1;
+  padding: 0 6px;
+  border-radius: 999px;
+  border: 1px solid var(--warning);
+  color: var(--warning);
+  font-size: 0.7rem;
+  align-self: center;
+}
+.coffre-batch {
+  display: grid;
+  gap: 8px;
+}
+.coffre-batch__title {
+  margin: 0;
+  font-size: 0.95rem;
+}
+.coffre-batch__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 6px 14px;
+  align-items: start;
+}
+.coffre-batch__field {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.coffre-batch__route {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  grid-column: span 2;
+}
+.coffre-batch__route .coffre-batch__label {
+  flex-basis: 100%;
+}
+.coffre-batch__route .coffre-picker {
+  left: 0;
+}
+.coffre-batch__label {
+  color: var(--text-3);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.coffre-batch__mixed {
+  font-style: italic;
+  color: var(--text-3);
+}
+.coffre-batch__tags,
+.coffre-batch__rename {
+  grid-column: span 2;
+}
+.coffre-batch__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+.coffre-batch__chips .coffre-batch__tag {
+  flex: 0 1 150px;
+  width: 150px;
+  min-width: 90px;
+}
+.coffre-value--added .coffre-value__text {
+  color: var(--accent);
+}
+.coffre-value--removed .coffre-value__text {
+  color: var(--danger);
+  text-decoration: line-through;
+}
+.coffre-batch__preview {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.85rem;
+  display: grid;
+  gap: 2px;
+}
+.coffre-batch__preview li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.coffre-batchedit {
+  width: min(760px, 94vw);
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+}
+.coffre-table tr.is-selected,
+.coffre-result.is-selected {
+  background: var(--accent-soft);
+}
+.coffre-table__name input[type='checkbox'],
+.coffre-result__check {
+  accent-color: var(--accent);
+  margin-right: 6px;
+}
+.coffre-result__check {
+  float: left;
+  margin-top: 12px;
+}
+
+/* v0.48.0: importing an arborescence (Expérimental) */
+.coffre-import {
+  display: flex;
+  flex-direction: column;
+  width: min(920px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+}
+.coffre-import__body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 18px;
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+.coffre-import__source {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.coffre-import__route {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.coffre-import__route .coffre-picker {
+  left: 40px;
+}
+.coffre-import__tree {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.coffre-import__root {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px;
+  max-height: 46vh;
+  overflow: auto;
+}
+.coffre-import__line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  padding: 3px 6px;
+  border-radius: var(--radius-sm);
+}
+.coffre-import__line:hover {
+  background: var(--surface-hover);
+}
+.coffre-import__project {
+  margin-left: auto;
+  font-size: 0.8rem;
+  color: var(--text-2);
+}
+.coffre-import__deps {
+  list-style: none;
+  margin: 0 0 4px;
+  font-size: 0.85rem;
+}
+.coffre-import__notes {
+  display: grid;
+  gap: 4px;
+}
+.coffre-import__progress {
+  display: grid;
+  gap: 6px;
+}
+.coffre-imports {
+  margin-top: 16px;
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+.coffre-imports__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  width: 100%;
+}
+.coffre-tocomplete {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
+  font-size: 0.88rem;
+}
+.coffre-import__line:not(:hover):not(:focus-within) .coffre-import__project--off {
+  visibility: hidden;
 }

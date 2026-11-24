@@ -5,6 +5,8 @@ import { isRunnable } from '@hub/sdk/core';
 import { fold } from '../shared/deduce';
 import { languageOfExt } from '../shared/kinds';
 import type { AttributeDto, AttributeKey, ContextDto, ItemDto, ProposalDto } from '../shared/types';
+import type { RoutePick } from '../shared/route';
+import { batchNames, batchTags, common, type BatchField, type BatchKey } from '../shared/batch';
 
 /** Where an element goes: an existing context, one to create (its path), or Arrivée (null). */
 export type ContextChoice =
@@ -25,6 +27,12 @@ export interface DepositEntry {
   /** « Garder quand même » a duplicate. */
   keepDuplicate: boolean;
   state: 'todo' | 'done' | 'later' | 'skipped';
+  /** v0.48.0: « Pour tous » applies to the checked ones (all by default). */
+  checked: boolean;
+  /** v0.48.0: the fields changed on this file alone after « Pour tous » (kept). */
+  exceptions: BatchField[];
+  /** v0.48.0: its own values before « Pour tous » (an unchecked file gets them back). */
+  own: { name: string; choice: ContextChoice; attributes: AttributeDto[] };
 }
 
 /** The entries of a set of proposals (`fixed`: the context it was dropped on, « choisi »). */
@@ -32,23 +40,51 @@ export function entriesOf(
   proposals: readonly ProposalDto[],
   options: { files?: Map<string, File>; fixed?: string | null; as?: 'copy' | 'link' } = {},
 ): DepositEntry[] {
-  return proposals.map((p, i) => ({
-    key: `${i}:${p.path}`,
-    proposal: p,
-    file: options.files?.get(p.path) ?? null,
-    name: p.name,
-    as: options.as ?? 'copy',
-    choice: options.fixed
-      ? { kind: 'existing', id: options.fixed, origin: 'chosen', reason: null }
-      : p.context
-        ? p.context.kind === 'existing'
-          ? { kind: 'existing', id: p.context.id, origin: 'guessed', reason: p.context.reason }
-          : { kind: 'new', path: p.context.path, origin: 'guessed', reason: p.context.reason }
-        : null,
-    attributes: p.attributes,
-    keepDuplicate: false,
-    state: 'todo',
-  }));
+  return proposals
+    .map((p, i): DepositEntry => ({
+      key: `${i}:${p.path}`,
+      proposal: p,
+      file: options.files?.get(p.path) ?? null,
+      name: p.name,
+      as: options.as ?? 'copy',
+      choice: options.fixed
+        ? { kind: 'existing', id: options.fixed, origin: 'chosen', reason: null }
+        : p.context
+          ? p.context.kind === 'existing'
+            ? { kind: 'existing', id: p.context.id, origin: 'guessed', reason: p.context.reason }
+            : { kind: 'new', path: p.context.path, origin: 'guessed', reason: p.context.reason }
+          : null,
+      attributes: p.attributes,
+      keepDuplicate: false,
+      state: 'todo',
+      checked: true,
+      exceptions: [],
+      own: { name: p.name, choice: null, attributes: p.attributes },
+    }))
+    .map((e): DepositEntry => ({ ...e, own: { ...e.own, choice: e.choice } }));
+}
+
+/**
+ * v0.48.0: a file unchecked — « Pour tous » no longer applies to it: its own
+ * values come back (what was changed on it alone is kept).
+ */
+export function uncheck(e: DepositEntry): DepositEntry {
+  const keep = (f: BatchField) => e.exceptions.includes(f);
+  let attributes = e.attributes;
+  for (const key of ['nature', 'origin', 'year', 'tag'] as AttributeKey[]) {
+    if (keep(key === 'tag' ? 'tags' : (key as BatchField))) continue;
+    attributes = [
+      ...attributes.filter((a) => a.key !== key),
+      ...e.own.attributes.filter((a) => a.key === key),
+    ];
+  }
+  return {
+    ...e,
+    checked: false,
+    name: keep('rename') ? e.name : e.own.name,
+    choice: keep('route') ? e.choice : e.own.choice,
+    attributes,
+  };
 }
 
 /** What /deposit/apply receives for an entry (`later`: to Arrivée). */
@@ -96,6 +132,22 @@ export function parseContextPath(text: string): string[] {
 export function contextOfPath(contexts: readonly ContextDto[], names: readonly string[]) {
   const wanted = names.map(fold).join('\u0000');
   return contexts.find((c) => c.path.map(fold).join('\u0000') === wanted) ?? null;
+}
+
+/** v0.48.0: what the route picker gave, as a choice (« choisi »). */
+export function pickToChoice(pick: RoutePick): ContextChoice {
+  if (pick.kind === 'existing')
+    return { kind: 'existing', id: pick.id, origin: 'chosen', reason: null };
+  if (pick.kind === 'new') return { kind: 'new', path: pick.path, origin: 'chosen', reason: null };
+  return null;
+}
+
+/** A choice, as the route picker's line. */
+export function choiceToPick(choice: ContextChoice): RoutePick {
+  if (!choice) return { kind: 'arrival' };
+  return choice.kind === 'existing'
+    ? { kind: 'existing', id: choice.id }
+    : { kind: 'new', path: choice.path };
 }
 
 /** How a choice reads (« Cours › Thermo », « nouveau : Cours › Réseaux », « Arrivée »). */
@@ -202,4 +254,125 @@ export function openPlan(
   if (item.kind === 'file' && languageOfExt(item.ext) !== null)
     return tools.vscode ? { kind: 'vscode' } : { kind: 'preview' };
   return { kind: 'app', confirm: isRunnable(item.name) };
+}
+
+// --- v0.48.0: « Pour tous » (a setting for a batch) -------------------------------
+
+/** What « Pour tous » sets; a field left undefined is not touched (« mixte » stays). */
+export interface BatchValues {
+  route?: ContextChoice;
+  nature?: string | null;
+  origin?: string | null;
+  year?: string | null;
+  tagsAdd: string[];
+  tagsRemove: string[];
+  /** The rename template (« Thermo - {nom} »); empty: the names are kept. */
+  template: string;
+}
+
+export const emptyBatch = (): BatchValues => ({ tagsAdd: [], tagsRemove: [], template: '' });
+
+/** Has this field a value in « Pour tous »? */
+export function batchSets(v: BatchValues, field: BatchField): boolean {
+  if (field === 'tags') return v.tagsAdd.length > 0 || v.tagsRemove.length > 0;
+  if (field === 'rename') return v.template.trim() !== '';
+  return v[field] !== undefined;
+}
+
+const attrValue = (attrs: readonly AttributeDto[], key: AttributeKey) =>
+  attrs.find((a) => a.key === key)?.value ?? null;
+
+/** The last name of a choice's route (for {contexte}), or null (Arrivée). */
+function contextNameOf(choice: ContextChoice, contexts: readonly ContextDto[]): string | null {
+  if (!choice) return null;
+  if (choice.kind === 'new') return choice.path[choice.path.length - 1] ?? null;
+  return contexts.find((c) => c.id === choice.id)?.name ?? null;
+}
+
+/**
+ * « Pour tous » applied to the checked files still to put away — except the
+ * fields changed on a file alone (its exceptions). Every value is « choisi ».
+ */
+export function applyBatch(
+  entries: readonly DepositEntry[],
+  v: BatchValues,
+  contexts: readonly ContextDto[],
+  date?: string,
+  /** The template was just emptied: the names come back (exceptions kept). */
+  resetNames = false,
+): DepositEntry[] {
+  const targets = entries.filter((e) => e.checked && e.state === 'todo');
+  const out = new Map<string, DepositEntry>();
+  for (const e of targets) {
+    const keep = (f: BatchField) => e.exceptions.includes(f) || !batchSets(v, f);
+    const next: DepositEntry = { ...e };
+    if (!keep('route'))
+      next.choice = v.route ? { ...v.route, origin: 'chosen', reason: null } : null;
+    for (const key of ['nature', 'origin', 'year'] as BatchKey[]) {
+      if (keep(key)) continue;
+      const value = v[key];
+      next.attributes = chooseValues(next.attributes, key, value ? [value] : []);
+    }
+    if (!keep('tags')) {
+      const tags = next.attributes.filter((a) => a.key === 'tag').map((a) => a.value);
+      next.attributes = chooseValues(
+        next.attributes,
+        'tag',
+        batchTags(tags, v.tagsAdd, v.tagsRemove),
+      );
+    }
+    if (resetNames && !v.template.trim() && !e.exceptions.includes('rename'))
+      next.name = e.proposal.name;
+    out.set(e.key, next);
+  }
+  // The names: from the template, collisions inside the batch numbered.
+  if (v.template.trim()) {
+    const renamed = targets.filter((e) => !e.exceptions.includes('rename'));
+    const names = batchNames(
+      renamed.map((e) => ({
+        key: e.key,
+        name: e.proposal.name,
+        context: contextNameOf(out.get(e.key)!.choice, contexts),
+      })),
+      v.template,
+      date,
+    );
+    for (const [key, name] of names) out.set(key, { ...out.get(key)!, name });
+  }
+  return entries.map((e) => out.get(e.key) ?? e);
+}
+
+/** A file's own change after « Pour tous »: an exception for that field (kept). */
+export function markException(
+  entry: DepositEntry,
+  field: BatchField,
+  v: BatchValues,
+): DepositEntry['exceptions'] {
+  return entry.checked && batchSets(v, field) && !entry.exceptions.includes(field)
+    ? [...entry.exceptions, field]
+    : entry.exceptions;
+}
+
+/** What « Pour tous » shows for a field: the common value, or « mixte ». */
+export function batchSummary(
+  entries: readonly { choice: ContextChoice; attributes: readonly AttributeDto[] }[],
+  contexts: readonly ContextDto[],
+) {
+  return {
+    route: common(entries.map((e) => choiceLabel(e.choice, contexts))),
+    nature: common(entries.map((e) => attrValue(e.attributes, 'nature'))),
+    origin: common(entries.map((e) => attrValue(e.attributes, 'origin'))),
+    year: common(entries.map((e) => attrValue(e.attributes, 'year'))),
+    /** The tags every file has, and those only some have. */
+    tags: (() => {
+      const lists = entries.map((e) =>
+        e.attributes.filter((a) => a.key === 'tag').map((a) => a.value),
+      );
+      const all = [...new Set(lists.flat())];
+      return {
+        everywhere: all.filter((t) => lists.every((l) => l.includes(t))),
+        some: all.filter((t) => !lists.every((l) => l.includes(t))),
+      };
+    })(),
+  };
 }

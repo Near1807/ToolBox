@@ -3,7 +3,7 @@
 // it then changes (COFFRE_TEST_VHD, diskpart): the Coffre's disk is found
 // again by its identity on the new letter; copies, long paths, verification.
 import { execFileSync } from 'node:child_process';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -43,6 +43,73 @@ function changeLetter(from: string, to: string) {
 describe.runIf(process.platform === 'win32' && volume && vhd)(
   'vrai volume NTFS (CI Windows)',
   () => {
+    // v0.48.0: the tree moved (and a name whose case only changes) then the disk updated
+    // by MOVES; an arborescence imported (long paths, node_modules left out).
+    it(
+      'arbre déplacé, casse changée : le disque suit par déplacements ; import d’une arborescence',
+      { timeout: 180_000 },
+      async () => {
+        w = await diskWorld({ realVolumes: true });
+        await deposit(w, { 'chap1.md': 'thermo' }, ['thermo']);
+        await deposit(w, { 'vlan.md': 'réseaux' }, ['Réseaux']);
+        await deposit(w, { 'cuda.md': 'gpu' }, ['GPU']);
+        const s = await registerDisk(w, `${volume}\\Arbre`);
+        const first = await waitJob(
+          w,
+          (await ok<{ jobId: string }>(w, 'POST', `${API}/disk/update`)).jobId,
+        );
+        expect(first.status, first.error ?? '').toBe('succeeded');
+        const cours = await ok<{ id: string }>(w, 'POST', `${API}/contexts`, { name: 'Cours' });
+        const all = await ok<{ id: string; name: string }[]>(w, 'GET', `${API}/contexts`);
+        for (const name of ['thermo', 'Réseaux', 'GPU'])
+          await ok(w, 'POST', `${API}/contexts/${all.find((c) => c.name === name)!.id}/move`, {
+            parentId: cours.id,
+          });
+        await ok(w, 'PATCH', `${API}/contexts/${all.find((c) => c.name === 'thermo')!.id}`, {
+          name: 'Thermo',
+        });
+        const lib = path.join(w.hub.dataDir, 'coffre');
+        expect(readdirSync(path.join(lib, 'Cours')).sort()).toEqual(['GPU', 'Réseaux', 'Thermo']);
+        const plan = await ok<{ counts: { copy: number; move: number } }>(
+          w,
+          'GET',
+          `${API}/disk/plan`,
+        );
+        expect(plan.counts).toMatchObject({ copy: 0, move: 3 });
+        const second = await waitJob(
+          w,
+          (await ok<{ jobId: string }>(w, 'POST', `${API}/disk/update`)).jobId,
+        );
+        expect(second.status, second.error ?? '').toBe('succeeded');
+        expect((second.result as UpdateReport).moved).toBe(3);
+        expect((second.result as UpdateReport).copied).toBe(0);
+        expect(readFileSync(path.join(s.root!, 'Cours', 'Thermo', 'chap1.md'), 'utf8')).toBe(
+          'thermo',
+        );
+        expect(readdirSync(path.join(s.root!, 'Cours')).sort()).toEqual([
+          'GPU',
+          'Réseaux',
+          'Thermo',
+        ]);
+        // An arborescence imported: long folder names, a node_modules left out.
+        const src = path.join(w.dl, 'Programmation');
+        const long = 'Un dossier au nom assez long pour tester les chemins';
+        mkdirSync(path.join(src, long, long, 'site', 'node_modules', 'x'), { recursive: true });
+        writeFileSync(path.join(src, long, long, 'notes.txt'), 'notes');
+        writeFileSync(path.join(src, long, long, 'site', 'package.json'), '{}');
+        writeFileSync(path.join(src, long, long, 'site', 'node_modules', 'x', 'i.js'), '1');
+        const st = await ok<{ id: string }>(w, 'POST', `${API}/import/start`, { source: src });
+        let state = '';
+        for (let i = 0; i < 200 && state !== 'done'; i++) {
+          await new Promise((r) => setTimeout(r, 100));
+          state = (await ok<{ state: string }>(w, 'GET', `${API}/import/${st.id}`)).state;
+        }
+        expect(state).toBe('done');
+        const site = path.join(lib, 'Programmation', long, long, 'site');
+        expect(readFileSync(path.join(site, 'package.json'), 'utf8')).toBe('{}');
+        expect(existsSync(path.join(site, 'node_modules'))).toBe(false);
+      },
+    );
     it(
       'copie, chemin long, lettre changée : reconnu par l’identité ; vérifié',
       { timeout: 180_000 },

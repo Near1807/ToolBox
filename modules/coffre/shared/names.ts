@@ -78,3 +78,21 @@ export function folderName(name: string): string {
   const safe = safeName(name, MAX_FOLDER);
   return RESERVED_FOLDERS.has(safe.toLowerCase()) ? `${safe}_` : safe;
 }
+
+/**
+ * v0.48.0: why a name typed for a context is not a valid Windows folder name
+ * (the folder must carry exactly the context's name), or null when it is.
+ */
+export function invalidName(name: string): string | null {
+  const n = name.trim();
+  if (!n) return 'Nom vide';
+  const bad = [...new Set(n.match(/[<>:"|?*]/g) ?? [])];
+  if (bad.length) return `« ${n} » : caractère interdit par Windows (${bad.join(' ')})`;
+  if ([...n].some((c) => c.charCodeAt(0) < 32)) return `« ${n} » : caractère invisible interdit`;
+  if (/[. ]$/.test(n)) return `« ${n} » : un nom ne finit pas par un point sur Windows`;
+  if (RESERVED.test(n)) return `« ${n} » : nom réservé par Windows`;
+  if (n.length > MAX_FOLDER)
+    return `« ${n.slice(0, 20)}… » : trop long (${MAX_FOLDER} caractères au plus)`;
+  if (RESERVED_FOLDERS.has(n.toLowerCase())) return `« ${n} » : nom réservé au Coffre`;
+  return null;
+}

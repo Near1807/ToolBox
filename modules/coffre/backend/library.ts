@@ -95,6 +95,18 @@ export class Library {
     return target;
   }
 
+  /** v0.48.0: the relative path of an absolute one inside the Coffre, or null (outside). */
+  relOf(abs: string): string | null {
+    const root = path.resolve(this.root);
+    const target = path.resolve(abs);
+    if (target === root) return '';
+    const inside =
+      process.platform === 'win32'
+        ? target.toLowerCase().startsWith(root.toLowerCase() + path.sep)
+        : target.startsWith(root + path.sep);
+    return inside ? path.relative(root, target).split(path.sep).join('/') : null;
+  }
+
   /** A free name in a folder (Windows: case does not count). */
   freeIn(dirAbs: string, name: string): string {
     const taken = new Set([

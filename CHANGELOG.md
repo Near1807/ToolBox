@@ -4,6 +4,56 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.48.0] — 2026-11-24
+
+Coffre : **organisation**. Tout est marqué « Expérimental ». Migration 7 du Coffre (ajouts seulement, sauvegarde de la base avant) ; ADR 0064 et 0065.
+
+### Ajouté
+
+- **Deux pages** : « Contenu » (par défaut : tes fichiers sans défiler, « Maintenant », En cours, récents, témoins Arrivée / À compléter / disque, carte et arbre, tuiles) et « Gestion » (disque, santé, corbeilles, Téléchargements, ce que le Coffre a appris, imports, réglages). Onglet retenu, Alt+1 / Alt+2. Le bandeau du disque reste visible dans les deux.
+- **Gérer l'arbre des contextes** depuis ToolBox (arbre, carte, page d'un contexte : boutons, clic droit, glisser-déposer) :
+  - nouveau contexte ou sous-contexte, renommer ;
+  - déplacer (refusé dans lui-même ou un descendant) ;
+  - fusionner (sous-contextes de même nom fusionnés, fichiers jamais écrasés « (2) », liens, cours et règles apprises qui suivent) ;
+  - supprimer seulement un contexte vide (sinon « Déplacer son contenu vers… ») ;
+  - réordonner les frères.
+
+  Les fichiers sont déplacés d'un bloc, avec retour arrière en cas d'échec, et chaque action a son « Annuler ». Le disque suit par **déplacements** à la prochaine mise à jour, sans rien recopier.
+- **Carte des contextes** :
+  - disposition radiale calculée, stable ;
+  - taille selon les éléments, couleur du contexte, pastilles « nouveau » / « pas encore sur le disque » ;
+  - zoom et déplacement à la souris, à la molette et au clavier, « Tout voir » ;
+  - recherche qui allume le chemin, Entrée y va ;
+  - glisser un nœud sur un autre = déplacer (confirmé, Annuler) ;
+  - en grand sur sa propre page, avec l'**arbre compact** à côté (clavier complet). Mesuré : 315 contextes affichés en 117 ms, 60 images/s en déplacement.
+- **Sélecteur de route** unique :
+  - « Cours/Thermo/Labos » (« / », « › », « \ ») ;
+  - complétion tolérante par segment, insensible aux accents et à la casse (« cou/the » → « Cours/Thermo »), Tab accepte ;
+  - segments « nouveau » créés seulement à la validation ; noms refusés par Windows signalés ;
+  - routes récentes, route proposée, petit arbre avec « + sous-contexte ici ».
+- **« Pour tous »** dans la fenêtre de rangement :
+  - route, nature, origine, année, tags ajoutés / retirés ;
+  - renommage par modèle `{nom}` `{n}` `{date}` `{contexte}` avec aperçu ;
+  - cases par fichier (un décoché va dans Arrivée avec ses propres valeurs), valeurs « mixte », exceptions par fichier gardées ;
+  - Entrée = Ranger les cochés, un seul « Annuler » pour le lot.
+
+  Le même bloc sert à « Modifier la sélection » d'éléments rangés (Ctrl / Maj + clic ou cases, dans un contexte, une vue ou la recherche). Le **nom d'origine** est gardé, montré dans la fiche et cherchable.
+- **Importer une arborescence** (Gestion, dossier glissé, clic droit Windows sur un dossier) :
+  - aperçu sans écriture : contextes sous une route, fichiers et taille par dossier, doublons, fichiers système ignorés, fusions ;
+  - projets de code = **un seul élément**, repérés par `.git`, `package.json`, `requirements.txt`… ou par leurs fichiers ; `node_modules`, `.venv`, `__pycache__`, `build`… décochés par défaut ;
+  - copie en arrière-plan (original intact), progression, annulation, **reprise après redémarrage** ;
+  - un dossier copié à la main dans le Coffre est **proposé** à l'adoption (jamais adopté seul ; adoption sans copie) ;
+  - éléments « **à compléter** » (vue, « Fiche vérifiée », Modifier la sélection) ; un seul « Annuler ».
+
+### Changé
+
+- Renommer un contexte se fait par le même journal d'opérations (annulable ; un changement de casse seul passe par un nom temporaire). Un nouveau nom de contexte doit être un nom de dossier Windows valide tel quel.
+- Créer un contexte, ou le ranger dans une route nouvelle, se défait avec « Annuler » (les contextes créés pour l'occasion partent s'ils sont vides).
+
+### Corrigé
+
+- Renommer un contexte filtrait les chemins avec `LIKE` (où `_` est un joker) : il compare maintenant le début exact du chemin.
+
 ## [0.47.1] — 2026-11-24
 
 Correctifs issus de l'audit v0.45–v0.47. Aucune migration.

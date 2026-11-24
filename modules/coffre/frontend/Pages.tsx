@@ -12,6 +12,7 @@ import {
   Icon,
   Page,
   useApi,
+  useContextMenu,
   useModule,
 } from '@hub/sdk/frontend';
 import { PALETTE } from '@hub/sdk/palette';
@@ -26,6 +27,8 @@ import {
   type ItemDto,
 } from '../shared/types';
 import { useCoffre } from './frame';
+import { useTreeActions } from './tree-actions';
+import { SelectBar, useSelection } from './BatchEdit';
 import { Tile } from './Home';
 import { Items, useView, ViewBar } from './Items';
 import { shortDate } from './logic';
@@ -88,8 +91,7 @@ function FilteredItems(props: {
 }) {
   const [selection, setSelection] = useState<FacetSelection>({});
   const [onlyPending, setOnlyPending] = useState(false);
-  const [selecting, setSelecting] = useState(false);
-  const [chosen, setChosen] = useState<Set<string>>(new Set());
+  const sel = useSelection();
   const coffre = useCoffre();
   const view = useView();
   const pending = props.items.filter((i) => i.diskState === 'pending').length;
@@ -119,72 +121,33 @@ function FilteredItems(props: {
         without={props.without}
       />
       <ViewBar count={shown.length} state={view} />
-      {coffre.disk?.disk && (
-        <div className="coffre-selectbar">
-          {selecting ? (
-            <>
-              <span>
-                {chosen.size} sélectionné{chosen.size > 1 ? 's' : ''}
-              </span>
-              <Button
-                variant="secondary"
-                small
-                onClick={() =>
-                  setChosen(new Set(shown.filter((i) => i.diskState === 'active').map((i) => i.id)))
-                }
-              >
-                Tous les actifs
-              </Button>
-              <Button
-                small
-                disabled={!chosen.size || !coffre.disk.connected}
-                title={
-                  coffre.disk.connected
-                    ? undefined
-                    : `Branche le disque « ${coffre.disk.disk.name} »`
-                }
-                onClick={() => {
-                  coffre.archive(shown.filter((i) => chosen.has(i.id)));
-                  setChosen(new Set());
-                  setSelecting(false);
-                }}
-              >
-                Archiver la sélection
-              </Button>
-              <Button
-                variant="secondary"
-                small
-                onClick={() => {
-                  setSelecting(false);
-                  setChosen(new Set());
-                }}
-              >
-                Terminer
-              </Button>
-            </>
-          ) : (
-            <Button variant="secondary" small onClick={() => setSelecting(true)}>
-              Sélectionner…
+      {/* v0.48.0: select (boxes, Ctrl / Maj + clic), « Modifier la sélection… »; archive with a disk. */}
+      <SelectBar
+        sel={sel}
+        shown={shown}
+        extra={
+          coffre.disk?.disk && (
+            <Button
+              variant="secondary"
+              small
+              disabled={!shown.some((i) => sel.ids.has(i.id)) || !coffre.disk.connected}
+              title={
+                coffre.disk.connected ? undefined : `Branche le disque « ${coffre.disk.disk.name} »`
+              }
+              onClick={() => {
+                coffre.archive(shown.filter((i) => sel.ids.has(i.id) && i.diskState === 'active'));
+                sel.clear();
+              }}
+            >
+              Archiver la sélection
             </Button>
-          )}
-        </div>
-      )}
+          )
+        }
+      />
       <Items
         items={shown}
-        select={
-          selecting
-            ? {
-                ids: chosen,
-                toggle: (id) =>
-                  setChosen((prev) => {
-                    const next = new Set(prev);
-                    if (next.has(id)) next.delete(id);
-                    else next.add(id);
-                    return next;
-                  }),
-              }
-            : undefined
-        }
+        select={sel.selecting ? { ids: sel.ids, toggle: sel.toggle } : undefined}
+        onModClick={sel.modClick}
         showContext={props.showContext}
         view={view.view}
         sort={view.sort}
@@ -210,6 +173,8 @@ export function ContextPage() {
   const navigate = useNavigate();
   const items = useApi<ItemDto[]>(module.url(`/items?context=${encodeURIComponent(id)}`));
   const courses = useApi<CourseHint[]>(module.url('/courses'));
+  const tree = useTreeActions();
+  const treeMenu = useContextMenu();
   const context = coffre.contexts.find((c) => c.id === id);
   const children = coffre.contexts.filter((c) => c.parentId === id);
   useEffect(() => {
@@ -238,17 +203,6 @@ export function ContextPage() {
       </Page>
     );
 
-  const rename = () => {
-    const name = window.prompt('Nouveau nom du contexte (son dossier suit) :', context.name);
-    if (!name?.trim() || name.trim() === context.name) return;
-    coffre.api
-      .patch(`/contexts/${id}`, { name })
-      .then(() => {
-        coffre.notify(`Contexte renommé en « ${name.trim()} ».`);
-        coffre.refresh();
-      })
-      .catch(coffre.fail);
-  };
   const recolor = (color: string) =>
     coffre.api
       .patch(`/contexts/${id}`, { color: color || null })
@@ -277,8 +231,20 @@ export function ContextPage() {
       actions={
         <>
           <Button onClick={() => coffre.pick(id)}>Ranger des fichiers ici…</Button>
-          <Button variant="secondary" onClick={rename}>
+          {/* v0.48.0: the same actions as the tree and the map (ADR 0064). */}
+          <Button variant="secondary" onClick={() => tree.rename(context)}>
             Renommer
+          </Button>
+          <Button
+            variant="secondary"
+            aria-haspopup="menu"
+            onClick={(e) => {
+              const r = e.currentTarget.getBoundingClientRect();
+              treeMenu.openAt(() => tree.menuOf(context), r.left, r.bottom + 4);
+            }}
+            {...treeMenu.bind(() => tree.menuOf(context), context.name)}
+          >
+            Organiser…
           </Button>
           {context.coverItemId && (
             <Button
@@ -394,6 +360,8 @@ export function ContextPage() {
           </button>
         </p>
       </div>
+      {treeMenu.node}
+      {tree.node}
     </Page>
   );
 }
@@ -558,6 +526,13 @@ const STATE_TITLES: Record<string, { title: string; subtitle: string; empty: str
     subtitle:
       'Sur le disque seulement : fiches visibles et trouvables ici, fichiers sur le disque dur.',
     empty: 'Aucun élément archivé.',
+  },
+  // v0.48.0: imported with an arborescence, sheet not yet checked.
+  tocomplete: {
+    title: 'À compléter',
+    subtitle:
+      'Importés avec une arborescence : leur fiche est devinée. « Sélectionner… » puis « Modifier la sélection » pour en compléter plusieurs ; « Fiche vérifiée » dans l’aperçu pour un seul.',
+    empty: 'Rien à compléter.',
   },
 };
 

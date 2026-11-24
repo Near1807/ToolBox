@@ -6,15 +6,11 @@
 import { useState, type ReactNode } from 'react';
 import { Icon } from '@hub/sdk/frontend';
 import { LANGUAGE_CHOICES, NATURE_CHOICES, ORIGIN_CHOICES } from '../shared/kinds';
-import {
-  ATTRIBUTE_LABELS,
-  type AttributeDto,
-  type AttributeKey,
-  type ContextDto,
-} from '../shared/types';
+import { ATTRIBUTE_LABELS, type AttributeDto, type AttributeKey } from '../shared/types';
 import { useCoffre } from './frame';
-import { choiceLabel, contextOfPath, parseContextPath, type ContextChoice } from './logic';
+import { choiceLabel, choiceToPick, pickToChoice, type ContextChoice } from './logic';
 import { Picker, type PickerOption } from './Picker';
+import { RoutePicker } from './RoutePicker';
 
 /** The fields of the sheet, in this order. */
 const FIELDS: AttributeKey[] = [
@@ -61,26 +57,6 @@ function Row(props: { label: string; children: ReactNode }) {
   );
 }
 
-export function contextOptions(contexts: readonly ContextDto[]): PickerOption[] {
-  return [...contexts]
-    .sort((a, b) => a.path.join('/').localeCompare(b.path.join('/'), 'fr'))
-    .map((c) => ({
-      value: c.id,
-      label: c.path.join(' › '),
-      hint: c.count ? String(c.count) : undefined,
-    }));
-}
-
-/** What a context typed gives: the existing one of that path, or a new one. */
-export function choiceOfTyped(text: string, contexts: readonly ContextDto[]): ContextChoice {
-  const names = parseContextPath(text);
-  if (!names.length) return null;
-  const found = contextOfPath(contexts, names);
-  return found
-    ? { kind: 'existing', id: found.id, origin: 'chosen', reason: null }
-    : { kind: 'new', path: names, origin: 'chosen', reason: null };
-}
-
 export function Sheet(props: {
   choice: ContextChoice;
   onChoice: (choice: ContextChoice) => void;
@@ -117,21 +93,23 @@ export function Sheet(props: {
         </button>
         {ctxChoice?.origin === 'guessed' && <Guessed reason={ctxChoice.reason} />}
         {editing === 'context' && (
-          <Picker
+          <RoutePicker
             label="Contexte"
-            options={[
-              ...contextOptions(contexts),
-              { value: '', label: 'Arrivée (à ranger plus tard)' },
-            ]}
-            createLabel={(t) => `Créer le contexte « ${parseContextPath(t).join(' › ')} »`}
+            contexts={contexts}
+            arrival
+            proposed={
+              ctxChoice?.origin === 'guessed'
+                ? {
+                    pick: choiceToPick(ctxChoice),
+                    label: choiceLabel(ctxChoice, contexts),
+                    reason: ctxChoice.reason,
+                  }
+                : null
+            }
             onClose={() => setEditing(null)}
-            onPick={(value, created) => {
+            onPick={(pick) => {
               setEditing(null);
-              if (created) props.onChoice(choiceOfTyped(value, contexts));
-              else
-                props.onChoice(
-                  value ? { kind: 'existing', id: value, origin: 'chosen', reason: null } : null,
-                );
+              props.onChoice(pickToChoice(pick));
             }}
           />
         )}
