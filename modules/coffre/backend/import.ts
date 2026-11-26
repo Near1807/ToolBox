@@ -913,13 +913,19 @@ export function registerImport(d: ImportDeps) {
     try {
       await imp.run(id, job);
     } catch (error) {
+      // A cancel can surface as an error from a read or copy it interrupted (v0.49.0):
+      // it is still a cancel, handled below, never a failure.
+      if (job.signal.aborted) return finishAborted();
       imp.save(id, {
         state: 'failed',
         error: String(error instanceof Error ? error.message : error),
       });
       throw error;
     }
-    if (job.signal.aborted) {
+    if (job.signal.aborted) return finishAborted();
+    return { items: imp.status(id).items };
+
+    async function finishAborted() {
       // Cancelled by Thomas (not by a shutdown: then it is resumed at the next start).
       if (imp.row(id).state === 'running' && cancelling.has(id)) {
         cancelling.delete(id);
@@ -928,7 +934,6 @@ export function registerImport(d: ImportDeps) {
       }
       return { items: 0 };
     }
-    return { items: imp.status(id).items };
   });
   const cancelling = new Set<string>();
 
