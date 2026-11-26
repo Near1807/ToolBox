@@ -236,7 +236,8 @@ function ResetDialog(props: { onClose: () => void }) {
               )}
               <div className="coffre-reset__row">
                 <span>
-                  Inventaire (CSV + JSON) écrit d’abord dans : <strong>{folder}</strong>
+                  Inventaire (CSV + JSON) écrit d’abord dans un dossier « ToolBox-inventaire-… » de
+                  : <strong>{folder}</strong>
                 </span>
                 <Button
                   variant="secondary"
@@ -284,7 +285,9 @@ function ResetDialog(props: { onClose: () => void }) {
                 et l’ancien dossier sur le disque.
               </p>
               <label className="coffre-reset__type">
-                Pour confirmer, tape <strong>vider</strong> :{' '}
+                <span>
+                  Pour confirmer, tape <strong>vider</strong> :
+                </span>
                 <input
                   className="input"
                   value={typed}

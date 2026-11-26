@@ -384,8 +384,15 @@ function ManageTab(props: { home: HomeDto; onRestore: () => void }) {
             <h2 className="coffre-h2">Disque du coffre</h2>
             <div className="coffre-manage__buttons">
               <Button
-                disabled={!s?.connected}
-                title={s?.connected ? undefined : 'Branche le disque du coffre'}
+                disabled={!s?.connected || Boolean(s.refuses) || Boolean(s.waitsFor)}
+                title={
+                  !s?.connected
+                    ? 'Branche le disque du coffre'
+                    : (s.refuses ??
+                      (s.waitsFor
+                        ? 'Import en cours : la mise à jour sera possible à la fin'
+                        : undefined))
+                }
                 onClick={coffre.update}
               >
                 Mettre à jour le disque…

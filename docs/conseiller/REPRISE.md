@@ -34,6 +34,6 @@ En français. D'abord le but et ce qu'on cherche à obtenir, puis le mécanisme 
 
 ## Où on en est
 
-- Dernière version poussée : v0.48.0 — Coffre « Organisation » (onglets Contenu / Gestion, arbre et carte, sélecteur de route, « Pour tous », import d'arborescence).
-- Prompt prêt, non fait : prompts/v0.49.0-dossiers.md (« tout est dossier », badge Projet, tâches de fond, projet indivisible, copie surveillée, fichiers de projet un par un, libérer les originaux).
+- Dernière version poussée : v0.49.0 — Coffre « Fiabilité » (tâches de fond du socle avec progression, Annuler, erreurs une à une et « Réessayer », reprise au redémarrage ; dépendances écartées avant de compter et seuil ; mise à jour du disque attendue pendant un import ; « Réinitialiser le Coffre »). Rapport : docs/rapports/2026-11-26-v0.49.0.md.
+- Prompt prêt, non fait : prompts/v0.49.0-dossiers.md (« tout est dossier ») — à lancer maintenant comme v0.50.0. Les **tâches de fond** qu'il demande existent déjà depuis v0.49.0 (outil générique du socle, MODULES.md §5.5 bis, ADR 0066) : à réutiliser, pas à refaire.
 - (Section tenue à jour par Claude Code à la fin de CHAQUE session.)

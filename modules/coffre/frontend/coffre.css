@@ -2434,6 +2434,9 @@ button.coffre-value__text:hover {
 }
 .coffre-reset__type {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  gap: 6px;
+}
+.coffre-reset__warn > button {
+  align-self: flex-start;
 }

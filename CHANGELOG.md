@@ -4,6 +4,38 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.49.0] — 2026-11-26
+
+Coffre : **fiabilité**. Plus jamais de page figée : toute opération longue est une tâche de fond suivie. Tout est marqué « Expérimental ». Migration 8 du socle (ajouts seulement, sauvegarde de la base avant) ; aucune migration du Coffre ; ADR 0066.
+
+### Ajouté
+
+- **Tâches de fond du socle** (règle MODULES.md §5.5 bis : toute opération pouvant dépasser 1 s) :
+  - la requête répond tout de suite par un numéro de tâche ; l'interface suit ;
+  - progression « 1 234 / 5 000 fichiers », fichier en cours, temps restant, Annuler, rang dans la file ;
+  - erreurs gardées une à une avec leur raison, « Réessayer ceux-là » ;
+  - une tâche qui le permet reprend seule au redémarrage, sinon elle est signalée ; fermer ToolBox pendant une tâche demande confirmation ;
+  - carte de tâche partagée du SDK (`JobCard`), témoin dans la barre latérale.
+- **Coffre, panneau des tâches** dans les deux onglets : dépôt (fichiers, dossier en projet, un par un), analyse et import d'une arborescence, adoption, déplacer / fusionner des contextes, archiver / réactiver, mise à jour et vérification du disque, lecture des textes, restauration depuis le disque.
+- **Écarter avant de compter** : `node_modules`, `.venv`, `venv`, `__pycache__`, `.pytest_cache`, `.mypy_cache`, `.pio`, `.gradle`, `.next`, `.nuxt`, `.cache` (et dans un projet : `build`, `dist`, `bin`, `obj`, `out`, `target`) sont mis de côté avant tout comptage, empreinte ou copie ; montrés dans l'aperçu avec leur taille, décochés par défaut.
+- **Seuil** : au-delà de 20 000 fichiers (après exclusions) ou 20 Go, avertissement chiffré avant de commencer : « Continuer » / « Choisir ce qu'on garde ».
+- **Réinitialiser le Coffre** (Gestion › Zone sensible) :
+  - aperçu de ce qui est vidé et avertissements pour ce qui n'existe que dans le Coffre (original absent ou différent, archivé, sans original), « Exporter ces éléments d'abord » ;
+  - inventaire CSV + JSON toujours écrit avant ; confirmation en tapant « vider » ;
+  - base sauvegardée avant ; fichiers du Coffre dans la corbeille de Windows ; seules les tables du Coffre sont vidées (règles apprises seulement si coché) ;
+  - disque : rien supprimé, dossier renommé « ToolBox-Coffre-ancien-<date> » ; disque absent : renommage proposé au prochain branchement, jamais seul.
+
+### Changé
+
+- Déposer des fichiers : un fichier en erreur ne fait plus échouer tout le lot ; il reste à sa place d'origine, rien n'est à moitié écrit (nom temporaire, relu, puis mis en place).
+- La mise à jour du disque est refusée pendant un dépôt ou un import (« Import en cours : la mise à jour sera possible à la fin ») et proposée à la fin.
+- Parcours des dossiers, empreintes et copies en flux, sans bloquer le processus principal.
+
+### Corrigé
+
+- Reprise d'un import de projet arrêté entre le dossier mis en place et sa fiche : plus de doublon « (2) ».
+- Déposer un gros projet en « un par un » figeait la page plusieurs secondes (52 902 propositions) : les dépendances sont maintenant écartées avant.
+
 ## [0.48.0] — 2026-11-24
 
 Coffre : **organisation**. Tout est marqué « Expérimental ». Migration 7 du Coffre (ajouts seulement, sauvegarde de la base avant) ; ADR 0064 et 0065.
