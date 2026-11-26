@@ -260,6 +260,7 @@ export async function runUpdate(
           const old = freeTarget(disk, root, historyPath(item.id, baseName(copy.rel_path), now));
           await place(disk.abs(root, copy.rel_path), disk.abs(root, old));
           d.store.create<VersionRow>('versions', {
+            inner_rel: null,
             item_id: item.id,
             disk_id: row.id,
             rel_path: old,

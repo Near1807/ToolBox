@@ -1,7 +1,7 @@
 // Code, coloured by highlight.js (local, bundled): only the languages below
 // are loaded. highlight.js escapes the text itself: its output holds only its
 // own <span class="hljs-…"> (no HTML of the file ever reaches the page).
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import hljs from 'highlight.js/lib/core';
 import bash from 'highlight.js/lib/languages/bash';
 import c from 'highlight.js/lib/languages/c';
@@ -155,6 +155,17 @@ function CodeReader({ source, mode, locate }: ReaderProps) {
     () => (mode === 'full' && shown !== null ? shown.split('\n').length : 0),
     [shown, mode],
   );
+  // v0.51.0: opened at a line (a search result): that line brought into view.
+  const wanted = mode === 'full' ? (locate?.line ?? null) : null;
+  useEffect(() => {
+    const pre = box.current;
+    if (!wanted || !pre || !lines) return;
+    const lineHeight = pre.scrollHeight / lines;
+    let scroller: HTMLElement | null = pre.parentElement;
+    while (scroller && scroller.scrollHeight <= scroller.clientHeight)
+      scroller = scroller.parentElement;
+    scroller?.scrollTo({ top: Math.max(0, (wanted - 3) * lineHeight) });
+  }, [wanted, lines, html]);
   if (error) return <p className="coffre-reader-error">{error}</p>;
   if (shown === null) return null;
   const className = `hljs ${mode === 'thumb' ? 'coffre-reader-thumb-text' : 'coffre-reader-code'}`;

@@ -18,6 +18,8 @@ export interface ReaderSource {
 export interface ReaderLocate {
   page?: number;
   query?: string;
+  /** v0.51.0: a line to show (code, text), 1-based. */
+  line?: number;
 }
 
 export interface ReaderProps {

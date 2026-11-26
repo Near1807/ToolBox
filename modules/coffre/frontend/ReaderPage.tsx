@@ -8,7 +8,7 @@ import { useEffect, useMemo } from 'react';
 import { useParams, useSearchParams } from 'react-router';
 import { isRunnable, runnableQuestion } from '@hub/sdk/core';
 import { Button, ErrorMessage, formatBytes, useApi, useModule } from '@hub/sdk/frontend';
-import type { ItemDto } from '../shared/types';
+import type { InnerFileDto, ItemDto } from '../shared/types';
 import { extOfItem } from './logic';
 import { iconOf, ReaderView } from './ReaderView';
 
@@ -17,6 +17,81 @@ interface Tools {
 }
 
 export function ReaderPage() {
+  const [params] = useSearchParams();
+  const rel = params.get('f');
+  return rel ? <InnerReaderPage rel={rel} /> : <ItemReaderPage />;
+}
+
+/**
+ * v0.51.0 (ADR 0068): ONE file inside a project in its own window
+ * (« /m/coffre/lire/<projet>?f=src/main.py »): the same readers.
+ */
+function InnerReaderPage(props: { rel: string }) {
+  const { id = '' } = useParams();
+  const [params] = useSearchParams();
+  const module = useModule();
+  const file = useApi<InnerFileDto>(
+    id ? module.url(`/files/${id}/inner?rel=${encodeURIComponent(props.rel)}`) : null,
+  );
+  const tools = useApi<Tools>(module.url('/tools'));
+  const f = file.data;
+  useEffect(() => {
+    if (f) document.title = `${f.name} — ToolBox`;
+  }, [f]);
+  const source = useMemo(
+    () => (f ? { name: f.name, ext: f.ext, size: f.size, url: f.url } : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [f?.rel, f?.url, f?.size],
+  );
+  const locate = useMemo(
+    () => ({
+      page: Number(params.get('page')) || undefined,
+      line: Number(params.get('line')) || undefined,
+      query: params.get('q') ?? undefined,
+    }),
+    [params],
+  );
+  if (file.error) return <ErrorMessage>{file.error}</ErrorMessage>;
+  if (!f || !source || !f.folderId) return null;
+  const open = (how: 'vscode' | 'folder') =>
+    void module.api
+      .post(`/folders/${f.folderId}/open`, { rel: f.rel, how, line: locate.line })
+      .catch((e: unknown) => window.alert(String(e instanceof Error ? e.message : e)));
+  return (
+    <div className="coffre-readwin" data-coffre-readwin>
+      <header className="coffre-readwin__head">
+        <div className="coffre-readwin__title">
+          <strong>{f.name}</strong>
+          <span className="muted small">
+            {f.rel} · {formatBytes(f.size)} · fichier d’un projet
+          </span>
+        </div>
+        <span className="badge badge--warning">Expérimental</span>
+        <span className="muted small coffre-readwin__keys">F11 : plein écran</span>
+        {tools.data?.vscode && (
+          <Button variant="secondary" onClick={() => open('vscode')}>
+            Ouvrir dans VS Code
+          </Button>
+        )}
+        <Button variant="secondary" onClick={() => open('folder')}>
+          Afficher dans l’explorateur
+        </Button>
+      </header>
+      <div className="coffre-readwin__body">
+        <ReaderView
+          source={source}
+          mode="full"
+          window
+          locate={locate}
+          icon="file"
+          fallback={<p className="muted">Pas d’aperçu pour ce type de fichier.</p>}
+        />
+      </div>
+    </div>
+  );
+}
+
+function ItemReaderPage() {
   const { id = '' } = useParams();
   const [params] = useSearchParams();
   const module = useModule();

@@ -93,8 +93,8 @@ export class ExtractPool {
     p.resolve(r);
   }
 
-  /** Reads one file (or project) in the worker; never throws. */
-  run(kind: 'file' | 'project', file: string, ext: string): Promise<Extracted> {
+  /** Reads one file in the worker; never throws. */
+  run(file: string, ext: string): Promise<Extracted> {
     if (this.pending) throw new Error('Une lecture à la fois');
     this.worker ??= this.spawn();
     const id = this.nextId++;
@@ -111,7 +111,7 @@ export class ExtractPool {
         void w?.terminate();
       }, this.maxMs);
       this.pending = { id, resolve, timer };
-      this.worker!.postMessage({ id, kind, file, ext, pdfjs: pdfjsFile() } satisfies ExtractJob);
+      this.worker!.postMessage({ id, file, ext, pdfjs: pdfjsFile() } satisfies ExtractJob);
     });
   }
 

@@ -3,7 +3,7 @@
 // part per page (its number); Word / PowerPoint / Excel (.docx, .pptx, .xlsx):
 // the XML of the zip (fflate), one part per slide for a presentation; HTML:
 // the text only (no script, no style); Markdown, text and code: as they are.
-// A project: its text files, one part per file (its relative path). A PDF
+// v0.51.0: a project's files are read one by one (text-index.ts). A PDF
 // without any text (a scan): « pas de texte » — no OCR.
 import { existsSync } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
@@ -11,7 +11,6 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { strFromU8, Unzip, UnzipInflate } from 'fflate';
 import { extOf, languageOfExt } from '../shared/kinds';
-import { listFiles } from './copy';
 
 export interface TextPart {
   /** « 3 » (a PDF's page, a slide), « src/main.c » (a project's file), or « ». */
@@ -39,9 +38,6 @@ const OFFICE_EXTS = new Set(['docx', 'pptx', 'xlsx', 'xlsm']);
 /** Larger text files are not read (a log of 2 Go says nothing useful). */
 const MAX_TEXT_BYTES = 20 * 1024 * 1024;
 const MAX_BINARY_BYTES = 300 * 1024 * 1024;
-/** A project: at most this many files read, each at most 1 Mo. */
-const MAX_PROJECT_FILES = 2000;
-const MAX_PROJECT_FILE_BYTES = 1024 * 1024;
 /** What is kept of one part (the index stays small). */
 const MAX_PART_CHARS = 400_000;
 
@@ -378,27 +374,4 @@ export async function extractFile(
     if (error instanceof TooBig) return { status: 'toobig', parts: [], error: error.message };
     return { status: 'error', parts: [], error: String(error) };
   }
-}
-
-/** A project (a folder): its text files, one part per file. */
-export async function extractProject(
-  dir: string,
-  signal?: { stopped: boolean },
-): Promise<Extracted> {
-  const parts: TextPart[] = [];
-  let read = 0;
-  for (const rel of listFiles(dir)) {
-    if (signal?.stopped) throw new Error('interrompu');
-    const ext = extOf(rel);
-    if (ext === 'pdf' || OFFICE_EXTS.has(ext) || !readable(ext)) continue;
-    if (/(^|\/)(node_modules|\.git|dist|build|target|__pycache__|\.venv)\//.test(rel)) continue;
-    const file = path.join(dir, ...rel.split('/'));
-    const s = await stat(file).catch(() => null);
-    if (!s || s.size > MAX_PROJECT_FILE_BYTES) continue;
-    const r = await extractFile(file, ext, signal);
-    for (const p of r.parts) parts.push({ part: rel, text: p.text });
-    if (++read >= MAX_PROJECT_FILES) break;
-    if (read % 20 === 0) await yieldNow();
-  }
-  return { status: parts.length ? 'ok' : 'notext', parts };
 }

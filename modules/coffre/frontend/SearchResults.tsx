@@ -3,7 +3,7 @@
 // with the words marked and their page; a click opens the preview AT THAT
 // PAGE, the words marked. Filtered by the Coffre's pills.
 import { useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
-import { useParams, useSearchParams } from 'react-router';
+import { useNavigate, useParams, useSearchParams } from 'react-router';
 import {
   ErrorMessage,
   Icon,
@@ -13,7 +13,7 @@ import {
   useModule,
 } from '@hub/sdk/frontend';
 import { filterItems, type FacetSelection } from '../shared/facets';
-import type { ItemDto, SearchDto, SearchHitDto } from '../shared/types';
+import type { InnerHitDto, ItemDto, SearchDto, SearchHitDto } from '../shared/types';
 import { useCoffre } from './frame';
 import { SelectBar, useSelection } from './BatchEdit';
 import { Facets } from './Pages';
@@ -88,70 +88,76 @@ export function SearchResults(props: { query: string }) {
       {!data && <p className="muted coffre-empty-line">Recherche…</p>}
       {results.length > 0 && <SelectBar sel={sel} shown={items} />}
       <ul className="coffre-results">
-        {results.map((hit, i) => (
-          <li
-            key={hit.item.id}
-            className={`coffre-result${hit.item.unavailable ? ' coffre-result--away' : ''}${sel.ids.has(hit.item.id) ? ' is-selected' : ''}`}
-            {...mergeHandlers(
-              { onClickCapture: (e: React.MouseEvent) => void sel.modClick(e, hit.item.id, order) },
-              coffre.bindMenu(() => coffre.menuOf(hit.item), hit.item.name),
-            )}
-          >
-            {sel.selecting && (
-              <input
-                type="checkbox"
-                className="coffre-result__check"
-                aria-label={`Sélectionner ${hit.item.name}`}
-                checked={sel.ids.has(hit.item.id)}
-                onChange={() => sel.toggle(hit.item.id)}
-              />
-            )}
-            <button
-              type="button"
-              className="coffre-result__head"
-              onClick={() =>
-                sel.selecting
-                  ? sel.toggle(hit.item.id)
-                  : coffre.preview(items, i, {
-                      page: Number(hit.hits[0]?.part) || undefined,
-                      query: hit.hits.length ? q : undefined,
-                    })
-              }
+        {results.map((hit, i) =>
+          hit.inner ? (
+            <InnerResult key={`${hit.item.id}/${hit.inner.rel}`} hit={hit} query={q} />
+          ) : (
+            <li
+              key={hit.item.id}
+              className={`coffre-result${hit.item.unavailable ? ' coffre-result--away' : ''}${sel.ids.has(hit.item.id) ? ' is-selected' : ''}`}
+              {...mergeHandlers(
+                {
+                  onClickCapture: (e: React.MouseEvent) => void sel.modClick(e, hit.item.id, order),
+                },
+                coffre.bindMenu(() => coffre.menuOf(hit.item), hit.item.name),
+              )}
             >
-              <Icon name={iconOf(hit.item)} />
-              <strong>{hit.item.name}</strong>
-              <span className="muted small">
-                {[
-                  hit.item.folderPath?.join(' › ') ?? 'À ranger',
-                  hit.partCount > 1 ? `${hit.partCount} passages` : '',
-                  hit.item.diskState === 'archived' ? 'archivé' : '',
-                ]
-                  .filter(Boolean)
-                  .join(' · ')}
-              </span>
-            </button>
-            {hit.hits.length > 0 && (
-              <ul className="coffre-result__hits">
-                {hit.hits.map((h) => (
-                  <li key={h.part}>
-                    <button
-                      type="button"
-                      className="coffre-result__hit"
-                      onClick={() =>
-                        coffre.preview(items, i, { page: Number(h.part) || undefined, query: q })
-                      }
-                    >
-                      {h.part && (
-                        <span className="coffre-result__part">{partLabel(hit, h.part)}</span>
-                      )}
-                      <MarkedText className="coffre-snippet" text={h.snippet} />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </li>
-        ))}
+              {sel.selecting && (
+                <input
+                  type="checkbox"
+                  className="coffre-result__check"
+                  aria-label={`Sélectionner ${hit.item.name}`}
+                  checked={sel.ids.has(hit.item.id)}
+                  onChange={() => sel.toggle(hit.item.id)}
+                />
+              )}
+              <button
+                type="button"
+                className="coffre-result__head"
+                onClick={() =>
+                  sel.selecting
+                    ? sel.toggle(hit.item.id)
+                    : coffre.preview(items, i, {
+                        page: Number(hit.hits[0]?.part) || undefined,
+                        query: hit.hits.length ? q : undefined,
+                      })
+                }
+              >
+                <Icon name={iconOf(hit.item)} />
+                <strong>{hit.item.name}</strong>
+                <span className="muted small">
+                  {[
+                    hit.item.folderPath?.join(' › ') ?? 'À ranger',
+                    hit.partCount > 1 ? `${hit.partCount} passages` : '',
+                    hit.item.diskState === 'archived' ? 'archivé' : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </span>
+              </button>
+              {hit.hits.length > 0 && (
+                <ul className="coffre-result__hits">
+                  {hit.hits.map((h) => (
+                    <li key={h.part}>
+                      <button
+                        type="button"
+                        className="coffre-result__hit"
+                        onClick={() =>
+                          coffre.preview(items, i, { page: Number(h.part) || undefined, query: q })
+                        }
+                      >
+                        {h.part && (
+                          <span className="coffre-result__part">{partLabel(hit, h.part)}</span>
+                        )}
+                        <MarkedText className="coffre-snippet" text={h.snippet} />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </li>
+          ),
+        )}
       </ul>
       {data && (
         <p className="faint small coffre-results__time">
@@ -159,6 +165,60 @@ export function SearchResults(props: { query: string }) {
         </p>
       )}
     </section>
+  );
+}
+
+/** v0.51.0: the route of ONE file inside a project (its project's page, positioned on it). */
+export function innerPath(folderId: string, inner: InnerHitDto, query: string): string {
+  const q = new URLSearchParams({ f: inner.rel });
+  if (inner.line) q.set('line', String(inner.line));
+  if (inner.page) q.set('page', inner.page);
+  if (query.trim()) q.set('q', query.trim());
+  return `c/${folderId}?${q.toString()}`;
+}
+
+/**
+ * v0.51.0 (Expérimental, ADR 0068): a file INSIDE a project, a result on its
+ * own — « main.py — Cours › GPU › Labos (projet) », its extract, its line;
+ * a click opens it in its project's page (the tree on it, the reader at its line).
+ */
+function InnerResult(props: { hit: SearchHitDto; query: string }) {
+  const coffre = useCoffre();
+  const navigate = useNavigate();
+  const { hit } = props;
+  const inner = hit.inner!;
+  const go = () =>
+    navigate(coffre.path(innerPath(hit.item.folderId!, inner, hit.hits.length ? props.query : '')));
+  const at = inner.page ? `page ${inner.page}` : inner.line ? `ligne ${inner.line}` : '';
+  return (
+    <li className="coffre-result coffre-result--inner" data-coffre-inner-result={inner.rel}>
+      <button type="button" className="coffre-result__head" onClick={go}>
+        <Icon name="file" />
+        <strong>{inner.name}</strong>
+        <span className="muted small">
+          {[
+            `${hit.item.folderPath?.join(' › ') ?? ''} (projet)`,
+            inner.rel.includes('/') ? inner.rel : '',
+            at,
+            hit.partCount > 1 ? `${hit.partCount} passages` : '',
+          ]
+            .filter(Boolean)
+            .join(' · ')}
+        </span>
+      </button>
+      {hit.hits.length > 0 && (
+        <ul className="coffre-result__hits">
+          {hit.hits.map((h) => (
+            <li key={h.part}>
+              <button type="button" className="coffre-result__hit" onClick={go}>
+                {h.part && <span className="coffre-result__part">page {h.part}</span>}
+                <MarkedText className="coffre-snippet" text={h.snippet} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </li>
   );
 }
 

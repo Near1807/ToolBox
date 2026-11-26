@@ -109,9 +109,12 @@ describe('montée de version depuis la v0.49.0 (migration 8)', () => {
     expect(t.rows.coffre__rules).toEqual([]);
     expect(t.setting).toEqual({ value: 'false' });
     expect(t.todo).toEqual([{ title: 'Réviser' }]);
+    // v0.51.0: the migration 9 (additions only) follows.
     expect(t.versions.map((v) => (v as { version: number }).version)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8,
+      1, 2, 3, 4, 5, 6, 7, 8, 9,
     ]);
+    for (const name of ['inner_files', 'inner_copies'])
+      expect(t.names).toContain(`coffre__${name}`);
     // The old empty « _Arrivée » removed at start; « _À ranger » the new one.
     expect(readdirSync(path.join(dataDir, 'coffre'))).not.toContain('_Arrivée');
   });

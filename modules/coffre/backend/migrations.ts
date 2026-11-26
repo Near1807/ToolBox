@@ -320,4 +320,39 @@ export const MIGRATIONS: Migration[] = [
       'v0.50.0 : modèle « tout est dossier » (dossiers, étiquettes, ensembles) ; exige un Coffre vide ; anciennes tables du Coffre supprimées (exception datée, ADR 0067)',
     up: migrateToFolders,
   },
+  {
+    version: 9,
+    description:
+      'v0.51.0 : projets avancés — fichiers intérieurs indexés, copie du disque fichier par fichier, versions par fichier, exclusions par projet, projet suivi en place (ajouts seulement, ADR 0068)',
+    up: `
+        ALTER TABLE coffre__items ADD COLUMN tracked_path TEXT;
+        ALTER TABLE coffre__items ADD COLUMN missing_at TEXT;
+        ALTER TABLE coffre__items ADD COLUMN exclusions_json TEXT;
+        ALTER TABLE coffre__versions ADD COLUMN inner_rel TEXT;
+        CREATE TABLE coffre__inner_files (
+          item_id TEXT NOT NULL,
+          rel TEXT NOT NULL,
+          name TEXT NOT NULL,
+          ext TEXT NOT NULL DEFAULT '',
+          folded TEXT NOT NULL,
+          size INTEGER NOT NULL DEFAULT 0,
+          mtime INTEGER NOT NULL DEFAULT 0,
+          sha256 TEXT NOT NULL,
+          text_sha TEXT,
+          text_status TEXT,
+          text_rows TEXT,
+          text_at TEXT,
+          PRIMARY KEY (item_id, rel)
+        );
+        CREATE TABLE coffre__inner_copies (
+          disk_id TEXT NOT NULL,
+          item_id TEXT NOT NULL,
+          rel TEXT NOT NULL,
+          sha256 TEXT NOT NULL,
+          size INTEGER NOT NULL DEFAULT 0,
+          copied_at TEXT NOT NULL,
+          PRIMARY KEY (disk_id, item_id, rel)
+        );
+      `,
+  },
 ];

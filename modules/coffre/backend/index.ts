@@ -60,6 +60,9 @@ import { TextIndex } from './text-index';
 import { registerSearch } from './search';
 import { registerTreeRoutes } from './tree';
 import { registerDeposit } from './deposit';
+import { ProjectIndex } from './inner';
+import { ProjectRules } from './exclusions';
+import { registerProjectRoutes } from './projects';
 import { registerReset } from './reset';
 import { DownloadWatcher } from './downloads';
 import { Learner } from './learning';
@@ -67,7 +70,6 @@ import { MIGRATIONS } from './migrations';
 import { applyRules } from '../shared/learn';
 import { folderOfCourse } from '../shared/now';
 import { isHiddenName, isIgnoredFile, projectMarker, projectReason } from './walk';
-import { listFiles, projectHash } from './copy';
 
 /** How long « Annuler » stays possible. */
 const UNDO_MS = 15 * 60_000;
@@ -94,14 +96,6 @@ export function cleanLabels(list: unknown): LabelValue[] {
   return out;
 }
 
-/** A project's fingerprint (library.ts hashFolder: the same formula). */
-async function hashProject(abs: string, files: readonly string[]): Promise<string> {
-  const list: { rel: string; sha256: string }[] = [];
-  for (const rel of files)
-    list.push({ rel, sha256: await hashFile(path.join(abs, ...rel.split('/'))) });
-  return projectHash(list);
-}
-
 /** An entry's row as created (every column, nothing else known yet). */
 const emptyItem = (fields: Partial<ItemRow> & Pick<ItemRow, 'kind' | 'name'>) => ({
   rel_path: null,
@@ -121,6 +115,9 @@ const emptyItem = (fields: Partial<ItemRow> & Pick<ItemRow, 'kind' | 'name'>) =>
   stat_json: null,
   opened_at: null,
   original_name: null,
+  tracked_path: null,
+  missing_at: null,
+  exclusions_json: null,
   ...fields,
 });
 
@@ -159,10 +156,13 @@ export default defineBackendModule({
       );
     });
     // The disk (ADR 0055).
+    // v0.51.0: the files inside the projects (ADR 0068).
+    const projects = new ProjectIndex(ctx, library);
     const deps: CoffreDeps = {
       ctx,
       store,
       library,
+      projects,
       // « Annuler » (defined just below; called only later, at a request).
       remember: (run) => remember(run),
       t: {
@@ -347,7 +347,12 @@ export default defineBackendModule({
     };
 
     // The text of the files (search in the content, ADR 0056).
-    const textIndex = new TextIndex({ ctx, items, fileOf: (row) => absOf(row) });
+    const textIndex = new TextIndex({
+      ctx,
+      items,
+      fileOf: (row) => absOf(row),
+      projectRootOf: (row) => projects.rootOf(row),
+    });
     disk.onChange = () => textIndex.kick(500);
 
     const dtos = (rows: ItemRow[]): ItemDto[] => {
@@ -406,28 +411,21 @@ export default defineBackendModule({
         )
         .get(folderId) as ItemRow | undefined) ?? null;
 
-    /** Files of a project (its excluded folders apart), counted once and kept. */
-    const projectCounts = new Map<string, { at: string; n: number }>();
-    const projectCount = (row: ItemRow): number => {
-      if (row.stat_json) {
-        try {
-          const cache = JSON.parse(row.stat_json) as { f?: Record<string, unknown> };
-          if (cache.f) return Object.keys(cache.f).length;
-        } catch {
-          // counted below
-        }
-      }
-      const known = projectCounts.get(row.id);
-      if (known && known.at === row.updated_at) return known.n;
-      let n = 0;
-      try {
-        if (row.rel_path && !row.archived_at) n = listFiles(library.abs(row.rel_path)).length;
-      } catch {
-        n = 0;
-      }
-      projectCounts.set(row.id, { at: row.updated_at, n });
-      return n;
+    /**
+     * v0.51.0: a project's files looked at now (its index, ADR 0068): its
+     * fingerprint and size follow. A followed project not found: « introuvable ».
+     */
+    const refreshProject = async (id: string, signal?: AbortSignal) => {
+      const row = getRow(id);
+      const r = await projects.refresh(row, { signal });
+      if (r.missing) return r;
+      if (r.sha256 !== row.sha256 || r.size !== row.size)
+        store.update('items', id, { sha256: r.sha256, size: r.size, stat_json: null });
+      return r;
     };
+
+    /** Files of a project (its exclusions apart): its index (v0.51.0). */
+    const projectCount = (row: ItemRow): number => projects.count(row.id);
 
     const folderDtos = (): FolderDto[] => {
       const rows = folderRows();
@@ -723,11 +721,8 @@ export default defineBackendModule({
         );
       const rel = folderOf(id);
       library.ensureDir(rel);
-      const abs = library.abs(rel);
-      const files = listFiles(abs);
-      const sha = await hashProject(abs, files);
-      const size = files.reduce((s, f) => s + statSync(path.join(abs, ...f.split('/'))).size, 0);
       const journal: (() => void)[] = [];
+      let madeId = '';
       ctx.db.transaction(() => {
         for (const r of inner) {
           store.remove('items', r.id);
@@ -743,12 +738,11 @@ export default defineBackendModule({
             kind: 'project',
             name: row.name,
             rel_path: rel,
-            size,
-            sha256: sha,
             folder_id: id,
             file_date: new Date().toISOString(),
           }),
         );
+        madeId = made.id;
         journal.push(() => void store.remove('items', made.id));
         store.update('folders', id, { project: 1, end_of_route: 1 });
         journal.push(
@@ -759,6 +753,8 @@ export default defineBackendModule({
             }),
         );
       });
+      // v0.51.0: its files indexed (its exclusions apart): its fingerprint and size.
+      await refreshProject(madeId);
       textIndex.kick();
       return async () => {
         ctx.db.transaction(() => {
@@ -900,8 +896,11 @@ export default defineBackendModule({
       const row = getFolder(id);
       const showHidden = ((request.query ?? {}) as { hidden?: string }).hidden === '1';
       const rel = folderOf(id);
-      const abs = library.abs(rel);
       const project = row.project === 1;
+      // v0.51.0: a project's real folder (followed in place, or in the Coffre) and its rules.
+      const entry = project ? projectItemOf(id) : null;
+      const abs = (entry && projects.rootOf(entry)) || library.abs(rel);
+      const rules = entry ? new ProjectRules(abs, projects.choicesOf(entry)) : null;
       const entries: InsideEntryDto[] = [];
       let truncated = false;
       // A Fin de route: its files are rows (their ids open their sheet).
@@ -936,9 +935,12 @@ export default defineBackendModule({
           const full = path.join(dirAbs, e.name);
           const r = dirRel ? `${dirRel}/${e.name}` : e.name;
           const dir = e.isDirectory();
-          const hidden = hiddenAbove || (dir && isHiddenName(e.name, project));
-          // Recreatable (not a dot folder: .git is hidden but saved).
-          const excluded = dir && isHiddenName(e.name, project) && !e.name.startsWith('.');
+          // v0.51.0: a project says why it does not save a path (list, .gitignore, Thomas).
+          const excludedReason = rules ? rules.reason(r, dir) : null;
+          const excluded =
+            excludedReason !== null ||
+            (!rules && dir && isHiddenName(e.name, project) && !e.name.startsWith('.'));
+          const hidden = hiddenAbove || excluded || (dir && isHiddenName(e.name, project));
           if (hidden && !showHidden) continue;
           let size = 0;
           if (!dir)
@@ -954,6 +956,7 @@ export default defineBackendModule({
             size,
             hidden,
             excluded,
+            excludedReason,
             itemId: known.get(`${rel}/${r}`.toLowerCase()) ?? null,
             url: dir ? null : media(full),
             path: full,
@@ -974,6 +977,21 @@ export default defineBackendModule({
         truncated,
       };
       return dto;
+    });
+
+    // v0.51.0: a project's inside — exclusions, files one by one (ADR 0068).
+    registerProjectRoutes({
+      ctx,
+      store,
+      projects,
+      getFolder,
+      projectItemOf,
+      refreshProject,
+      remember,
+      kick: () => textIndex.kick(),
+      getRow,
+      dtos,
+      labelsOf,
     });
 
     // --- Lists ------------------------------------------------------------------------
@@ -1223,6 +1241,7 @@ export default defineBackendModule({
       proposeLabels,
       duplicateOf,
       writeLabels: (id, list) => writeLabels(id, list),
+      refreshProject: (id, signal) => refreshProject(id, signal),
       learnFrom: (row, folderId) => learnFrom(row, folderId),
       remember: (run) => remember(run),
       removeIfEmpty: (ids) => removeIfEmpty(ids),
@@ -1781,11 +1800,22 @@ export default defineBackendModule({
       ].filter((p): p is string => Boolean(p));
       return candidates.find((p) => existsSync(p)) ?? null;
     };
-    const openInVsCode = (target: string) => {
+    /**
+     * VS Code on `target`; v0.51.0: a file inside a project opens with its
+     * project (`folder`) and at its line (`-g file:line`).
+     */
+    const openInVsCode = (target: string, at?: { folder: string; line?: number | null }) => {
       const exe = vscode();
       if (!exe) throw new HttpError(404, 'VS Code n’est pas installé');
-      spawn(exe, [target], { detached: true, stdio: 'ignore' }).unref();
-      return { ok: true };
+      const args =
+        at && at.folder !== target
+          ? [at.folder, '-g', at.line ? `${target}:${at.line}` : target]
+          : [target];
+      const child = spawn(exe, args, { detached: true, stdio: 'ignore' });
+      // A program that cannot start must never stop ToolBox (an error is only logged).
+      child.on('error', (error) => ctx.logger.warn(`VS Code : ${String(error)}`));
+      child.unref();
+      return { ok: true, args };
     };
     ctx.routes.get('/tools', () => ({
       vscode: vscode() !== null,
@@ -1847,21 +1877,25 @@ export default defineBackendModule({
      */
     ctx.routes.post('/folders/:id/open', async (request) => {
       const id = uuidParam(request.params);
-      getFolder(id);
+      const folder = getFolder(id);
       const b = requestBody(request);
-      const abs = library.abs(folderOf(id));
+      // v0.51.0: a project's real folder (followed in place, or in the Coffre).
+      const entry = folder.project ? projectItemOf(id) : null;
+      const abs = (entry && projects.rootOf(entry)) || library.abs(folderOf(id));
       let target = abs;
       if (typeof b.rel === 'string' && b.rel) {
         target = path.resolve(abs, ...b.rel.split('/'));
         if (!target.startsWith(abs + path.sep)) throw new HttpError(400, 'Chemin refusé');
       }
       if (!existsSync(target)) throw new HttpError(404, 'Introuvable sur le PC');
-      if (b.how === 'vscode') return openInVsCode(target);
+      const line = Number(b.line) > 0 ? Math.floor(Number(b.line)) : null;
+      const inProject = entry ? { folder: abs, line } : undefined;
+      if (b.how === 'vscode') return openInVsCode(target, inProject);
       if (b.how === 'folder') {
         ctx.files.reveal(target);
         return { ok: true };
       }
-      if (kindOf(path.basename(target))?.language) return openInVsCode(target);
+      if (kindOf(path.basename(target))?.language) return openInVsCode(target, inProject);
       if (isRunnable(target) && b.runnable !== true)
         throw new HttpError(
           409,
@@ -1947,6 +1981,7 @@ export default defineBackendModule({
     registerSearch({
       ctx,
       items,
+      inner: projects.table,
       labels,
       textIndex,
       dtos,

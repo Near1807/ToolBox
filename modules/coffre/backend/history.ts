@@ -115,6 +115,7 @@ export function registerHistoryRoutes(d: CoffreDeps, disk: DiskManager): void {
         const rel = existsSync(disk.abs(root, wanted)) ? disk.freeOnDisk(root, wanted) : wanted;
         await place(temp, disk.abs(root, rel));
         store.create<VersionRow>('versions', {
+          inner_rel: null,
           item_id: row.id,
           disk_id: diskRow!.id,
           rel_path: rel,

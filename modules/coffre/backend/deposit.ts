@@ -105,6 +105,8 @@ export interface DepositDeps {
   getRow: (id: string) => ItemRow;
   /** A file already has this path in the Coffre (a copy left without a row does not). */
   hasItemAt: (rel: string) => boolean;
+  /** v0.51.0: a project's files indexed now (its fingerprint and size follow, ADR 0068). */
+  refreshProject: (itemId: string, signal?: AbortSignal) => Promise<unknown>;
   /** After a deposit: the search reads the new texts; downloads put away are no longer proposed. */
   after: (paths: string[], created: number) => void;
 }
@@ -508,6 +510,7 @@ export function registerDeposit(d: DepositDeps) {
           }
         } else count.done += files.length;
         const folderId = p ? folderFor(p) : folderFor('');
+        let entryId = '';
         ctx.db.transaction(() => {
           store.update('folders', folderId, { project: 1, end_of_route: 1 });
           const entry = store.create<ItemRow & { updated_at: string }>('items', {
@@ -530,9 +533,15 @@ export function registerDeposit(d: DepositDeps) {
             stat_json: null,
             opened_at: null,
             original_name: projectName,
+            tracked_path: null,
+            missing_at: null,
+            exclusions_json: null,
           });
           state.created.push(entry.id);
+          entryId = entry.id;
         });
+        // v0.51.0: its files indexed (its exclusions apart, the .gitignore read).
+        if (entryId) await d.refreshProject(entryId, job.signal);
       } catch (error) {
         if (job.signal.aborted) return;
         problem(job, state, src, message(error));

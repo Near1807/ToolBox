@@ -37,13 +37,13 @@ describe('lecture des textes dans un worker', () => {
   it('le même résultat que dans le fil principal', async () => {
     const pool = new ExtractPool();
     const p = bigPdf(3);
-    expect(await pool.run('file', p, 'pdf')).toEqual(await extractFile(p));
+    expect(await pool.run(p, 'pdf')).toEqual(await extractFile(p));
     await pool.stop();
   });
 
   it('trop long : « illisible : trop long », le worker est remplacé pour le fichier suivant', async () => {
     const pool = new ExtractPool(30);
-    const r = await pool.run('file', bigPdf(300), 'pdf');
+    const r = await pool.run(bigPdf(300), 'pdf');
     expect(r).toMatchObject({ status: 'toolong', parts: [] });
     expect(r.error).toMatch(/illisible : trop long/);
     const small = path.join(dir, 'petit.txt');
@@ -51,7 +51,7 @@ describe('lecture des textes dans un worker', () => {
     const pool2 = pool;
     // A generous time for the next one, on a new worker.
     (pool2 as unknown as { maxMs: number }).maxMs = 30_000;
-    expect(await pool2.run('file', small, 'txt')).toMatchObject({ status: 'ok' });
+    expect(await pool2.run(small, 'txt')).toMatchObject({ status: 'ok' });
     expect(pool2.started).toBe(2);
     await pool2.stop();
   }, 60_000);
@@ -59,14 +59,14 @@ describe('lecture des textes dans un worker', () => {
   it('un worker qui s’arrête : « illisible », puis un nouveau worker', async () => {
     const pool = new ExtractPool();
     const p = bigPdf(200);
-    const running = pool.run('file', p, 'pdf');
+    const running = pool.run(p, 'pdf');
     // The worker dies in the middle (as it would on a crash).
     await new Promise((r) => setTimeout(r, 50));
     await (pool as unknown as { worker: { terminate(): Promise<number> } }).worker.terminate();
     const r = await running;
     expect(r.status).toBe('error');
     expect(r.error).toMatch(/le lecteur s’est arrêté/);
-    expect((await pool.run('file', bigPdf(2), 'pdf')).status).toBe('ok');
+    expect((await pool.run(bigPdf(2), 'pdf')).status).toBe('ok');
     expect(pool.started).toBe(2);
     await pool.stop();
   }, 60_000);
@@ -141,7 +141,7 @@ describe('lecture des textes dans un worker', () => {
     idle.sort((a, b) => a - b);
     const pool = new ExtractPool();
     const t0 = performance.now();
-    const inWorker = await sample(() => pool.run('file', p, 'pdf'));
+    const inWorker = await sample(() => pool.run(p, 'pdf'));
     const workerMs = Math.round(performance.now() - t0);
     await pool.stop();
     // For comparison: the same reading in the server's own thread (as in v0.47.0).
@@ -163,7 +163,7 @@ describe('lecture des textes dans un worker', () => {
       ),
     );
     const pool2 = new ExtractPool();
-    const docxWorker = await sample(() => pool2.run('file', docx, 'docx'));
+    const docxWorker = await sample(() => pool2.run(docx, 'docx'));
     await pool2.stop();
     const docxThread = await sample(() => extractFile(docx));
     console.log(

@@ -182,6 +182,23 @@ export interface SearchHitDto {
   hits: TextHitDto[];
   /** Number of parts holding the words (« 7 pages »). */
   partCount: number;
+  /**
+   * v0.51.0 (ADR 0068): a file INSIDE the project `item` (a result on its own),
+   * or null (the element itself).
+   */
+  inner: InnerHitDto | null;
+}
+
+/** v0.51.0: a file inside a project, found by its name or its content. */
+export interface InnerHitDto {
+  rel: string;
+  name: string;
+  ext: string;
+  size: number;
+  /** The first line holding the words (text, code), or null. */
+  line: number | null;
+  /** The first page (PDF), or null. */
+  page: string | null;
 }
 
 export interface SearchDto {
@@ -423,6 +440,8 @@ export interface InsideEntryDto {
   hidden: boolean;
   /** Not saved nor searched (recreatable, .gitignore of a project). */
   excluded: boolean;
+  /** v0.51.0: why (the default list, a .gitignore, Thomas's choice), or null. */
+  excludedReason: ExclusionReasonDto | null;
   /** A file of the Coffre (a row): its id (not inside a project). */
   itemId: string | null;
   /** To show it (its reader). */
@@ -442,4 +461,46 @@ export interface InsideDto {
   } | null;
   /** Cut at this many entries (a huge folder). */
   truncated: boolean;
+}
+
+/** v0.51.0 (ADR 0068): why a project does not save a path. */
+export type ExclusionReasonDto = 'défaut' | '.gitignore' | 'choisi';
+
+/** v0.51.0: what a project does not save, and what it saves. */
+export interface ExclusionsDto {
+  choices: { exclude: string[]; include: string[] };
+  excluded: {
+    rel: string;
+    dir: boolean;
+    reason: ExclusionReasonDto;
+    files: number;
+    bytes: number;
+    /** Measured only partly: « plus de ». */
+    partial: boolean;
+  }[];
+  files: number;
+  bytes: number;
+  /** The project's folder is there (false: archived, or a followed folder not found). */
+  available: boolean;
+}
+
+/** v0.51.0: one file inside a project, for its reader (its own page or window). */
+export interface InnerFileDto {
+  projectId: string;
+  /** The Projet folder (its page shows the file in its tree). */
+  folderId: string | null;
+  rel: string;
+  name: string;
+  ext: string;
+  size: number;
+  url: string | null;
+  path: string | null;
+  /** Deduced (language, year) or the project's (« du projet »): no sheet of its own. */
+  labels: LabelDto[];
+}
+
+/** v0.51.0: the files inside one project in a view by label. */
+export interface InnerGroupDto {
+  project: ItemDto;
+  files: InnerHitDto[];
 }

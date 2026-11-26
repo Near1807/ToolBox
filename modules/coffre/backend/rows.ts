@@ -33,6 +33,43 @@ export interface ItemRow {
   opened_at: string | null;
   /** The name it had before Thomas renamed it (kept, searchable). */
   original_name: string | null;
+  /**
+   * v0.51.0 (ADR 0068): a project « suivi en place » — its real folder on the PC
+   * (absolute; the Coffre never moves it). Null: copied in the Coffre.
+   */
+  tracked_path: string | null;
+  /** v0.51.0: a followed project whose folder is not found since (« introuvable »). */
+  missing_at: string | null;
+  /** v0.51.0: a project's own exclusions, JSON { exclude: rel[], include: rel[] }. */
+  exclusions_json: string | null;
+}
+
+/** v0.51.0: a file inside a project, as last seen on the PC (a derived index of this PC). */
+export interface InnerFileRow {
+  item_id: string;
+  rel: string;
+  name: string;
+  ext: string;
+  /** Its path folded (accents, case) for the search by name. */
+  folded: string;
+  size: number;
+  mtime: number;
+  sha256: string;
+  /** The fingerprint whose text is in the index, its state, its rows (« first-last »). */
+  text_sha: string | null;
+  text_status: string | null;
+  text_rows: string | null;
+  text_at: string | null;
+}
+
+/** v0.51.0: a file of a project as its copy on a disk holds it (the disk's manifest). */
+export interface InnerCopyRow {
+  disk_id: string;
+  item_id: string;
+  rel: string;
+  sha256: string;
+  size: number;
+  copied_at: string;
 }
 
 /** v0.50.0: a folder of the Coffre (a real folder: its route is its path). */
@@ -119,4 +156,6 @@ export interface VersionRow {
   size: number;
   /** When it stopped being the current version. */
   saved_at: string;
+  /** v0.51.0: a file inside a project (its path in it); null: the element itself. */
+  inner_rel: string | null;
 }

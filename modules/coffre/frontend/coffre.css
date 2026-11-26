@@ -2527,3 +2527,48 @@ button.coffre-value__text:hover {
     grid-template-columns: 1fr;
   }
 }
+
+/* v0.51.0 (ADR 0068): files inside a project, exclusions. */
+.coffre-inside__row.is-excluded {
+  color: var(--text-3);
+  font-style: italic;
+}
+.coffre-inside__excl {
+  color: var(--text-3);
+}
+.coffre-inside__save {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.coffre-inside__excluded {
+  flex-basis: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.coffre-inside__excluded ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+.coffre-inside__labels {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+.coffre-result--inner .coffre-result__head strong {
+  font-family: var(--font-mono);
+}
+.coffre-inner-group {
+  padding: 4px 0;
+}
+.coffre-inner-group__files {
+  margin: 4px 0 6px;
+  padding-left: 26px;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+}

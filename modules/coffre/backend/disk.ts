@@ -8,8 +8,9 @@ import { mkdir, rename, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { HttpError, newId, type ModuleContext, type SyncStore } from '@hub/sdk/core';
 import { freeName } from '../shared/names';
-import { hashFileChecked, listFiles, projectHash, type CopyOptions } from './copy';
+import { hashFileChecked, type CopyOptions } from './copy';
 import { DISK_FOLDER, IDENTITY_FILE, newIdentity, type DiskIdentity } from './disk-layout';
+import type { ProjectIndex } from './inner';
 import type { Library } from './library';
 import type { CopyRow, DiskRow, ItemRow } from './rows';
 import { findDisk, readIdentity, spaceOf, splitVolume, volumeRoots } from './volumes';
@@ -31,6 +32,8 @@ export interface CoffreDeps {
   t: Tables;
   /** Keeps an « Annuler » (15 minutes); its id for the page. */
   remember: (run: () => Promise<void>) => string;
+  /** v0.51.0: the files inside the projects (ADR 0068). */
+  projects: ProjectIndex;
 }
 
 /** How often the disk is looked for (read only). */
@@ -44,8 +47,8 @@ export interface DiskState {
   checkedAt: string | null;
 }
 
-/** The PC's file as last seen: a file (size, date), or a project (each file). */
-type StatCache = { s: number; m: number } | { f: Record<string, [number, number, string]> };
+/** The PC's file as last seen (size, date); a project: its index (inner.ts, v0.51.0). */
+type StatCache = { s: number; m: number };
 
 export class DiskManager {
   state: DiskState = { root: null, free: null, total: null, checkedAt: null };
@@ -307,37 +310,28 @@ export class DiskManager {
   async scanItem(
     row: ItemRow,
     options: CopyOptions = {},
-  ): Promise<'unchanged' | 'missing' | { sha256: string; size: number; stat: StatCache }> {
+  ): Promise<'unchanged' | 'missing' | { sha256: string; size: number; stat: StatCache | null }> {
     if (!row.rel_path || row.archived_at) return 'unchanged';
+    // v0.51.0: a project through its index (only its changed files read again).
+    if (row.kind === 'project') {
+      const r = await this.d.projects.refresh(row, { signal: options.signal });
+      if (r.missing) return 'missing';
+      if (r.sha256 === row.sha256 && r.size === row.size) return 'unchanged';
+      return { sha256: r.sha256!, size: r.size, stat: null };
+    }
     const file = this.d.library.abs(row.rel_path);
     const s = await stat(file).catch(() => null);
     if (!s) return 'missing';
-    const cache = row.stat_json ? (JSON.parse(row.stat_json) as StatCache) : null;
-    if (!s.isDirectory()) {
-      if (cache && 's' in cache && cache.s === s.size && cache.m === Math.round(s.mtimeMs))
-        return 'unchanged';
-      const sha256 = await hashFileChecked(file, options);
-      return { sha256, size: s.size, stat: { s: s.size, m: Math.round(s.mtimeMs) } };
+    if (s.isDirectory()) return 'unchanged';
+    let cache: StatCache | null;
+    try {
+      cache = row.stat_json ? (JSON.parse(row.stat_json) as StatCache) : null;
+    } catch {
+      cache = null;
     }
-    const known = cache && 'f' in cache ? cache.f : {};
-    const f: Record<string, [number, number, string]> = {};
-    let changed = !(cache && 'f' in cache);
-    let size = 0;
-    for (const rel of listFiles(file)) {
-      const fs = await stat(path.join(file, ...rel.split('/')));
-      const m = Math.round(fs.mtimeMs);
-      const k = known[rel];
-      if (k && k[0] === fs.size && k[1] === m) f[rel] = k;
-      else {
-        changed = true;
-        f[rel] = [fs.size, m, await hashFileChecked(path.join(file, ...rel.split('/')), options)];
-      }
-      size += fs.size;
-    }
-    if (Object.keys(known).some((rel) => !(rel in f))) changed = true;
-    if (!changed) return 'unchanged';
-    const sha256 = projectHash(Object.entries(f).map(([rel, v]) => ({ rel, sha256: v[2] })));
-    return { sha256, size, stat: { f } };
+    if (cache && cache.s === s.size && cache.m === Math.round(s.mtimeMs)) return 'unchanged';
+    const sha256 = await hashFileChecked(file, options);
+    return { sha256, size: s.size, stat: { s: s.size, m: Math.round(s.mtimeMs) } };
   }
 
   /**
@@ -371,7 +365,9 @@ export class DiskManager {
       const r = await this.scanItem(row, options);
       if (r === 'missing') missing.push(row.id);
       else if (r !== 'unchanged') {
-        const fields: Record<string, string | number> = { stat_json: JSON.stringify(r.stat) };
+        const fields: Record<string, string | number | null> = {
+          stat_json: r.stat ? JSON.stringify(r.stat) : null,
+        };
         if (r.sha256 !== row.sha256 || r.size !== row.size) {
           fields.sha256 = r.sha256;
           fields.size = r.size;

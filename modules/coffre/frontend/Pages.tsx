@@ -4,7 +4,7 @@
 // (Inside.tsx), the views by label (« Python », « Prof PCH »), À ranger and the
 // Coffre's Recycle Bin.
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import {
   Button,
   EmptyState,
@@ -26,6 +26,7 @@ import {
   FAMILY_NAMES,
   type LabelFamily,
   type CourseHint,
+  type InnerGroupDto,
   type ItemDto,
 } from '../shared/types';
 import { useCoffre } from './frame';
@@ -170,6 +171,17 @@ const slot = (next: NonNullable<CourseHint['next']>) => {
 
 export function FolderPage() {
   const { id = '' } = useParams();
+  // v0.51.0: a file inside a project opened from the search (« ?f=main.py&line=3&q=… »).
+  const [params] = useSearchParams();
+  const focusRel = params.get('f');
+  const focusLine = Number(params.get('line')) || undefined;
+  const focusPage = Number(params.get('page')) || undefined;
+  const focusQuery = params.get('q') ?? undefined;
+  const focus = useMemo(
+    () =>
+      focusRel ? { rel: focusRel, line: focusLine, page: focusPage, query: focusQuery } : null,
+    [focusRel, focusLine, focusPage, focusQuery],
+  );
   const module = useModule();
   const coffre = useCoffre();
   const navigate = useNavigate();
@@ -369,7 +381,7 @@ export function FolderPage() {
           </label>
         )}
         {folder.endOfRoute ? (
-          <Inside folder={folder} files={items.data ?? null} />
+          <Inside folder={folder} files={items.data ?? null} focus={focus} />
         ) : (
           <>
             {children.length > 0 && (
@@ -434,8 +446,84 @@ export function LabelPage() {
             empty="Plus rien avec cette valeur."
           />
         )}
+        <InnerGroups family={key} value={value} />
       </div>
     </Page>
+  );
+}
+
+/**
+ * v0.51.0 (ADR 0068): the files INSIDE the projects in a view by label,
+ * grouped by project (their language and year deduced, the others the
+ * project's). No sheet of their own: said.
+ */
+function InnerGroups(props: { family: string; value: string }) {
+  const module = useModule();
+  const coffre = useCoffre();
+  const navigate = useNavigate();
+  const groups = useApi<InnerGroupDto[]>(
+    module.url(
+      `/inner-files?family=${encodeURIComponent(props.family)}&value=${encodeURIComponent(props.value)}`,
+    ),
+  );
+  const [open, setOpen] = useState<Set<string>>(new Set());
+  if (!groups.data?.length) return null;
+  return (
+    <section className="coffre-section" data-coffre-inner-groups>
+      <h2 className="coffre-h2">
+        Dans les projets <span className="badge badge--warning">Expérimental</span>
+      </h2>
+      <p className="muted small">
+        Les fichiers d’un projet n’ont pas de fiche à eux : leur langage vient de leur extension,
+        leur année de leur date, les autres étiquettes du projet.
+      </p>
+      {groups.data.map((g) => {
+        const shown = open.has(g.project.id) || groups.data!.length === 1;
+        return (
+          <div key={g.project.id} className="coffre-inner-group">
+            <button
+              type="button"
+              className="coffre-linklike"
+              aria-expanded={shown}
+              onClick={() =>
+                setOpen(
+                  new Set(
+                    shown ? [...open].filter((x) => x !== g.project.id) : [...open, g.project.id],
+                  ),
+                )
+              }
+            >
+              <Icon name={shown ? 'chevron-down' : 'chevron-right'} /> {g.project.name}
+            </button>
+            <span className="muted small">
+              {' '}
+              · {g.project.folderPath?.join(' › ')} · {g.files.length} fichier
+              {g.files.length > 1 ? 's' : ''}
+            </span>
+            {shown && (
+              <ul className="coffre-inner-group__files">
+                {g.files.map((f) => (
+                  <li key={f.rel}>
+                    <button
+                      type="button"
+                      className="coffre-linklike"
+                      onClick={() =>
+                        navigate(
+                          coffre.path(`c/${g.project.folderId}?f=${encodeURIComponent(f.rel)}`),
+                        )
+                      }
+                    >
+                      {f.rel}
+                    </button>
+                    <span className="muted small"> · {formatBytes(f.size)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        );
+      })}
+    </section>
   );
 }
 
