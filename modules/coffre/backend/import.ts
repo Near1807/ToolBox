@@ -995,13 +995,18 @@ export function registerImport(d: ImportDeps) {
   });
 
   /** At the start: the imports that were running are resumed where they stopped. */
-  const resume = () => {
-    const rows = ctx.db.prepare(`SELECT id FROM ${d.t.imports} WHERE state = 'running'`).all() as {
+  // The imports left running by the LAST session, read at the start (v0.49.0): one started
+  // in this session before the resume (it is delayed) already has its task — never a second.
+  const leftRunning = (
+    ctx.db.prepare(`SELECT id FROM ${d.t.imports} WHERE state = 'running'`).all() as {
       id: string;
-    }[];
-    for (const r of rows) {
-      ctx.logger.info(`Import ${r.id} repris là où il s’était arrêté`);
-      imp.launch(r.id);
+    }[]
+  ).map((r) => r.id);
+  const resume = () => {
+    for (const id of leftRunning) {
+      if (imp.jobs.has(id) || imp.row(id).state !== 'running') continue;
+      ctx.logger.info(`Import ${id} repris là où il s’était arrêté`);
+      imp.launch(id);
     }
   };
   return { imp, resume };

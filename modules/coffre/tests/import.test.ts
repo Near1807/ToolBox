@@ -183,6 +183,30 @@ describe('importer une arborescence', () => {
     expect(existsSync(lib('Ressources', 'copie de fiche 1.txt'))).toBe(true);
   }, 120_000);
 
+  // v0.49.0 (found by the Windows CI): an import started in the first seconds, before the
+  // delayed resume of the last session's imports, got a SECOND task (the cancel then
+  // stopped the wrong one). One import = one task.
+  it('import lancé juste après le démarrage : une seule tâche, la reprise ne le relance pas', async () => {
+    w = await diskWorld();
+    const W = w;
+    const root = programmation(W.dl);
+    process.env.TOOLBOX_COFFRE_IMPORT_PAUSE_MS = '15';
+    const a = await ok<ImportStatusDto>(W, 'POST', `${API}/import/start`, { source: root });
+    await new Promise((r) => setTimeout(r, 2600)); // the resume (2 s after the start) has run
+    const jobs = await ok<{ type: string; status: string }[]>(
+      W,
+      'GET',
+      '/api/core/jobs?module=coffre',
+    );
+    expect(jobs.filter((j) => j.type === 'tree-import')).toHaveLength(1);
+    await ok(W, 'POST', `${API}/import/${a.id}/cancel`, {});
+    await until(
+      async () =>
+        (await ok<ImportStatusDto>(W, 'GET', `${API}/import/${a.id}`)).state === 'cancelled',
+    );
+    delete process.env.TOOLBOX_COFFRE_IMPORT_PAUSE_MS;
+  }, 60_000);
+
   it('annuler pendant l’import ; reprise après un redémarrage, sans doublon', async () => {
     const dataDir = mkdtempSync(path.join(tmpdir(), 'coffre-import-'));
     w = await diskWorld({ dataDir });
