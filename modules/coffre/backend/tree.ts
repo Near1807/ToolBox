@@ -6,7 +6,7 @@
 // exactly the tree and the files of before. On the disk, the next update
 // reproduces it as MOVES (each entry's path changed; nothing copied again).
 // A Projet is indivisible: it moves whole, and is never merged.
-import { mkdirSync, readdirSync, renameSync, rmdirSync } from 'node:fs';
+import { mkdirSync, readdirSync, rmdirSync } from 'node:fs';
 import path from 'node:path';
 import {
   HttpError,
@@ -17,7 +17,7 @@ import {
 } from '@hub/sdk/core';
 import { fold } from '../shared/deduce';
 import { folderName, invalidName } from '../shared/names';
-import type { Library } from './library';
+import { renameHeld, type Library } from './library';
 import { taskRoute } from './tasks';
 import type { FolderRow, ItemRow } from './rows';
 
@@ -158,10 +158,10 @@ export function createTree(d: TreeDeps) {
     const moved = library.exists(before);
     if (moved) {
       mkdirSync(path.dirname(library.abs(after)), { recursive: true });
-      renameSync(library.abs(before), library.abs(after));
-      journal.push(() => {
+      await renameHeld(library.abs(before), library.abs(after));
+      journal.push(async () => {
         mkdirSync(path.dirname(library.abs(before)), { recursive: true });
-        renameSync(library.abs(after), library.abs(before));
+        await renameHeld(library.abs(after), library.abs(before));
       });
     }
     const old = { parent_id: row.parent_id, sort: row.sort };
@@ -334,11 +334,11 @@ export function createTree(d: TreeDeps) {
       if (library.exists(before)) {
         // Through a temporary name: « thermo » → « Thermo » on a case-insensitive disk.
         const tmp = `${after}.~${Date.now()}`;
-        renameSync(library.abs(before), library.abs(tmp));
-        renameSync(library.abs(tmp), library.abs(after));
-        journal.push(() => {
-          renameSync(library.abs(after), library.abs(tmp));
-          renameSync(library.abs(tmp), library.abs(before));
+        await renameHeld(library.abs(before), library.abs(tmp));
+        await renameHeld(library.abs(tmp), library.abs(after));
+        journal.push(async () => {
+          await renameHeld(library.abs(after), library.abs(tmp));
+          await renameHeld(library.abs(tmp), library.abs(before));
         });
       }
     }

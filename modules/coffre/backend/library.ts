@@ -21,6 +21,24 @@ export async function hashFile(file: string): Promise<string> {
   return hash.digest('hex');
 }
 
+/**
+ * v0.50.0: a file or folder renamed or moved on the PC. On Windows a folder whose file
+ * is open for a moment (the reading of the texts, an antivirus, the indexer)
+ * refuses (EPERM / EBUSY / EACCES): tried again for up to 3 s before failing.
+ */
+export async function renameHeld(from: string, to: string): Promise<void> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await rename(from, to);
+      return;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code ?? '';
+      if (attempt >= 30 || !['EPERM', 'EBUSY', 'EACCES'].includes(code)) throw error;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+  }
+}
+
 export class Library {
   /**
    * v0.46.0: `reserved(dirRel)` gives the names (lowercase) taken in a folder by
@@ -94,7 +112,7 @@ export class Library {
     mkdirSync(dirAbs, { recursive: true });
     if (path.dirname(this.abs(rel)) === dirAbs && path.basename(rel) === name) return rel;
     const target = path.join(dirAbs, this.freeIn(dirAbs, name));
-    await rename(this.abs(rel), target);
+    await renameHeld(this.abs(rel), target);
     return toRel(path.relative(this.root, target));
   }
 
