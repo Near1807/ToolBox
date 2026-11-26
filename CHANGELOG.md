@@ -4,6 +4,38 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.50.0] — 2026-11-26
+
+Coffre : **le modèle « tout est dossier »**, qui **remplace** l'ancien (contextes, attributs, « aussi utilisé », Arrivée, import d'arborescence, liens). Tout est marqué « Expérimental ». Migration 8 du Coffre, **seulement sur un Coffre vide** ; ADR 0067.
+
+### Ajouté
+
+- **Dossiers et routes** : un fichier est à un seul endroit ; « Nouveau dossier » (un nom ou une route « Réseaux/Slides », les dossiers manquants créés, Annuler) et « Nouveau fichier… » (créé vide, proposé à l'ouverture : code → VS Code, un script jamais lancé sans confirmation).
+- **Étiquettes** par famille (Nature, Langage, Année, Origine + site, Cours, Prof, libres) : « deviné » avec sa raison ou « choisi » (jamais remplacé) ; **étiquettes par défaut** d'un dossier (proposées aux fichiers qui y arrivent, la plus proche l'emporte, « Appliquer aux fichiers déjà présents » avec aperçu et Annuler) ; **ensembles** nommés (créer, réutiliser, renommer, supprimer) ; **copier / coller** les étiquettes (Ctrl+Maj+C / Ctrl+Maj+V, Ajouter ou Remplacer, Annuler) ; vues par étiquette.
+- **Fin de route** : son intérieur se lit dans ToolBox — arbre à gauche, lecteur à droite, README par défaut, ↑ ↓ → ← Entrée, Ctrl+P ; dossiers cachés derrière une case.
+- **Projet** : une Fin de route indivisible (une seule entrée : le disque le copie, l'archive et le vérifie entier), proposé à l'arrivée d'un dossier avec sa raison (`.git`, `package.json`, code…), jamais posé seul ; branche et dernier commit lus dans `.git` (sans commande git) ; « Ouvrir dans VS Code ». Badges posés ou enlevés sans bouger de fichier.
+- **À ranger** en haut de la carte avec son compteur ; la carte et l'arbre ne montrent que les dossiers et s'arrêtent aux fins de route.
+- Socle : une migration peut **refuser** de s'exécuter (`MigrationRefusal`) : rien n'est touché, le module n'est pas chargé mais reste activé, la migration est retentée au démarrage suivant.
+- SDK : `useTaskFollow`, `runJob`, `announceJobs` (MODULES.md §5.5 bis).
+
+### Changé
+
+- Déposer un dossier : il arrive **tel quel** (plus de choix « Un projet / un par un / arborescence ») ; un dossier gardé « pour plus tard » est refusé (un dossier se range).
+- Recherche : noms, **étiquettes** et contenu.
+- Un fichier Markdown s'ouvre dans son application (ou l'aperçu), un script (`.bat`…) dans VS Code ou l'aperçu, jamais lancé.
+
+### Retiré
+
+- L'ancien modèle du Coffre : contextes, attributs, « aussi utilisé », liens externes, Arrivée, import d'arborescence et adoption de dossiers ajoutés à la main ; leurs routes (`/items`, `/contexts`, `/import`…) et leurs tables (migration 8). Les règles apprises (elles visaient d'anciens contextes).
+
+### Corrigé
+
+- **Fenêtre de mise à jour du disque** : un clic sur « Mettre à jour » ne montrait rien (la tâche pas encore reçue était lue comme finie). Désormais « Démarrage… » dès le clic, puis la jauge ; jamais deux lancements ; une tâche introuvable n'est jamais lue comme terminée. Même correction pour la vérification et la restauration du disque, et liste des tâches relue tout de suite pour archiver, réactiver, réinitialiser, déposer.
+
+### Données
+
+- Migration 8 du Coffre : exige un Coffre vide (sinon refus, rien n'est touché ; message : réinstaller la v0.49.0, « Réinitialiser le Coffre », revenir) ; supprime les tables de l'ancien modèle (**exception datée** à la règle, décidée par Thomas) ; crée `coffre__folders`, `coffre__items`, `coffre__labels`, `coffre__label_sets` (et recrée copies, versions, texte, Téléchargements) ; garde le disque, le journal et les réglages ; vide `coffre__rules`. Base sauvegardée avant (socle).
+
 ## [0.49.0] — 2026-11-26
 
 Coffre : **fiabilité**. Plus jamais de page figée : toute opération longue est une tâche de fond suivie. Tout est marqué « Expérimental ». Migration 8 du socle (ajouts seulement, sauvegarde de la base avant) ; aucune migration du Coffre ; ADR 0066.
