@@ -72,7 +72,6 @@ modules/         un dossier par module ; _template/ = module modèle (exemple, c
 scripts/         dev, build (esbuild + découverte des modules et de leurs workers `backend/*.worker.ts`), smoke test, vérification native, captures du guide intégré
 tests/           tests Vitest du socle
 docs/            ARCHITECTURE, MODULES (contrat), AJOUTER-UN-MODULE, DIRECTION-ARTISTIQUE (visuels générés), THEMES (interface), ROADMAP, WINDOWS, decisions/ (ADR), rapports/ (rapport de fin de session)
-docs/conseiller/ dossier du conseiller (la discussion Claude qui écrit les prompts) : REPRISE.md (reprise et « Où on en est »), EN-ATTENTE.md (idées décidées), prompts/ (prompts prêts à lancer)
 mobile/app/      appli Android ToolBox (be.toolbox.app, identifiant définitif) : les 6 modules du téléphone (Agenda compris), coquille, Worker sqlite-wasm + OPFS, filet de sauvegarde (copie avant migration), partage, notifications du Timer (et notification permanente), synchro avec le PC (greffons PinnedHttp, PcFinder, LiveChannel, TimerOngoing) ; APK signé par .github/workflows/android.yml (ADR 0044)
 site/            site public statique (accueil + confidentialité, exigés par Google OAuth), publié par GitHub Pages depuis hub-v1
 ```
@@ -141,8 +140,6 @@ site/            site public statique (accueil + confidentialité, exigés par G
 13. **Prochaines étapes suggérées** : 3 au maximum, par ordre de priorité.
 
 Modèle : le dernier rapport de `docs/rapports/`.
-
-**Dossier du conseiller** : `docs/conseiller/` appartient au conseiller (la discussion Claude qui écrit les prompts). À la fin de chaque session, mettre à jour la section « Où on en est » de `docs/conseiller/REPRISE.md` et déplacer dans « Fait » ce qui a été réalisé dans `docs/conseiller/EN-ATTENTE.md` ; n'y rien supprimer d'autre ; n'y écrire aucune information personnelle (dépôt public). Les prompts prêts à lancer sont dans `docs/conseiller/prompts/`.
 
 ## Git
 
