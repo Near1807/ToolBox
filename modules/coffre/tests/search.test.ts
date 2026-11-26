@@ -165,6 +165,16 @@ describe('recherche dans le contenu', () => {
     expect((await search(w, 'premier')).results).toHaveLength(0);
   });
 
+  it('v0.50.0 : une étiquette se cherche aussi (« PCH », une libre), sans accents', async () => {
+    const w = await world();
+    const [a] = await deposit(w, { 'td1.md': 'Exercice' }, ['Cours', 'Réseaux']);
+    await deposit(w, { 'td2.md': 'Exercice' }, ['Cours', 'Réseaux']);
+    await ok(w, 'PUT', `${API}/files/${a!.id}/labels`, { family: 'prof', values: ['PCH'] });
+    await ok(w, 'PUT', `${API}/files/${a!.id}/labels`, { family: 'free', values: ['Révision'] });
+    expect((await search(w, 'pch')).results.map((r) => r.item.id)).toEqual([a!.id]);
+    expect((await search(w, 'revision')).results.map((r) => r.item.id)).toEqual([a!.id]);
+  });
+
   it('archivé : toujours cherchable, disque débranché', async () => {
     const w = await world();
     const [doc] = await deposit(w, { 'synthese.pdf': makePdf(['Thermodynamique : entropie']) });
