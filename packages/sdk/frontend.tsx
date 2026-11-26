@@ -571,6 +571,33 @@ export function useApi<T>(path: string | null): ApiState<T> {
   return { data, error, loading, reload };
 }
 
+/**
+ * v0.50.0: ONE event stream of the tasks for the whole page, shared by every
+ * listener (useJobs, waitForJob…). A browser keeps at most 6 connections to
+ * the local server: one stream per listener (the sidebar, a module's panel, a
+ * dialog waiting for its task) could take them all, and every other request
+ * then waited forever (the page looked frozen). Opened with the first
+ * listener, closed with the last.
+ */
+const jobListeners = new Set<(job: JobInfo) => void>();
+let closeJobStream: (() => void) | null = null;
+
+export function subscribeJobs(listener: (job: JobInfo) => void): () => void {
+  jobListeners.add(listener);
+  closeJobStream ??= openEventStream('/api/core/jobs/stream', {
+    job: (data) => {
+      for (const l of [...jobListeners]) l(data as JobInfo);
+    },
+  });
+  return () => {
+    jobListeners.delete(listener);
+    if (jobListeners.size === 0 && closeJobStream) {
+      closeJobStream();
+      closeJobStream = null;
+    }
+  };
+}
+
 /** Live list of jobs (optionally of one module), updated through SSE. */
 export function useJobs(moduleId?: string): {
   jobs: JobInfo[];
@@ -588,18 +615,15 @@ export function useJobs(moduleId?: string): {
     read();
     // v0.50.0: a task just started on a page — read the list now (announceJobs).
     window.addEventListener('toolbox:jobs-changed', read);
-    const close = openEventStream('/api/core/jobs/stream', {
-      job: (data) => {
-        const job = data as JobInfo;
-        if (moduleId && job.moduleId !== moduleId) return;
-        setJobs((current) => {
-          const index = current.findIndex((j) => j.id === job.id);
-          if (index === -1) return [job, ...current];
-          const next = [...current];
-          next[index] = job;
-          return next;
-        });
-      },
+    const close = subscribeJobs((job) => {
+      if (moduleId && job.moduleId !== moduleId) return;
+      setJobs((current) => {
+        const index = current.findIndex((j) => j.id === job.id);
+        if (index === -1) return [job, ...current];
+        const next = [...current];
+        next[index] = job;
+        return next;
+      });
     });
     return () => {
       active = false;

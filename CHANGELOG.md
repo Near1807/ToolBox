@@ -30,6 +30,8 @@ Coffre : **le modèle « tout est dossier »**, qui **remplace** l'ancien (conte
 
 ### Corrigé
 
+- **Page qui semblait figée** (déjà possible en v0.49, selon le moment) : chaque écoute des tâches ouvrait son propre flux d'événements ; avec la synchro, le Timer et l'assistant, la page atteignait les 6 connexions que le navigateur garde vers ToolBox et toute autre requête attendait sans fin. Désormais un seul flux des tâches pour toute la page (`subscribeJobs`).
+- Ranger un dossier : plus de « Ranger plus tard » ni de route « À ranger » proposés pour un dossier (sans route, il va en haut du Coffre).
 - **Fenêtre de mise à jour du disque** : un clic sur « Mettre à jour » ne montrait rien (la tâche pas encore reçue était lue comme finie). Désormais « Démarrage… » dès le clic, puis la jauge ; jamais deux lancements ; une tâche introuvable n'est jamais lue comme terminée. Même correction pour la vérification et la restauration du disque, et liste des tâches relue tout de suite pour archiver, réactiver, réinitialiser, déposer.
 
 ### Données

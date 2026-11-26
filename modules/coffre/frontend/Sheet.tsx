@@ -88,7 +88,7 @@ export function Sheet(props: {
           title={props.routeLocked ?? undefined}
           onClick={() => setEditing('route')}
         >
-          {choiceLabel(choice, folders)}
+          {choiceLabel(choice, folders, props.folder)}
         </button>
         {choice?.origin === 'guessed' && <Guessed reason={choice.reason} />}
         {editing === 'route' && props.onChoice && (
@@ -96,11 +96,12 @@ export function Sheet(props: {
             label="Route"
             folders={folders.filter((f) => !f.project)}
             pending={!props.folder}
+            root={props.folder}
             proposed={
               choice?.origin === 'guessed'
                 ? {
                     pick: choiceToPick(choice),
-                    label: choiceLabel(choice, folders),
+                    label: choiceLabel(choice, folders, props.folder),
                     reason: choice.reason,
                   }
                 : null

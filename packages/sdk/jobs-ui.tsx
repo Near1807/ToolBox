@@ -4,14 +4,7 @@
 // item and its reason, « Réessayer ceux-là »), and waitForJob() for a page
 // that started a task and wants its result without ever holding a request.
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  api,
-  Button,
-  openEventStream,
-  ProgressBar,
-  type JobInfo,
-  type JobStatus,
-} from './frontend';
+import { api, Button, subscribeJobs, ProgressBar, type JobInfo, type JobStatus } from './frontend';
 import { Icon } from './icons';
 
 export const JOB_STATUS_TEXT: Record<JobStatus, string> = {
@@ -79,7 +72,7 @@ export function waitForJob(id: string, onUpdate?: (job: JobInfo) => void): Promi
       finish();
       resolve(job);
     };
-    close = openEventStream('/api/core/jobs/stream', { job: (data) => seen(data as JobInfo) });
+    close = subscribeJobs(seen);
     const started = Date.now();
     const read = () => {
       if (done || found) return;

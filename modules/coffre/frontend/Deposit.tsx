@@ -113,10 +113,11 @@ export function Deposit(props: { entries: DepositEntry[]; onClose: () => void })
   const apply = useCallback(
     async (list: DepositEntry[], laterFor: boolean | ((e: DepositEntry) => boolean)) => {
       if (!list.length || busy) return;
+      // A folder is never « plus tard » (it goes to its route, or to the top).
       const isLater = (e: DepositEntry) =>
-        typeof laterFor === 'function' ? laterFor(e) : laterFor;
+        !e.proposal.isDirectory && (typeof laterFor === 'function' ? laterFor(e) : laterFor);
       const later = list.every(isLater);
-      const toArrival = list.filter(isLater).length;
+      const toPending = list.filter(isLater).length;
       setBusy(true);
       const from = previewBox.current?.getBoundingClientRect() ?? null;
       try {
@@ -156,8 +157,8 @@ export function Deposit(props: { entries: DepositEntry[]; onClose: () => void })
                   ? `« ${r.created[0]!.name} » rangé dans ${where}.`
                   : later
                     ? `${n} éléments mis dans À ranger.`
-                    : toArrival
-                      ? `${n - toArrival} éléments rangés, ${toArrival} dans À ranger.`
+                    : toPending
+                      ? `${n - toPending} éléments rangés, ${toPending} dans À ranger.`
                       : `${n} éléments rangés.`;
           coffre.notify(
             [
@@ -314,7 +315,7 @@ export function Deposit(props: { entries: DepositEntry[]; onClose: () => void })
                         {isHeldDuplicate(e)
                           ? 'déjà dans le Coffre'
                           : e.checked || e.state !== 'todo'
-                            ? choiceLabel(e.choice, coffre.folders)
+                            ? choiceLabel(e.choice, coffre.folders, e.proposal.isDirectory)
                             : 'À ranger (décoché)'}
                       </span>
                       {e.exceptions.length > 0 && e.state === 'todo' && (
@@ -414,7 +415,7 @@ export function Deposit(props: { entries: DepositEntry[]; onClose: () => void })
                 variant="secondary"
                 disabled={busy || !lot.length}
                 onClick={() => void apply(lot, true)}
-                title="Tous dans À ranger, à ranger plus tard"
+                title="Les fichiers dans À ranger, à ranger plus tard (un dossier va à sa route)"
               >
                 Tout ranger plus tard
               </Button>
@@ -433,14 +434,16 @@ export function Deposit(props: { entries: DepositEntry[]; onClose: () => void })
             <span className="muted">Celui-ci est fait ({STATE_LABEL[entry.state]}).</span>
           ) : (
             <>
-              <Button
-                variant="secondary"
-                disabled={busy}
-                onClick={() => void apply([entry], true)}
-                title="Il attend dans À ranger"
-              >
-                Ranger plus tard
-              </Button>
+              {!entry.proposal.isDirectory && (
+                <Button
+                  variant="secondary"
+                  disabled={busy}
+                  onClick={() => void apply([entry], true)}
+                  title="Il attend dans À ranger"
+                >
+                  Ranger plus tard
+                </Button>
+              )}
               <Button
                 autoFocus
                 disabled={busy || (dup !== null && !entry.keepDuplicate)}

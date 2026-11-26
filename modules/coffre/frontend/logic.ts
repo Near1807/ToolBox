@@ -160,8 +160,13 @@ export function choiceToPick(choice: FolderChoice): RoutePick {
 }
 
 /** How a choice reads (« Cours › Thermo », « nouveau : Cours › Réseaux », « À ranger »). */
-export function choiceLabel(choice: FolderChoice, folders: readonly FolderDto[]): string {
-  if (!choice) return 'À ranger (plus tard)';
+export function choiceLabel(
+  choice: FolderChoice,
+  folders: readonly FolderDto[],
+  /** v0.50.0: a folder has no « À ranger »: without a route it goes to the top. */
+  isFolder = false,
+): string {
+  if (!choice) return isFolder ? 'Le haut du Coffre' : 'À ranger (plus tard)';
   if (choice.kind === 'new') return `${choice.path.join(' › ')} (nouveau)`;
   return folders.find((c) => c.id === choice.id)?.path.join(' › ') ?? 'Dossier disparu';
 }

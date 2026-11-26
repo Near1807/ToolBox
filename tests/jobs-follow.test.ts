@@ -8,6 +8,7 @@ import {
   JOBS_CHANGED_EVENT,
   runJob,
   setApiTransport,
+  subscribeJobs,
   waitForJob,
   type JobInfo,
 } from '@hub/sdk/frontend';
@@ -34,19 +35,26 @@ const job = (status: JobInfo['status'], over: Partial<JobInfo> = {}): JobInfo =>
 function fakeHub(list: () => JobInfo[]) {
   let push: ((data: unknown) => void) | null = null;
   let reads = 0;
+  let opened = 0;
   setApiTransport({
     request: (path) => {
       if (path.startsWith('/api/core/jobs')) reads++;
       return Promise.resolve(new Response(JSON.stringify(list()), { status: 200 }));
     },
     openEventStream: (_path, handlers) => {
+      opened++;
       push = handlers.job ?? null;
       return () => {
         push = null;
       };
     },
   });
-  return { push: (j: JobInfo) => push?.(j), reads: () => reads, open: () => push !== null };
+  return {
+    push: (j: JobInfo) => push?.(j),
+    reads: () => reads,
+    open: () => push !== null,
+    opened: () => opened,
+  };
 }
 
 afterEach(() => {
@@ -97,5 +105,24 @@ describe('suivre une tâche lancée depuis une fenêtre', () => {
     expect(events).toEqual([JOBS_CHANGED_EVENT]);
     hub.push(job('failed', { error: 'Disque débranché' }));
     await expect(result).rejects.toThrow('Disque débranché');
+  });
+
+  it('un seul flux des tâches pour toute la page (6 connexions au plus vers le serveur)', async () => {
+    const hub = fakeHub(() => [job('running')]);
+    const seenA: string[] = [];
+    const seenB: string[] = [];
+    const offA = subscribeJobs((j) => seenA.push(j.status));
+    const offB = subscribeJobs((j) => seenB.push(j.status));
+    const waiting = waitForJob('j1');
+    await new Promise((r) => setTimeout(r, 10));
+    expect(hub.opened()).toBe(1);
+    hub.push(job('succeeded'));
+    await waiting;
+    expect(seenA).toEqual(['succeeded']);
+    expect(seenB).toEqual(['succeeded']);
+    expect(hub.open()).toBe(true); // still listened to
+    offA();
+    offB();
+    expect(hub.open()).toBe(false); // closed with the last listener
   });
 });
