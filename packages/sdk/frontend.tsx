@@ -581,9 +581,13 @@ export function useJobs(moduleId?: string): {
   useEffect(() => {
     let active = true;
     const query = moduleId ? `?module=${encodeURIComponent(moduleId)}` : '';
-    void apiFetch<JobInfo[]>(`/api/core/jobs${query}`).then((list) => {
-      if (active) setJobs(list);
-    });
+    const read = () =>
+      void apiFetch<JobInfo[]>(`/api/core/jobs${query}`).then((list) => {
+        if (active) setJobs(list);
+      });
+    read();
+    // v0.50.0: a task just started on a page — read the list now (announceJobs).
+    window.addEventListener('toolbox:jobs-changed', read);
     const close = openEventStream('/api/core/jobs/stream', {
       job: (data) => {
         const job = data as JobInfo;
@@ -599,6 +603,7 @@ export function useJobs(moduleId?: string): {
     });
     return () => {
       active = false;
+      window.removeEventListener('toolbox:jobs-changed', read);
       close();
     };
   }, [moduleId]);

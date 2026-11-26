@@ -3,7 +3,7 @@
 // progress, the time left, Annuler; at the end the report with EVERY failed
 // item and its reason, « Réessayer ceux-là »), and waitForJob() for a page
 // that started a task and wants its result without ever holding a request.
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   api,
   Button,
@@ -42,32 +42,167 @@ export function jobCountText(job: JobInfo): string | null {
 
 export const isActiveJob = (job: JobInfo) => job.status === 'queued' || job.status === 'running';
 
+/** v0.50.0: said by a page that just started a task — every useJobs() reads the list again at once. */
+export const JOBS_CHANGED_EVENT = 'toolbox:jobs-changed';
+
+/** The task list changed (a task started here): the panels read it again now, not at the next event. */
+export function announceJobs(): void {
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(JOBS_CHANGED_EVENT));
+}
+
+/** How long a task may stay unseen after its start before it is « introuvable » (never « terminée »). */
+const MISSING_AFTER_MS = 5000;
+
 /**
- * Waits for a task to end, through the hub's event stream (and one read at
- * the start: it may be over already). Resolves with the task as it ended
+ * Waits for a task to end, through the hub's event stream (and reads of the
+ * list: it may be over already). Resolves with the task as it ended
  * (succeeded, failed, cancelled, interrupted): never throws for its outcome.
+ * A task that cannot be found (neither in the list nor in the stream for 5 s)
+ * REJECTS with « Tâche introuvable » — never read as ended.
  */
 export function waitForJob(id: string, onUpdate?: (job: JobInfo) => void): Promise<JobInfo> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     let done = false;
+    let found = false;
     let close: () => void = () => {};
-    const seen = (job: JobInfo) => {
-      if (done || job.id !== id) return;
-      onUpdate?.(job);
-      if (isActiveJob(job)) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const finish = () => {
       done = true;
       close();
+      if (timer) clearTimeout(timer);
+    };
+    const seen = (job: JobInfo) => {
+      if (done || job.id !== id) return;
+      found = true;
+      onUpdate?.(job);
+      if (isActiveJob(job)) return;
+      finish();
       resolve(job);
     };
     close = openEventStream('/api/core/jobs/stream', { job: (data) => seen(data as JobInfo) });
-    void api
-      .get<JobInfo[]>('/api/core/jobs')
-      .then((list) => {
-        const job = list.find((j) => j.id === id);
-        if (job) seen(job);
-      })
-      .catch(() => undefined);
+    const started = Date.now();
+    const read = () => {
+      if (done || found) return;
+      void api
+        .get<JobInfo[]>('/api/core/jobs')
+        .then((list) => {
+          const job = list.find((j) => j.id === id);
+          if (job) seen(job);
+          else if (!found && !done) {
+            if (Date.now() - started >= MISSING_AFTER_MS) {
+              finish();
+              reject(new Error('Tâche introuvable : elle n’a pas démarré ou a été retirée.'));
+            } else timer = setTimeout(read, 1000);
+          }
+        })
+        .catch(() => {
+          if (!done && !found) timer = setTimeout(read, 1000);
+        });
+    };
+    read();
   });
+}
+
+/**
+ * Starts a task (a route answering { jobId }) and waits for its end: its
+ * result; a failure throws its message, a cancellation « Annulée », a task not
+ * found « Tâche introuvable ». The task lists are told at once (announceJobs).
+ */
+export async function runJob<T>(
+  start: Promise<{ jobId: string }>,
+  onUpdate?: (job: JobInfo) => void,
+): Promise<T> {
+  const { jobId } = await start;
+  announceJobs();
+  const job = await waitForJob(jobId, onUpdate);
+  if (job.status === 'succeeded') return job.result as T;
+  throw new Error(
+    job.status === 'cancelled'
+      ? 'Annulée'
+      : (job.error ?? job.message ?? 'La tâche n’a pas abouti'),
+  );
+}
+
+export interface TaskFollow {
+  /**
+   * idle: nothing started; starting: asked, the task not seen yet (« Démarrage… »);
+   * active: queued or running (the gauge); ended: its final state in `job`;
+   * lost: started but not found (`error`), never read as ended.
+   */
+  phase: 'idle' | 'starting' | 'active' | 'ended' | 'lost';
+  job: JobInfo | null;
+  /** Why it could not start (the route's message), or why it is lost. */
+  error: string | null;
+  /** Starts it — ignored while one is starting or running (never two launches). */
+  start: (launch: () => Promise<{ jobId: string }>) => void;
+  /** Follows a task already running (a dialog reopened during it). */
+  follow: (jobId: string) => void;
+}
+
+/**
+ * v0.50.0: a dialog that starts ONE task and shows it: « Démarrage… » from
+ * the click, then its gauge, then its end. The button cannot launch it twice
+ * (a click during the start or the run is ignored), the task lists are told
+ * at once, and a task that cannot be found is « introuvable », never « terminée ».
+ */
+export function useTaskFollow(initialJobId?: string | null): TaskFollow {
+  const [state, setState] = useState<Pick<TaskFollow, 'phase' | 'job' | 'error'>>({
+    phase: initialJobId ? 'starting' : 'idle',
+    job: null,
+    error: null,
+  });
+  const busy = useRef(Boolean(initialJobId));
+  const live = useRef(true);
+  useEffect(() => {
+    live.current = true;
+    return () => {
+      live.current = false;
+    };
+  }, []);
+  const follow = useCallback((jobId: string) => {
+    busy.current = true;
+    setState({ phase: 'starting', job: null, error: null });
+    waitForJob(jobId, (job) => {
+      if (live.current)
+        setState({ phase: isActiveJob(job) ? 'active' : 'ended', job, error: null });
+    })
+      .then((job) => {
+        busy.current = false;
+        if (live.current) setState({ phase: 'ended', job, error: null });
+      })
+      .catch((e: unknown) => {
+        busy.current = false;
+        if (live.current)
+          setState({ phase: 'lost', job: null, error: e instanceof Error ? e.message : String(e) });
+      });
+  }, []);
+  const start = useCallback(
+    (launch: () => Promise<{ jobId: string }>) => {
+      if (busy.current) return;
+      busy.current = true;
+      setState({ phase: 'starting', job: null, error: null });
+      launch()
+        .then(({ jobId }) => {
+          announceJobs();
+          follow(jobId);
+        })
+        .catch((e: unknown) => {
+          busy.current = false;
+          if (live.current)
+            setState({
+              phase: 'idle',
+              job: null,
+              error: e instanceof Error ? e.message : String(e),
+            });
+        });
+    },
+    [follow],
+  );
+  const initial = useRef(initialJobId);
+  useEffect(() => {
+    if (initial.current) follow(initial.current);
+  }, [follow]);
+  return { ...state, start, follow };
 }
 
 /**
