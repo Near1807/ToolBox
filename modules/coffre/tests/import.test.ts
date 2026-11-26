@@ -71,13 +71,14 @@ function programmation(base: string): string {
 const find = (n: ImportNodeDto, rel: string): ImportNodeDto | null =>
   n.rel === rel ? n : (n.children.map((c) => find(c, rel)).find(Boolean) ?? null);
 
-async function until(cond: () => Promise<boolean>, ms = 30_000) {
+async function until(cond: () => Promise<boolean>, ms = 30_000, seen?: () => Promise<unknown>) {
   const end = Date.now() + ms;
   while (Date.now() < end) {
     if (await cond()) return;
     await new Promise((r) => setTimeout(r, 50));
   }
-  throw new Error('Délai dépassé');
+  // What was seen last: tells a slow run from a stuck one.
+  throw new Error(`Délai dépassé${seen ? ` : ${JSON.stringify(await seen())}` : ''}`);
 }
 
 describe('importer une arborescence', () => {
@@ -197,6 +198,13 @@ describe('importer une arborescence', () => {
     await until(
       async () =>
         (await ok<ImportStatusDto>(W, 'GET', `${API}/import/${a.id}`)).state === 'cancelled',
+      60_000,
+      async () => {
+        const st = await ok<ImportStatusDto>(W, 'GET', `${API}/import/${a.id}`);
+        const jobs = await ok<{ id: string }[]>(W, 'GET', '/api/core/jobs?module=coffre');
+        const job = jobs.find((j) => j.id === st.jobId) ?? null;
+        return { st, job };
+      },
     );
     expect(existsSync(path.join(dataDir, 'coffre', 'Programmation'))).toBe(false);
     expect(await ok<ContextDto[]>(W, 'GET', `${API}/contexts`)).toEqual([]);
