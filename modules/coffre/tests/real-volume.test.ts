@@ -10,6 +10,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { ResetReport, UpdateReport } from '../shared/types';
 import {
+  analyze,
   API,
   deposit,
   diskWorld,
@@ -46,9 +47,9 @@ describe.runIf(process.platform === 'win32' && volume && vhd)(
   'vrai volume NTFS (CI Windows)',
   () => {
     // v0.48.0: the tree moved (and a name whose case only changes) then the disk updated
-    // by MOVES; an arborescence imported (long paths, node_modules left out).
+    // by MOVES; a folder dropped as it is (long paths, a Projet, node_modules left out).
     it(
-      'arbre déplacé, casse changée : le disque suit par déplacements ; import d’une arborescence',
+      'arbre déplacé, casse changée : le disque suit par déplacements ; un dossier déposé tel quel',
       { timeout: 180_000 },
       async () => {
         w = await diskWorld({ realVolumes: true });
@@ -93,23 +94,29 @@ describe.runIf(process.platform === 'win32' && volume && vhd)(
           'Réseaux',
           'Thermo',
         ]);
-        // An arborescence imported: long folder names, a node_modules left out.
+        // v0.50.0: a folder dropped as it is (long folder names), « site » accepted as a
+        // Projet, its node_modules left out; the disk reproduces the route.
         const src = path.join(w.dl, 'Programmation');
         const long = 'Un dossier au nom assez long pour tester les chemins';
         mkdirSync(path.join(src, long, long, 'site', 'node_modules', 'x'), { recursive: true });
         writeFileSync(path.join(src, long, long, 'notes.txt'), 'notes');
         writeFileSync(path.join(src, long, long, 'site', 'package.json'), '{}');
         writeFileSync(path.join(src, long, long, 'site', 'node_modules', 'x', 'i.js'), '1');
-        const st = await ok<{ id: string }>(w, 'POST', `${API}/import/start`, { source: src });
-        let state = '';
-        for (let i = 0; i < 200 && state !== 'done'; i++) {
-          await new Promise((r) => setTimeout(r, 100));
-          state = (await ok<{ state: string }>(w, 'GET', `${API}/import/${st.id}`)).state;
-        }
-        expect(state).toBe('done');
+        const [p] = await analyze(w, { paths: [src] });
+        const siteRel = `${long}/${long}/site`;
+        expect(p!.projects?.map((x) => x.rel)).toContain(siteRel);
+        await runJob(w, 'POST', `${API}/deposit/apply`, {
+          entries: [{ path: src, projects: [siteRel], labels: [] }],
+        });
         const site = path.join(lib, 'Programmation', long, long, 'site');
         expect(readFileSync(path.join(site, 'package.json'), 'utf8')).toBe('{}');
         expect(existsSync(path.join(site, 'node_modules'))).toBe(false);
+        const third = await runJob<UpdateReport>(w, 'POST', `${API}/disk/update`);
+        expect(third.copied).toBeGreaterThanOrEqual(2);
+        const onDisk = path.join(s.root!, 'Programmation', long, long);
+        expect(readFileSync(path.join(onDisk, 'notes.txt'), 'utf8')).toBe('notes');
+        expect(readFileSync(path.join(onDisk, 'site', 'package.json'), 'utf8')).toBe('{}');
+        expect(existsSync(path.join(onDisk, 'site', 'node_modules'))).toBe(false);
       },
     );
     // v0.49.0: « Réinitialiser le Coffre » — nothing deleted on the disk: its folder is
