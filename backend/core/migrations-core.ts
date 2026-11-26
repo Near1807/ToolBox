@@ -24,6 +24,8 @@ export interface MigrationRuntime {
   randomId(): string;
   /** The UUID of a row that had a number before (see backend/core/legacy-id.ts). */
   legacyUuid(seed: string, kind: string, oldId: number): string;
+  /** v0.50.0: the folder of the user's files a module keeps (PC only). */
+  libraryDirOf?(scope: string): string;
 }
 
 const MIGRATIONS_TABLE = 'core__migrations';
@@ -46,6 +48,8 @@ export class MigrationError extends Error {
     readonly scope: string,
     readonly version: number | null,
     message: string,
+    /** v0.50.0: a MigrationRefusal (data not ready): the module stays enabled, tried again. */
+    readonly refused = false,
   ) {
     super(message);
     this.name = 'MigrationError';
@@ -146,6 +150,7 @@ function migrationDatabase(
 ): MigrationDatabase {
   let seed: string | null = null;
   return {
+    libraryDir: runtime.libraryDirOf?.(scope),
     exec: (sql) => void db.exec(sql),
     prepare: (sql) => db.prepare(sql) as ReturnType<MigrationDatabase['prepare']>,
     table: (name) => prefixedTable(scope, name),
@@ -187,6 +192,9 @@ export function applyMigrations(
     } catch (error) {
       if (error instanceof MigrationError) throw error;
       const reason = error instanceof Error ? error.message : String(error);
+      // v0.50.0: a refusal (MigrationRefusal, matched by name: this file stays portable).
+      if (error instanceof Error && error.name === 'MigrationRefusal')
+        throw new MigrationError(scope, migration.version, reason, true);
       throw new MigrationError(
         scope,
         migration.version,

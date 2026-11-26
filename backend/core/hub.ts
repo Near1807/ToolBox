@@ -252,6 +252,8 @@ export class Hub {
 
   /** v0.47.0: the migrations that failed at this start (a restore is then undone). */
   readonly migrationFailures: string[] = [];
+  /** v0.50.0: the scopes whose migration refused (MigrationRefusal) at this start. */
+  private readonly refusedScopes = new Set<string>();
 
   get host(): HostAdapter {
     return this.options.host;
@@ -392,7 +394,7 @@ export class Hub {
           `Sauvegarde avant migration de « ${scope} » : ${path.basename(backupFile)}`,
         );
       }
-      applyMigrations(this.handle.db, scope, pending);
+      applyMigrations(this.handle.db, scope, pending, (id) => path.join(this.dataDir, id));
       this.logger.info(
         `Migrations de « ${scope} » appliquées jusqu'à la version ${pending.at(-1)!.version}`,
       );
@@ -404,7 +406,9 @@ export class Hub {
           ? error.message
           : `Mise à jour de la base de « ${scope} » impossible : ${errorMessage(error)}`;
       this.logger.error(message, error);
-      this.migrationFailures.push(message);
+      // v0.50.0: a refusal (data not ready) does not disable the module: tried again next start.
+      if (error instanceof MigrationError && error.refused) this.refusedScopes.add(scope);
+      else this.migrationFailures.push(message);
       if (backupFile) {
         restoreBackup(this.handle, backupFile);
         this.logger.warn(`Base restaurée depuis ${path.basename(backupFile)}`);
@@ -482,9 +486,14 @@ export class Hub {
       if (failure) {
         record.status = 'failed';
         record.error = failure;
-        record.disabled = true;
-        this.setModuleEnabled(id, false, failure);
-        unavailable.set(id, 'migration échouée');
+        if (this.refusedScopes.has(id)) {
+          // Not loaded at this start, but still enabled: the migration is tried again.
+          unavailable.set(id, 'migration en attente');
+        } else {
+          record.disabled = true;
+          this.setModuleEnabled(id, false, failure);
+          unavailable.set(id, 'migration échouée');
+        }
       }
     }
     plan = planModuleLoading(

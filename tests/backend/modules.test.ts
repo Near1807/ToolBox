@@ -2,7 +2,7 @@ import { mkdtempSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { HttpError } from '@hub/sdk/backend';
+import { HttpError, MigrationRefusal } from '@hub/sdk/backend';
 import type { ModuleInfo } from '@hub/sdk/manifest';
 import { createTestHub, type TestHub } from '@hub/sdk/testing';
 import { fakeModule } from '../helpers/fake-modules';
@@ -57,6 +57,44 @@ describe('module loader', () => {
     expect(state.healthy?.status).toBe('loaded');
     expect((await hub.request('GET', '/api/modules/broken/x')).status).toBe(404);
     expect((await hub.request('GET', '/api/modules/healthy/ok')).status).toBe(200);
+  });
+
+  // v0.50.0: a migration that refuses for now (its data not ready): not loaded at this start,
+  // still enabled, tried again at the next start (and loaded once its condition holds).
+  it('a migration that refuses (MigrationRefusal): not loaded, not disabled, tried again', async () => {
+    const dataDir = mkdtempSync(path.join(tmpdir(), 'refusal-'));
+    let ready = false;
+    let seen: string | undefined;
+    const waiting = () =>
+      fakeModule('waiting', {
+        backend: {
+          migrations: [
+            {
+              version: 1,
+              description: 'needs the data emptied',
+              up: (db) => {
+                seen = db.libraryDir;
+                db.exec(`CREATE TABLE ${db.table('things')} (id TEXT)`);
+                if (!ready) throw new MigrationRefusal('Vide d’abord tes données');
+              },
+            },
+          ],
+          register: (ctx) => ctx.routes.get('/ok', () => ({ ok: true })),
+        },
+      });
+    const first = await start({ dataDir, modules: [waiting()] });
+    let state = await modules(first);
+    expect(state.waiting?.status).toBe('failed');
+    expect(state.waiting?.error).toMatch(/Vide d’abord tes données/);
+    expect(state.waiting?.disabled).toBe(false);
+    expect(seen).toBe(path.join(dataDir, 'waiting'));
+    await first.close({ keepData: true });
+    hubs.splice(hubs.indexOf(first), 1);
+    ready = true;
+    const second = await start({ dataDir, modules: [waiting()] });
+    state = await modules(second);
+    expect(state.waiting?.status).toBe('loaded');
+    expect((await second.request('GET', '/api/modules/waiting/ok')).status).toBe(200);
   });
 
   it('refuses a module whose dependency is missing, with a clear message', async () => {

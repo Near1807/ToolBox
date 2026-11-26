@@ -126,7 +126,26 @@ export interface Migration {
   up: string | ((db: MigrationDatabase) => void);
 }
 
+/**
+ * v0.50.0: thrown by a migration whose data is not ready for it (e.g. it needs
+ * the module's data emptied first). Nothing is changed (the migration's
+ * transaction is rolled back, the database restored); the module is NOT loaded
+ * at this start, with this message, but stays enabled: the migration is tried
+ * again at the next start.
+ */
+export class MigrationRefusal extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'MigrationRefusal';
+  }
+}
+
 export interface MigrationDatabase {
+  /**
+   * v0.50.0: the folder of the user's files this module keeps (ModuleFiles.libraryDir,
+   * PC only; undefined on the phone). Read only: a migration never writes files.
+   */
+  readonly libraryDir?: string;
   exec(sql: string): void;
   prepare(sql: string): Statement;
   /** Full table name for this module, e.g. table('tracks') → "music_library__tracks". */

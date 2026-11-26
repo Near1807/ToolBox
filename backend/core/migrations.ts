@@ -26,6 +26,11 @@ const NODE_RUNTIME = { randomId: () => randomUUID(), legacyUuid };
  * A migration may only create, change or drop objects named with the scope's prefix.
  * Throws MigrationError on the first failure (that migration is rolled back).
  */
-export function applyMigrations(db: SqliteDatabase, scope: string, pending: Migration[]): void {
-  applyWith(db, scope, pending, NODE_RUNTIME);
+export function applyMigrations(
+  db: SqliteDatabase,
+  scope: string,
+  pending: Migration[],
+  libraryDirOf?: (scope: string) => string,
+): void {
+  applyWith(db, scope, pending, { ...NODE_RUNTIME, libraryDirOf });
 }
