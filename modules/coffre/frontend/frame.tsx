@@ -188,6 +188,14 @@ export function CoffreFrame(props: { children: ReactNode }) {
   const [verifying, setVerifying] = useState(false);
   const [updating, setUpdating] = useState(false);
   const { reload: reloadDisk } = disk;
+  // v0.49.0: the disk's update waits for a deposit or an import; proposed once it is over.
+  const waitsFor = disk.data?.waitsFor ?? null;
+  const [waited, setWaited] = useState<string | null>(null);
+  const [proposeUpdate, setProposeUpdate] = useState(false);
+  if (waitsFor !== waited) {
+    if (waited && !waitsFor) setProposeUpdate(true);
+    setWaited(waitsFor);
+  }
   const onDiskChanged = useCallback(() => {
     reloadDisk();
     notifyDataChanged([module.id]);
@@ -694,7 +702,15 @@ Ils restent sur le disque « ${diskName} » (vérifiés avant), et leur copie es
             <DiskWitness
               status={disk.data}
               action={
-                disk.data.jobId ? (
+                disk.data.refuses && disk.data.connected ? (
+                  <Button small disabled title={disk.data.refuses} data-coffre-disk-refuses>
+                    Mise à jour impossible pour l’instant
+                  </Button>
+                ) : disk.data.waitsFor && disk.data.connected && !disk.data.jobId ? (
+                  <Button small disabled title={disk.data.waitsFor} data-coffre-disk-waits>
+                    Import en cours : la mise à jour sera possible à la fin
+                  </Button>
+                ) : disk.data.jobId ? (
                   <Button small onClick={() => setUpdating(true)}>
                     Mise à jour en cours…
                   </Button>
@@ -709,6 +725,25 @@ Ils restent sur le disque « ${diskName} » (vérifiés avant), et leur copie es
                 ) : null
               }
             />
+          </div>
+        )}
+        {proposeUpdate && disk.data?.connected && !disk.data.waitsFor && (
+          <div className="coffre-banner" role="status" data-coffre-propose-update>
+            <span>L’import est terminé : tu peux maintenant mettre à jour le disque.</span>
+            <span className="coffre-manage__buttons">
+              <Button
+                small
+                onClick={() => {
+                  setProposeUpdate(false);
+                  setUpdating(true);
+                }}
+              >
+                Mettre à jour le disque…
+              </Button>
+              <Button variant="secondary" small onClick={() => setProposeUpdate(false)}>
+                Plus tard
+              </Button>
+            </span>
           </div>
         )}
         <CoffreTasks onFail={fail} />

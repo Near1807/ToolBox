@@ -73,6 +73,7 @@ export function diskStatus(d: CoffreDeps, disk: DiskManager): DiskStatusDto {
     lastUpdate: row?.last_update_json ? (JSON.parse(row.last_update_json) as UpdateReport) : null,
     busy: disk.busy,
     waitsFor: disk.waitsFor(),
+    refuses: disk.refuses(),
     jobId: running?.id ?? null,
     pending: 0,
     archived: 0,
@@ -144,6 +145,8 @@ export function registerDiskRoutes(d: CoffreDeps, disk: DiskManager): void {
   ctx.routes.post('/disk/update', async () => {
     disk.rootOrThrow();
     if (disk.busy) throw new HttpError(409, `Le disque est occupé : ${disk.busy}`);
+    const refused = disk.refuses();
+    if (refused) throw new HttpError(409, refused);
     const waiting = disk.waitsFor();
     if (waiting)
       throw new HttpError(

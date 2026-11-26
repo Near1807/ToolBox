@@ -82,10 +82,21 @@ export function createModuleFiles(options: {
       return target;
     },
     trash: async (target) => {
-      // Only a file of this module's own data folder.
-      const inside = safeJoin(dataDir, path.relative(dataDir, path.resolve(target)));
-      if (inside === path.resolve(dataDir))
-        throw new Error('Refus : le dossier du module lui-même');
+      // Only a file of this module's own data folder, or (v0.49.0) of the user's files it
+      // keeps (libraryDir) — never one of these folders themselves.
+      const resolved = path.resolve(target);
+      let library: string | null;
+      try {
+        library = path.resolve(libraryDir());
+      } catch {
+        library = null; // a reserved module name: no library folder
+      }
+      const base =
+        library && (resolved === library || resolved.startsWith(library + path.sep))
+          ? library
+          : dataDir;
+      const inside = safeJoin(base, path.relative(base, resolved));
+      if (inside === path.resolve(base)) throw new Error('Refus : le dossier du module lui-même');
       if (existsSync(inside)) await options.host.trashItem(inside);
     },
     readFile: (target) => readFileSync(target),

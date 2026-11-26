@@ -498,7 +498,9 @@ export interface ModuleFiles {
   /**
    * Sends a file of the module's data folder (dataDir) to the Recycle Bin,
    * after a deletion the user asked for (e.g. a recipe image replaced or
-   * removed). Refuses any path outside dataDir; a missing file is no error.
+   * removed). v0.49.0: also a file or folder of libraryDir (the user's files
+   * the module keeps). Refuses any other path and these folders themselves;
+   * a missing file is no error.
    */
   trash(path: string): Promise<void>;
   /**

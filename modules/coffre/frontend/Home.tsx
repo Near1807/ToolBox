@@ -30,6 +30,7 @@ import { DiskSettings } from './disk/DiskSettings';
 import { LearnedSettings } from './Learned';
 import { Atlas } from './Atlas';
 import { ImportsPanel } from './Import';
+import { PendingDiskRename, SensitiveZone } from './Reset';
 
 /** A context's tile that takes what is dropped on it. */
 export function Tile(props: { context: ContextDto; showPath?: boolean }) {
@@ -365,6 +366,7 @@ function ManageTab(props: { home: HomeDto; onRestore: () => void }) {
   const s = coffre.disk;
   return (
     <>
+      <PendingDiskRename />
       {h.health.missingOnPc > 0 && s?.disk && (
         <div className="coffre-banner" role="status" data-coffre-missing>
           <span>
@@ -411,6 +413,7 @@ function ManageTab(props: { home: HomeDto; onRestore: () => void }) {
         <DiskSettings />
         <LearnedSettings />
       </section>
+      <SensitiveZone />
     </>
   );
 }

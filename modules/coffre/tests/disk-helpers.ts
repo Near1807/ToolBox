@@ -50,6 +50,8 @@ export async function diskWorld(
     volumes?: { E: string; F: string };
     /** The machine's real volumes (C: to Z:), no simulated ones (the Windows CI's virtual disk). */
     realVolumes?: boolean;
+    /** v0.49.0: other modules loaded beside the Coffre (their folder names: « todo »). */
+    others?: string[];
   } = {},
 ): Promise<DiskWorld> {
   const base = mkdtempSync(path.join(tmpdir(), 'coffre-disk-'));
@@ -64,7 +66,12 @@ export async function diskWorld(
     loadExamples: false,
     dataDir: options.dataDir,
     host: options.host,
-    modules: [await loadModuleFolder(path.resolve(__dirname, '..'))],
+    modules: [
+      await loadModuleFolder(path.resolve(__dirname, '..')),
+      ...(await Promise.all(
+        (options.others ?? []).map((m) => loadModuleFolder(path.resolve(__dirname, '..', '..', m))),
+      )),
+    ],
   });
   return {
     hub,

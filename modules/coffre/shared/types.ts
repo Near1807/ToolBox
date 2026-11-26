@@ -249,6 +249,8 @@ export interface DiskStatusDto {
   busy: string | null;
   /** v0.49.0: a deposit or an import running (its title): the update waits for its end. */
   waitsFor: string | null;
+  /** v0.49.0: the update refused for now, and why (a reset to finish on this disk). */
+  refuses: string | null;
   /** The running job (update, verification…), to follow its progress. */
   jobId: string | null;
   /** Elements « pas encore sur le disque ». */
@@ -428,4 +430,31 @@ export interface ApplyResultDto {
   }[];
   undoId: string | null;
   failed: number;
+}
+
+// v0.49.0: « Réinitialiser le Coffre ».
+export type OnlyHereReason = 'original-absent' | 'original-different' | 'archived' | 'no-original';
+
+export interface ResetPreviewDto {
+  items: number;
+  contexts: number;
+  links: number;
+  archived: number;
+  /** The Coffre's files on the PC. */
+  bytes: number;
+  disk: { name: string; connected: boolean; root: string | null } | null;
+  /** What exists ONLY in the Coffre (lost for ToolBox if emptied without exporting). */
+  onlyHere: { id: string; name: string; contextPath: string[] | null; reason: OnlyHereReason }[];
+  /** The default folder of the inventory (« Documents »). */
+  inventoryParent: string;
+  rules: number;
+}
+
+export interface ResetReport {
+  inventory: string;
+  emptied: { items: number; contexts: number };
+  trashed: number;
+  diskFolder: string | null;
+  diskPending: boolean;
+  backup: string;
 }

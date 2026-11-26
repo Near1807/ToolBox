@@ -48,6 +48,7 @@ import { registerSearch } from './search';
 import { registerTreeRoutes } from './tree';
 import { IMPORTS_MIGRATION_SQL, registerImport } from './import';
 import { registerDeposit } from './deposit';
+import { registerReset } from './reset';
 import { hashFiles, walkFolder, type Walked } from './walk';
 import { DOWNLOADS_MIGRATION_SQL, DownloadWatcher } from './downloads';
 import { Learner, RULES_MIGRATION_SQL } from './learning';
@@ -817,6 +818,19 @@ export default defineBackendModule({
 
     // v0.49.0: the disk's update waits for a deposit or an import running.
     disk.waitsFor = () => deposits.busy();
+    // v0.49.0: « Réinitialiser le Coffre » (backend/reset.ts).
+    const reset = registerReset(deps, disk, {
+      dtos,
+      fileOf: (row) => absOf(row),
+      clearDerived: () => {
+        for (const table of ['text', 'text_state', 'downloads', 'imports'])
+          ctx.db.prepare(`DELETE FROM ${ctx.db.table(table)}`).run();
+      },
+    });
+    disk.refuses = () =>
+      reset.diskPending()
+        ? 'Le Coffre a été réinitialisé : renomme d’abord son ancien dossier sur ce disque (Gestion)'
+        : null;
 
     // --- v0.48.0: importing an arborescence (ADR 0065) ----------------------------------
     const imports = registerImport({

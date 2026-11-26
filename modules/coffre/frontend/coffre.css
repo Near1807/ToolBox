@@ -2386,3 +2386,54 @@ button.coffre-value__text:hover {
   margin: 0;
   color: var(--text-2);
 }
+
+/* v0.49.0: Gestion › Zone sensible, « Réinitialiser le Coffre » (Expérimental). */
+.coffre-danger {
+  margin-top: 18px;
+  border-left: 3px solid var(--danger);
+}
+.coffre-reset {
+  width: 640px;
+  overflow-y: auto;
+}
+.coffre-reset ul {
+  margin: 0;
+  padding-left: 20px;
+}
+.coffre-reset__warn {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 10px 12px;
+  border: 1px solid var(--border-strong);
+  border-left: 3px solid var(--warning);
+  border-radius: var(--radius-sm);
+}
+.coffre-reset__warn p {
+  margin: 0;
+}
+.coffre-reset__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: space-between;
+  overflow-wrap: anywhere;
+}
+.coffre-reset__disk {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.coffre-reset__disk p,
+.coffre-reset__final {
+  margin: 0;
+}
+.coffre-reset__type {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}

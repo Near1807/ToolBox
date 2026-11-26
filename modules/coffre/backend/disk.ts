@@ -61,6 +61,8 @@ export class DiskManager {
    * update waits for it (what it copies would be half seen by the plan).
    */
   waitsFor: () => string | null = () => null;
+  /** v0.49.0: a reason the disk's update is refused for now (a reset to finish), or null. */
+  refuses: () => string | null = () => null;
   /** v0.47.0: told when the PC's files were looked at, or when the disk comes (the text index). */
   onChange: ((what: 'scanned' | 'connected') => void) | null = null;
 
