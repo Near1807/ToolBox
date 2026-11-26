@@ -276,8 +276,12 @@ export function registerDeposit(d: DepositDeps) {
             await mkdir(path.dirname(target), { recursive: true });
             await copyFile(e.path + path.sep + f.rel.split('/').join(path.sep), target);
             count.done++;
-            if (count.done % 25 === 0)
+            if (count.done % 25 === 0) {
               job.step(count.done, count.total, { current: `${name}/${f.rel}` });
+              // The tests slow it down to stop it in the middle of a project.
+              const pause = Number(process.env.TOOLBOX_COFFRE_DEPOSIT_PAUSE_MS ?? 0);
+              if (pause) await new Promise((r) => setTimeout(r, pause));
+            }
           }
           const copied = await walkFolder(tmp, { inProject: true, keepSetAside: true });
           if (copied.files.length !== walked!.files.length)

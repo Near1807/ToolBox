@@ -87,6 +87,7 @@ describe('tâches de fond du Coffre', () => {
     put(path.join(proj, 'package.json'), '{}');
     const small = put(path.join(W.dl, 'avant.md'), 'avant');
     const before = snapshot(proj);
+    process.env.TOOLBOX_COFFRE_DEPOSIT_PAUSE_MS = '5'; // never finished before the cancel
     const { jobId } = await ok<{ jobId: string }>(W, 'POST', `${API}/deposit/apply`, {
       entries: [
         { path: small, newContext: ['Projets'], attributes: [] },

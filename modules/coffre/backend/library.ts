@@ -145,7 +145,8 @@ export class Library {
   async erase(rel: string): Promise<void> {
     const target = this.abs(rel);
     if (target === path.resolve(this.root)) throw new Error('Refus : le Coffre lui-même');
-    await rm(target, { recursive: true, force: true });
+    // Windows: a file just written can be held a moment (antivirus, indexer): tried again.
+    await rm(target, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }
 
   exists(rel: string): boolean {
