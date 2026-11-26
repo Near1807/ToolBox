@@ -4,10 +4,11 @@
 // again by its identity on the new letter; copies, long paths, verification.
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import type { UpdateReport } from '../shared/types';
+import type { ResetReport, UpdateReport } from '../shared/types';
 import {
   API,
   deposit,
@@ -109,6 +110,33 @@ describe.runIf(process.platform === 'win32' && volume && vhd)(
         const site = path.join(lib, 'Programmation', long, long, 'site');
         expect(readFileSync(path.join(site, 'package.json'), 'utf8')).toBe('{}');
         expect(existsSync(path.join(site, 'node_modules'))).toBe(false);
+      },
+    );
+    // v0.49.0: « Réinitialiser le Coffre » — nothing deleted on the disk: its folder is
+    // renamed on the real volume, a new empty one registered, the next update works.
+    it(
+      'réinitialiser : le dossier du disque renommé sur le vrai volume, rien supprimé',
+      { timeout: 180_000 },
+      async () => {
+        w = await diskWorld({ realVolumes: true });
+        await deposit(w, { 'garde.md': 'à garder' }, ['Cours']);
+        const s = await registerDisk(w, `${volume}\\Reinit`);
+        expect((await runJob<UpdateReport>(w, 'POST', `${API}/disk/update`)).copied).toBe(1);
+        const report = await runJob<ResetReport>(w, 'POST', `${API}/reset/apply`, {
+          inventoryDir: mkdtempSync(path.join(tmpdir(), 'documents-')),
+          confirm: 'vider',
+          keepDisk: true,
+        });
+        expect(report.diskFolder).toMatch(/ToolBox-Coffre-ancien-\d{4}-\d{2}-\d{2}$/);
+        expect(readFileSync(path.join(report.diskFolder!, 'Cours', 'garde.md'), 'utf8')).toBe(
+          'à garder',
+        );
+        const again = await status(w);
+        expect(again.connected).toBe(true);
+        expect(again.root).toBe(s.root);
+        await deposit(w, { 'neuf.md': 'neuf' }, ['Perso']);
+        expect((await runJob<UpdateReport>(w, 'POST', `${API}/disk/update`)).copied).toBe(1);
+        expect(readdirSync(s.root!)).toContain('Perso');
       },
     );
     it(
