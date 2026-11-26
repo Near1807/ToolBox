@@ -11,6 +11,7 @@ import { routeLabel, subtreeOf, type RoutePick } from '../shared/route';
 import type { ContextDto } from '../shared/types';
 import { useCoffre } from './frame';
 import { RoutePicker } from './RoutePicker';
+import { runTask } from './Tasks';
 
 type Dialog =
   | { kind: 'name'; title: string; initial: string; run: (name: string) => Promise<void> }
@@ -105,7 +106,9 @@ export function useTreeActions() {
           : pick.kind === 'new'
             ? `« ${routeLabel(pick.path)} » (nouveau)`
             : 'la racine';
-      const r = await api.post<{ undoId: string }>(`/contexts/${c.id}/move`, body);
+      const r = await runTask<{ undoId: string }>(
+        api.post<{ jobId: string }>(`/contexts/${c.id}/move`, body),
+      );
       done(`« ${c.name} » déplacé dans ${where} : ses fichiers ont suivi.`, r.undoId);
     },
     [api, byId, done],
@@ -316,9 +319,9 @@ export function useTreeActions() {
                   text: `Fusionner « ${c.name} » dans « ${into ? routeLabel(into.path) : ''} » ?`,
                   ok: 'Fusionner',
                   run: async () => {
-                    const r = await api.post<{ undoId: string }>(`/contexts/${c.id}/merge`, {
-                      into: pick.id,
-                    });
+                    const r = await runTask<{ undoId: string }>(
+                      api.post<{ jobId: string }>(`/contexts/${c.id}/merge`, { into: pick.id }),
+                    );
                     done(`« ${c.name} » fusionné dans « ${into?.name ?? ''} ».`, r.undoId);
                   },
                 });

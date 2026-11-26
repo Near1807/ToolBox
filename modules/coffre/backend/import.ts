@@ -9,10 +9,17 @@
 // sheets) — in the background: progress, cancel, resumed after a restart
 // (its state is kept in coffre__imports, on this PC only). Every element
 // imported is « à compléter »; ONE « Annuler » undoes the import.
-import { copyFile, cp, mkdir, rename, rm } from 'node:fs/promises';
-import { existsSync, readdirSync, statSync } from 'node:fs';
+import { copyFile, cp, mkdir, opendir, rename, rm, stat } from 'node:fs/promises';
+import { existsSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { HttpError, newId, requestBody, type ModuleContext, type SyncStore } from '@hub/sdk/core';
+import {
+  HttpError,
+  newId,
+  requestBody,
+  type JobRunContext,
+  type ModuleContext,
+  type SyncStore,
+} from '@hub/sdk/core';
 import { fold } from '../shared/deduce';
 import { extOf, languageOfExt } from '../shared/kinds';
 import {
@@ -32,8 +39,10 @@ import type {
   ItemDto,
   ProposalDto,
 } from '../shared/types';
-import { hashFile, hashFolder, type Library } from './library';
+import { hashFile, type Library } from './library';
 import type { ContextRow, ItemRow } from './rows';
+import { taskRoute } from './tasks';
+import { hashFiles, measure, walkFolder } from './walk';
 
 /** Migration 7: the imports of this PC (one line per import, its plan and progress). */
 export const IMPORTS_MIGRATION_SQL = (t: string) => `
@@ -66,6 +75,8 @@ export const isIgnoredFile = (name: string) => SYSTEM_FILE.test(name) || TEMP_FI
 const DEPS_ANYWHERE = new Set([
   'node_modules',
   '.venv',
+  'venv',
+  '.cache',
   '__pycache__',
   '.pio',
   '.mypy_cache',
@@ -79,7 +90,6 @@ const DEPS_ANYWHERE = new Set([
 ]);
 /** …and these only inside a code project (« build » can be a context elsewhere). */
 const DEPS_IN_PROJECT = new Set([
-  'venv',
   'env',
   'build',
   'dist',
@@ -146,7 +156,7 @@ interface ScanNode {
   marker: string | null;
   files: ScanFile[];
   children: ScanNode[];
-  deps: { rel: string; name: string; files: number; bytes: number }[];
+  deps: { rel: string; name: string; files: number; bytes: number; partial?: boolean }[];
   ignored: string[];
   /** A project: all its files (its deps apart). */
   projectFiles: number;
@@ -156,32 +166,54 @@ interface ScanNode {
 /** At most this many files read in one import (a larger tree: in parts). */
 export const MAX_IMPORT_FILES = 60_000;
 
-function countFiles(dir: string, limit: { left: number }): { files: number; bytes: number } {
+/** Every file of a folder (async: the server keeps answering); the import's limit counted. */
+async function countFiles(
+  dir: string,
+  limit: { left: number },
+): Promise<{ files: number; bytes: number }> {
   let files = 0;
   let bytes = 0;
-  const walk = (d: string) => {
-    for (const e of readdirSync(d, { withFileTypes: true })) {
+  const walk = async (d: string): Promise<void> => {
+    for await (const e of await opendir(d)) {
       if (e.isSymbolicLink()) continue;
       const full = path.join(d, e.name);
-      if (e.isDirectory()) walk(full);
+      if (e.isDirectory()) await walk(full);
       else if (e.isFile()) {
         files++;
-        bytes += statSync(full).size;
+        bytes += (await stat(full)).size;
         if (--limit.left < 0)
           throw new HttpError(413, 'Arborescence trop grande pour un seul import');
       }
     }
   };
-  walk(dir);
+  await walk(dir);
   return { files, bytes };
 }
 
-/** Reads a folder: its sub-folders, projects, dependencies, ignored files. Writes nothing. */
-export function scanTree(root: string): ScanNode {
+/**
+ * Reads a folder: its sub-folders, projects, recreatable folders (set aside
+ * before counting: measured within a short time), ignored files. Writes
+ * nothing. v0.49.0: asynchronous — the server keeps answering meanwhile.
+ */
+export async function scanTree(
+  root: string,
+  onFile?: (count: number, rel: string) => void,
+  signal?: AbortSignal,
+): Promise<ScanNode> {
   const limit = { left: MAX_IMPORT_FILES };
-  const read = (abs: string, rel: string, name: string, inProject: boolean): ScanNode => {
-    const entries = readdirSync(abs, { withFileTypes: true }).filter((e) => !e.isSymbolicLink());
-    const marker = projectMarker(entries.map((e) => ({ name: e.name, dir: e.isDirectory() })));
+  const budgetEnd = Date.now() + 3000;
+  let count = 0;
+  const read = async (
+    abs: string,
+    rel: string,
+    name: string,
+    inProject: boolean,
+  ): Promise<ScanNode> => {
+    const entries: { name: string; dir: boolean; file: boolean }[] = [];
+    for await (const e of await opendir(abs))
+      if (!e.isSymbolicLink())
+        entries.push({ name: e.name, dir: e.isDirectory(), file: e.isFile() });
+    const marker = projectMarker(entries);
     const project = inProject || marker !== null;
     const node: ScanNode = {
       rel,
@@ -194,22 +226,31 @@ export function scanTree(root: string): ScanNode {
       projectFiles: 0,
       projectBytes: 0,
     };
-    const sorted = [...entries].sort((x, y) => x.name.localeCompare(y.name, 'fr'));
-    for (const e of sorted) {
+    entries.sort((x, y) => x.name.localeCompare(y.name, 'fr'));
+    for (const e of entries) {
+      if (signal?.aborted) throw new Error('Annulée');
       const childRel = rel ? `${rel}/${e.name}` : e.name;
       const full = path.join(abs, e.name);
-      if (e.isDirectory()) {
-        if (isDepsFolder(e.name, project))
-          node.deps.push({ rel: childRel, name: e.name, ...countFiles(full, limit) });
-        else node.children.push(read(full, childRel, e.name, project));
-      } else if (e.isFile()) {
+      if (e.dir) {
+        if (isDepsFolder(e.name, project)) {
+          const m = await measure(full, budgetEnd);
+          node.deps.push({
+            rel: childRel,
+            name: e.name,
+            files: m.files,
+            bytes: m.bytes,
+            partial: m.partial,
+          });
+        } else node.children.push(await read(full, childRel, e.name, project));
+      } else if (e.file) {
         if (isIgnoredFile(e.name)) {
           node.ignored.push(childRel);
           continue;
         }
         if (--limit.left < 0)
           throw new HttpError(413, 'Arborescence trop grande pour un seul import');
-        node.files.push({ rel: childRel, name: e.name, size: statSync(full).size });
+        node.files.push({ rel: childRel, name: e.name, size: (await stat(full)).size });
+        onFile?.(++count, childRel);
       }
     }
     // Its whole content (its dependencies apart): what ONE project element holds.
@@ -325,6 +366,13 @@ export interface ImportDeps {
   busy: () => string | null;
 }
 
+/** What the task gives the import: its progress, its failed items, its stop. */
+interface Reporter {
+  signal: AbortSignal;
+  step: JobRunContext<unknown>['step'];
+  problem: JobRunContext<unknown>['problem'];
+}
+
 interface ImportRow {
   id: string;
   created_at: string;
@@ -389,6 +437,7 @@ export function createImporter(d: ImportDeps) {
     source: string,
     route: string[],
     adopt: boolean,
+    report?: Reporter,
   ): Promise<ImportPreviewDto> {
     if (!path.isAbsolute(source) || !existsSync(source) || !statSync(source).isDirectory())
       throw new HttpError(404, `Dossier introuvable : ${source}`);
@@ -403,7 +452,13 @@ export function createImporter(d: ImportDeps) {
       if (parent === null) throw new HttpError(409, 'Son dossier parent n’est pas un contexte');
       route = parent;
     }
-    const scan = scanTree(source);
+    const scan = await scanTree(
+      source,
+      (n, rel) => {
+        if (n % 200 === 0) report?.step(n, null, { unit: 'fichiers lus', current: rel });
+      },
+      report?.signal,
+    );
     // The duplicates: only the files whose size is already known are read (fast).
     const sizes = new Set(
       (
@@ -503,24 +558,21 @@ export function createImporter(d: ImportDeps) {
     };
   }
 
-  /** « Importer »: the plan saved, then run in the background. */
-  async function start(
-    source: string,
-    route: string[],
-    choices: ImportChoices,
-    adopt: boolean,
-  ): Promise<string> {
+  /**
+   * « Importer »: answers at once (v0.49.0); the task reads the folder, makes
+   * the plan (saved: a restart resumes it), then copies.
+   */
+  function start(source: string, route: string[], choices: ImportChoices, adopt: boolean): string {
     const b = d.busy();
     if (b) throw new HttpError(409, `Le disque est occupé (${b}) : réessaie après`);
-    const p = await preview(source, route, adopt);
-    const skip = new Set(choices.keepDuplicates || adopt ? [] : p.duplicates.map((x) => x.rel));
-    const plan = buildPlan(source, scanTree(source), p.route, choices, skip);
+    if (!path.isAbsolute(source) || !existsSync(source) || !statSync(source).isDirectory())
+      throw new HttpError(404, `Dossier introuvable : ${source}`);
     const id = newId();
     const now = new Date().toISOString();
     ctx.db
       .prepare(
         `INSERT INTO ${t.imports} (id, created_at, updated_at, source, mode, state, plan_json, done, total, bytes_done, bytes_total, created_json, error)
-         VALUES (?, ?, ?, ?, ?, 'running', ?, 0, ?, 0, ?, '{"items":[],"contexts":[],"files":[]}', NULL)`,
+         VALUES (?, ?, ?, ?, ?, 'running', ?, 0, 0, 0, 0, '{"items":[],"contexts":[],"files":[]}', NULL)`,
       )
       .run(
         id,
@@ -528,12 +580,30 @@ export function createImporter(d: ImportDeps) {
         now,
         source,
         adopt ? 'adopt' : 'copy',
-        JSON.stringify(plan),
-        plan.length,
-        plan.reduce((s, o) => s + (o.t === 'ctx' ? 0 : o.size), 0),
+        JSON.stringify({ planning: { route, choices } }),
       );
     launch(id);
     return id;
+  }
+
+  /** The plan, made in the task (the folder read without blocking). */
+  async function plan(id: string, report: Reporter): Promise<PlanOp[]> {
+    const r = row(id);
+    const parsed = JSON.parse(r.plan_json) as
+      PlanOp[] | { planning: { route: string[]; choices: ImportChoices } };
+    if (Array.isArray(parsed)) return parsed;
+    const adopt = r.mode === 'adopt';
+    const p = await preview(r.source, parsed.planning.route, adopt, report);
+    const choices = parsed.planning.choices;
+    const skip = new Set(choices.keepDuplicates || adopt ? [] : p.duplicates.map((x) => x.rel));
+    const scan = await scanTree(r.source, undefined, report.signal);
+    const ops = buildPlan(r.source, scan, p.route, choices, skip);
+    save(id, {
+      plan_json: JSON.stringify(ops),
+      total: ops.length,
+      bytes_total: ops.reduce((sum, o) => sum + (o.t === 'ctx' ? 0 : o.size), 0),
+    });
+    return ops;
   }
 
   function launch(id: string) {
@@ -549,43 +619,51 @@ export function createImporter(d: ImportDeps) {
   }
 
   /** The job: from the first operation not done (a restart resumes there). */
-  async function run(
-    id: string,
-    signal: AbortSignal,
-    progress: (f: number | null, m?: string) => void,
-  ) {
+  async function run(id: string, report: Reporter) {
+    const { signal } = report;
+    const ops = await plan(id, report);
+    if (signal.aborted) return;
     const r = row(id);
-    const plan = JSON.parse(r.plan_json) as PlanOp[];
     const created = JSON.parse(r.created_json) as Created;
     let { done, bytes_done: bytesDone } = r;
     const adopt = r.mode === 'adopt';
-    for (; done < plan.length; done++) {
+    for (; done < ops.length; done++) {
       if (signal.aborted) return;
-      const op = plan[done]!;
-      if (op.t === 'ctx') {
-        const before = new Set(d.contextRows().map((c) => c.id));
-        const cid = d.ensureContext(op.path);
-        if (!before.has(cid)) created.contexts.push(cid);
-      } else {
-        const cid = op.dest.length ? d.ensureContext(op.dest) : null;
-        const dir = cid ? d.folderOf(cid) : ARRIVAL_FOLDER;
-        const itemId = adopt
-          ? await adoptOne(op, dir, cid)
-          : await copyOne(id, done, op, dir, cid, created);
-        if (itemId) created.items.push(itemId);
-        bytesDone += op.size;
+      const op = ops[done]!;
+      report.step(done, ops.length, {
+        unit: 'éléments',
+        current: op.t === 'ctx' ? op.path.join('/') : op.name,
+      });
+      // v0.49.0: one that fails stays where it was and is listed; the others go on.
+      try {
+        if (op.t === 'ctx') {
+          const before = new Set(d.contextRows().map((c) => c.id));
+          const cid = d.ensureContext(op.path);
+          if (!before.has(cid)) created.contexts.push(cid);
+        } else {
+          const cid = op.dest.length ? d.ensureContext(op.dest) : null;
+          const dir = cid ? d.folderOf(cid) : ARRIVAL_FOLDER;
+          const itemId = adopt
+            ? await adoptOne(op, dir, cid)
+            : await copyOne(id, done, op, dir, cid, created);
+          if (itemId) created.items.push(itemId);
+          bytesDone += op.size;
+        }
+      } catch (error) {
+        if (signal.aborted) return;
+        report.problem(
+          op.t === 'ctx' ? op.path.join('/') : op.src,
+          error instanceof Error ? error.message : String(error),
+        );
       }
       // The progress and what was made, together (a restart resumes after it).
       save(id, { done: done + 1, bytes_done: bytesDone, created_json: JSON.stringify(created) });
-      progress(
-        r.bytes_total ? bytesDone / r.bytes_total : (done + 1) / plan.length,
-        `${done + 1} / ${plan.length}`,
-      );
       if (done % 20 === 0) await new Promise((res) => setImmediate(res));
       // The tests slow it down to stop it in the middle (a restart).
       const pause = Number(process.env.TOOLBOX_COFFRE_IMPORT_PAUSE_MS ?? 0);
       if (pause) await new Promise((res) => setTimeout(res, pause));
     }
+    report.step(ops.length, ops.length, { current: null });
     save(id, { state: 'done' });
     d.kick();
     const undoId = d.remember(async () => undo(id));
@@ -627,6 +705,19 @@ export function createImporter(d: ImportDeps) {
       created.files.push(rel);
       return writeItem(op, rel, sha, cid, false);
     }
+    // v0.49.0: resumed after a stop between putting the project in place and writing its sheet:
+    // the folder already there (same content, no sheet) is taken as it is — never « nom (2) ».
+    const placedRel = toRel(path.relative(library.root, path.join(dirAbs, name)));
+    if (existsSync(path.join(dirAbs, name)) && !itemAt(placedRel)) {
+      const [there, source] = [
+        await hashFolderAsync(path.join(dirAbs, name)),
+        await hashFolderAsync(op.src),
+      ];
+      if (there.sha256 === source.sha256) {
+        created.files.push(placedRel);
+        return writeItem(op, placedRel, there.sha256, cid, true, there.size);
+      }
+    }
     const exclude = new Set(op.exclude.map((e) => path.resolve(e).toLowerCase()));
     await cp(op.src, tmp, {
       recursive: true,
@@ -642,7 +733,9 @@ export function createImporter(d: ImportDeps) {
     await rename(tmp, path.join(dirAbs, free));
     const rel = toRel(path.relative(library.root, path.join(dirAbs, free)));
     created.files.push(rel);
-    const h = await hashFolder(library.abs(rel));
+    // The tests stop here (ToolBox closed between the folder in place and its sheet).
+    if (process.env.TOOLBOX_COFFRE_TEST_STOP_AFTER_PLACE === op.name) await new Promise(() => {});
+    const h = await hashFolderAsync(library.abs(rel));
     return writeItem(op, rel, h.sha256, cid, true, h.size);
   }
 
@@ -656,7 +749,7 @@ export function createImporter(d: ImportDeps) {
     if (itemAt(rel)) return null;
     if (!library.exists(rel)) return null;
     if (op.t === 'file') return writeItem(op, rel, await hashFile(library.abs(rel)), cid, false);
-    const h = await hashFolder(library.abs(rel));
+    const h = await hashFolderAsync(library.abs(rel));
     return writeItem(op, rel, h.sha256, cid, true, h.size);
   }
 
@@ -745,7 +838,7 @@ export function createImporter(d: ImportDeps) {
   }
 
   /** Folders put in the Coffre by hand (not contexts, not elements): proposed, never adopted alone. */
-  function found(): FoundFolderDto[] {
+  async function found(): Promise<FoundFolderDto[]> {
     const out: FoundFolderDto[] = [];
     if (!existsSync(library.root)) return out;
     const rows = d.contextRows();
@@ -763,21 +856,21 @@ export function createImporter(d: ImportDeps) {
     const reserved = new Set(
       [ARRIVAL_FOLDER, TRASH_FOLDER, DISK_SYSTEM_FOLDER].map((x) => x.toLowerCase()),
     );
-    const look = (rel: string, depth: number) => {
+    const look = async (rel: string, depth: number): Promise<void> => {
       const abs = rel ? library.abs(rel) : library.root;
-      for (const e of readdirSync(abs, { withFileTypes: true })) {
+      for await (const e of await opendir(abs)) {
         if (!e.isDirectory() || e.name.startsWith(TEMP_PREFIX) || e.name.startsWith('.')) continue;
         const childRel = rel ? `${rel}/${e.name}` : e.name;
         const key = childRel.toLowerCase();
         if (!rel && reserved.has(key)) continue;
         if (itemPaths.has(key)) continue;
         if (contextFolders.has(key)) {
-          if (depth < 12) look(childRel, depth + 1);
+          if (depth < 12) await look(childRel, depth + 1);
           continue;
         }
         let c: { files: number; bytes: number };
         try {
-          c = countFiles(library.abs(childRel), { left: MAX_IMPORT_FILES });
+          c = await countFiles(library.abs(childRel), { left: MAX_IMPORT_FILES });
         } catch {
           c = { files: MAX_IMPORT_FILES, bytes: 0 };
         }
@@ -792,7 +885,7 @@ export function createImporter(d: ImportDeps) {
         });
       }
     };
-    look('', 0);
+    await look('', 0);
     return out;
   }
 
@@ -805,6 +898,12 @@ function collectIgnored(n: ScanNode): string[][] {
 
 const toRel = (p: string) => p.split(path.sep).join('/');
 
+/** A project's fingerprint, read without blocking (v0.49.0). */
+async function hashFolderAsync(folder: string) {
+  const w = await walkFolder(folder, { inProject: true });
+  return hashFiles(folder, w.files);
+}
+
 /** The routes (/import/*) and the job. */
 export function registerImport(d: ImportDeps) {
   const imp = createImporter(d);
@@ -812,7 +911,7 @@ export function registerImport(d: ImportDeps) {
   ctx.jobs.define<{ importId: string }, { items: number }>('tree-import', async (job) => {
     const id = job.input.importId;
     try {
-      await imp.run(id, job.signal, (f, m) => job.progress(f, m));
+      await imp.run(id, job);
     } catch (error) {
       imp.save(id, {
         state: 'failed',
@@ -850,13 +949,24 @@ export function registerImport(d: ImportDeps) {
     keepDuplicates: b.keepDuplicates === true,
   });
 
-  ctx.routes.post('/import/preview', async (request) => {
-    const b = requestBody(request);
-    return imp.preview(String(b.source ?? ''), routeOf(b), b.adopt === true);
+  // v0.49.0: the preview is a background task (a big folder takes a while to read).
+  taskRoute<{ source: string; route: string[]; adopt: boolean }, ImportPreviewDto>(ctx, {
+    route: '/import/preview',
+    type: 'import-preview',
+    input: (request) => {
+      const b = requestBody(request);
+      const source = String(b.source ?? '');
+      if (!path.isAbsolute(source) || !existsSync(source))
+        throw new HttpError(404, `Dossier introuvable : ${source}`);
+      return { source, route: routeOf(b), adopt: b.adopt === true };
+    },
+    title: (i) => `Coffre : aperçu de « ${path.basename(i.source)} »`,
+    run: (job) => imp.preview(job.input.source, job.input.route, job.input.adopt, job),
+    options: { concurrency: 2 },
   });
-  ctx.routes.post('/import/start', async (request) => {
+  ctx.routes.post('/import/start', (request) => {
     const b = requestBody(request);
-    const id = await imp.start(String(b.source ?? ''), routeOf(b), choicesOf(b), b.adopt === true);
+    const id = imp.start(String(b.source ?? ''), routeOf(b), choicesOf(b), b.adopt === true);
     return imp.status(id);
   });
   ctx.routes.get('/import/list', () =>

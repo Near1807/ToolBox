@@ -14,6 +14,7 @@ import {
   sha,
   waitJob,
   type DiskWorld,
+  job as runJob,
 } from './disk-helpers';
 
 let w: DiskWorld;
@@ -50,7 +51,7 @@ describe('arbre des contextes', () => {
       const c = await byPath(name);
       undos.push(
         (
-          await ok<{ undoId: string }>(w, 'POST', `${API}/contexts/${c.id}/move`, {
+          await runJob<{ undoId: string }>(w, 'POST', `${API}/contexts/${c.id}/move`, {
             parentId: cours.id,
           })
         ).undoId,
@@ -128,9 +129,14 @@ describe('arbre des contextes', () => {
     const [other] = await deposit(w, { 'x.md': 'x' }, ['Perso']);
     await ok(w, 'POST', `${API}/items/${other!.id}/also`, { contextId: src.id });
     const shaB1 = sha(lib('Thermodynamique', 'notes.md'));
-    const { undoId } = await ok<{ undoId: string }>(w, 'POST', `${API}/contexts/${src.id}/merge`, {
-      into: thermo.id,
-    });
+    const { undoId } = await runJob<{ undoId: string }>(
+      w,
+      'POST',
+      `${API}/contexts/${src.id}/merge`,
+      {
+        into: thermo.id,
+      },
+    );
     expect((await contexts()).some((c) => c.id === src.id)).toBe(false);
     expect(readFileSync(lib('Cours', 'Thermo', 'notes.md'), 'utf8')).toBe('notes du cours');
     expect(sha(lib('Cours', 'Thermo', 'notes (2).md'))).toBe(shaB1);
@@ -194,7 +200,7 @@ describe('arbre des contextes', () => {
     expect((await item(a!.id)).contextPath).toEqual(['thermo', 'Labos']);
     expect(existsSync(lib('thermo', 'Labos', 'a.md'))).toBe(true);
     // A route that does not exist yet: created only now, removed by « Annuler ».
-    const { undoId } = await ok<{ undoId: string }>(
+    const { undoId } = await runJob<{ undoId: string }>(
       w,
       'POST',
       `${API}/contexts/${thermo.id}/move`,

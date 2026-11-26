@@ -7,7 +7,15 @@ import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { applyRules, contextFromRules, placeWords, type LearnedRule } from '../shared/learn';
 import type { ItemDto, LearnedRuleDto, ProposalDto } from '../shared/types';
-import { API, deposit, diskWorld, ok, type DiskWorld } from './disk-helpers';
+import {
+  API,
+  analyze as analyzeTask,
+  deposit,
+  diskWorld,
+  job,
+  ok,
+  type DiskWorld,
+} from './disk-helpers';
 
 const rule = (o: Partial<LearnedRule>): LearnedRule => ({
   id: 'r',
@@ -83,10 +91,9 @@ function downloaded(name: string, site: string) {
   );
   return p;
 }
-const analyze = (p: string) =>
-  ok<ProposalDto[]>(w, 'POST', `${API}/deposit/analyze`, { paths: [p] }).then((r) => r[0]!);
+const analyze = (p: string) => analyzeTask(w, { paths: [p] }).then((r) => r[0]!);
 const put = (p: string, contextId: string, attributes: ProposalDto['attributes'] = []) =>
-  ok<{ created: ItemDto[] }>(w, 'POST', `${API}/deposit/apply`, {
+  job<{ created: ItemDto[] }>(w, 'POST', `${API}/deposit/apply`, {
     entries: [{ path: p, contextId, attributes }],
   });
 
@@ -133,9 +140,7 @@ describe('apprentissage dans le Coffre', () => {
       await ok(w, 'PUT', `${API}/items/${id}/attributes`, { key: 'nature', values: ['synthèse'] });
     const p = path.join(w.dl, 'thermo-chap3.pdf');
     writeFileSync(p, '3');
-    const proposal = (
-      await ok<ProposalDto[]>(w, 'POST', `${API}/deposit/analyze`, { paths: [p] })
-    )[0]!;
+    const proposal = (await analyzeTask(w, { paths: [p] }))[0]!;
     // Its name says « Thermo »: that context; then the nature learned for .pdf there.
     expect(proposal.context).toMatchObject({ id: thermo });
     expect(proposal.attributes.find((a) => a.key === 'nature')).toMatchObject({

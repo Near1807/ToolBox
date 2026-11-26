@@ -72,6 +72,7 @@ export function diskStatus(d: CoffreDeps, disk: DiskManager): DiskStatusDto {
     lastUpdateAt: row?.last_update_at ?? null,
     lastUpdate: row?.last_update_json ? (JSON.parse(row.last_update_json) as UpdateReport) : null,
     busy: disk.busy,
+    waitsFor: disk.waitsFor(),
     jobId: running?.id ?? null,
     pending: 0,
     archived: 0,
@@ -143,6 +144,12 @@ export function registerDiskRoutes(d: CoffreDeps, disk: DiskManager): void {
   ctx.routes.post('/disk/update', async () => {
     disk.rootOrThrow();
     if (disk.busy) throw new HttpError(409, `Le disque est occupé : ${disk.busy}`);
+    const waiting = disk.waitsFor();
+    if (waiting)
+      throw new HttpError(
+        409,
+        `Import en cours (${waiting}) : la mise à jour du disque sera possible à la fin`,
+      );
     const running = diskStatus(d, disk).jobId;
     if (running) return { jobId: running };
     const job = ctx.jobs.enqueue('disk-update', {}, { title: 'Coffre : mise à jour du disque' });

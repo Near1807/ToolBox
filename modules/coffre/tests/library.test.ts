@@ -118,6 +118,22 @@ describe('the Coffre through its routes', () => {
       throw new Error(`${method} ${url}: ${r.status} ${JSON.stringify(r.body)}`);
     return r.body;
   };
+  /** v0.49.0: a route that starts a task: its result once it ended. */
+  const callJob = async <T>(url: string, body?: unknown): Promise<T> => {
+    const { jobId } = await call<{ jobId: string }>('POST', url, body);
+    for (let i = 0; i < 1500; i++) {
+      type Job = { id: string; status: string; result: unknown; error: string | null };
+      const jobs = (await hub.request<Job[]>('GET', '/api/core/jobs?module=coffre')).body;
+      const j = jobs.find((x) => x.id === jobId);
+      if (j && j.status === 'succeeded') return j.result as T;
+      if (j && !['queued', 'running'].includes(j.status))
+        throw new Error(`${url}: ${j.status} ${j.error}`);
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    throw new Error(`${url}: pas fini`);
+  };
+  const analyzeCall = async (body: unknown) =>
+    (await callJob<{ proposals: ProposalDto[] }>('/deposit/analyze', body)).proposals;
   const library = () => path.join(hub.dataDir, 'coffre');
   beforeEach(async () => {
     hub = await createTestHub({
@@ -137,8 +153,7 @@ describe('the Coffre through its routes', () => {
     return p;
   };
   const apply = (entries: unknown[]) =>
-    call<{ created: ItemDto[]; skipped: { path: string }[]; undoId: string | null }>(
-      'POST',
+    callJob<{ created: ItemDto[]; skipped: { path: string }[]; undoId: string | null }>(
       '/deposit/apply',
       { entries },
     );
@@ -152,7 +167,7 @@ describe('the Coffre through its routes', () => {
       parentId: thermo.id,
     });
     expect(sub.path).toEqual(['Cours', 'Thermo']);
-    const [proposal] = await call<ProposalDto[]>('POST', '/deposit/analyze', { paths: [original] });
+    const [proposal] = await analyzeCall({ paths: [original] });
     expect(proposal!.context).toMatchObject({ kind: 'existing', id: sub.id });
     expect(proposal!.duplicate).toBeNull();
     const done = await apply([
@@ -166,7 +181,7 @@ describe('the Coffre through its routes', () => {
     expect(sha(original)).toBe(before);
     expect(item.sha256).toBe(before);
     // The same content again: said, not copied (unless kept anyway: a free name).
-    const [again] = await call<ProposalDto[]>('POST', '/deposit/analyze', { paths: [original] });
+    const [again] = await analyzeCall({ paths: [original] });
     expect(again!.duplicate).toMatchObject({ id: item.id, contextPath: ['Cours', 'Thermo'] });
     const skipped = await apply([{ path: original, as: 'file', contextId: sub.id }]);
     expect(skipped.created).toHaveLength(0);
@@ -191,7 +206,7 @@ describe('the Coffre through its routes', () => {
     // A project.
     file('projet/src/main.rs', 'fn main() {}');
     file('projet/Cargo.toml', '[package]');
-    const [proposal] = await call<ProposalDto[]>('POST', '/deposit/analyze', {
+    const [proposal] = await analyzeCall({
       paths: [path.join(dir, 'projet')],
     });
     expect(proposal).toMatchObject({ isDirectory: true, fileCount: 2 });
@@ -207,7 +222,7 @@ describe('the Coffre through its routes', () => {
       existsSync(path.join(library(), 'Programmation', 'Rust', 'projet', 'src', 'main.rs')),
     ).toBe(true);
     // « Les fichiers un par un »: one proposal per file.
-    const each = await call<ProposalDto[]>('POST', '/deposit/analyze', {
+    const each = await analyzeCall({
       paths: [path.join(dir, 'projet')],
       expand: true,
     });
@@ -295,7 +310,7 @@ describe('the Coffre through its routes', () => {
       `${pdf}:Zone.Identifier`,
       '[ZoneTransfer]\r\nZoneId=3\r\nReferrerUrl=https://moodle.ecam.be/course/view.php?id=7\r\nHostUrl=https://moodle.ecam.be/pluginfile.php/cours.py\r\n',
     );
-    const [p] = await call<ProposalDto[]>('POST', '/deposit/analyze', { paths: [pdf] });
+    const [p] = await analyzeCall({ paths: [pdf] });
     expect(p!.attributes.find((a) => a.key === 'origin')?.value).toBe('téléchargé');
     expect(p!.attributes.find((a) => a.key === 'site')?.value).toBe('moodle.ecam.be');
     const done = await apply([{ path: pdf, as: 'file', arrival: true, attributes: p!.attributes }]);

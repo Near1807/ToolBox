@@ -18,6 +18,7 @@ import {
 import { fold } from '../shared/deduce';
 import { folderName, invalidName } from '../shared/names';
 import type { Library } from './library';
+import { taskRoute } from './tasks';
 import type { ContextRow, ItemRow } from './rows';
 
 export interface TreeDeps {
@@ -98,7 +99,20 @@ export function createTree(d: TreeDeps) {
   };
 
   /** Moves a context under `parentId` (null: the root) — its folder as a block, then the sheets. */
-  async function move(id: string, parentId: string | null, journal: Journal): Promise<void> {
+  /** v0.49.0: the refusals of a merge, checked at once. */
+  function checkMerge(srcId: string, dstId: string): void {
+    get(srcId);
+    get(dstId);
+    if (srcId === dstId) throw new HttpError(409, 'Un contexte ne se fusionne pas avec lui-même');
+    if (isWithin(dstId, srcId))
+      throw new HttpError(
+        409,
+        `« ${get(srcId).name} » ne peut pas se fondre dans un de ses sous-contextes`,
+      );
+  }
+
+  /** v0.49.0: the refusals of a move, checked at once (before the task is queued). */
+  function checkMove(id: string, parentId: string | null): void {
     const row = get(id);
     if (parentId !== null) get(parentId);
     if (parentId === id || isWithin(parentId, id))
@@ -120,6 +134,14 @@ export function createTree(d: TreeDeps) {
         409,
         `Un dossier « ${after} » existe déjà dans le Coffre sans être un contexte : adopte-le ou renomme-le d'abord`,
       );
+  }
+
+  async function move(id: string, parentId: string | null, journal: Journal): Promise<void> {
+    checkMove(id, parentId);
+    const row = get(id);
+    if (row.parent_id === parentId) return;
+    const before = d.folderOf(id);
+    const after = join(dirOf(parentId), folderName(row.name));
     const moved = library.exists(before);
     if (moved) {
       mkdirSync(path.dirname(library.abs(after)), { recursive: true });
@@ -356,15 +378,11 @@ export function createTree(d: TreeDeps) {
       act((j) => move(id, newParent?.length ? routeOf(newParent, j) : parentId, j)),
     merge: (srcId: string, dstId: string) =>
       act(async (j) => {
-        if (srcId === dstId)
-          throw new HttpError(409, 'Un contexte ne se fusionne pas avec lui-même');
-        if (isWithin(dstId, srcId))
-          throw new HttpError(
-            409,
-            `« ${get(srcId).name} » ne peut pas se fondre dans un de ses sous-contextes`,
-          );
+        checkMerge(srcId, dstId);
         await mergeInto(srcId, dstId, j);
       }),
+    checkMove,
+    checkMerge,
     remove: (id: string) =>
       act(async (j) => {
         const row = get(id);
@@ -400,18 +418,48 @@ export function createTree(d: TreeDeps) {
 export function registerTreeRoutes(d: TreeDeps): ReturnType<typeof createTree> {
   const tree = createTree(d);
   const parentOf = (v: unknown): string | null => (typeof v === 'string' && v ? v : null);
-  d.ctx.routes.post('/contexts/:id/move', async (request) => {
-    const id = uuidParam(request.params);
-    const b = requestBody(request);
-    const route = Array.isArray(b.newParent) ? b.newParent.map(String) : undefined;
-    const undoId = await tree.move(id, parentOf(b.parentId), route);
-    return { undoId };
-  });
-  d.ctx.routes.post('/contexts/:id/merge', async (request) => {
-    const id = uuidParam(request.params);
-    const into = String(requestBody(request).into ?? '');
-    const undoId = await tree.merge(id, into);
-    return { undoId };
+  const nameOf = (id: string) => d.contextRows().find((c) => c.id === id)?.name ?? 'contexte';
+  // v0.49.0: moving and merging are background tasks (a merge can move thousands of files).
+  taskRoute<{ id: string; parentId: string | null; newParent?: string[] }, { undoId: string }>(
+    d.ctx,
+    {
+      route: '/contexts/:id/move',
+      type: 'context-move',
+      input: (request) => {
+        const b = requestBody(request);
+        const input = {
+          id: uuidParam(request.params),
+          parentId: parentOf(b.parentId),
+          newParent: Array.isArray(b.newParent) ? b.newParent.map(String) : undefined,
+        };
+        // Refused at once (no task): itself, a descendant, a name taken…
+        if (!input.newParent?.length) tree.checkMove(input.id, input.parentId);
+        else
+          for (const name of input.newParent) {
+            const bad = invalidName(name);
+            if (bad) throw new HttpError(400, bad);
+          }
+        return input;
+      },
+      title: (i) => `Coffre : déplacer « ${nameOf(i.id)} »`,
+      run: async (job) => ({
+        undoId: await tree.move(job.input.id, job.input.parentId, job.input.newParent),
+      }),
+    },
+  );
+  taskRoute<{ id: string; into: string }, { undoId: string }>(d.ctx, {
+    route: '/contexts/:id/merge',
+    type: 'context-merge',
+    input: (request) => {
+      const input = {
+        id: uuidParam(request.params),
+        into: String(requestBody(request).into ?? ''),
+      };
+      tree.checkMerge(input.id, input.into);
+      return input;
+    },
+    title: (i) => `Coffre : fusionner « ${nameOf(i.id)} » dans « ${nameOf(i.into)} »`,
+    run: async (job) => ({ undoId: await tree.merge(job.input.id, job.input.into) }),
   });
   d.ctx.routes.post('/contexts/:id/reorder', async (request) => {
     const id = uuidParam(request.params);

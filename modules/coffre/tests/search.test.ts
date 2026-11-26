@@ -19,6 +19,7 @@ import {
   status,
   waitJob,
   type DiskWorld,
+  job as runJob,
 } from './disk-helpers';
 import { makeDocx, makePdf, makePptx, makeXlsx } from './text-fixtures';
 
@@ -173,7 +174,7 @@ describe('recherche dans le contenu', () => {
     const job = await waitJob(w, jobId);
     expect(job.status).toBe('succeeded');
     void (job.result as UpdateReport);
-    await ok(w, 'POST', `${API}/items/archive`, { ids: [doc!.id], confirm: true });
+    await runJob(w, 'POST', `${API}/items/archive`, { ids: [doc!.id], confirm: true });
     renameSync(path.join(w.E, 'S'), path.join(w.E, '..', 'ailleurs'));
     expect((await status(w)).connected).toBe(false);
     const r = await search(w, 'entropie');

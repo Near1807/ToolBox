@@ -18,6 +18,7 @@ import {
   status,
   waitJob,
   type DiskWorld,
+  job as runJob,
 } from './disk-helpers';
 
 const volume = process.env.COFFRE_TEST_VOLUME;
@@ -62,7 +63,7 @@ describe.runIf(process.platform === 'win32' && volume && vhd)(
         const cours = await ok<{ id: string }>(w, 'POST', `${API}/contexts`, { name: 'Cours' });
         const all = await ok<{ id: string; name: string }[]>(w, 'GET', `${API}/contexts`);
         for (const name of ['thermo', 'Réseaux', 'GPU'])
-          await ok(w, 'POST', `${API}/contexts/${all.find((c) => c.name === name)!.id}/move`, {
+          await runJob(w, 'POST', `${API}/contexts/${all.find((c) => c.name === name)!.id}/move`, {
             parentId: cours.id,
           });
         await ok(w, 'PATCH', `${API}/contexts/${all.find((c) => c.name === 'thermo')!.id}`, {

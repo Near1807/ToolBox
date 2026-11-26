@@ -6,8 +6,8 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { applyBatch, applyEntry, emptyBatch, entriesOf, markException } from '../frontend/logic';
-import type { ContextDto, ItemDto, ProposalDto, SearchDto } from '../shared/types';
-import { API, deposit, diskWorld, ok, type DiskWorld } from './disk-helpers';
+import type { ContextDto, ItemDto, SearchDto } from '../shared/types';
+import { API, deposit, diskWorld, ok, type DiskWorld, job, analyze } from './disk-helpers';
 
 let w: DiskWorld;
 afterEach(async () => {
@@ -28,7 +28,7 @@ describe('Pour tous (serveur)', () => {
       writeFileSync(p, `pdf ${i + 1}`);
       return p;
     });
-    const analyzed = await ok<ProposalDto[]>(w, 'POST', `${API}/deposit/analyze`, {
+    const analyzed = await analyze(w, {
       paths,
     });
     const cs = await contexts();
@@ -54,7 +54,7 @@ describe('Pour tous (serveur)', () => {
     };
     // « Labos » does not exist yet: created only now.
     expect((await contexts()).some((c) => c.name === 'Labos')).toBe(false);
-    const r = await ok<{ created: ItemDto[]; undoId: string }>(w, 'POST', `${API}/deposit/apply`, {
+    const r = await job<{ created: ItemDto[]; undoId: string }>(w, 'POST', `${API}/deposit/apply`, {
       entries: entries.map((e) => applyEntry(e, !e.checked)),
     });
     expect(r.created).toHaveLength(8);

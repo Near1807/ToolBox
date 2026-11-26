@@ -190,6 +190,11 @@ export interface ProposalDto {
   sha256: string | null;
   /** Already in the Coffre (same content), or null. */
   duplicate: { id: string; name: string; contextPath: string[] | null } | null;
+  /**
+   * v0.49.0: a folder's recreatable folders set aside before counting
+   * (node_modules…), with their size (partial: « plus de »).
+   */
+  setAside?: { rel: string; name: string; files: number; bytes: number; partial: boolean }[];
   /** The context proposed: an existing one, a new one to create (its path), or none. */
   context:
     | { kind: 'existing'; id: string; path: string[]; reason: string }
@@ -242,6 +247,8 @@ export interface DiskStatusDto {
   lastUpdate: UpdateReport | null;
   /** What runs on the disk now (« mise à jour »…). */
   busy: string | null;
+  /** v0.49.0: a deposit or an import running (its title): the update waits for its end. */
+  waitsFor: string | null;
   /** The running job (update, verification…), to follow its progress. */
   jobId: string | null;
   /** Elements « pas encore sur le disque ». */
@@ -389,4 +396,36 @@ export interface FoundFolderDto {
   bytes: number;
   /** The route of its parent context ([] = the root). */
   route: string[];
+}
+
+// --- v0.49.0: depositing as background tasks ------------------------------------------
+
+/** A recreatable folder set aside before counting (node_modules…). */
+export interface SetAsideDto {
+  rel: string;
+  name: string;
+  files: number;
+  bytes: number;
+  /** Counted only partly (time budget): « plus de ». */
+  partial: boolean;
+}
+
+/** What the analysis task gives. */
+export interface AnalyzeResultDto {
+  proposals: ProposalDto[];
+  /** Beyond the threshold: nothing analysed; « Continuer » (confirmed) or « Choisir ce qu'on garde ». */
+  needsConfirm: { files: number; bytes: number; setAside: SetAsideDto[] } | null;
+  setAside: SetAsideDto[];
+  ignored: number;
+}
+
+/** What the rangement task gives. */
+export interface ApplyResultDto {
+  created: ItemDto[];
+  skipped: {
+    path: string;
+    duplicate: { id: string; name: string; contextPath: string[] | null };
+  }[];
+  undoId: string | null;
+  failed: number;
 }

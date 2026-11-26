@@ -56,6 +56,11 @@ export class DiskManager {
   private scanning: Promise<unknown> | null = null;
   /** What runs on the disk now (one thing at a time). */
   busy: string | null = null;
+  /**
+   * v0.49.0: a deposit or an import running (its title), or null: the disk's
+   * update waits for it (what it copies would be half seen by the plan).
+   */
+  waitsFor: () => string | null = () => null;
   /** v0.47.0: told when the PC's files were looked at, or when the disk comes (the text index). */
   onChange: ((what: 'scanned' | 'connected') => void) | null = null;
 

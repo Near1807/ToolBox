@@ -29,6 +29,7 @@ import {
   status,
   waitJob,
   type DiskWorld,
+  job as runJob,
 } from './disk-helpers';
 
 const worlds: DiskWorld[] = [];
@@ -61,7 +62,7 @@ describe('archiver et réactiver', () => {
     });
     const [doc] = await deposit(w, { 'cours.pdf': '%PDF cours' });
     const s = await registerDisk(w, path.join(w.E, 'S'));
-    const refused = await ok<{ archived: number; refused: { reason: string }[] }>(
+    const refused = await runJob<{ archived: number; refused: { reason: string }[] }>(
       w,
       'POST',
       `${API}/items/archive`,
@@ -76,7 +77,7 @@ describe('archiver et réactiver', () => {
       400,
     );
     await update(w);
-    const r = await ok<{ archived: number; freed: number }>(w, 'POST', `${API}/items/archive`, {
+    const r = await runJob<{ archived: number; freed: number }>(w, 'POST', `${API}/items/archive`, {
       ids: [doc!.id],
       confirm: true,
     });
@@ -111,7 +112,7 @@ describe('archiver et réactiver', () => {
     expect((await status(w)).root).toBe(path.join(w.F, 'S', 'ToolBox-Coffre'));
     expect((await item(w, doc!.id)).unavailable).toBe(false);
     // Reactivated: back on the PC, active.
-    await ok(w, 'POST', `${API}/items/${doc!.id}/reactivate`);
+    await runJob(w, 'POST', `${API}/items/${doc!.id}/reactivate`);
     expect(readFileSync(lib(w, 'Cours', 'Thermo', 'cours.pdf'), 'utf8')).toBe('%PDF cours');
     expect((await item(w, doc!.id)).diskState).toBe('active');
     void s;
@@ -123,7 +124,7 @@ describe('archiver et réactiver', () => {
     const s = await registerDisk(w, path.join(w.E, 'S'));
     await update(w);
     writeFileSync(path.join(s.root!, 'Cours', 'Thermo', 'note.md'), 'texte FAUX!'); // same size
-    const r = await ok<{ archived: number; refused: { reason: string }[] }>(
+    const r = await runJob<{ archived: number; refused: { reason: string }[] }>(
       w,
       'POST',
       `${API}/items/archive`,
@@ -142,7 +143,7 @@ describe('archiver et réactiver', () => {
     const [doc] = await deposit(w, { 'plan.pdf': 'P' });
     const s = await registerDisk(w, path.join(w.E, 'S'));
     await update(w);
-    await ok(w, 'POST', `${API}/items/archive`, { ids: [doc!.id], confirm: true });
+    await runJob(w, 'POST', `${API}/items/archive`, { ids: [doc!.id], confirm: true });
     // Another « plan.pdf » in the same context never takes the archived one's place.
     const [other] = await deposit(w, { 'plan.pdf': 'autre' });
     expect(other!.name).toBe('plan (2).pdf');
@@ -150,7 +151,7 @@ describe('archiver et réactiver', () => {
     expect((await status(w)).counts.move).toBe(1);
     await update(w);
     expect(readFileSync(path.join(s.root!, 'Archives', '2025', 'plan.pdf'), 'utf8')).toBe('P');
-    await ok(w, 'POST', `${API}/items/${doc!.id}/reactivate`);
+    await runJob(w, 'POST', `${API}/items/${doc!.id}/reactivate`);
     expect(readFileSync(lib(w, 'Archives', '2025', 'plan.pdf'), 'utf8')).toBe('P');
   });
 
@@ -159,11 +160,12 @@ describe('archiver et réactiver', () => {
     const [doc] = await deposit(w, { 'video.mp4': Buffer.alloc(1024, 2) });
     await registerDisk(w, path.join(w.E, 'S'));
     await update(w);
-    await ok(w, 'POST', `${API}/items/archive`, { ids: [doc!.id], confirm: true });
+    await runJob(w, 'POST', `${API}/items/archive`, { ids: [doc!.id], confirm: true });
     vi.spyOn(Library.prototype, 'disk').mockResolvedValue({ free: 1000, total: 10_000 });
-    const r = await w.hub.request('POST', `${API}/items/${doc!.id}/reactivate`);
-    expect(r.status).toBe(409);
-    expect(JSON.stringify(r.body)).toMatch(/Pas assez de place sur le PC/);
+    const { jobId } = await ok<{ jobId: string }>(w, 'POST', `${API}/items/${doc!.id}/reactivate`);
+    const r = await waitJob(w, jobId);
+    expect(r.status).toBe('failed');
+    expect(r.error).toMatch(/Pas assez de place sur le PC/);
     expect((await item(w, doc!.id)).diskState).toBe('archived');
     expect(existsSync(lib(w, 'Cours', 'Thermo', 'video.mp4'))).toBe(false);
   });
@@ -198,12 +200,12 @@ describe('restaurer depuis un disque', () => {
     const proj = path.join(w1.dl, 'projet');
     mkdirSync(path.join(proj, 'src'), { recursive: true });
     writeFileSync(path.join(proj, 'src', 'main.rs'), 'fn main(){}');
-    await ok(w1, 'POST', `${API}/deposit/apply`, {
+    await runJob(w1, 'POST', `${API}/deposit/apply`, {
       entries: [{ path: proj, newContext: ['Code'], attributes: [] }],
     });
     await registerDisk(w1, path.join(w1.E, 'S'));
     await update(w1);
-    await ok(w1, 'POST', `${API}/items/archive`, { ids: [vieux!.id], confirm: true });
+    await runJob(w1, 'POST', `${API}/items/archive`, { ids: [vieux!.id], confirm: true });
     await update(w1);
     const before = await ok<ItemDto[]>(w1, 'GET', `${API}/items`);
     // A new PC, empty, the same disk plugged in.

@@ -29,6 +29,7 @@ import {
   status,
   waitJob,
   type DiskWorld,
+  job as runJob,
 } from './disk-helpers';
 
 // A hook in the copy (the test's « débrancher » / « annuler » at the first piece written).
@@ -296,7 +297,7 @@ describe('mettre à jour le disque', () => {
     mkdirSync(path.join(proj, 'src'), { recursive: true });
     writeFileSync(path.join(proj, 'Cargo.toml'), '[package]');
     writeFileSync(path.join(proj, 'src', 'main.rs'), 'fn main() {}');
-    const r = await ok<{ created: ItemDto[] }>(w, 'POST', `${API}/deposit/apply`, {
+    const r = await runJob<{ created: ItemDto[] }>(w, 'POST', `${API}/deposit/apply`, {
       entries: [{ path: proj, newContext: ['Programmation'], attributes: [] }],
     });
     const s = await registerDisk(w, path.join(w.E, 'S'));
@@ -339,7 +340,7 @@ describe.runIf(process.env.COFFRE_TEST_BIG === '1')('gros fichier (≥ 2 Go)', (
     const fd = openSync(big, 'w');
     ftruncateSync(fd, 2 * 1024 ** 3 + 17);
     closeSync(fd);
-    await ok(w, 'POST', `${API}/deposit/apply`, {
+    await runJob(w, 'POST', `${API}/deposit/apply`, {
       entries: [{ path: big, newContext: ['Vidéos'], attributes: [] }],
     });
     const s = await registerDisk(w, path.join(w.E, 'S'));

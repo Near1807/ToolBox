@@ -15,7 +15,7 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createTestHub, loadModuleFolder, type TestHub } from '@hub/sdk/testing';
-import type { DiskStatusDto, ItemDto } from '../shared/types';
+import type { DiskStatusDto, ItemDto, ProposalDto } from '../shared/types';
 
 export const API = '/api/modules/coffre';
 /** sha256 of a file, read in pieces (any size: the 2 Go test). */
@@ -97,7 +97,7 @@ export async function deposit(
     writeFileSync(p, content);
     return { path: p, newContext: context, attributes: [] };
   });
-  const r = await ok<{ created: ItemDto[] }>(w, 'POST', `${API}/deposit/apply`, { entries });
+  const r = await job<{ created: ItemDto[] }>(w, 'POST', `${API}/deposit/apply`, { entries });
   return r.created;
 }
 
@@ -129,6 +129,34 @@ interface Job {
   error: string | null;
   result: unknown;
   progress: number | null;
+  details?: {
+    done: number | null;
+    total: number | null;
+    errorCount: number;
+    errors: { item: string; reason: string }[];
+  } | null;
+}
+
+/**
+ * v0.49.0: a route that starts a background task ({ jobId }): waits for it
+ * and gives its result; a task that did not succeed throws its error.
+ */
+export async function job<T>(
+  w: DiskWorld,
+  method: string,
+  url: string,
+  body?: unknown,
+): Promise<T> {
+  const { jobId } = await ok<{ jobId: string }>(w, method, url, body);
+  const done = await waitJob(w, jobId);
+  if (done.status !== 'succeeded') throw new Error(`${url} → ${done.status} ${done.error ?? ''}`);
+  return done.result as T;
+}
+
+/** The analysis' proposals (POST /deposit/analyze, a task since v0.49.0). */
+export async function analyze(w: DiskWorld, body: unknown): Promise<ProposalDto[]> {
+  return (await job<{ proposals: ProposalDto[] }>(w, 'POST', `${API}/deposit/analyze`, body))
+    .proposals;
 }
 
 /** Waits for a job of the Coffre to end; its info. */

@@ -13,6 +13,7 @@ import type { CoffreDeps, DiskManager } from './disk';
 import { PC_MARGIN } from './history';
 import { stateOf } from './plan';
 import type { ItemRow } from './rows';
+import { taskRoute } from './tasks';
 
 /** « Pas ouverts depuis 6 mois »: the suggestion's age. */
 export const SUGGEST_DAYS = 182;
@@ -83,103 +84,136 @@ export function registerArchiveRoutes(d: CoffreDeps, disk: DiskManager): void {
    * « actif ». Both copies are read again NOW; identical → the PC's copy is
    * removed; otherwise nothing is removed and the reason is given.
    */
-  ctx.routes.post('/items/archive', async (request) => {
-    const b = requestBody(request);
-    if (b.confirm !== true) throw new HttpError(400, 'Archiver : confirmation nécessaire');
-    const ids = Array.isArray(b.ids) ? b.ids.map(String) : [];
-    if (!ids.length) throw new HttpError(400, 'Rien à archiver');
-    const root = disk.rootOrThrow();
-    const diskRow = disk.disk()!;
-    return disk.exclusive('archivage', async () => {
-      await disk.scanPc();
-      let archived = 0;
-      let freed = 0;
-      const refused: { itemId: string; name: string; reason: string }[] = [];
-      for (const id of ids) {
-        const row = getItem(id);
-        const copy = disk.copyOf(row.id, diskRow.id);
-        const refuse = (reason: string) => refused.push({ itemId: row.id, name: row.name, reason });
-        if (row.kind === 'link') {
-          refuse('un lien externe n’est pas sauvegardé');
-          continue;
-        }
-        if (row.archived_at) {
-          refuse('déjà archivé');
-          continue;
-        }
-        if (stateOf(row, copy) !== 'active' || !copy || !row.rel_path) {
-          refuse('pas encore sur le disque : mets le disque à jour d’abord');
-          continue;
-        }
-        const pcFile = library.abs(row.rel_path);
-        const diskFile = disk.abs(root, copy.rel_path);
-        try {
-          // Read again, both, now.
-          const [onPc, onDisk] = [await fingerprint(pcFile), await fingerprint(diskFile)];
-          if (onPc !== copy.sha256 || onDisk !== copy.sha256) {
-            refuse(
-              onDisk !== copy.sha256
-                ? 'la copie du disque ne correspond pas (relue) : rien n’a été retiré'
-                : 'le fichier du PC a changé : mets le disque à jour d’abord',
-            );
+  taskRoute<
+    { ids: string[] },
+    { archived: number; freed: number; refused: { itemId: string; name: string; reason: string }[] }
+  >(ctx, {
+    route: '/items/archive',
+    type: 'archive',
+    input: (request) => {
+      const b = requestBody(request);
+      if (b.confirm !== true) throw new HttpError(400, 'Archiver : confirmation nécessaire');
+      const ids = Array.isArray(b.ids) ? b.ids.map(String) : [];
+      if (!ids.length) throw new HttpError(400, 'Rien à archiver');
+      disk.rootOrThrow();
+      return { ids };
+    },
+    title: (i) => `Coffre : archiver ${i.ids.length} élément${i.ids.length > 1 ? 's' : ''}`,
+    // v0.49.0: a background task; each element refused is in the report with its reason.
+    run: async (job) => {
+      const ids = job.input.ids;
+      const root = disk.rootOrThrow();
+      const diskRow = disk.disk()!;
+      return disk.exclusive('archivage', async () => {
+        await disk.scanPc();
+        let archived = 0;
+        let freed = 0;
+        const refused: { itemId: string; name: string; reason: string }[] = [];
+        let n = 0;
+        for (const id of ids) {
+          if (job.signal.aborted) break;
+          const row = getItem(id);
+          job.step(n++, ids.length, { unit: 'éléments', current: row.name });
+          const copy = disk.copyOf(row.id, diskRow.id);
+          const refuse = (reason: string) => {
+            refused.push({ itemId: row.id, name: row.name, reason });
+            job.problem(row.name, reason);
+          };
+          if (row.kind === 'link') {
+            refuse('un lien externe n’est pas sauvegardé');
             continue;
           }
-        } catch (error) {
-          refuse(`relecture impossible (${(error as Error).message}) : rien n’a été retiré`);
-          continue;
+          if (row.archived_at) {
+            refuse('déjà archivé');
+            continue;
+          }
+          if (stateOf(row, copy) !== 'active' || !copy || !row.rel_path) {
+            refuse('pas encore sur le disque : mets le disque à jour d’abord');
+            continue;
+          }
+          const pcFile = library.abs(row.rel_path);
+          const diskFile = disk.abs(root, copy.rel_path);
+          try {
+            // Read again, both, now.
+            const [onPc, onDisk] = [await fingerprint(pcFile), await fingerprint(diskFile)];
+            if (onPc !== copy.sha256 || onDisk !== copy.sha256) {
+              refuse(
+                onDisk !== copy.sha256
+                  ? 'la copie du disque ne correspond pas (relue) : rien n’a été retiré'
+                  : 'le fichier du PC a changé : mets le disque à jour d’abord',
+              );
+              continue;
+            }
+          } catch (error) {
+            refuse(`relecture impossible (${(error as Error).message}) : rien n’a été retiré`);
+            continue;
+          }
+          makeWritable(pcFile);
+          await rm(pcFile, { recursive: true, force: true });
+          store.update('items', row.id, { archived_at: new Date().toISOString(), stat_json: null });
+          archived++;
+          freed += row.size;
         }
-        makeWritable(pcFile);
-        await rm(pcFile, { recursive: true, force: true });
-        store.update('items', row.id, { archived_at: new Date().toISOString(), stat_json: null });
-        archived++;
-        freed += row.size;
-      }
-      return { archived, freed, refused };
-    });
+        job.step(n, ids.length, { current: null });
+        return { archived, freed, refused };
+      });
+    },
   });
 
   /** Reactivate: the PC's room checked first, the disk's copy read back onto the PC. */
-  ctx.routes.post('/items/:id/reactivate', async (request) => {
-    const row = getItem(uuidParam(request.params));
-    if (!row.archived_at) return { ok: true };
-    const root = disk.rootOrThrow();
-    const diskRow = disk.disk()!;
-    return disk.exclusive('réactivation', async () => {
-      const copy = disk.copyOf(row.id, diskRow.id);
-      if (!copy || !existsSync(disk.abs(root, copy.rel_path)))
-        throw new HttpError(404, 'Introuvable sur le disque');
-      const free = (await library.disk()).free;
-      if (free !== null && copy.size + PC_MARGIN > free)
-        throw new HttpError(
-          409,
-          `Pas assez de place sur le PC pour le réactiver (${Math.ceil(copy.size / 1024 ** 2)} Mo nécessaires) : rien n’a changé.`,
-        );
-      const temp = ctx.files.dataPath('tmp', newId());
-      const back = await copyVerified(disk.abs(root, copy.rel_path), temp);
-      if (copy.sha256 && back.sha256 !== copy.sha256) {
-        await rm(temp, { recursive: true, force: true });
-        throw new HttpError(
-          409,
-          'La copie du disque ne correspond plus à son empreinte : rien n’a changé',
-        );
-      }
-      const rel = row.rel_path ?? copy.rel_path;
-      const dirRel = path.posix.dirname(rel) === '.' ? '' : path.posix.dirname(rel);
-      const dirAbs = library.abs(dirRel);
-      await mkdir(dirAbs, { recursive: true });
-      // Its own place (kept for it while archived); another name only if a file took it anyway.
-      const name = existsSync(path.join(dirAbs, path.posix.basename(rel)))
-        ? library.freeIn(dirAbs, path.posix.basename(rel))
-        : path.posix.basename(rel);
-      await rename(temp, path.join(dirAbs, name));
-      store.update('items', row.id, {
-        archived_at: null,
-        rel_path: dirRel ? `${dirRel}/${name}` : name,
-        name,
-        stat_json: null,
+  taskRoute<{ id: string }, { ok: true }>(ctx, {
+    route: '/items/:id/reactivate',
+    type: 'reactivate',
+    input: (request) => {
+      const row = getItem(uuidParam(request.params));
+      if (row.archived_at) disk.rootOrThrow();
+      return { id: row.id };
+    },
+    title: (i) => `Coffre : réactiver « ${getItem(i.id).name} »`,
+    // v0.49.0: a background task (a big file read back from the disk).
+    run: async (job) => {
+      const row = getItem(job.input.id);
+      job.step(0, 1, { unit: 'élément', current: row.name });
+      if (!row.archived_at) return { ok: true };
+      const root = disk.rootOrThrow();
+      const diskRow = disk.disk()!;
+      return disk.exclusive('réactivation', async () => {
+        const copy = disk.copyOf(row.id, diskRow.id);
+        if (!copy || !existsSync(disk.abs(root, copy.rel_path)))
+          throw new HttpError(404, 'Introuvable sur le disque');
+        const free = (await library.disk()).free;
+        if (free !== null && copy.size + PC_MARGIN > free)
+          throw new HttpError(
+            409,
+            `Pas assez de place sur le PC pour le réactiver (${Math.ceil(copy.size / 1024 ** 2)} Mo nécessaires) : rien n’a changé.`,
+          );
+        const temp = ctx.files.dataPath('tmp', newId());
+        const back = await copyVerified(disk.abs(root, copy.rel_path), temp);
+        if (copy.sha256 && back.sha256 !== copy.sha256) {
+          await rm(temp, { recursive: true, force: true });
+          throw new HttpError(
+            409,
+            'La copie du disque ne correspond plus à son empreinte : rien n’a changé',
+          );
+        }
+        const rel = row.rel_path ?? copy.rel_path;
+        const dirRel = path.posix.dirname(rel) === '.' ? '' : path.posix.dirname(rel);
+        const dirAbs = library.abs(dirRel);
+        await mkdir(dirAbs, { recursive: true });
+        // Its own place (kept for it while archived); another name only if a file took it anyway.
+        const name = existsSync(path.join(dirAbs, path.posix.basename(rel)))
+          ? library.freeIn(dirAbs, path.posix.basename(rel))
+          : path.posix.basename(rel);
+        await rename(temp, path.join(dirAbs, name));
+        store.update('items', row.id, {
+          archived_at: null,
+          rel_path: dirRel ? `${dirRel}/${name}` : name,
+          name,
+          stat_json: null,
+        });
+        return { ok: true };
       });
-      return { ok: true };
-    });
+    },
   });
 
   /** « 40 éléments pas ouverts depuis 6 mois (3,2 Go) — Voir »: a suggestion, never applied alone. */

@@ -6,9 +6,9 @@
 // « Ranger les cochés » (the unchecked ones to Arrivée), one « Annuler ».
 // Nothing is written before « Ranger » (and « Annuler » undoes it after).
 import { useCallback, useMemo, useRef, useState, type KeyboardEvent } from 'react';
-import { Button, formatBytes, Icon } from '@hub/sdk/frontend';
+import { Button, formatBytes, Icon, waitForJob } from '@hub/sdk/frontend';
 import { extOf } from '../shared/kinds';
-import type { ItemDto } from '../shared/types';
+import type { ApplyResultDto, ItemDto } from '../shared/types';
 import { useCoffre } from './frame';
 import { fly } from './fly';
 import {
@@ -29,11 +29,9 @@ import type { BatchField } from '../shared/batch';
 import { ReaderView } from './ReaderView';
 import { Sheet } from './Sheet';
 
-interface Applied {
-  created: ItemDto[];
-  skipped: { path: string }[];
-  undoId: string | null;
-}
+/** A line of the list (fixed: a long list only draws what is in view). */
+const ROW_HEIGHT = 58;
+const VIRTUAL_FROM = 150;
 
 const STATE_LABEL: Record<DepositEntry['state'], string> = {
   todo: '',
@@ -65,6 +63,16 @@ export function Deposit(props: { entries: DepositEntry[]; onClose: () => void })
   const previewBox = useRef<HTMLDivElement>(null);
   const entry = entries[current];
   const many = entries.length > 1;
+  const listBox = useRef<HTMLOListElement>(null);
+  const [listTop, setListTop] = useState(0);
+  const [listHeight, setListHeight] = useState(600);
+  const slice = useMemo(() => {
+    if (entries.length <= VIRTUAL_FROM) return { from: 0, to: entries.length, before: 0, after: 0 };
+    const height = listHeight;
+    const from = Math.max(0, Math.floor(listTop / ROW_HEIGHT) - 10);
+    const to = Math.min(entries.length, from + Math.ceil(height / ROW_HEIGHT) + 20);
+    return { from, to, before: from, after: entries.length - to };
+  }, [entries.length, listTop, listHeight]);
   const { onClose } = props;
 
   const update = (key: string, change: Partial<DepositEntry>) =>
@@ -112,50 +120,63 @@ export function Deposit(props: { entries: DepositEntry[]; onClose: () => void })
       setBusy(true);
       const from = previewBox.current?.getBoundingClientRect() ?? null;
       try {
-        const r = await coffre.api.post<Applied>('/deposit/apply', {
+        // v0.49.0: a background task — the window goes on (or closes) at once; the
+        // panel of the tasks follows it; its message and « Annuler » come at the end.
+        const { jobId } = await coffre.api.post<{ jobId: string }>('/deposit/apply', {
           entries: list.map((e) => applyEntry(e, isLater(e))),
         });
-        const skipped = new Set(r.skipped.map((s) => s.path));
         const next = entries.map((e) =>
           list.some((l) => l.key === e.key)
-            ? {
-                ...e,
-                state: skipped.has(e.proposal.path)
-                  ? ('skipped' as const)
-                  : isLater(e)
-                    ? ('later' as const)
-                    : ('done' as const),
-              }
+            ? { ...e, state: isLater(e) ? ('later' as const) : ('done' as const) }
             : e,
         );
         setEntries(next);
-        const n = r.created.length;
-        const where = r.created[0]?.contextPath?.join(' › ') ?? 'Arrivée';
-        const message =
-          n === 0
-            ? 'Rien de rangé (déjà dans le Coffre).'
-            : n === 1
-              ? `« ${r.created[0]!.name} » rangé dans ${where}.`
-              : later
-                ? `${n} éléments mis dans Arrivée.`
-                : toArrival
-                  ? `${n - toArrival} éléments rangés, ${toArrival} dans Arrivée.`
-                  : `${n} éléments rangés.`;
-        coffre.notify(
-          r.skipped.length
-            ? `${message} ${r.skipped.length} doublon(s) laissé(s) de côté.`
-            : message,
-          r.undoId,
-        );
-        coffre.refresh();
         const left = next.findIndex((e) => e.state === 'todo');
         if (left < 0) onClose();
         else setCurrent(left);
-        // After the window closed (or the next file shown): the flight to its tile.
-        const first = r.created[0];
-        requestAnimationFrame(() =>
-          fly(from, targetOf(first), first?.name ?? '', coffre.tools.animations),
-        );
+        void waitForJob(jobId).then((job) => {
+          const r = job.result as ApplyResultDto | null;
+          const errors = job.details?.errorCount ?? 0;
+          if (job.status === 'failed') {
+            coffre.fail(new Error(job.error ?? 'Rangement impossible'));
+            return;
+          }
+          if (!r) return;
+          const n = r.created.length;
+          const where = r.created[0]?.contextPath?.join(' › ') ?? 'Arrivée';
+          const message =
+            job.status === 'cancelled'
+              ? `Rangement annulé : ${n} élément${n > 1 ? 's' : ''} déjà rangé${n > 1 ? 's' : ''} (gardé${n > 1 ? 's' : ''}).`
+              : n === 0
+                ? errors
+                  ? 'Rien de rangé.'
+                  : 'Rien de rangé (déjà dans le Coffre).'
+                : n === 1
+                  ? `« ${r.created[0]!.name} » rangé dans ${where}.`
+                  : later
+                    ? `${n} éléments mis dans Arrivée.`
+                    : toArrival
+                      ? `${n - toArrival} éléments rangés, ${toArrival} dans Arrivée.`
+                      : `${n} éléments rangés.`;
+          coffre.notify(
+            [
+              message,
+              r.skipped.length ? `${r.skipped.length} doublon(s) laissé(s) de côté.` : '',
+              errors
+                ? `${errors} erreur${errors > 1 ? 's' : ''} : ${errors > 1 ? 'ils restent' : 'il reste'} à leur place, la raison est dans le panneau des tâches.`
+                : '',
+            ]
+              .filter(Boolean)
+              .join(' '),
+            r.undoId,
+          );
+          coffre.refresh();
+          // The flight to its tile.
+          const first = r.created[0];
+          requestAnimationFrame(() =>
+            fly(from, targetOf(first), first?.name ?? '', coffre.tools.animations),
+          );
+        });
       } catch (error) {
         coffre.fail(error);
       } finally {
@@ -258,49 +279,68 @@ export function Deposit(props: { entries: DepositEntry[]; onClose: () => void })
         )}
         <div className="coffre-deposit__body">
           {many && (
-            <ol className="coffre-deposit__list">
-              {entries.map((e, i) => (
-                <li key={e.key} className="coffre-deposit__item">
-                  <input
-                    type="checkbox"
-                    className="coffre-deposit__check"
-                    aria-label={`« Pour tous » s’applique à ${e.name}`}
-                    title={
-                      e.checked ? 'Coché : « Pour tous » s’applique' : 'Décoché : ira dans Arrivée'
-                    }
-                    checked={e.checked}
-                    disabled={e.state !== 'todo'}
-                    onChange={(ev) => setChecked([e.key], ev.target.checked)}
-                  />
-                  <button
-                    type="button"
-                    className={`coffre-deposit__line${i === current ? ' coffre-deposit__line--on' : ''}`}
-                    onClick={() => setCurrent(i)}
-                  >
-                    <span className="coffre-deposit__name">{e.name}</span>
-                    <span className="coffre-deposit__where">
-                      {isHeldDuplicate(e)
-                        ? 'déjà dans le Coffre'
-                        : e.checked || e.state !== 'todo'
-                          ? choiceLabel(e.choice, coffre.contexts)
-                          : 'Arrivée (décoché)'}
-                    </span>
-                    {e.exceptions.length > 0 && e.state === 'todo' && (
-                      <span
-                        className="coffre-deposit__exception"
-                        title={`Changé pour ce fichier seulement : ${e.exceptions.join(', ')}`}
-                      >
-                        exception
+            <ol
+              className="coffre-deposit__list"
+              ref={listBox}
+              onScroll={(ev) => {
+                setListTop(ev.currentTarget.scrollTop);
+                setListHeight(ev.currentTarget.clientHeight);
+              }}
+            >
+              {/* v0.49.0: a long list (thousands of files) only draws the lines in view. */}
+              {slice.before > 0 && (
+                <li aria-hidden="true" style={{ height: slice.before * ROW_HEIGHT }} />
+              )}
+              {entries
+                .slice(slice.from, slice.to)
+                .map((e, k) => ({ e, i: slice.from + k }))
+                .map(({ e, i }) => (
+                  <li key={e.key} className="coffre-deposit__item" style={{ height: ROW_HEIGHT }}>
+                    <input
+                      type="checkbox"
+                      className="coffre-deposit__check"
+                      aria-label={`« Pour tous » s’applique à ${e.name}`}
+                      title={
+                        e.checked
+                          ? 'Coché : « Pour tous » s’applique'
+                          : 'Décoché : ira dans Arrivée'
+                      }
+                      checked={e.checked}
+                      disabled={e.state !== 'todo'}
+                      onChange={(ev) => setChecked([e.key], ev.target.checked)}
+                    />
+                    <button
+                      type="button"
+                      className={`coffre-deposit__line${i === current ? ' coffre-deposit__line--on' : ''}`}
+                      onClick={() => setCurrent(i)}
+                    >
+                      <span className="coffre-deposit__name">{e.name}</span>
+                      <span className="coffre-deposit__where">
+                        {isHeldDuplicate(e)
+                          ? 'déjà dans le Coffre'
+                          : e.checked || e.state !== 'todo'
+                            ? choiceLabel(e.choice, coffre.contexts)
+                            : 'Arrivée (décoché)'}
                       </span>
-                    )}
-                    {e.state !== 'todo' && (
-                      <span className={`coffre-state coffre-state--${e.state}`}>
-                        {STATE_LABEL[e.state]}
-                      </span>
-                    )}
-                  </button>
-                </li>
-              ))}
+                      {e.exceptions.length > 0 && e.state === 'todo' && (
+                        <span
+                          className="coffre-deposit__exception"
+                          title={`Changé pour ce fichier seulement : ${e.exceptions.join(', ')}`}
+                        >
+                          exception
+                        </span>
+                      )}
+                      {e.state !== 'todo' && (
+                        <span className={`coffre-state coffre-state--${e.state}`}>
+                          {STATE_LABEL[e.state]}
+                        </span>
+                      )}
+                    </button>
+                  </li>
+                ))}
+              {slice.after > 0 && (
+                <li aria-hidden="true" style={{ height: slice.after * ROW_HEIGHT }} />
+              )}
             </ol>
           )}
           <div className="coffre-deposit__preview" ref={previewBox}>

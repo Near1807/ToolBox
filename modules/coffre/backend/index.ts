@@ -33,10 +33,9 @@ import {
   type HomeDto,
   type ItemDto,
   type NowDto,
-  type ItemKind,
   type ProposalDto,
 } from '../shared/types';
-import { filesOf, hashFile, hashFolder, Library } from './library';
+import { hashFile, Library } from './library';
 import type { AttributeRow, ContextRow, CopyRow, ItemRow } from './rows';
 import { stateOf } from './plan';
 import { DiskManager, type CoffreDeps } from './disk';
@@ -48,27 +47,12 @@ import { TEXT_MIGRATION_SQL, TextIndex } from './text-index';
 import { registerSearch } from './search';
 import { registerTreeRoutes } from './tree';
 import { IMPORTS_MIGRATION_SQL, registerImport } from './import';
+import { registerDeposit } from './deposit';
+import { hashFiles, walkFolder, type Walked } from './walk';
 import { DOWNLOADS_MIGRATION_SQL, DownloadWatcher } from './downloads';
 import { Learner, RULES_MIGRATION_SQL } from './learning';
 import { applyRules } from '../shared/learn';
 import { contextOfCourse } from '../shared/now';
-
-/** An entry of « Ranger » (the rangement window's choice for one dropped path). */
-interface DepositEntry {
-  path: string;
-  /** A file, a whole folder (a project), or a link left in its place. */
-  as: ItemKind;
-  contextId?: string | null;
-  /** A new context to create on the way (its names from the root). */
-  newContext?: string[] | null;
-  attributes?: AttributeDto[];
-  /** « Ranger plus tard »: into Arrivée. */
-  arrival?: boolean;
-  /** Same content already in the Coffre: keep it anyway. */
-  keepDuplicate?: boolean;
-  /** A new name (the sheet's), else the original's. */
-  name?: string;
-}
 
 /** How long « Annuler » stays possible. */
 const UNDO_MS = 15 * 60_000;
@@ -730,6 +714,7 @@ export default defineBackendModule({
       refs: ContextRef[],
       courses: ReturnType<typeof coursesSafe>,
       sites: ReturnType<typeof sitesSeen>,
+      walked?: Walked,
     ): Promise<ProposalDto> => {
       const st = statSync(source);
       const name = path.basename(source);
@@ -737,12 +722,16 @@ export default defineBackendModule({
       let size = st.size;
       let fileCount = 1;
       let folderLanguage: string | null = null;
+      let setAside: ProposalDto['setAside'] = [];
       if (st.isDirectory()) {
-        fileCount = filesOf(source).length;
+        // v0.49.0: read without blocking, recreatable folders set aside before counting.
+        const w = walked ?? (await walkFolder(source, { inProject: true }));
+        fileCount = w.files.length;
+        size = w.bytes;
+        setAside = w.setAside;
         if (fileCount <= MAX_PROJECT_FILES) {
-          const h = await hashFolder(source);
+          const h = await hashFiles(source, w.files);
           sha256 = h.sha256;
-          size = h.size;
           folderLanguage = h.language;
         }
       } else sha256 = await hashFile(source);
@@ -776,33 +765,10 @@ export default defineBackendModule({
         size,
         sha256,
         duplicate: duplicateOf(sha256),
+        setAside,
         ...guessed,
       };
     };
-
-    /**
-     * POST /deposit/analyze { paths, expand? }: the proposals for dropped
-     * paths (a folder with `expand`: one per file inside). Nothing written.
-     */
-    ctx.routes.post('/deposit/analyze', async (request) => {
-      const b = requestBody(request);
-      const paths = Array.isArray(b.paths)
-        ? b.paths.filter((p): p is string => typeof p === 'string')
-        : [];
-      if (!paths.length) throw new HttpError(400, 'Aucun fichier');
-      const refs = contextRefs();
-      const courses = coursesSafe();
-      const sites = sitesSeen();
-      const out: ProposalDto[] = [];
-      for (const p of paths) {
-        if (!path.isAbsolute(p) || !existsSync(p)) throw new HttpError(404, `Introuvable : ${p}`);
-        if (b.expand === true && statSync(p).isDirectory()) {
-          for (const rel of filesOf(p))
-            out.push(await propose(path.join(p, ...rel.split('/')), refs, courses, sites));
-        } else out.push(await propose(p, refs, courses, sites));
-      }
-      return out;
-    });
 
     const writeAttributes = (itemId: string, list: AttributeDto[]) => {
       for (const a of list) {
@@ -818,115 +784,39 @@ export default defineBackendModule({
       }
     };
 
-    /** « Ranger » / « Ranger plus tard »: copies (never touches the originals), then the sheets. */
-    ctx.routes.post('/deposit/apply', async (request) => {
-      const b = requestBody(request);
-      const entries = (Array.isArray(b.entries) ? b.entries : []) as DepositEntry[];
-      if (!entries.length) throw new HttpError(400, 'Rien à ranger');
-      library.ensure();
-      const contextsBefore = new Set(contextRows().map((c) => c.id));
-      const created: string[] = [];
-      const copies: string[] = [];
-      const skipped: { path: string; duplicate: NonNullable<ReturnType<typeof duplicateOf>> }[] =
-        [];
-      try {
-        for (const e of entries) {
-          if (typeof e.path !== 'string' || !path.isAbsolute(e.path) || !existsSync(e.path))
-            throw new HttpError(404, `Introuvable : ${String(e.path)}`);
-          const st = statSync(e.path);
-          const kind: ItemKind = e.as === 'link' ? 'link' : st.isDirectory() ? 'project' : 'file';
-          const contextId = e.arrival
-            ? null
-            : e.newContext?.length
-              ? ensureContext(e.newContext)
-              : (e.contextId ?? null);
-          const name = safeName(e.name?.trim() || path.basename(e.path));
-          // Provenance: read on the ORIGINAL, before the copy.
-          const provenance = kind === 'file' ? ctx.files.provenance(e.path) : null;
-          let sha256: string | null = null;
-          let size = st.size;
-          if (kind === 'file') sha256 = await hashFile(e.path);
-          else if (kind === 'project' && filesOf(e.path).length <= MAX_PROJECT_FILES) {
-            const h = await hashFolder(e.path);
-            sha256 = h.sha256;
-            size = h.size;
-          }
-          const dup = kind === 'link' ? null : duplicateOf(sha256);
-          if (dup && !e.keepDuplicate) {
-            skipped.push({ path: e.path, duplicate: dup });
-            continue;
-          }
-          let relPath: string | null = null;
-          if (kind !== 'link') {
-            relPath = await library.copyIn(
-              e.path,
-              contextId ? folderOf(contextId) : ARRIVAL_FOLDER,
-              name,
-            );
-            copies.push(relPath);
-            // The copy is read back: same content, or nothing is kept.
-            if (kind === 'file' && (await hashFile(library.abs(relPath))) !== sha256)
-              throw new Error(`Copie incomplète de « ${name} »`);
-          }
-          const attrs = (Array.isArray(e.attributes) ? e.attributes : []).filter(
-            (a) => a && typeof a === 'object',
-          );
-          const row = ctx.db.transaction(() => {
-            const made = store.create<ItemRow & { updated_at: string }>('items', {
-              kind,
-              name: relPath ? path.posix.basename(relPath) : name,
-              rel_path: relPath,
-              external_path: kind === 'link' ? e.path : null,
-              size,
-              sha256,
-              ext: kind === 'file' || kind === 'link' ? extOf(name) : '',
-              context_id: contextId,
-              arrival: contextId ? 0 : 1,
-              pinned: 0,
-              trashed_at: null,
-              trash_from: null,
-              source_path: e.path,
-              source_url: provenance?.hostUrl ?? null,
-              referrer_url: provenance?.referrerUrl ?? null,
-              file_date: st.mtime.toISOString(),
-              // v0.48.0: the name it had (renamed by « Pour tous »: still searchable).
-              original_name: path.basename(e.path),
-            });
-            writeAttributes(made.id, attrs);
-            return made;
-          });
-          created.push(row.id);
-          // v0.47.0: placed by Thomas (accepted or corrected): the rules learn it.
-          learnFrom(row as ItemRow, contextId);
-        }
-      } catch (error) {
-        // Nothing half done: the copies of this deposit are removed, their sheets too.
-        for (const rel of copies) await library.erase(rel).catch(() => undefined);
-        for (const id of created) store.remove('items', id);
-        throw error;
-      }
-      // v0.48.0: the contexts of a new route, created at the validation, go with « Annuler ».
-      const newContexts = contextRows()
-        .filter((c) => !contextsBefore.has(c.id))
-        .map((c) => c.id);
-      const undoId = created.length
-        ? remember(async () => {
-            for (const id of created) {
-              const row = store.get<ItemRow & { updated_at: string }>(
-                'items',
-                id,
-              ) as ItemRow | null;
-              if (row?.rel_path) await library.erase(row.rel_path).catch(() => undefined);
-              store.remove('items', id);
-            }
-            await removeIfEmpty(newContexts);
-          })
-        : null;
-      if (created.length) textIndex.kick();
-      // v0.47.0: a new download put away is no longer proposed.
-      downloads.ranged(entries.map((e) => e.path));
-      return { created: dtos(created.map((id) => getRow(id))), skipped, undoId };
+    // v0.49.0: depositing = background tasks (analysis, rangement; backend/deposit.ts).
+    const deposits = registerDeposit({
+      ctx,
+      store,
+      library,
+      contextRows,
+      ensureContext: (names) => ensureContext(names),
+      folderOf,
+      propose: (abs, walked) => propose(abs, contextRefs(), coursesSafe(), sitesSeen(), walked),
+      duplicateOf,
+      writeAttributes: (id, list) => writeAttributes(id, list),
+      learnFrom: (row, contextId) => learnFrom(row, contextId),
+      remember: (run) => remember(run),
+      removeIfEmpty: (ids) => removeIfEmpty(ids),
+      dtos,
+      getRow,
+      hasItemAt: (rel) =>
+        Boolean(
+          ctx.db
+            .prepare(
+              `SELECT 1 FROM ${items} WHERE deleted_at IS NULL AND rel_path = ? COLLATE NOCASE`,
+            )
+            .get(rel),
+        ),
+      after: (paths, created) => {
+        if (created) textIndex.kick();
+        // v0.47.0: a new download put away is no longer proposed.
+        downloads.ranged(paths);
+      },
     });
+
+    // v0.49.0: the disk's update waits for a deposit or an import running.
+    disk.waitsFor = () => deposits.busy();
 
     // --- v0.48.0: importing an arborescence (ADR 0065) ----------------------------------
     const imports = registerImport({
@@ -953,11 +843,15 @@ export default defineBackendModule({
     /** Folders put in the Coffre by hand: looked at the start and every few minutes (proposed only). */
     let foundCount = 0;
     const lookForFolders = () => {
-      try {
-        foundCount = imports.imp.found().length;
-      } catch (error) {
-        ctx.logger.warn(`Dossiers ajoutés à la main : ${String(error)}`);
-      }
+      // v0.49.0: read without blocking (a big folder found takes a while to count).
+      void imports.imp
+        .found()
+        .then((list) => {
+          foundCount = list.length;
+        })
+        .catch((error: unknown) =>
+          ctx.logger.warn(`Dossiers ajoutés à la main : ${String(error)}`),
+        );
     };
 
     // --- Changing an element -------------------------------------------------------------

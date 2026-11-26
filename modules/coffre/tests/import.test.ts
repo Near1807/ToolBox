@@ -16,7 +16,15 @@ import type {
   ImportStatusDto,
   ItemDto,
 } from '../shared/types';
-import { API, deposit, diskWorld, ok, snapshot, type DiskWorld } from './disk-helpers';
+import {
+  API,
+  deposit,
+  diskWorld,
+  job as runJob,
+  ok,
+  snapshot,
+  type DiskWorld,
+} from './disk-helpers';
 
 let w: DiskWorld | null = null;
 afterEach(async () => {
@@ -79,7 +87,7 @@ describe('importer une arborescence', () => {
     await deposit(W, { 'deja.txt': 'déjà dans le Coffre' }, ['Divers']);
     const root = programmation(W.dl);
     const before = snapshot(root);
-    const p = await ok<ImportPreviewDto>(W, 'POST', `${API}/import/preview`, { source: root });
+    const p = await runJob<ImportPreviewDto>(W, 'POST', `${API}/import/preview`, { source: root });
     expect(p.route).toEqual([]);
     expect(p.tree.name).toBe('Programmation');
     expect(p.totals.projects).toBe(2);
@@ -232,7 +240,7 @@ describe('importer une arborescence', () => {
       'Cours',
     ]);
     const before = snapshot(target);
-    const p = await ok<ImportPreviewDto>(W, 'POST', `${API}/import/preview`, {
+    const p = await runJob<ImportPreviewDto>(W, 'POST', `${API}/import/preview`, {
       source: target,
       adopt: true,
     });
@@ -255,5 +263,31 @@ describe('importer une arborescence', () => {
     });
     expect(snapshot(target)).toEqual(before);
     expect((await ok<FoundFolderDto[]>(W, 'GET', `${API}/import/found`)).length).toBe(1);
+  }, 120_000);
+
+  it('reprise d’un projet arrêté entre la mise en place de son dossier et sa fiche : jamais « (2) »', async () => {
+    const dataDir = mkdtempSync(path.join(tmpdir(), 'coffre-place-'));
+    w = await diskWorld({ dataDir });
+    let W = w;
+    const root = programmation(W.dl);
+    process.env.TOOLBOX_COFFRE_TEST_STOP_AFTER_PLACE = 'site-web';
+    const st = await ok<ImportStatusDto>(W, 'POST', `${API}/import/start`, { source: root });
+    const placed = path.join(dataDir, 'coffre', 'Programmation', 'Projets', 'site-web');
+    await until(async () => existsSync(path.join(placed, 'package.json')));
+    // The folder is in place, its sheet not written: ToolBox closes now.
+    await new Promise((r) => setTimeout(r, 100));
+    await W.close();
+    w = null;
+    delete process.env.TOOLBOX_COFFRE_TEST_STOP_AFTER_PLACE;
+    w = await diskWorld({ dataDir });
+    W = w;
+    await until(
+      async () => (await ok<ImportStatusDto>(W, 'GET', `${API}/import/${st.id}`)).state === 'done',
+      60_000,
+    );
+    const projets = readdirSync(path.join(dataDir, 'coffre', 'Programmation', 'Projets')).sort();
+    expect(projets).toEqual(['calculatrice', 'site-web']);
+    const items = await ok<ItemDto[]>(W, 'GET', `${API}/items`);
+    expect(items.filter((i) => i.name === 'site-web')).toHaveLength(1);
   }, 120_000);
 });

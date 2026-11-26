@@ -5,7 +5,7 @@ import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createTestHost } from '@hub/sdk/testing';
-import { API, diskWorld, ok, sha, snapshot, type DiskWorld } from './disk-helpers';
+import { API, diskWorld, ok, sha, snapshot, type DiskWorld, job } from './disk-helpers';
 
 let w: DiskWorld;
 afterEach(async () => {
@@ -38,7 +38,7 @@ describe('ranger depuis Windows', () => {
     expect(snapshot(path.join(w.hub.dataDir, 'coffre'))).toEqual(before);
     // « Ranger »: the deposit's own rules (copies, the originals untouched).
     const shaBefore = sha(files[0]!);
-    const r = await ok<{ created: unknown[] }>(w, 'POST', `${API}/deposit/apply`, {
+    const r = await job<{ created: unknown[] }>(w, 'POST', `${API}/deposit/apply`, {
       entries: files.map((p) => ({ path: p, newContext: ['Cours', 'Réseaux'], attributes: [] })),
     });
     expect(r.created).toHaveLength(10);
@@ -52,7 +52,7 @@ describe('ranger depuis Windows', () => {
     w = await diskWorld();
     const p = path.join(w.dl, 'cours.txt');
     writeFileSync(p, 'x');
-    await ok(w, 'POST', `${API}/deposit/apply`, {
+    await job(w, 'POST', `${API}/deposit/apply`, {
       entries: [{ path: p, newContext: ['Cours'], attributes: [] }],
     });
     const home = () => ok<{ health: { missingOnPc: number } }>(w, 'GET', `${API}/home`);

@@ -19,6 +19,7 @@ import {
   Button,
   errorMessage,
   formatBytes,
+  waitForJob,
   getFilePath,
   notifyDataChanged,
   pickFiles,
@@ -30,10 +31,17 @@ import {
   type MenuItem,
   type ModuleContextValue,
 } from '@hub/sdk/frontend';
-import type { ContextDto, DiskStatusDto, ItemDto, ProposalDto } from '../shared/types';
+import type {
+  AnalyzeResultDto,
+  ContextDto,
+  DiskStatusDto,
+  ItemDto,
+  SetAsideDto,
+} from '../shared/types';
 import { Deposit } from './Deposit';
 import { DiskWitness } from './disk/DiskWitness';
 import { ImportDialog } from './Import';
+import { CoffreTasks, runTask } from './Tasks';
 import { UpdateDialog } from './disk/UpdateDialog';
 import { VerifyDialog } from './disk/VerifyDialog';
 import { useDisk } from './disk/useDisk';
@@ -106,6 +114,28 @@ export interface CoffreValue {
 
 const Ctx = createContext<CoffreValue | null>(null);
 
+interface AnalyzeOptions {
+  expand?: boolean;
+  files?: Map<string, File>;
+  fixed?: string | null;
+  as?: 'link';
+  /** v0.47.0: added to the rangement window already open (files sent a moment later). */
+  append?: boolean;
+  /** v0.49.0: beyond the threshold, « Continuer ». */
+  confirmed?: boolean;
+}
+
+/** « node_modules (52 000 fichiers, 290 Mo), .venv (plus de 4 000 fichiers) ». */
+export function setAsideText(list: readonly SetAsideDto[]): string {
+  const shown = list
+    .slice(0, 4)
+    .map(
+      (s) =>
+        `${s.rel} (${s.partial ? 'plus de ' : ''}${s.files.toLocaleString('fr-FR')} fichiers${s.partial ? '' : `, ${formatBytes(s.bytes)}`})`,
+    );
+  return `${shown.join(', ')}${list.length > 4 ? ` et ${list.length - 4} autre(s)` : ''}`;
+}
+
 export function useCoffre(): CoffreValue {
   const value = useContext(Ctx);
   if (!value) throw new Error('useCoffre() hors d’une page du Coffre');
@@ -168,7 +198,6 @@ export function CoffreFrame(props: { children: ReactNode }) {
   useEffect(() => {
     entriesOpen.current = entries !== null;
   }, [entries]);
-  const [analyzing, setAnalyzing] = useState<string | null>(null);
   const [importing, setImporting] = useState<{
     source: string;
     adopt: boolean;
@@ -197,33 +226,43 @@ export function CoffreFrame(props: { children: ReactNode }) {
   );
   const fail = useCallback((error: unknown) => notify(errorMessage(error)), [notify]);
 
+  // v0.49.0: the analysis is a background task (the panel shows it; the page stays usable);
+  // beyond the threshold it asks first.
+  const [bigQuestion, setBigQuestion] = useState<{
+    paths: string[];
+    options: AnalyzeOptions;
+    files: number;
+    bytes: number;
+    setAside: SetAsideDto[];
+  } | null>(null);
   const analyze = useCallback(
-    async (
-      paths: string[],
-      options: {
-        expand?: boolean;
-        files?: Map<string, File>;
-        fixed?: string | null;
-        as?: 'link';
-        /** v0.47.0: added to the rangement window already open (files sent a moment later). */
-        append?: boolean;
-      },
-    ) => {
-      setAnalyzing(paths.length > 1 ? `${paths.length} éléments` : 'le fichier');
+    async (paths: string[], options: AnalyzeOptions) => {
       try {
-        const proposals = await module.api.post<ProposalDto[]>('/deposit/analyze', {
+        const { jobId } = await module.api.post<{ jobId: string }>('/deposit/analyze', {
           paths,
           expand: options.expand === true,
+          confirmed: options.confirmed === true,
         });
-        const made = entriesOf(proposals, options);
+        const job = await waitForJob(jobId);
+        const r = job.result as AnalyzeResultDto | null;
+        if (job.status === 'failed') throw new Error(job.error ?? 'Analyse impossible');
+        if (!r || job.status !== 'succeeded') return;
+        if (r.needsConfirm) {
+          setBigQuestion({ paths, options, ...r.needsConfirm });
+          return;
+        }
+        if ((job.details?.errorCount ?? 0) > 0)
+          notify(
+            `${job.details!.errorCount} élément(s) n’ont pas pu être analysés : la raison est dans le panneau des tâches.`,
+          );
+        if (!r.proposals.length) return;
+        const made = entriesOf(r.proposals, options);
         setEntries((now) => (options.append && now ? [...now, ...made] : made));
       } catch (error) {
         fail(error);
-      } finally {
-        setAnalyzing(null);
       }
     },
-    [module.api, fail],
+    [module.api, fail, notify],
   );
 
   const drop = useCallback(
@@ -356,11 +395,10 @@ Ils restent sur le disque « ${diskName} » (vérifiés avant), et leur copie es
         )
       )
         return;
-      module.api
-        .post<{ archived: number; freed: number; refused: { name: string; reason: string }[] }>(
-          '/items/archive',
-          { ids: ok.map((i) => i.id), confirm: true },
-        )
+      // v0.49.0: a background task (the panel shows it; each refusal in its report).
+      runTask<{ archived: number; freed: number; refused: { name: string; reason: string }[] }>(
+        module.api.post('/items/archive', { ids: ok.map((i) => i.id), confirm: true }),
+      )
         .then((r) => {
           const refused = r.refused.length
             ? ` Pas archivé${r.refused.length > 1 ? 's' : ''} : ${r.refused.map((x) => `${x.name} (${x.reason})`).join(' ; ')}.`
@@ -377,8 +415,7 @@ Ils restent sur le disque « ${diskName} » (vérifiés avant), et leur copie es
   );
   const reactivate = useCallback(
     (item: ItemDto) => {
-      module.api
-        .post(`/items/${item.id}/reactivate`)
+      runTask(module.api.post(`/items/${item.id}/reactivate`))
         .then(() => {
           notify(`« ${item.name} » est de nouveau sur le PC : modifiable.`);
           refresh();
@@ -674,6 +711,7 @@ Ils restent sur le disque « ${diskName} » (vérifiés avant), et leur copie es
             />
           </div>
         )}
+        <CoffreTasks onFail={fail} />
         {archivedChoice && (
           <div
             className="coffre-modal"
@@ -742,9 +780,49 @@ Ils restent sur le disque « ${diskName} » (vérifiés avant), et leur copie es
           </div>
         )}
       </div>
-      {analyzing && (
-        <div className="coffre-busy" role="status">
-          Analyse de {analyzing}…
+      {bigQuestion && (
+        <div className="coffre-modal" role="dialog" aria-modal="true" aria-label="Gros dépôt">
+          <div className="coffre-modal__box coffre-question" data-coffre-big>
+            <h2>C’est un gros dépôt</h2>
+            <p>
+              {bigQuestion.files.toLocaleString('fr-FR')} fichiers, {formatBytes(bigQuestion.bytes)}{' '}
+              (après avoir écarté les dossiers recréables). Le ranger prendra du temps ; la page
+              reste utilisable pendant ce temps.
+            </p>
+            {bigQuestion.setAside.length > 0 && (
+              <p className="muted small">Déjà écartés : {setAsideText(bigQuestion.setAside)}.</p>
+            )}
+            <Button
+              autoFocus
+              onClick={() => {
+                const q = bigQuestion;
+                setBigQuestion(null);
+                void analyze(q.paths, { ...q.options, confirmed: true });
+              }}
+            >
+              Continuer
+            </Button>
+            {bigQuestion.paths.length === 1 && (
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  const q = bigQuestion;
+                  setBigQuestion(null);
+                  setImporting({
+                    source: q.paths[0]!,
+                    adopt: false,
+                    route: q.options.fixed ?? null,
+                  });
+                }}
+                title="L’aperçu de l’import : décocher des dossiers, des projets, des dépendances"
+              >
+                Choisir ce qu’on garde
+              </Button>
+            )}
+            <Button variant="secondary" onClick={() => setBigQuestion(null)}>
+              Annuler
+            </Button>
+          </div>
         </div>
       )}
       {folderQuestion && (

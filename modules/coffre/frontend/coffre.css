@@ -2371,3 +2371,18 @@ button.coffre-value__text:hover {
 .coffre-import__line:not(:hover):not(:focus-within) .coffre-import__project--off {
   visibility: hidden;
 }
+
+/* v0.49.0: the Coffre's tasks (Expérimental) */
+.coffre-tasks {
+  max-width: 1180px;
+  padding: 10px 36px 0;
+  display: grid;
+  gap: 8px;
+}
+.coffre-tasks:empty {
+  display: none;
+}
+.coffre-tasks__reading {
+  margin: 0;
+  color: var(--text-2);
+}

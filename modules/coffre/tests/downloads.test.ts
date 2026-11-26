@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { DownloadsDto, HomeDto } from '../shared/types';
-import { API, deposit, diskWorld, ok, sha, snapshot, type DiskWorld } from './disk-helpers';
+import { API, deposit, diskWorld, ok, sha, snapshot, type DiskWorld, job } from './disk-helpers';
 
 beforeAll(() => {
   process.env.TOOLBOX_COFFRE_STABLE_MS = '0';
@@ -68,7 +68,7 @@ describe('surveillance de Téléchargements', () => {
       paths: [path.join(folder, 'cours.pdf')],
     });
     expect(names(d)).toEqual(['td.pdf']);
-    await ok(w, 'POST', `${API}/deposit/apply`, {
+    await job(w, 'POST', `${API}/deposit/apply`, {
       entries: [
         { path: path.join(folder, 'td.pdf'), newContext: ['Cours', 'Réseaux'], attributes: [] },
       ],

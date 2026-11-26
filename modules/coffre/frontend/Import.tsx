@@ -16,6 +16,7 @@ import {
   formatBytes,
   Icon,
   ProgressBar,
+  jobCountText,
   useApi,
   useModule,
 } from '@hub/sdk/frontend';
@@ -29,6 +30,7 @@ import type {
 import { useCoffre } from './frame';
 import { choiceLabel, pickToChoice, type ContextChoice } from './logic';
 import { RoutePicker } from './RoutePicker';
+import { runTask } from './Tasks';
 
 const plural = (n: number, word: string) => `${n} ${word}${n > 1 ? 's' : ''}`;
 
@@ -64,17 +66,21 @@ export function ImportDialog(props: {
     keepDuplicates: false,
   });
   const [status, setStatus] = useState<ImportStatusDto | null>(null);
+  const [reading, setReading] = useState<string | null>(null);
   const { api } = coffre;
 
   // The preview (again when the route changes): nothing is written.
   useEffect(() => {
     let live = true;
-    api
-      .post<ImportPreviewDto>('/import/preview', {
+    // v0.49.0: a background task (a big folder takes a while): its count shown here.
+    runTask<ImportPreviewDto>(
+      api.post<{ jobId: string }>('/import/preview', {
         source: props.source,
         adopt: props.adopt,
         ...routeBody(route),
-      })
+      }),
+      (job) => live && setReading(jobCountText(job)),
+    )
       .then((p) => live && (setPreview(p), setError(null)))
       .catch((e: unknown) => live && setError(errorMessage(e)));
     return () => {
@@ -286,7 +292,12 @@ export function ImportDialog(props: {
               )}
             </div>
           )}
-          {!preview && !error && <p className="muted">Lecture du dossier…</p>}
+          {!preview && !error && (
+            <p className="muted" role="status">
+              Lecture du dossier…{reading ? ` ${reading}` : ''} (les dossiers recréables sont
+              écartés avant de compter)
+            </p>
+          )}
           {preview && !status && (
             <>
               <ul
