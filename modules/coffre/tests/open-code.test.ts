@@ -55,14 +55,14 @@ describe('le serveur refuse de lancer un script sans confirmation', () => {
       'install.ps1': 'Remove-Item C:\\',
     });
     for (const it of items) {
-      const r = await w.hub.request('POST', `${API}/items/${it.id}/open`, { how: 'app' });
+      const r = await w.hub.request('POST', `${API}/files/${it.id}/open`, { how: 'app' });
       expect(r.status, it.name).toBe(409);
       expect(JSON.stringify(r.body)).toMatch(/lance un programme : confirmation nécessaire/);
     }
     expect(opened).toEqual([]);
-    await ok(w, 'POST', `${API}/items/${items[0]!.id}/open`, { how: 'app', runnable: true });
+    await ok(w, 'POST', `${API}/files/${items[0]!.id}/open`, { how: 'app', runnable: true });
     expect(opened).toHaveLength(1);
     // « Afficher dans l'explorateur » runs nothing: allowed.
-    await ok(w, 'POST', `${API}/items/${items[3]!.id}/open`, { how: 'folder' });
+    await ok(w, 'POST', `${API}/files/${items[3]!.id}/open`, { how: 'folder' });
   });
 });

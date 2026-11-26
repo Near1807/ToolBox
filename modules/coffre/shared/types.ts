@@ -1,43 +1,64 @@
 // v0.45.0: what the Coffre's pages receive (cahier des charges : docs/coffre/).
 
-export type ItemKind = 'file' | 'project' | 'link';
-/** « deviné » (a deduction, with its reason) or « choisi » (Thomas's: never replaced by a deduction). */
-export type AttributeOrigin = 'guessed' | 'chosen';
+/**
+ * v0.50.0 (ADR 0067): an entry of the Coffre — a file, or the content of a
+ * Projet folder (one entry: the disk copies, archives and checks it whole).
+ */
+export type ItemKind = 'file' | 'project';
+/**
+ * « deviné » (a deduction, with its reason), « choisi » (Thomas's: never
+ * replaced by a deduction), or « par défaut du dossier » (its folder's).
+ */
+export type LabelOrigin = 'guessed' | 'chosen' | 'default';
 
-/** The keys of the attributes (one value each, except the tags). */
-export const ATTRIBUTE_KEYS = [
+/** v0.50.0: the families of the labels (several values each). */
+export const LABEL_FAMILIES = [
   'nature',
-  'origin',
   'language',
-  'application',
-  'prof',
   'year',
+  'origin',
   'site',
-  'tag',
+  'course',
+  'prof',
+  'free',
 ] as const;
-export type AttributeKey = (typeof ATTRIBUTE_KEYS)[number];
+export type LabelFamily = (typeof LABEL_FAMILIES)[number];
 
-/** How each key reads in the interface. */
-export const ATTRIBUTE_LABELS: Record<AttributeKey, string> = {
+/** How each family reads in the interface. */
+export const FAMILY_NAMES: Record<LabelFamily, string> = {
   nature: 'Nature',
-  origin: 'Origine',
   language: 'Langage',
-  application: 'Application',
-  prof: 'Prof',
   year: 'Année',
+  origin: 'Origine',
   site: 'Site',
-  tag: 'Tag',
+  course: 'Cours',
+  prof: 'Prof',
+  free: 'Libre',
 };
 
-export interface AttributeDto {
-  key: AttributeKey;
+export interface LabelDto {
+  family: LabelFamily;
   value: string;
-  origin: AttributeOrigin;
+  origin: LabelOrigin;
   /** Why it was guessed (« extension .py »), shown on hover; null when chosen. */
   reason: string | null;
 }
 
-export interface ContextDto {
+/** A label without its origin (a folder's default labels, a named set, the clipboard). */
+export interface LabelValue {
+  family: LabelFamily;
+  value: string;
+}
+
+/** v0.50.0: a named set of labels (« Slides de cours »). */
+export interface LabelSetDto {
+  id: string;
+  name: string;
+  labels: LabelValue[];
+}
+
+/** v0.50.0: a folder of the Coffre (a real folder, its route = its path). */
+export interface FolderDto {
   id: string;
   parentId: string | null;
   name: string;
@@ -46,15 +67,23 @@ export interface ContextDto {
   /** The CSS value of its colour (a theme token, or the free colour). */
   css: string;
   sort: number | null;
-  /** The names from the root (« Cours › Thermo »). */
+  /** Its route: the names from the top (« Cours », « Thermo »). */
   path: string[];
-  /** Elements in it (its children's not counted). */
+  /** Files in it (its sub-folders' not counted; a project: the files of its folder). */
   count: number;
-  /** Elements added in the last 7 days. */
+  /** Files of it and of its descendants (the map's numbers). */
+  total: number;
+  /** Files added in the last 7 days. */
   fresh: number;
-  /** The item shown as its cover, or null. */
-  coverItemId: string | null;
-  /** v0.47.0: « Lié au cours … » (null: automatic, by name or code; « - »: no course). */
+  /** « Fin de route »: its sub-folders are not on the map nor in the tree. */
+  endOfRoute: boolean;
+  /** « Projet »: indivisible, VS Code, Git read (an end of route too). */
+  project: boolean;
+  /** Inside a Projet or a Fin de route above it (not on the map, browsed inside). */
+  inside: boolean;
+  /** Its default labels (proposed to the files put in it and its sub-folders). */
+  defaults: LabelValue[];
+  /** « Lié au cours … » (null: automatic, by name or code; « - »: no course). */
   courseName: string | null;
 }
 
@@ -62,53 +91,46 @@ export interface ItemDto {
   id: string;
   kind: ItemKind;
   name: string;
-  /** « pdf », « py »… (« » for a project or a folder). */
+  /** « pdf », « py »… (« » for a project). */
   ext: string;
   size: number;
   sha256: string | null;
-  contextId: string | null;
-  /** « Cours › Thermo », or null (Arrivée). */
-  contextPath: string[] | null;
-  arrival: boolean;
+  folderId: string | null;
+  /** Its route (« Cours », « Thermo »), or null: À ranger. */
+  folderPath: string[] | null;
+  /** In a Projet (or is one): no action file by file (indivisible). */
+  inProject: boolean;
   pinned: boolean;
   /** In the Coffre's Recycle Bin since (ISO), or null. */
   trashedAt: string | null;
-  /** A link: the file or folder left in its place (not kept, not backed up). */
-  externalPath: string | null;
-  /** Where it was dropped from (information only: the original is never touched). */
+  /** v0.50.0: where it was dropped from (the original, never touched) and its fingerprint then. */
   sourcePath: string | null;
+  sourceSha256: string | null;
   /** Its file's date (the original's), ISO. */
   fileDate: string | null;
   createdAt: string;
   updatedAt: string;
-  attributes: AttributeDto[];
-  /** Other contexts it is « aussi utilisé » in (links, never copies). */
-  alsoIn: string[];
-  /** A URL to show it (images, PDF, text, video…), or null (a link, a project). */
+  labels: LabelDto[];
+  /** A URL to show it (images, PDF, text, video…), or null (a project). */
   url: string | null;
   /** Its file on the disk, to open or show in the Explorer. */
   path: string | null;
-  /** v0.46.0: its state with the disk (« pas encore sur le disque », actif, archivé…). */
+  /** Its state with the disk (« pas encore sur le disque », actif, archivé…). */
   diskState: DiskState;
-  /** v0.46.0: archived and the disk absent: its file cannot be opened now. */
+  /** Archived and the disk absent: its file cannot be opened now. */
   unavailable: boolean;
-  /** v0.48.0: the name it had before being renamed (searchable), or null. */
+  /** The name it had before being renamed (searchable), or null. */
   originalName: string | null;
-  /** v0.48.0: imported with an arborescence, its sheet not yet checked (« À compléter »). */
-  toComplete: boolean;
 }
 
 export interface HomeDto {
   pinned: ItemDto[];
   recent: ItemDto[];
-  arrivalCount: number;
-  contexts: ContextDto[];
-  /** v0.48.0: « pas encore sur le disque » per context (the map's marks). */
-  pendingByContext: Record<string, number>;
-  /** v0.48.0: elements imported whose sheet is not yet checked (« À compléter »). */
-  toCompleteCount: number;
-  /** v0.48.0: folders put in the Coffre by hand, proposed for adoption. */
-  foundCount: number;
+  /** À ranger: files put there with « Ranger plus tard ». */
+  pendingCount: number;
+  folders: FolderDto[];
+  /** « pas encore sur le disque » per folder (with its descendants: the map's marks). */
+  pendingByFolder: Record<string, number>;
   health: {
     items: number;
     bytes: number;
@@ -154,7 +176,7 @@ export interface TextHitDto {
 /** v0.47.0: one element found, with where its words are. */
 export interface SearchHitDto {
   item: ItemDto;
-  /** Its name, its sheet or its context hold the words. */
+  /** Its name, its labels or its route hold the words. */
   byName: boolean;
   /** Where in its content (most relevant first, at most 5). */
   hits: TextHitDto[];
@@ -170,7 +192,7 @@ export interface SearchDto {
   index: IndexStatusDto;
 }
 
-/** A course of the Agenda (its service), for the deductions and a course's header. */
+/** A course of the Agenda (its service), for the deductions and a course folder's header. */
 export interface CourseHint {
   name: string;
   code: string | null;
@@ -178,29 +200,44 @@ export interface CourseHint {
   next: { start: string; end: string; location: string | null } | null;
 }
 
-/** What the Coffre proposes for a dropped file (nothing written yet). */
+/** A sub-folder of a dropped folder that looks like a code project (« Projet » proposed). */
+export interface ProjectHintDto {
+  /** Relative to the dropped folder (« » for itself). */
+  rel: string;
+  /** Why (« .git », « package.json », « contient du code »). */
+  reason: string;
+  /** Inside another project hint: only the highest counts (signalled). */
+  nested: boolean;
+}
+
+/** The route proposed for a dropped file or folder: an existing folder, a new route, or none. */
+type RouteProposal =
+  | { kind: 'existing'; id: string; path: string[]; reason: string }
+  | { kind: 'new'; path: string[]; reason: string }
+  | null;
+
+/** What the Coffre proposes for a dropped file or folder (nothing written yet). */
 export interface ProposalDto {
   /** The path of the original (dropped). */
   path: string;
   name: string;
   isDirectory: boolean;
-  /** Files inside a folder. */
+  /** Files inside a folder (its excluded folders apart). */
   fileCount: number;
+  /** Sub-folders inside a folder (hidden ones apart). */
+  folderCount: number;
   size: number;
   sha256: string | null;
   /** Already in the Coffre (same content), or null. */
-  duplicate: { id: string; name: string; contextPath: string[] | null } | null;
-  /**
-   * v0.49.0: a folder's recreatable folders set aside before counting
-   * (node_modules…), with their size (partial: « plus de »).
-   */
-  setAside?: { rel: string; name: string; files: number; bytes: number; partial: boolean }[];
-  /** The context proposed: an existing one, a new one to create (its path), or none. */
-  context:
-    | { kind: 'existing'; id: string; path: string[]; reason: string }
-    | { kind: 'new'; path: string[]; reason: string }
-    | null;
-  attributes: AttributeDto[];
+  duplicate: { id: string; name: string; folderPath: string[] | null } | null;
+  /** A folder: its files already in the Coffre (same content), counted (they come anyway). */
+  innerDuplicates?: number;
+  /** A folder's recreatable folders set aside before counting (node_modules…), with their size. */
+  setAside?: SetAsideDto[];
+  /** A folder: the sub-folders (or itself) proposed as « Projet ». */
+  projects?: ProjectHintDto[];
+  route: RouteProposal;
+  labels: LabelDto[];
 }
 
 // --- v0.46.0: the disk ----------------------------------------------------------------
@@ -213,8 +250,6 @@ export type DiskState =
   | 'active'
   /** On the disk only. */
   | 'archived'
-  /** A link left in its place: not saved. */
-  | 'link'
   /** In the Coffre's Recycle Bin. */
   | 'trash'
   /** Its file is not on the PC any more (moved or deleted outside ToolBox). */
@@ -288,9 +323,9 @@ export interface LearnedRuleDto {
   kind: 'site' | 'word' | 'ext';
   /** The site, the word, or the extension. */
   key: string;
-  /** The context it proposes (site, word), or the one the extension is in (ext). */
-  contextId: string;
-  contextPath: string[] | null;
+  /** The folder it proposes (site, word), or the one the extension is in (ext). */
+  folderId: string;
+  folderPath: string[] | null;
   /** The nature it proposes (ext). */
   nature: string | null;
   hits: number;
@@ -302,7 +337,7 @@ export interface LearnedRuleDto {
   lastAt: string | null;
 }
 
-/** v0.47.0: « Maintenant » — the course of the Agenda now (or within 15 min) and its context. */
+/** v0.47.0: « Maintenant » — the course of the Agenda now (or within 15 min) and its folder. */
 export interface NowDto {
   course: {
     name: string;
@@ -312,92 +347,9 @@ export interface NowDto {
     location: string | null;
     inProgress: boolean;
   };
-  context: ContextDto | null;
-  /** The context's elements, the most recent first. */
+  folder: FolderDto | null;
+  /** The folder's files, the most recent first. */
   items: ItemDto[];
-}
-
-// --- v0.48.0: importing an arborescence (ADR 0065) ----------------------------------
-
-/** One folder of the tree to import: a context, or ONE project element. */
-export interface ImportNodeDto {
-  /** Relative to the folder imported (« » for itself). */
-  rel: string;
-  name: string;
-  /** Why it is a code project (« .git », « package.json », « fichiers de code »), or null. */
-  marker: string | null;
-  /** Its own files (a project: all its files, its dependencies apart) and their size. */
-  files: number;
-  bytes: number;
-  /** With its sub-folders. */
-  totalFiles: number;
-  totalBytes: number;
-  /** Dependencies and build folders found in it (left out by default). */
-  deps: { rel: string; name: string; files: number; bytes: number }[];
-  /** A context of that route already exists: merged with it. */
-  exists: boolean;
-  children: ImportNodeDto[];
-  /** Its name changed to be a valid folder name, or null. */
-  invalidName: string | null;
-}
-
-export interface ImportPreviewDto {
-  source: string;
-  mode: 'copy' | 'adopt';
-  /** Where it goes (the names of the route, [] = the root). */
-  route: string[];
-  tree: ImportNodeDto;
-  totals: {
-    folders: number;
-    files: number;
-    bytes: number;
-    projects: number;
-    ignored: number;
-    duplicates: number;
-    depsFiles: number;
-    depsBytes: number;
-  };
-  /** Files already in the Coffre (same fingerprint) or twice in the import. */
-  duplicates: {
-    rel: string;
-    existing: { id: string; name: string; contextPath: string[] | null } | null;
-    twinOf: string | null;
-  }[];
-  /** System and temporary files, never imported. */
-  ignored: string[];
-  /** Existing contexts that receive files (merged). */
-  merges: string[][];
-}
-
-export interface ImportStatusDto {
-  id: string;
-  source: string;
-  mode: 'copy' | 'adopt';
-  state: 'running' | 'done' | 'cancelled' | 'failed' | 'undone';
-  done: number;
-  total: number;
-  bytesDone: number;
-  bytesTotal: number;
-  /** Elements and contexts made so far. */
-  items: number;
-  contexts: number;
-  error: string | null;
-  /** « Annuler » the whole import (for a while after it ended). */
-  undoId: string | null;
-  jobId: string | null;
-  createdAt: string;
-}
-
-/** A folder put in the Coffre by hand: ToolBox proposes to adopt it. */
-export interface FoundFolderDto {
-  rel: string;
-  name: string;
-  /** Its absolute path (the adoption's source). */
-  path: string;
-  files: number;
-  bytes: number;
-  /** The route of its parent context ([] = the root). */
-  route: string[];
 }
 
 // --- v0.49.0: depositing as background tasks ------------------------------------------
@@ -426,7 +378,7 @@ export interface ApplyResultDto {
   created: ItemDto[];
   skipped: {
     path: string;
-    duplicate: { id: string; name: string; contextPath: string[] | null };
+    duplicate: { id: string; name: string; folderPath: string[] | null };
   }[];
   undoId: string | null;
   failed: number;
@@ -437,14 +389,13 @@ export type OnlyHereReason = 'original-absent' | 'original-different' | 'archive
 
 export interface ResetPreviewDto {
   items: number;
-  contexts: number;
-  links: number;
+  folders: number;
   archived: number;
   /** The Coffre's files on the PC. */
   bytes: number;
   disk: { name: string; connected: boolean; root: string | null } | null;
   /** What exists ONLY in the Coffre (lost for ToolBox if emptied without exporting). */
-  onlyHere: { id: string; name: string; contextPath: string[] | null; reason: OnlyHereReason }[];
+  onlyHere: { id: string; name: string; folderPath: string[] | null; reason: OnlyHereReason }[];
   /** The default folder of the inventory (« Documents »). */
   inventoryParent: string;
   rules: number;
@@ -452,9 +403,43 @@ export interface ResetPreviewDto {
 
 export interface ResetReport {
   inventory: string;
-  emptied: { items: number; contexts: number };
+  emptied: { items: number; folders: number };
   trashed: number;
   diskFolder: string | null;
   diskPending: boolean;
   backup: string;
+}
+
+// --- v0.50.0: inside a Fin de route or a Projet -----------------------------------------
+
+/** One entry of a folder's inside (read from the PC's folder for a project). */
+export interface InsideEntryDto {
+  /** Relative to the folder (« src/main.py »). */
+  rel: string;
+  name: string;
+  dir: boolean;
+  size: number;
+  /** A dot name or a recreatable folder: hidden unless « Afficher les dossiers cachés ». */
+  hidden: boolean;
+  /** Not saved nor searched (recreatable, .gitignore of a project). */
+  excluded: boolean;
+  /** A file of the Coffre (a row): its id (not inside a project). */
+  itemId: string | null;
+  /** To show it (its reader). */
+  url: string | null;
+  path: string;
+}
+
+export interface InsideDto {
+  folder: FolderDto;
+  entries: InsideEntryDto[];
+  /** The README shown by default, or null. */
+  readme: string | null;
+  /** A project: its branch and last commit, read in .git (never a git command). */
+  git: {
+    branch: string | null;
+    commit: { hash: string; message: string; date: string | null } | null;
+  } | null;
+  /** Cut at this many entries (a huge folder). */
+  truncated: boolean;
 }

@@ -1,11 +1,11 @@
-// v0.48.0 (Expérimental): the tree of the contexts, managed in ToolBox (ADR
-// 0064) — move a context (under another, or to the root), merge it into
-// another, delete it when it is empty, reorder siblings. A context is a path
-// of rangement: its folder in the Coffre follows exactly (règle 2). Every
-// action moves the files on the PC as a block, then the sheets; anything that
-// fails is undone; « Annuler » puts back exactly the tree and the files of
-// before. On the disk, the next update reproduces it as MOVES (each element's
-// path changed; nothing copied again).
+// v0.48.0, v0.50.0 (Expérimental; ADR 0064, 0067): the folders' tree, managed
+// in ToolBox — move a folder (under another, or to the top), merge it into
+// another, delete it when it is empty, reorder siblings. A folder is a real
+// folder of the Coffre (règle 2). Every action moves the files on the PC as a
+// block, then the rows; anything that fails is undone; « Annuler » puts back
+// exactly the tree and the files of before. On the disk, the next update
+// reproduces it as MOVES (each entry's path changed; nothing copied again).
+// A Projet is indivisible: it moves whole, and is never merged.
 import { mkdirSync, readdirSync, renameSync, rmdirSync } from 'node:fs';
 import path from 'node:path';
 import {
@@ -19,16 +19,16 @@ import { fold } from '../shared/deduce';
 import { folderName, invalidName } from '../shared/names';
 import type { Library } from './library';
 import { taskRoute } from './tasks';
-import type { ContextRow, ItemRow } from './rows';
+import type { FolderRow, ItemRow } from './rows';
 
 export interface TreeDeps {
   ctx: ModuleContext;
   store: SyncStore;
   library: Library;
-  t: { items: string; contexts: string; also: string; rules: string };
-  contextRows: () => ContextRow[];
-  /** A context's folder (« Cours/Thermo »). */
-  folderOf: (contextId: string) => string;
+  t: { items: string; folders: string; rules: string };
+  folderRows: () => FolderRow[];
+  /** A folder's folder (« Cours/Thermo »). */
+  folderOf: (folderId: string) => string;
   /** Keeps an « Annuler » for a while; its id. */
   remember: (run: () => Promise<void>) => string;
   /** What runs on the disk now (no tree change meanwhile), or null. */
@@ -48,18 +48,18 @@ const under = (rel: string | null, dir: string): string | null =>
 
 export function createTree(d: TreeDeps) {
   const { ctx, store, library, t } = d;
-  const byId = () => new Map(d.contextRows().map((c) => [c.id, c]));
+  const byId = () => new Map(d.folderRows().map((c) => [c.id, c]));
   const children = (id: string | null) =>
     d
-      .contextRows()
+      .folderRows()
       .filter((c) => c.parent_id === id)
       .sort((a, b) => (a.sort ?? 1e9) - (b.sort ?? 1e9) || a.name.localeCompare(b.name, 'fr'));
   const get = (id: string) => {
     const c = byId().get(id);
-    if (!c) throw new HttpError(404, 'Contexte introuvable');
+    if (!c) throw new HttpError(404, 'Dossier introuvable');
     return c;
   };
-  /** Is `id` the context itself or one of its descendants? */
+  /** Is `id` the folder itself or one of its descendants? */
   const isWithin = (id: string | null, ancestor: string): boolean => {
     const map = byId();
     for (let c = id ? map.get(id) : undefined, n = 0; c && n < 1000; n++) {
@@ -75,13 +75,16 @@ export function createTree(d: TreeDeps) {
   const dirOf = (parentId: string | null) => (parentId ? d.folderOf(parentId) : '');
   const join = (dir: string, name: string) => (dir ? `${dir}/${name}` : name);
 
-  /** The elements whose path is under a folder (archived ones included), and the trashed ones from it. */
+  /** The entries whose path is under a folder (archived ones included; a project's own path too), and the trashed ones from it. */
   const rewritePaths = (before: string, after: string, journal: Journal) => {
     const rows = ctx.db
       .prepare(`SELECT id, rel_path, trash_from FROM ${t.items} WHERE deleted_at IS NULL`)
       .all() as Pick<ItemRow, 'id' | 'rel_path' | 'trash_from'>[];
     for (const r of rows) {
-      const rest = under(r.rel_path, before);
+      const rest =
+        r.rel_path && r.rel_path.toLowerCase() === before.toLowerCase()
+          ? ''
+          : under(r.rel_path, before);
       const restTrash =
         r.trash_from === null
           ? null
@@ -98,27 +101,37 @@ export function createTree(d: TreeDeps) {
     }
   };
 
-  /** Moves a context under `parentId` (null: the root) — its folder as a block, then the sheets. */
+  /** Moves a folder under `parentId` (null: the top) — on the PC as a block, then the rows. */
   /** v0.49.0: the refusals of a merge, checked at once. */
   function checkMerge(srcId: string, dstId: string): void {
     get(srcId);
     get(dstId);
-    if (srcId === dstId) throw new HttpError(409, 'Un contexte ne se fusionne pas avec lui-même');
+    if (srcId === dstId) throw new HttpError(409, 'Un dossier ne se fusionne pas avec lui-même');
+    for (const id of [srcId, dstId])
+      if (get(id).project)
+        throw new HttpError(
+          409,
+          `« ${get(id).name} » est un projet : il ne se fusionne pas (indivisible)`,
+        );
     if (isWithin(dstId, srcId))
       throw new HttpError(
         409,
-        `« ${get(srcId).name} » ne peut pas se fondre dans un de ses sous-contextes`,
+        `« ${get(srcId).name} » ne peut pas se fondre dans un de ses sous-dossiers`,
       );
   }
 
   /** v0.49.0: the refusals of a move, checked at once (before the task is queued). */
   function checkMove(id: string, parentId: string | null): void {
     const row = get(id);
-    if (parentId !== null) get(parentId);
+    if (parentId !== null && get(parentId).project)
+      throw new HttpError(
+        409,
+        `« ${get(parentId).name} » est un projet : rien n'y entre depuis le Coffre (indivisible)`,
+      );
     if (parentId === id || isWithin(parentId, id))
       throw new HttpError(
         409,
-        `« ${row.name} » ne peut pas aller dans lui-même ni dans un de ses sous-contextes`,
+        `« ${row.name} » ne peut pas aller dans lui-même ni dans un de ses sous-dossiers`,
       );
     if (row.parent_id === parentId) return;
     const twin = children(parentId).find((c) => c.id !== id && fold(c.name) === fold(row.name));
@@ -132,7 +145,7 @@ export function createTree(d: TreeDeps) {
     if (before.toLowerCase() !== after.toLowerCase() && library.exists(after))
       throw new HttpError(
         409,
-        `Un dossier « ${after} » existe déjà dans le Coffre sans être un contexte : adopte-le ou renomme-le d'abord`,
+        `Un dossier « ${after} » existe déjà sur le PC dans le Coffre (hors de ToolBox) : renomme-le d'abord`,
       );
   }
 
@@ -153,29 +166,29 @@ export function createTree(d: TreeDeps) {
     }
     const old = { parent_id: row.parent_id, sort: row.sort };
     ctx.db.transaction(() => {
-      store.update('contexts', id, { parent_id: parentId, sort: null });
+      store.update('folders', id, { parent_id: parentId, sort: null });
       rewritePaths(before, after, journal);
     });
-    journal.push(() => void store.update('contexts', id, old));
+    journal.push(() => void store.update('folders', id, old));
   }
 
-  /** The files of `src`'s own elements go into `dst`'s folder (free names); their sheets follow. */
+  /** The files of `src` go into `dst`'s folder (free names); their rows follow. */
   async function mergeInto(srcId: string, dstId: string, journal: Journal): Promise<void> {
     const src = get(srcId);
     const dst = get(dstId);
     const srcDir = d.folderOf(srcId);
     const dstDir = d.folderOf(dstId);
     const own = ctx.db
-      .prepare(`SELECT * FROM ${t.items} WHERE deleted_at IS NULL AND context_id = ?`)
+      .prepare(`SELECT * FROM ${t.items} WHERE deleted_at IS NULL AND folder_id = ?`)
       .all(srcId) as ItemRow[];
     for (const item of own) {
       const old = {
-        context_id: item.context_id,
+        folder_id: item.folder_id,
         rel_path: item.rel_path,
         name: item.name,
         trash_from: item.trash_from,
       };
-      const fields: Record<string, string | null> = { context_id: dstId };
+      const fields: Record<string, string | null> = { folder_id: dstId };
       const rest = under(item.rel_path, srcDir);
       if (item.rel_path && rest !== null && !item.trashed_at) {
         if (item.archived_at) {
@@ -198,31 +211,7 @@ export function createTree(d: TreeDeps) {
       store.update('items', item.id, fields);
       journal.push(() => void store.update('items', item.id, old));
     }
-    // « Aussi utilisé dans » the source: in the destination now (never twice).
-    const links = ctx.db
-      .prepare(`SELECT id, item_id FROM ${t.also} WHERE deleted_at IS NULL AND context_id = ?`)
-      .all(srcId) as { id: string; item_id: string }[];
-    for (const l of links) {
-      const dup =
-        ctx.db
-          .prepare(
-            `SELECT 1 FROM ${t.also} WHERE deleted_at IS NULL AND context_id = ? AND item_id = ?`,
-          )
-          .get(dstId, l.item_id) ||
-        ctx.db
-          .prepare(
-            `SELECT 1 FROM ${t.items} WHERE deleted_at IS NULL AND id = ? AND context_id = ?`,
-          )
-          .get(l.item_id, dstId);
-      if (dup) {
-        store.remove('also', l.id);
-        journal.push(() => void store.restore('also', l.id));
-      } else {
-        store.update('also', l.id, { context_id: dstId });
-        journal.push(() => void store.update('also', l.id, { context_id: srcId }));
-      }
-    }
-    // The sub-contexts: same name in the destination → merged too; else moved there.
+    // The sub-folders: same name in the destination → merged too; else moved there.
     for (const child of children(srcId)) {
       const twin = children(dstId).find((c) => fold(c.name) === fold(child.name));
       if (twin) await mergeInto(child.id, twin.id, journal);
@@ -241,24 +230,15 @@ export function createTree(d: TreeDeps) {
       journal.push(() => void store.update('rules', r.id, { key: r.key, value: r.value }));
     }
     if (!dst.course_name && src.course_name) {
-      store.update('contexts', dstId, { course_name: src.course_name });
-      journal.push(() => void store.update('contexts', dstId, { course_name: null }));
+      store.update('folders', dstId, { course_name: src.course_name });
+      journal.push(() => void store.update('folders', dstId, { course_name: null }));
     }
-    const covers = ctx.db
-      .prepare(
-        `SELECT id FROM ${t.contexts} WHERE deleted_at IS NULL AND cover_item_id IS NOT NULL AND id = ?`,
-      )
-      .get(dstId);
-    if (!covers && src.cover_item_id) {
-      store.update('contexts', dstId, { cover_item_id: src.cover_item_id });
-      journal.push(() => void store.update('contexts', dstId, { cover_item_id: null }));
-    }
-    store.remove('contexts', srcId);
-    journal.push(() => void store.restore('contexts', srcId));
+    store.remove('folders', srcId);
+    journal.push(() => void store.restore('folders', srcId));
     removeEmptyFolder(srcDir, journal);
   }
 
-  /** The folder of a context that is gone, when nothing is left in it (never anything else). */
+  /** The folder of a folder that is gone, when nothing is left in it (never anything else). */
   function removeEmptyFolder(dir: string, journal: Journal) {
     if (!dir || !library.exists(dir)) return;
     const abs = library.abs(dir);
@@ -279,7 +259,7 @@ export function createTree(d: TreeDeps) {
       await run(journal);
     } catch (error) {
       await rollback(journal).catch((e: unknown) =>
-        ctx.logger.error(`Contextes : retour arrière incomplet (${String(e)})`),
+        ctx.logger.error(`Dossiers : retour arrière incomplet (${String(e)})`),
       );
       throw error;
     }
@@ -289,16 +269,12 @@ export function createTree(d: TreeDeps) {
     });
   }
 
-  /** What a context holds (a delete is refused when it is not empty). */
+  /** What a folder holds (a delete is refused when it is not empty). */
   const contentOf = (id: string) => {
     const n = (sql: string, ...a: unknown[]) => (ctx.db.prepare(sql).get(...a) as { n: number }).n;
     return {
       items: n(
-        `SELECT COUNT(*) AS n FROM ${t.items} WHERE deleted_at IS NULL AND trashed_at IS NULL AND context_id = ?`,
-        id,
-      ),
-      links: n(
-        `SELECT COUNT(*) AS n FROM ${t.also} WHERE deleted_at IS NULL AND context_id = ?`,
+        `SELECT COUNT(*) AS n FROM ${t.items} WHERE deleted_at IS NULL AND trashed_at IS NULL AND folder_id = ?`,
         id,
       ),
       children: children(id).length,
@@ -307,36 +283,38 @@ export function createTree(d: TreeDeps) {
 
   /**
    * v0.48.0: a route typed in the route picker (« Cours/Thermo/Labos »): the
-   * missing contexts are created now — at the validation — and removed by the
+   * missing folders are created now — at the validation — and removed by the
    * rollback or « Annuler ».
    */
   const routeOf = (names: readonly string[], journal: Journal): string | null => {
     let parent: string | null = null;
     for (const raw of names) {
       const name = raw.replace(/\s+/g, ' ').trim();
-      if (!name) throw new HttpError(400, 'Nom de contexte vide');
+      if (!name) throw new HttpError(400, 'Nom de dossier vide');
       const bad = invalidName(name);
       if (bad) throw new HttpError(400, bad);
-      const found: ContextRow | undefined = children(parent).find(
+      const found: FolderRow | undefined = children(parent).find(
         (c) => fold(c.name) === fold(name),
       );
       if (found) parent = found.id;
       else {
-        const id: string = store.create<ContextRow & { updated_at: string }>('contexts', {
+        const id: string = store.create<FolderRow & { updated_at: string }>('folders', {
           parent_id: parent,
           name,
           color: null,
           sort: null,
-          cover_item_id: null,
+          end_of_route: 0,
+          project: 0,
+          default_labels_json: '[]',
         }).id;
-        journal.push(() => void store.remove('contexts', id));
+        journal.push(() => void store.remove('folders', id));
         parent = id;
       }
     }
     return parent;
   };
 
-  /** Renames a context: its folder follows (same place), then the sheets. */
+  /** Renames a folder: on the PC (same place), then the rows. */
   async function rename(id: string, raw: string, journal: Journal): Promise<void> {
     const row = get(id);
     const name = raw.replace(/\s+/g, ' ').trim();
@@ -351,7 +329,7 @@ export function createTree(d: TreeDeps) {
       if (before.toLowerCase() !== after.toLowerCase() && library.exists(after))
         throw new HttpError(
           409,
-          `Un dossier « ${after} » existe déjà dans le Coffre sans être un contexte`,
+          `Un dossier « ${after} » existe déjà dans le Coffre sans être un dossier`,
         );
       if (library.exists(before)) {
         // Through a temporary name: « thermo » → « Thermo » on a case-insensitive disk.
@@ -366,10 +344,10 @@ export function createTree(d: TreeDeps) {
     }
     const old = row.name;
     ctx.db.transaction(() => {
-      store.update('contexts', id, { name });
+      store.update('folders', id, { name });
       if (before !== after) rewritePaths(before, after, journal);
     });
-    journal.push(() => void store.update('contexts', id, { name: old }));
+    journal.push(() => void store.update('folders', id, { name: old }));
   }
 
   return {
@@ -387,14 +365,14 @@ export function createTree(d: TreeDeps) {
       act(async (j) => {
         const row = get(id);
         const c = contentOf(id);
-        if (c.items || c.links || c.children)
+        if (c.items || c.children)
           throw new HttpError(
             409,
-            `« ${row.name} » n'est pas vide (${c.items} élément(s), ${c.children} sous-contexte(s)) : déplace d'abord son contenu`,
+            `« ${row.name} » n'est pas vide (${c.items} fichier(s), ${c.children} sous-dossier(s)) : déplace d'abord son contenu`,
           );
         const dir = d.folderOf(id);
-        store.remove('contexts', id);
-        j.push(() => void store.restore('contexts', id));
+        store.remove('folders', id);
+        j.push(() => void store.restore('folders', id));
         removeEmptyFolder(dir, j);
       }),
     /** Puts `id` before `beforeId` among its siblings (null: last). */
@@ -407,8 +385,8 @@ export function createTree(d: TreeDeps) {
         list.forEach((c, i) => {
           if (c.sort === i) return;
           const old = c.sort;
-          store.update('contexts', c.id, { sort: i });
-          j.push(() => void store.update('contexts', c.id, { sort: old }));
+          store.update('folders', c.id, { sort: i });
+          j.push(() => void store.update('folders', c.id, { sort: old }));
         });
       }),
     contentOf,
@@ -418,13 +396,13 @@ export function createTree(d: TreeDeps) {
 export function registerTreeRoutes(d: TreeDeps): ReturnType<typeof createTree> {
   const tree = createTree(d);
   const parentOf = (v: unknown): string | null => (typeof v === 'string' && v ? v : null);
-  const nameOf = (id: string) => d.contextRows().find((c) => c.id === id)?.name ?? 'contexte';
+  const nameOf = (id: string) => d.folderRows().find((c) => c.id === id)?.name ?? 'dossier';
   // v0.49.0: moving and merging are background tasks (a merge can move thousands of files).
   taskRoute<{ id: string; parentId: string | null; newParent?: string[] }, { undoId: string }>(
     d.ctx,
     {
-      route: '/contexts/:id/move',
-      type: 'context-move',
+      route: '/folders/:id/move',
+      type: 'folder-move',
       input: (request) => {
         const b = requestBody(request);
         const input = {
@@ -448,8 +426,8 @@ export function registerTreeRoutes(d: TreeDeps): ReturnType<typeof createTree> {
     },
   );
   taskRoute<{ id: string; into: string }, { undoId: string }>(d.ctx, {
-    route: '/contexts/:id/merge',
-    type: 'context-merge',
+    route: '/folders/:id/merge',
+    type: 'folder-merge',
     input: (request) => {
       const input = {
         id: uuidParam(request.params),
@@ -461,13 +439,13 @@ export function registerTreeRoutes(d: TreeDeps): ReturnType<typeof createTree> {
     title: (i) => `Coffre : fusionner « ${nameOf(i.id)} » dans « ${nameOf(i.into)} »`,
     run: async (job) => ({ undoId: await tree.merge(job.input.id, job.input.into) }),
   });
-  d.ctx.routes.post('/contexts/:id/reorder', async (request) => {
+  d.ctx.routes.post('/folders/:id/reorder', async (request) => {
     const id = uuidParam(request.params);
     const undoId = await tree.reorder(id, parentOf(requestBody(request).beforeId));
     return { undoId };
   });
-  d.ctx.routes.get('/contexts/:id/content', (request) => tree.contentOf(uuidParam(request.params)));
-  d.ctx.routes.delete('/contexts/:id', async (request) => {
+  d.ctx.routes.get('/folders/:id/content', (request) => tree.contentOf(uuidParam(request.params)));
+  d.ctx.routes.delete('/folders/:id', async (request) => {
     const undoId = await tree.remove(uuidParam(request.params));
     return { undoId };
   });

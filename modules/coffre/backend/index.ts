@@ -1,205 +1,151 @@
 // v0.45.0 (Expérimental): the Coffre — keep, put away, find and open the
-// files that matter (cahier des charges : docs/coffre/CAHIER-DES-CHARGES.md,
-// ADR 0052). PC only: it copies the user's files into ctx.files.libraryDir
-// (userData/coffre) and opens their applications. Ready for sync (UUIDs,
-// tombstones, journal) without a real sync yet.
+// files that matter (cahier des charges : docs/coffre/CAHIER-DES-CHARGES.md).
+// v0.50.0 (ADR 0067): « tout est dossier » — folders (real folders, their
+// route is their path), files in them, labels by family, two badges of a
+// folder (« Fin de route », « Projet »), « À ranger ». PC only: it copies the
+// user's files into ctx.files.libraryDir (userData/coffre) and opens their
+// applications. Ready for sync (UUIDs, tombstones, journal), no real sync yet.
 import { spawn } from 'node:child_process';
-import { existsSync, rmSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, rmdirSync, rmSync, statSync } from 'node:fs';
+import { open as openFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
-  changesTableSql,
   defineBackendModule,
   HttpError,
   isRunnable,
   mountsDisk,
   newId,
   requestBody,
-  SYNC_COLUMNS,
   SyncStore,
   uuidParam,
 } from '@hub/sdk/core';
 import { isColorValue } from '@hub/sdk/palette';
 import type { AgendaService } from '../../agenda/contract';
-import { contextCss } from '../shared/colors';
-import { deduce, fold, hostOf, mergeGuesses, type ContextRef } from '../shared/deduce';
-import { extOf } from '../shared/kinds';
-import { ARRIVAL_FOLDER, folderName, invalidName, safeName, TRASH_FOLDER } from '../shared/names';
+import { folderCss } from '../shared/colors';
+import { deduce, fold, hostOf, mergeGuesses, type FolderRef } from '../shared/deduce';
+import { extOf, kindOf } from '../shared/kinds';
 import {
-  ATTRIBUTE_KEYS,
-  type AttributeDto,
-  type AttributeKey,
-  type ContextDto,
+  folderName,
+  invalidName,
+  OLD_ARRIVAL_FOLDER,
+  PENDING_FOLDER,
+  safeName,
+  splitExtension,
+  TRASH_FOLDER,
+} from '../shared/names';
+import {
+  LABEL_FAMILIES,
   type CourseHint,
+  type FolderDto,
   type HomeDto,
+  type InsideDto,
+  type InsideEntryDto,
   type ItemDto,
+  type LabelDto,
+  type LabelFamily,
+  type LabelSetDto,
+  type LabelValue,
   type NowDto,
   type ProposalDto,
 } from '../shared/types';
 import { hashFile, Library } from './library';
-import type { AttributeRow, ContextRow, CopyRow, ItemRow } from './rows';
+import type { CopyRow, FolderRow, ItemRow, LabelRow, LabelSetRow } from './rows';
 import { stateOf } from './plan';
 import { DiskManager, type CoffreDeps } from './disk';
 import { registerDiskRoutes } from './disk-routes';
 import { registerRestoreRoutes } from './restore';
 import { registerVerifyRoutes } from './verify';
 import { cleanReadCopies, readCopy, registerArchiveRoutes, SUGGEST_DAYS } from './archive';
-import { TEXT_MIGRATION_SQL, TextIndex } from './text-index';
+import { TextIndex } from './text-index';
 import { registerSearch } from './search';
 import { registerTreeRoutes } from './tree';
-import { IMPORTS_MIGRATION_SQL, registerImport } from './import';
 import { registerDeposit } from './deposit';
 import { registerReset } from './reset';
-import { hashFiles, walkFolder, type Walked } from './walk';
-import { DOWNLOADS_MIGRATION_SQL, DownloadWatcher } from './downloads';
-import { Learner, RULES_MIGRATION_SQL } from './learning';
+import { DownloadWatcher } from './downloads';
+import { Learner } from './learning';
+import { MIGRATIONS } from './migrations';
 import { applyRules } from '../shared/learn';
-import { contextOfCourse } from '../shared/now';
+import { folderOfCourse } from '../shared/now';
+import { isHiddenName, isIgnoredFile, projectMarker, projectReason } from './walk';
+import { listFiles, projectHash } from './copy';
 
 /** How long « Annuler » stays possible. */
 const UNDO_MS = 15 * 60_000;
-/** A folder with more files than this is not fingerprinted (no duplicate check). */
-const MAX_PROJECT_FILES = 20_000;
-/** v0.47.0: how often the PC's files are looked at (changes read again for the search). */
+/** How often the PC's files are looked at (changes read again for the search). */
 const RESCAN_MS = 10 * 60_000;
-/** « Nouveau » on a tile: what was added in the last days. */
+/** « Nouveau » on a folder: what was added in the last days. */
 const FRESH_DAYS = 7;
+/** The inside of a folder shown at most (a huge folder: cut, said). */
+const MAX_INSIDE = 5000;
+/** A label's value: at most this long. */
+const MAX_LABEL = 200;
+
+/** v0.50.0: a list of labels without origin, cleaned (known family, a value, no twin). */
+export function cleanLabels(list: unknown): LabelValue[] {
+  const out: LabelValue[] = [];
+  for (const raw of Array.isArray(list) ? list : []) {
+    if (!raw || typeof raw !== 'object') continue;
+    const { family, value } = raw as { family?: unknown; value?: unknown };
+    if (!LABEL_FAMILIES.includes(family as LabelFamily) || typeof value !== 'string') continue;
+    const v = value.trim().slice(0, MAX_LABEL);
+    if (!v || out.some((l) => l.family === family && fold(l.value) === fold(v))) continue;
+    out.push({ family: family as LabelFamily, value: v });
+  }
+  return out;
+}
+
+/** A project's fingerprint (library.ts hashFolder: the same formula). */
+async function hashProject(abs: string, files: readonly string[]): Promise<string> {
+  const list: { rel: string; sha256: string }[] = [];
+  for (const rel of files)
+    list.push({ rel, sha256: await hashFile(path.join(abs, ...rel.split('/'))) });
+  return projectHash(list);
+}
+
+/** An entry's row as created (every column, nothing else known yet). */
+const emptyItem = (fields: Partial<ItemRow> & Pick<ItemRow, 'kind' | 'name'>) => ({
+  rel_path: null,
+  size: 0,
+  sha256: null,
+  ext: '',
+  folder_id: null,
+  pinned: 0,
+  trashed_at: null,
+  trash_from: null,
+  source_path: null,
+  source_sha256: null,
+  source_url: null,
+  referrer_url: null,
+  file_date: null,
+  archived_at: null,
+  stat_json: null,
+  opened_at: null,
+  original_name: null,
+  ...fields,
+});
+
+/** A folder's row as created. */
+const emptyFolder = (parentId: string | null, name: string) => ({
+  parent_id: parentId,
+  name,
+  color: null,
+  sort: null,
+  course_name: null,
+  end_of_route: 0,
+  project: 0,
+  default_labels_json: '[]',
+});
 
 export default defineBackendModule({
-  migrations: [
-    {
-      version: 1,
-      description: 'elements, contexts, attributes, « aussi utilisé », journal (ready for sync)',
-      up: `
-        CREATE TABLE coffre__items (
-          ${SYNC_COLUMNS},
-          kind TEXT NOT NULL,
-          name TEXT NOT NULL,
-          rel_path TEXT,
-          external_path TEXT,
-          size INTEGER NOT NULL DEFAULT 0,
-          sha256 TEXT,
-          ext TEXT NOT NULL DEFAULT '',
-          context_id TEXT,
-          arrival INTEGER NOT NULL DEFAULT 0,
-          pinned INTEGER NOT NULL DEFAULT 0,
-          trashed_at TEXT,
-          trash_from TEXT,
-          source_path TEXT,
-          source_url TEXT,
-          referrer_url TEXT,
-          file_date TEXT
-        );
-        CREATE INDEX coffre__items_context ON coffre__items (context_id);
-        CREATE INDEX coffre__items_sha ON coffre__items (sha256);
-        CREATE TABLE coffre__contexts (
-          ${SYNC_COLUMNS},
-          parent_id TEXT,
-          name TEXT NOT NULL,
-          color TEXT,
-          sort INTEGER,
-          cover_item_id TEXT
-        );
-        CREATE TABLE coffre__attributes (
-          ${SYNC_COLUMNS},
-          item_id TEXT NOT NULL,
-          key TEXT NOT NULL,
-          value TEXT NOT NULL,
-          origin TEXT NOT NULL,
-          reason TEXT
-        );
-        CREATE INDEX coffre__attributes_item ON coffre__attributes (item_id);
-        CREATE TABLE coffre__also (
-          ${SYNC_COLUMNS},
-          item_id TEXT NOT NULL,
-          context_id TEXT NOT NULL
-        );
-        ${changesTableSql('coffre__changes')}
-      `,
-    },
-    {
-      version: 2,
-      description:
-        'v0.46.0 : le disque (disques, copies, anciennes versions), archivés, état des fichiers du PC',
-      up: `
-        ALTER TABLE coffre__items ADD COLUMN archived_at TEXT;
-        ALTER TABLE coffre__items ADD COLUMN stat_json TEXT;
-        ALTER TABLE coffre__items ADD COLUMN opened_at TEXT;
-        CREATE TABLE coffre__disks (
-          ${SYNC_COLUMNS},
-          name TEXT NOT NULL,
-          rel_root TEXT NOT NULL,
-          last_root TEXT,
-          last_update_at TEXT,
-          last_update_json TEXT,
-          last_verify_json TEXT
-        );
-        CREATE TABLE coffre__copies (
-          ${SYNC_COLUMNS},
-          item_id TEXT NOT NULL,
-          disk_id TEXT NOT NULL,
-          rel_path TEXT NOT NULL,
-          sha256 TEXT,
-          size INTEGER NOT NULL DEFAULT 0,
-          copied_at TEXT,
-          trashed_at TEXT,
-          damaged_at TEXT
-        );
-        CREATE INDEX coffre__copies_item ON coffre__copies (item_id);
-        CREATE TABLE coffre__versions (
-          ${SYNC_COLUMNS},
-          item_id TEXT NOT NULL,
-          disk_id TEXT NOT NULL,
-          rel_path TEXT NOT NULL,
-          name TEXT NOT NULL,
-          sha256 TEXT,
-          size INTEGER NOT NULL DEFAULT 0,
-          saved_at TEXT NOT NULL
-        );
-        CREATE INDEX coffre__versions_item ON coffre__versions (item_id);
-      `,
-    },
-    {
-      version: 3,
-      description:
-        'v0.47.0 : texte des éléments pour la recherche dans le contenu (index FTS5, gardé sur le PC)',
-      up: TEXT_MIGRATION_SQL('coffre__text', 'coffre__text_state'),
-    },
-    {
-      version: 4,
-      description:
-        'v0.47.0 : fichiers de Téléchargements suivis (surveillance désactivée par défaut ; état de ce PC)',
-      up: DOWNLOADS_MIGRATION_SQL('coffre__downloads'),
-    },
-    {
-      version: 5,
-      description:
-        'v0.47.0 : ce que le Coffre apprend des choix de Thomas (règles, prêt pour la synchro)',
-      up: RULES_MIGRATION_SQL('coffre__rules'),
-    },
-    {
-      version: 6,
-      description: 'v0.47.0 : « Lié au cours … » d’un contexte (« Maintenant »)',
-      up: `ALTER TABLE coffre__contexts ADD COLUMN course_name TEXT;`,
-    },
-    {
-      version: 7,
-      description:
-        'v0.48.0 : nom d’origine d’un élément, marque « à compléter », imports d’arborescence (état de ce PC, reprise)',
-      up: `
-        ALTER TABLE coffre__items ADD COLUMN original_name TEXT;
-        ALTER TABLE coffre__items ADD COLUMN to_complete INTEGER NOT NULL DEFAULT 0;
-        ${IMPORTS_MIGRATION_SQL('coffre__imports')}
-      `,
-    },
-  ],
+  migrations: MIGRATIONS,
 
   register(ctx) {
     const store = new SyncStore(ctx.db);
     const items = ctx.db.table('items');
-    const contexts = ctx.db.table('contexts');
-    const attributes = ctx.db.table('attributes');
-    const also = ctx.db.table('also');
-    // v0.46.0: an archived element keeps its name in its folder (it is on the disk at that path).
+    const folders = ctx.db.table('folders');
+    const labels = ctx.db.table('labels');
+    const labelSets = ctx.db.table('label_sets');
+    // An archived file keeps its name in its folder (it is on the disk at that path).
     const library = new Library(ctx.files.libraryDir, (dirRel) => {
       const rows = ctx.db
         .prepare(
@@ -212,7 +158,7 @@ export default defineBackendModule({
           .map((r) => path.posix.basename(r.rel_path).toLowerCase()),
       );
     });
-    // v0.46.0: the disk (ADR 0055).
+    // The disk (ADR 0055).
     const deps: CoffreDeps = {
       ctx,
       store,
@@ -221,9 +167,9 @@ export default defineBackendModule({
       remember: (run) => remember(run),
       t: {
         items,
-        contexts,
-        attributes,
-        also,
+        folders,
+        labels,
+        labelSets,
         disks: ctx.db.table('disks'),
         copies: ctx.db.table('copies'),
         versions: ctx.db.table('versions'),
@@ -240,13 +186,13 @@ export default defineBackendModule({
       return id;
     };
 
-    // --- Reading ------------------------------------------------------------------
+    // --- Folders ------------------------------------------------------------------------
 
-    const contextRows = () =>
+    const folderRows = () =>
       ctx.db
-        .prepare(`SELECT * FROM ${contexts} WHERE deleted_at IS NULL ORDER BY sort, name`)
-        .all() as ContextRow[];
-    const pathOf = (byId: Map<string, ContextRow>, id: string | null): string[] => {
+        .prepare(`SELECT * FROM ${folders} WHERE deleted_at IS NULL ORDER BY sort, name`)
+        .all() as FolderRow[];
+    const pathOf = (byId: Map<string, FolderRow>, id: string | null): string[] => {
       const out: string[] = [];
       const seen = new Set<string>();
       for (
@@ -259,56 +205,140 @@ export default defineBackendModule({
       }
       return out;
     };
-    /** The folder of a context (« Cours/Thermo »), or Arrivée. */
-    const folderOf = (contextId: string | null): string => {
-      if (!contextId) return ARRIVAL_FOLDER;
-      const byId = new Map(contextRows().map((c) => [c.id, c]));
-      if (!byId.has(contextId)) throw new HttpError(404, 'Contexte introuvable');
-      return pathOf(byId, contextId).map(folderName).join('/');
+    /** A folder's place in the Coffre (« Cours/Thermo »), or À ranger. */
+    const folderOf = (folderId: string | null): string => {
+      if (!folderId) return PENDING_FOLDER;
+      const byId = new Map(folderRows().map((c) => [c.id, c]));
+      if (!byId.has(folderId)) throw new HttpError(404, 'Dossier introuvable');
+      return pathOf(byId, folderId).map(folderName).join('/');
+    };
+    const getFolder = (id: string) => {
+      const row = folderRows().find((c) => c.id === id);
+      if (!row) throw new HttpError(404, 'Dossier introuvable');
+      return row;
+    };
+    /** The folder's own default labels. */
+    const defaultsOf = (row: FolderRow): LabelValue[] => {
+      try {
+        return cleanLabels(JSON.parse(row.default_labels_json || '[]'));
+      } catch {
+        return [];
+      }
+    };
+    /**
+     * The default labels a file put in this folder receives: the nearest
+     * folder (itself, then its parents) that has some — the closest wins.
+     */
+    const inheritedDefaults = (folderId: string | null): LabelDto[] => {
+      const byId = new Map(folderRows().map((c) => [c.id, c]));
+      for (let c = folderId ? byId.get(folderId) : undefined, n = 0; c && n < 200; n++) {
+        const own = defaultsOf(c);
+        const name = c.name;
+        if (own.length)
+          return own.map((l) => ({
+            ...l,
+            origin: 'default' as const,
+            reason: `par défaut du dossier « ${name} »`,
+          }));
+        c = c.parent_id ? byId.get(c.parent_id) : undefined;
+      }
+      return [];
+    };
+    /** The folder of this name under that parent (case and accents ignored), or a new one. */
+    const ensureFolder = (names: string[], parentId: string | null = null): string => {
+      let parent = parentId;
+      for (const raw of names) {
+        const name = raw.replace(/\s+/g, ' ').trim();
+        if (!name) throw new HttpError(400, 'Nom de dossier vide');
+        const found = folderRows().find(
+          (c) => c.parent_id === parent && fold(c.name) === fold(name),
+        );
+        const bad = found ? null : invalidName(name);
+        if (bad) throw new HttpError(400, bad);
+        if (found?.project)
+          throw new HttpError(
+            409,
+            `« ${found.name} » est un projet : rien n'y entre depuis le Coffre (indivisible)`,
+          );
+        parent = found
+          ? found.id
+          : store.create<FolderRow & { updated_at: string }>('folders', emptyFolder(parent, name))
+              .id;
+      }
+      if (!parent) throw new HttpError(400, 'Route vide');
+      return parent;
     };
 
-    const attributesOf = (ids: string[]) => {
-      const out = new Map<string, AttributeDto[]>();
-      if (!ids.length) return out;
-      const rows = ctx.db
-        .prepare(
-          `SELECT * FROM ${attributes} WHERE deleted_at IS NULL AND item_id IN (${ids.map(() => '?').join(',')}) ORDER BY key, value`,
-        )
-        .all(...ids) as AttributeRow[];
-      for (const r of rows)
-        out.set(r.item_id, [
-          ...(out.get(r.item_id) ?? []),
-          { key: r.key, value: r.value, origin: r.origin, reason: r.reason },
-        ]);
+    // --- Labels -----------------------------------------------------------------------
+
+    const labelsOf = (ids: string[]) => {
+      const out = new Map<string, LabelDto[]>();
+      for (let i = 0; i < ids.length; i += 500) {
+        const part = ids.slice(i, i + 500);
+        const rows = ctx.db
+          .prepare(
+            `SELECT * FROM ${labels} WHERE deleted_at IS NULL AND item_id IN (${part.map(() => '?').join(',')}) ORDER BY family, value`,
+          )
+          .all(...part) as LabelRow[];
+        for (const r of rows)
+          out.set(r.item_id, [
+            ...(out.get(r.item_id) ?? []),
+            { family: r.family, value: r.value, origin: r.origin, reason: r.reason },
+          ]);
+      }
       return out;
     };
-    const alsoOf = (ids: string[]) => {
-      const out = new Map<string, string[]>();
-      if (!ids.length) return out;
-      const rows = ctx.db
-        .prepare(
-          `SELECT item_id, context_id FROM ${also} WHERE deleted_at IS NULL AND item_id IN (${ids.map(() => '?').join(',')})`,
-        )
-        .all(...ids) as { item_id: string; context_id: string }[];
-      for (const r of rows) out.set(r.item_id, [...(out.get(r.item_id) ?? []), r.context_id]);
-      return out;
+    const writeLabels = (itemId: string, list: readonly LabelDto[]) => {
+      const seen: LabelValue[] = [];
+      for (const l of list) {
+        if (!LABEL_FAMILIES.includes(l.family) || typeof l.value !== 'string') continue;
+        const value = l.value.trim().slice(0, MAX_LABEL);
+        if (!value || seen.some((s) => s.family === l.family && fold(s.value) === fold(value)))
+          continue;
+        seen.push({ family: l.family, value });
+        const origin = l.origin === 'chosen' || l.origin === 'default' ? l.origin : 'guessed';
+        store.create('labels', {
+          item_id: itemId,
+          family: l.family,
+          value,
+          origin,
+          reason: origin === 'chosen' ? null : (l.reason ?? null),
+        });
+      }
     };
-    /** The current copy of each element on the registered disk (v0.46.0). */
+    /** All the labels of a file replaced (one transaction); returns the ones before. */
+    const replaceLabels = (id: string, list: readonly LabelDto[]): LabelDto[] => {
+      const before = labelsOf([id]).get(id) ?? [];
+      ctx.db.transaction(() => {
+        const rows = ctx.db
+          .prepare(`SELECT id FROM ${labels} WHERE deleted_at IS NULL AND item_id = ?`)
+          .all(id) as { id: string }[];
+        for (const r of rows) store.remove('labels', r.id);
+        writeLabels(id, list);
+      });
+      return before;
+    };
+
+    // --- Reading ------------------------------------------------------------------------
+
+    /** The current copy of each entry on the registered disk. */
     const copiesOf = (ids: string[]): Map<string, CopyRow> => {
       const row = disk.disk();
       const out = new Map<string, CopyRow>();
-      if (!row || !ids.length) return out;
-      const list = ctx.db
-        .prepare(
-          `SELECT * FROM ${deps.t.copies} WHERE deleted_at IS NULL AND disk_id = ? AND item_id IN (${ids.map(() => '?').join(',')})`,
-        )
-        .all(row.id, ...ids) as CopyRow[];
-      for (const c of list) out.set(c.item_id, c);
+      if (!row) return out;
+      for (let i = 0; i < ids.length; i += 500) {
+        const part = ids.slice(i, i + 500);
+        const list = ctx.db
+          .prepare(
+            `SELECT * FROM ${deps.t.copies} WHERE deleted_at IS NULL AND disk_id = ? AND item_id IN (${part.map(() => '?').join(',')})`,
+          )
+          .all(row.id, ...part) as CopyRow[];
+        for (const c of list) out.set(c.item_id, c);
+      }
       return out;
     };
-    /** Its file: on the PC, or on the disk for an archived element (null: the disk is absent). */
+    /** Its file: on the PC, or on the disk for an archived one (null: the disk is absent). */
     const absOf = (row: ItemRow, copy?: CopyRow | null): string | null => {
-      if (row.kind === 'link') return row.external_path;
       if (row.archived_at) {
         const c = copy === undefined ? copiesOf([row.id]).get(row.id) : copy;
         return c && disk.state.root ? disk.abs(disk.state.root, c.rel_path) : null;
@@ -316,15 +346,14 @@ export default defineBackendModule({
       return row.rel_path ? library.abs(row.rel_path) : null;
     };
 
-    // v0.47.0: the text of the elements (search in the content, ADR 0056).
+    // The text of the files (search in the content, ADR 0056).
     const textIndex = new TextIndex({ ctx, items, fileOf: (row) => absOf(row) });
     disk.onChange = () => textIndex.kick(500);
 
     const dtos = (rows: ItemRow[]): ItemDto[] => {
-      const byId = new Map(contextRows().map((c) => [c.id, c]));
+      const byId = new Map(folderRows().map((c) => [c.id, c]));
       const ids = rows.map((r) => r.id);
-      const attrs = attributesOf(ids);
-      const others = alsoOf(ids);
+      const tags = labelsOf(ids);
       const copies = copiesOf(ids);
       return rows.map((r) => {
         const copy = copies.get(r.id) ?? null;
@@ -344,44 +373,92 @@ export default defineBackendModule({
           ext: r.ext,
           size: r.size,
           sha256: r.sha256,
-          contextId: r.context_id,
-          contextPath: r.context_id ? pathOf(byId, r.context_id) : null,
-          arrival: r.arrival === 1,
+          folderId: r.folder_id,
+          folderPath: r.folder_id ? pathOf(byId, r.folder_id) : null,
+          inProject: r.kind === 'project',
           pinned: r.pinned === 1,
           trashedAt: r.trashed_at,
-          externalPath: r.external_path,
           sourcePath: r.source_path,
+          sourceSha256: r.source_sha256,
           fileDate: r.file_date,
           createdAt: r.created_at,
           updatedAt: r.updated_at,
-          attributes: attrs.get(r.id) ?? [],
-          alsoIn: others.get(r.id) ?? [],
+          labels: tags.get(r.id) ?? [],
           url,
           path: file,
           diskState: stateOf(r, copy),
           unavailable: Boolean(r.archived_at && !file),
           originalName: r.original_name && r.original_name !== r.name ? r.original_name : null,
-          toComplete: r.to_complete === 1,
         };
       });
     };
     const getRow = (id: string) => {
       const row = store.get<ItemRow & { updated_at: string }>('items', id);
-      if (!row) throw new HttpError(404, 'Élément introuvable');
+      if (!row) throw new HttpError(404, 'Fichier introuvable');
       return row as ItemRow;
     };
     const one = (id: string) => dtos([getRow(id)])[0]!;
+    /** The entry of a Projet folder (its content), or null. */
+    const projectItemOf = (folderId: string): ItemRow | null =>
+      (ctx.db
+        .prepare(
+          `SELECT * FROM ${items} WHERE deleted_at IS NULL AND kind = 'project' AND folder_id = ?`,
+        )
+        .get(folderId) as ItemRow | undefined) ?? null;
 
-    const contextDtos = (): ContextDto[] => {
-      const rows = contextRows();
+    /** Files of a project (its excluded folders apart), counted once and kept. */
+    const projectCounts = new Map<string, { at: string; n: number }>();
+    const projectCount = (row: ItemRow): number => {
+      if (row.stat_json) {
+        try {
+          const cache = JSON.parse(row.stat_json) as { f?: Record<string, unknown> };
+          if (cache.f) return Object.keys(cache.f).length;
+        } catch {
+          // counted below
+        }
+      }
+      const known = projectCounts.get(row.id);
+      if (known && known.at === row.updated_at) return known.n;
+      let n = 0;
+      try {
+        if (row.rel_path && !row.archived_at) n = listFiles(library.abs(row.rel_path)).length;
+      } catch {
+        n = 0;
+      }
+      projectCounts.set(row.id, { at: row.updated_at, n });
+      return n;
+    };
+
+    const folderDtos = (): FolderDto[] => {
+      const rows = folderRows();
       const byId = new Map(rows.map((c) => [c.id, c]));
       const since = new Date(Date.now() - FRESH_DAYS * 86_400_000).toISOString();
-      const counts = ctx.db
+      const list = ctx.db
         .prepare(
-          `SELECT context_id, COUNT(*) AS n, SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END) AS fresh FROM ${items} WHERE deleted_at IS NULL AND trashed_at IS NULL AND context_id IS NOT NULL GROUP BY context_id`,
+          `SELECT * FROM ${items} WHERE deleted_at IS NULL AND trashed_at IS NULL AND folder_id IS NOT NULL`,
         )
-        .all(since) as { context_id: string; n: number; fresh: number }[];
-      const count = new Map(counts.map((c) => [c.context_id, c]));
+        .all() as ItemRow[];
+      const own = new Map<string, { n: number; fresh: number }>();
+      for (const r of list) {
+        const c = own.get(r.folder_id!) ?? { n: 0, fresh: 0 };
+        c.n += r.kind === 'project' ? projectCount(r) : 1;
+        if (r.created_at >= since) c.fresh++;
+        own.set(r.folder_id!, c);
+      }
+      const total = new Map<string, number>();
+      for (const [id, c] of own)
+        for (let f = byId.get(id), n = 0; f && n < 200; n++) {
+          total.set(f.id, (total.get(f.id) ?? 0) + c.n);
+          f = f.parent_id ? byId.get(f.parent_id) : undefined;
+        }
+      /** Under a Fin de route or a Projet (not its own badge). */
+      const inside = (c: FolderRow): boolean => {
+        for (let p = c.parent_id ? byId.get(c.parent_id) : undefined, n = 0; p && n < 200; n++) {
+          if (p.end_of_route || p.project) return true;
+          p = p.parent_id ? byId.get(p.parent_id) : undefined;
+        }
+        return false;
+      };
       return rows.map((c) => {
         const p = pathOf(byId, c.id);
         return {
@@ -389,181 +466,547 @@ export default defineBackendModule({
           parentId: c.parent_id,
           name: c.name,
           color: c.color,
-          css: contextCss(c.color, p[0] ?? c.name),
+          css: folderCss(c.color, p[0] ?? c.name),
           sort: c.sort,
           path: p,
-          count: count.get(c.id)?.n ?? 0,
-          fresh: count.get(c.id)?.fresh ?? 0,
-          coverItemId: c.cover_item_id,
+          count: own.get(c.id)?.n ?? 0,
+          total: total.get(c.id) ?? 0,
+          fresh: own.get(c.id)?.fresh ?? 0,
+          endOfRoute: c.end_of_route === 1 || c.project === 1,
+          project: c.project === 1,
+          inside: inside(c),
+          defaults: defaultsOf(c),
           courseName: c.course_name ?? null,
         };
       });
     };
-
-    // v0.47.0: what the Coffre learns from Thomas's choices (ADR 0061).
-    const contextPathOf = (contextId: string): string[] | null => {
-      const byId = new Map(contextRows().map((c) => [c.id, c]));
-      return byId.has(contextId) ? pathOf(byId, contextId) : null;
+    const folderDto = (id: string) => {
+      const dto = folderDtos().find((c) => c.id === id);
+      if (!dto) throw new HttpError(404, 'Dossier introuvable');
+      return dto;
     };
-    const learner = new Learner(ctx, store, contextPathOf);
+
+    // What the Coffre learns from Thomas's choices (ADR 0061).
+    const folderPathOf = (folderId: string): string[] | null => {
+      const byId = new Map(folderRows().map((c) => [c.id, c]));
+      return byId.has(folderId) ? pathOf(byId, folderId) : null;
+    };
+    const learner = new Learner(ctx, store, folderPathOf);
     learner.register();
-    /** What a placement of this element teaches (its site, its name, its nature). */
-    const learnFrom = (row: ItemRow, contextId: string | null, nature?: string | null) => {
-      if (row.kind === 'link') return;
+    /** What a placement of this file teaches (its site, its name, its nature). */
+    const learnFrom = (row: ItemRow, folderId: string | null, nature?: string | null) => {
+      if (row.kind !== 'file') return;
+      const own = labelsOf([row.id]).get(row.id) ?? [];
       const site =
-        attributesOf([row.id])
-          .get(row.id)
-          ?.find((a) => a.key === 'site')?.value ??
+        own.find((l) => l.family === 'site')?.value ??
         hostOf(row.referrer_url) ??
         hostOf(row.source_url);
       const kept =
-        nature !== undefined
-          ? nature
-          : (attributesOf([row.id])
-              .get(row.id)
-              ?.find((a) => a.key === 'nature')?.value ?? null);
+        nature !== undefined ? nature : (own.find((l) => l.family === 'nature')?.value ?? null);
       try {
-        learner.learn({
-          name: row.name,
-          site: site ?? null,
-          ext: row.ext,
-          contextId,
-          nature: kept,
-        });
+        learner.learn({ name: row.name, site: site ?? null, ext: row.ext, folderId, nature: kept });
       } catch (error) {
         ctx.logger.warn(`Apprentissage : ${String(error)}`);
       }
     };
 
-    // --- Contexts ----------------------------------------------------------------
-
-    /** The context of this name under that parent (case and accents ignored), or a new one. */
-    const ensureContext = (names: string[], parentId: string | null = null): string => {
-      let parent = parentId;
-      for (const raw of names) {
-        const name = raw.replace(/\s+/g, ' ').trim();
-        if (!name) throw new HttpError(400, 'Nom de contexte vide');
-        const found = contextRows().find(
-          (c) => c.parent_id === parent && fold(c.name) === fold(name),
-        );
-        // v0.48.0: a new folder carries exactly the context's name (valid on Windows).
-        const bad = found ? null : invalidName(name);
-        if (bad) throw new HttpError(400, bad);
-        parent = found
-          ? found.id
-          : store.create<ContextRow & { updated_at: string }>('contexts', {
-              parent_id: parent,
-              name,
-              color: null,
-              sort: null,
-              cover_item_id: null,
-            }).id;
-      }
-      if (!parent) throw new HttpError(400, 'Contexte vide');
-      return parent;
-    };
-
-    // v0.48.0: the tree of the contexts (move, merge, delete when empty, reorder; ADR 0064).
+    // The folders' tree (move, merge, delete when empty, reorder; ADR 0064, 0067).
     const tree = registerTreeRoutes({
       ctx,
       store,
       library,
-      t: { items, contexts, also, rules: ctx.db.table('rules') },
-      contextRows,
+      t: { items, folders, rules: ctx.db.table('rules') },
+      folderRows,
       folderOf,
       remember: (run) => remember(run),
       busy: () => disk.busy,
     });
-
-    /** v0.48.0: contexts created for a route, removed (deepest first) while they are empty. */
+    /** Folders created for a route, removed (deepest first) while they are empty. */
     const removeIfEmpty = async (ids: readonly string[]) => {
-      const byId = new Map(contextRows().map((c) => [c.id, c]));
+      const byId = new Map(folderRows().map((c) => [c.id, c]));
       const sorted = ids
         .filter((id) => byId.has(id))
         .sort((a, b) => pathOf(byId, b).length - pathOf(byId, a).length);
       for (const id of sorted) {
         const c = tree.contentOf(id);
-        if (!c.items && !c.links && !c.children) await tree.remove(id).catch(() => undefined);
+        if (!c.items && !c.children) await tree.remove(id).catch(() => undefined);
       }
     };
 
-    ctx.routes.get('/contexts', () => contextDtos());
-    ctx.routes.post('/contexts', (request) => {
+    ctx.routes.get('/folders', () => folderDtos());
+    ctx.routes.get('/folders/:id', (request) => folderDto(uuidParam(request.params)));
+    /** « Nouveau dossier »: a name or a route, under a folder or at the top; « Annuler » while empty. */
+    ctx.routes.post('/folders', (request) => {
       const b = requestBody(request);
       const parentId = typeof b.parentId === 'string' && b.parentId ? b.parentId : null;
-      if (parentId && !contextRows().some((c) => c.id === parentId))
-        throw new HttpError(404, 'Contexte parent introuvable');
-      const before = new Set(contextRows().map((c) => c.id));
-      const id = ensureContext([String(b.name ?? '')], parentId);
+      if (parentId) getFolder(parentId);
+      const before = new Set(folderRows().map((c) => c.id));
+      const route = Array.isArray(b.route) ? b.route.map(String) : [String(b.name ?? '')];
+      const id = ensureFolder(route, parentId);
       if (b.color !== undefined && b.color !== null) {
         if (!isColorValue(b.color)) throw new HttpError(400, 'Couleur invalide');
-        store.update('contexts', id, { color: String(b.color) });
+        store.update('folders', id, { color: String(b.color) });
       }
-      // v0.48.0: « Annuler » a creation (only while it is still empty).
-      const undoId = before.has(id)
-        ? undefined
-        : remember(async () => {
-            await tree.remove(id);
-          });
-      const dto = contextDtos().find((c) => c.id === id);
-      return dto && undoId ? { ...dto, undoId, created: true } : dto;
+      // Created on the PC at once (readable in the Explorer).
+      try {
+        library.ensureDir(folderOf(id));
+      } catch (error) {
+        ctx.logger.warn(`Dossier non créé sur le PC : ${String(error)}`);
+      }
+      const made = folderRows()
+        .filter((c) => !before.has(c.id))
+        .map((c) => c.id);
+      // « Annuler » only while they are empty (the deepest first; filled meanwhile: refused).
+      const undoId = made.length
+        ? remember(async () => {
+            for (const m of [...made].reverse()) await tree.remove(m);
+          })
+        : undefined;
+      return { ...folderDto(id), undoId, created: made.length > 0 };
     });
-    /** Rename (its folder follows, its elements' paths too: one transaction) or recolour a context. */
-    ctx.routes.patch('/contexts/:id', async (request) => {
+    /** Rename (on the PC too; « Annuler »), colour, « Lié au cours … », default labels. */
+    ctx.routes.patch('/folders/:id', async (request) => {
       const id = uuidParam(request.params);
-      const row = contextRows().find((c) => c.id === id);
-      if (!row) throw new HttpError(404, 'Contexte introuvable');
+      const row = getFolder(id);
       const b = requestBody(request);
+      const was = {
+        color: row.color,
+        course_name: row.course_name,
+        default_labels_json: row.default_labels_json,
+      };
       if ('color' in b) {
         if (b.color !== null && !isColorValue(b.color))
           throw new HttpError(400, 'Couleur invalide');
-        store.update('contexts', id, { color: (b.color as string | null) ?? null });
+        store.update('folders', id, { color: (b.color as string | null) ?? null });
       }
-      // v0.47.0: « Lié au cours … » (null: automatic; « - »: none).
       if ('courseName' in b) {
         const v = typeof b.courseName === 'string' ? b.courseName.trim().slice(0, 200) : '';
-        store.update('contexts', id, { course_name: v || null });
+        store.update('folders', id, { course_name: v || null });
       }
-      if ('coverItemId' in b) {
-        const cover = typeof b.coverItemId === 'string' && b.coverItemId ? b.coverItemId : null;
-        if (cover) getRow(cover);
-        store.update('contexts', id, { cover_item_id: cover });
-      }
-      // v0.48.0: renamed by the tree (its folder follows; « Annuler »; ADR 0064).
-      let undoId: string | undefined;
+      // Its default labels (never applied to the files already there without a click).
+      if ('defaults' in b)
+        store.update('folders', id, {
+          default_labels_json: JSON.stringify(cleanLabels(b.defaults)),
+        });
+      let renameUndo: string | undefined;
       if (typeof b.name === 'string' && b.name.trim() && b.name.trim() !== row.name)
-        undoId = await tree.rename(id, b.name);
-      const dto = contextDtos().find((c) => c.id === id);
-      return dto && undoId ? { ...dto, undoId } : dto;
+        renameUndo = await tree.rename(id, b.name);
+      const undoId = remember(async () => {
+        if (renameUndo) await undo.get(renameUndo)?.run();
+        store.update('folders', id, was);
+      });
+      return { ...folderDto(id), undoId };
     });
 
-    // --- Lists ----------------------------------------------------------------------
+    /** The sub-folders of a folder (all depths), deepest first. */
+    const descendants = (id: string) => {
+      const rows = folderRows();
+      const out: FolderRow[] = [];
+      const visit = (pid: string) => {
+        for (const c of rows.filter((r) => r.parent_id === pid)) {
+          visit(c.id);
+          out.push(c);
+        }
+      };
+      visit(id);
+      return out;
+    };
+    const filesIn = (ids: readonly string[]) =>
+      ids.length
+        ? (ctx.db
+            .prepare(
+              `SELECT * FROM ${items} WHERE deleted_at IS NULL AND folder_id IN (${ids.map(() => '?').join(',')})`,
+            )
+            .all(...ids) as ItemRow[])
+        : [];
+
+    /**
+     * « Appliquer aux fichiers déjà présents » — the folder's default labels
+     * added to the files already in it and its sub-folders (not those under a
+     * nearer folder with its own defaults). `preview`: what would change,
+     * nothing written. A chosen label of the same family is never replaced.
+     * « Annuler ».
+     */
+    ctx.routes.post('/folders/:id/defaults/apply', (request) => {
+      const id = uuidParam(request.params);
+      getFolder(id);
+      const b = requestBody(request);
+      const rows = folderRows();
+      const byId = new Map(rows.map((c) => [c.id, c]));
+      const targets = rows
+        .filter((c) => {
+          for (let f: FolderRow | undefined = c, n = 0; f && n < 200; n++) {
+            if (f.id === id) return true;
+            if (defaultsOf(f).length) return false;
+            f = f.parent_id ? byId.get(f.parent_id) : undefined;
+          }
+          return false;
+        })
+        .map((c) => c.id);
+      const list = filesIn(targets).filter((r) => r.kind === 'file' && !r.trashed_at);
+      const wanted = inheritedDefaults(id);
+      const current = labelsOf(list.map((r) => r.id));
+      const changes = list
+        .map((r) => {
+          const own = current.get(r.id) ?? [];
+          const chosen = new Set(own.filter((l) => l.origin === 'chosen').map((l) => l.family));
+          const add = wanted.filter(
+            (w) =>
+              !chosen.has(w.family) &&
+              !own.some((l) => l.family === w.family && fold(l.value) === fold(w.value)),
+          );
+          return { id: r.id, name: r.name, own, add };
+        })
+        .filter((c) => c.add.length);
+      if (b.preview === true)
+        return { files: changes.length, sample: changes.slice(0, 20).map((c) => c.name) };
+      const before = new Map<string, LabelDto[]>();
+      for (const c of changes) {
+        const families = new Set(c.add.map((a) => a.family));
+        before.set(
+          c.id,
+          replaceLabels(c.id, [
+            ...c.own.filter((l) => !(families.has(l.family) && l.origin === 'guessed')),
+            ...c.add,
+          ]),
+        );
+      }
+      const undoId = remember(async () => {
+        for (const [fid, old] of before) replaceLabels(fid, old);
+      });
+      return { files: changes.length, undoId };
+    });
+
+    // --- Badges: « Fin de route » and « Projet » (ADR 0067) ---------------------------
+
+    ctx.routes.post('/folders/:id/end', (request) => {
+      const id = uuidParam(request.params);
+      const row = getFolder(id);
+      const on = requestBody(request).on === true;
+      if (row.project && !on)
+        throw new HttpError(
+          409,
+          'Un projet est toujours une fin de route : enlève d’abord « Projet »',
+        );
+      store.update('folders', id, { end_of_route: on ? 1 : 0 });
+      const undoId = remember(
+        async () => void store.update('folders', id, { end_of_route: row.end_of_route }),
+      );
+      return { ...folderDto(id), undoId };
+    });
+
+    /**
+     * Poser « Projet »: the folder's content becomes ONE entry (the disk copies,
+     * archives and checks it whole); its rows (sub-folders, files) are folded
+     * into it. Nothing moves on the PC. A project inside a project: refused (only
+     * the highest counts). « Annuler » unfolds.
+     */
+    const foldProject = async (id: string): Promise<() => Promise<void>> => {
+      const row = getFolder(id);
+      const byId = new Map(folderRows().map((c) => [c.id, c]));
+      for (let p = row.parent_id ? byId.get(row.parent_id) : undefined, n = 0; p && n < 200; n++) {
+        if (p.project)
+          throw new HttpError(
+            409,
+            `« ${row.name} » est dans le projet « ${p.name} » : seul le plus haut compte`,
+          );
+        p = p.parent_id ? byId.get(p.parent_id) : undefined;
+      }
+      const subs = descendants(id);
+      const inner = filesIn([id, ...subs.map((s) => s.id)]);
+      if (inner.some((r) => r.archived_at))
+        throw new HttpError(409, 'Des fichiers de ce dossier sont archivés : réactive-les d’abord');
+      if (inner.some((r) => r.kind === 'project'))
+        throw new HttpError(
+          409,
+          'Ce dossier contient déjà un projet : enlève d’abord son badge (seul le plus haut compte)',
+        );
+      const rel = folderOf(id);
+      library.ensureDir(rel);
+      const abs = library.abs(rel);
+      const files = listFiles(abs);
+      const sha = await hashProject(abs, files);
+      const size = files.reduce((s, f) => s + statSync(path.join(abs, ...f.split('/'))).size, 0);
+      const journal: (() => void)[] = [];
+      ctx.db.transaction(() => {
+        for (const r of inner) {
+          store.remove('items', r.id);
+          journal.push(() => void store.restore('items', r.id));
+        }
+        for (const s of subs) {
+          store.remove('folders', s.id);
+          journal.push(() => void store.restore('folders', s.id));
+        }
+        const made = store.create<ItemRow & { updated_at: string }>(
+          'items',
+          emptyItem({
+            kind: 'project',
+            name: row.name,
+            rel_path: rel,
+            size,
+            sha256: sha,
+            folder_id: id,
+            file_date: new Date().toISOString(),
+          }),
+        );
+        journal.push(() => void store.remove('items', made.id));
+        store.update('folders', id, { project: 1, end_of_route: 1 });
+        journal.push(
+          () =>
+            void store.update('folders', id, {
+              project: row.project,
+              end_of_route: row.end_of_route,
+            }),
+        );
+      });
+      textIndex.kick();
+      return async () => {
+        ctx.db.transaction(() => {
+          for (const step of [...journal].reverse()) step();
+        });
+        textIndex.kick();
+      };
+    };
+
+    /**
+     * Enlever « Projet »: the entry is unfolded — the sub-folders (hidden ones
+     * apart) and the files become rows again, their labels deduced again.
+     * Nothing moves on the PC. « Annuler » folds it back.
+     */
+    const unfoldProject = async (id: string): Promise<() => Promise<void>> => {
+      const row = getFolder(id);
+      const entry = projectItemOf(id);
+      if (entry?.archived_at)
+        throw new HttpError(409, 'Ce projet est archivé : réactive-le d’abord');
+      if (entry?.trashed_at) throw new HttpError(409, 'Ce projet est dans la corbeille');
+      const rel = folderOf(id);
+      const abs = library.abs(rel);
+      const madeFolders: string[] = [];
+      const madeItems: string[] = [];
+      const visit = async (dirAbs: string, dirRel: string, folderId: string) => {
+        const list = readdirSync(dirAbs, { withFileTypes: true }).sort((a, b) =>
+          a.name.localeCompare(b.name, 'fr'),
+        );
+        for (const e of list) {
+          const full = path.join(dirAbs, e.name);
+          if (e.isDirectory()) {
+            if (isHiddenName(e.name, false)) continue;
+            const child = store.create<FolderRow & { updated_at: string }>(
+              'folders',
+              emptyFolder(folderId, e.name),
+            ).id;
+            madeFolders.push(child);
+            await visit(full, `${dirRel}/${e.name}`, child);
+          } else if (e.isFile() && !isIgnoredFile(e.name)) {
+            const st = statSync(full);
+            const made = store.create<ItemRow & { updated_at: string }>(
+              'items',
+              emptyItem({
+                kind: 'file',
+                name: e.name,
+                rel_path: `${dirRel}/${e.name}`,
+                size: st.size,
+                sha256: await hashFile(full),
+                ext: extOf(e.name),
+                folder_id: folderId,
+                file_date: st.mtime.toISOString(),
+              }),
+            );
+            madeItems.push(made.id);
+            writeLabels(made.id, proposeLabels(e.name, st.mtime.toISOString(), null, folderId));
+          }
+        }
+      };
+      if (existsSync(abs)) await visit(abs, rel, id);
+      if (entry) store.remove('items', entry.id);
+      store.update('folders', id, { project: 0, end_of_route: 0 });
+      textIndex.kick();
+      return async () => {
+        ctx.db.transaction(() => {
+          for (const i of madeItems) store.remove('items', i);
+          for (const f of madeFolders) store.remove('folders', f);
+          if (entry) store.restore('items', entry.id);
+          store.update('folders', id, { project: row.project, end_of_route: row.end_of_route });
+        });
+        textIndex.kick();
+      };
+    };
+
+    ctx.routes.post('/folders/:id/project', async (request) => {
+      const id = uuidParam(request.params);
+      const row = getFolder(id);
+      if (disk.busy)
+        throw new HttpError(409, `Le disque est occupé (${disk.busy}) : réessaie après`);
+      const on = requestBody(request).on === true;
+      if (on === (row.project === 1)) return folderDto(id);
+      const back = on ? await foldProject(id) : await unfoldProject(id);
+      const undoId = remember(back);
+      return { ...folderDto(id), undoId };
+    });
+
+    /** Why this folder looks like a code project (« .git », « contient du code »…), or null. */
+    ctx.routes.get('/folders/:id/hint', (request) => {
+      const id = uuidParam(request.params);
+      const row = getFolder(id);
+      if (row.project) return { project: null };
+      const abs = library.abs(folderOf(id));
+      if (!existsSync(abs)) return { project: null };
+      const entries = readdirSync(abs, { withFileTypes: true }).map((e) => ({
+        name: e.name,
+        dir: e.isDirectory(),
+      }));
+      const marker = projectMarker(entries);
+      return { project: marker ? projectReason(marker) : null };
+    });
+
+    /** A project's branch and last commit, read in .git (never a git command). */
+    const readGit = (abs: string): InsideDto['git'] => {
+      const dot = path.join(abs, '.git');
+      if (!existsSync(dot)) return null;
+      const read = (p: string) => {
+        try {
+          return readFileSync(path.join(dot, p), 'utf8');
+        } catch {
+          return null;
+        }
+      };
+      const head = read('HEAD')?.trim() ?? '';
+      const branch = head.startsWith('ref: ') ? head.slice(5).replace(/^refs\/heads\//, '') : null;
+      const lines = (read(path.join('logs', 'HEAD')) ?? '').trim().split('\n').filter(Boolean);
+      const last = lines.at(-1);
+      let commit: NonNullable<InsideDto['git']>['commit'] = null;
+      if (last) {
+        const m = /^[0-9a-f]+ ([0-9a-f]+) .*? (\d+) [+-]\d{4}\t(.*)$/.exec(last);
+        if (m)
+          commit = {
+            hash: m[1]!.slice(0, 10),
+            message: m[3]!.replace(/^[a-z ()-]+: /, ''),
+            date: new Date(Number(m[2]) * 1000).toISOString(),
+          };
+      }
+      if (!commit && /^[0-9a-f]{40}$/.test(head))
+        commit = { hash: head.slice(0, 10), message: '', date: null };
+      return { branch, commit };
+    };
+
+    /**
+     * The inside of a Fin de route or a Projet — its tree, read from its folder
+     * on the PC, to browse it in ToolBox; the README shown by default. Hidden
+     * folders only with `hidden=1`; an excluded folder is listed, never read
+     * inside. Read only.
+     */
+    ctx.routes.get('/folders/:id/inside', (request) => {
+      const id = uuidParam(request.params);
+      const row = getFolder(id);
+      const showHidden = ((request.query ?? {}) as { hidden?: string }).hidden === '1';
+      const rel = folderOf(id);
+      const abs = library.abs(rel);
+      const project = row.project === 1;
+      const entries: InsideEntryDto[] = [];
+      let truncated = false;
+      // A Fin de route: its files are rows (their ids open their sheet).
+      const known = new Map<string, string>();
+      if (!project)
+        for (const r of filesIn([id, ...descendants(id).map((s) => s.id)]))
+          if (r.rel_path && !r.trashed_at) known.set(r.rel_path.toLowerCase(), r.id);
+      const media = (file: string) => {
+        try {
+          return ctx.files.mediaUrl(file);
+        } catch {
+          return null;
+        }
+      };
+      const walk = (dirAbs: string, dirRel: string, hiddenAbove: boolean) => {
+        let list: import('node:fs').Dirent[];
+        try {
+          list = readdirSync(dirAbs, { withFileTypes: true });
+        } catch {
+          return;
+        }
+        list.sort(
+          (a, b) =>
+            Number(b.isDirectory()) - Number(a.isDirectory()) || a.name.localeCompare(b.name, 'fr'),
+        );
+        for (const e of list) {
+          if (entries.length >= MAX_INSIDE) {
+            truncated = true;
+            return;
+          }
+          if (isIgnoredFile(e.name)) continue;
+          const full = path.join(dirAbs, e.name);
+          const r = dirRel ? `${dirRel}/${e.name}` : e.name;
+          const dir = e.isDirectory();
+          const hidden = hiddenAbove || (dir && isHiddenName(e.name, project));
+          // Recreatable (not a dot folder: .git is hidden but saved).
+          const excluded = dir && isHiddenName(e.name, project) && !e.name.startsWith('.');
+          if (hidden && !showHidden) continue;
+          let size = 0;
+          if (!dir)
+            try {
+              size = statSync(full).size;
+            } catch {
+              size = 0;
+            }
+          entries.push({
+            rel: r,
+            name: e.name,
+            dir,
+            size,
+            hidden,
+            excluded,
+            itemId: known.get(`${rel}/${r}`.toLowerCase()) ?? null,
+            url: dir ? null : media(full),
+            path: full,
+          });
+          if (dir && !excluded) walk(full, r, hidden);
+        }
+      };
+      if (existsSync(abs)) walk(abs, '', false);
+      const readme =
+        entries.find(
+          (e) => !e.dir && !e.rel.includes('/') && /^readme(\.(md|markdown|txt))?$/i.test(e.name),
+        )?.rel ?? null;
+      const dto: InsideDto = {
+        folder: folderDto(id),
+        entries,
+        readme,
+        git: project ? readGit(abs) : null,
+        truncated,
+      };
+      return dto;
+    });
+
+    // --- Lists ------------------------------------------------------------------------
 
     const live = `deleted_at IS NULL`;
-    ctx.routes.get('/items', (request) => {
+    /**
+     * GET /files?folder=&deep=1&pending=1&trash=1&family=&value=&state=:
+     * a folder's files (deep: with its sub-folders), À ranger, the Recycle
+     * Bin, a view by label (« tout ce qui est Python »), a disk state.
+     */
+    ctx.routes.get('/files', (request) => {
       const q = (request.query ?? {}) as Record<string, string | undefined>;
       const where = [live];
       const args: string[] = [];
       if (q.trash === '1') where.push('trashed_at IS NOT NULL');
       else where.push('trashed_at IS NULL');
-      if (q.arrival === '1') where.push('arrival = 1');
-      if (q.context) {
-        where.push(
-          `(context_id = ? OR id IN (SELECT item_id FROM ${also} WHERE deleted_at IS NULL AND context_id = ?))`,
-        );
-        args.push(q.context, q.context);
+      if (q.pending === '1') where.push('folder_id IS NULL');
+      if (q.folder) {
+        const ids =
+          q.deep === '1' ? [q.folder, ...descendants(q.folder).map((d) => d.id)] : [q.folder];
+        where.push(`folder_id IN (${ids.map(() => '?').join(',')})`);
+        args.push(...ids);
       }
-      if (q.key && q.value) {
+      if (q.family && q.value) {
         where.push(
-          `id IN (SELECT item_id FROM ${attributes} WHERE deleted_at IS NULL AND key = ? AND value = ? COLLATE NOCASE)`,
+          `id IN (SELECT item_id FROM ${labels} WHERE deleted_at IS NULL AND family = ? AND value = ? COLLATE NOCASE)`,
         );
-        args.push(q.key, q.value);
+        args.push(q.family, q.value);
       }
       const rows = ctx.db
         .prepare(`SELECT * FROM ${items} WHERE ${where.join(' AND ')} ORDER BY updated_at DESC`)
         .all(...args) as ItemRow[];
       const list = dtos(rows);
-      // v0.46.0: « pas encore sur le disque », « archivé »…
       if (q.state === 'suggest') {
         const since = new Date(Date.now() - SUGGEST_DAYS * 86_400_000).toISOString();
         const old = new Set(
@@ -571,20 +1014,18 @@ export default defineBackendModule({
         );
         return list.filter((i) => i.diskState === 'active' && old.has(i.id));
       }
-      // v0.48.0: « À compléter » (imported, sheet not checked yet).
-      if (q.state === 'tocomplete') return list.filter((i) => i.toComplete);
       return q.state ? list.filter((i) => i.diskState === q.state) : list;
     });
-    ctx.routes.get('/items/:id', (request) => one(uuidParam(request.params)));
-    /** The values already used, per key (the sheet's suggestions). */
-    ctx.routes.get('/values', () => {
+    ctx.routes.get('/files/:id', (request) => one(uuidParam(request.params)));
+    /** The values already used, per family (the label field's suggestions). */
+    ctx.routes.get('/labels/values', () => {
       const rows = ctx.db
         .prepare(
-          `SELECT DISTINCT a.key, a.value FROM ${attributes} a JOIN ${items} i ON i.id = a.item_id WHERE a.deleted_at IS NULL AND i.deleted_at IS NULL ORDER BY a.value COLLATE NOCASE`,
+          `SELECT DISTINCT l.family, l.value FROM ${labels} l JOIN ${items} i ON i.id = l.item_id WHERE l.deleted_at IS NULL AND i.deleted_at IS NULL ORDER BY l.value COLLATE NOCASE`,
         )
-        .all() as { key: string; value: string }[];
+        .all() as { family: string; value: string }[];
       const out: Record<string, string[]> = {};
-      for (const r of rows) (out[r.key] ??= []).push(r.value);
+      for (const r of rows) (out[r.family] ??= []).push(r.value);
       return out;
     });
 
@@ -595,7 +1036,7 @@ export default defineBackendModule({
         )
         .all() as ItemRow[];
       const pinned = rows.filter((r) => r.pinned === 1);
-      const recent = rows.filter((r) => r.pinned !== 1 && r.arrival !== 1).slice(0, 12);
+      const recent = rows.filter((r) => r.pinned !== 1 && r.folder_id !== null).slice(0, 12);
       const pcDisk = await library.disk();
       const copies = copiesOf(rows.map((r) => r.id));
       const states = rows.map((r) => stateOf(r, copies.get(r.id) ?? null));
@@ -604,24 +1045,25 @@ export default defineBackendModule({
           .prepare(`SELECT COUNT(*) AS n FROM ${items} WHERE ${live} AND trashed_at IS NOT NULL`)
           .get() as { n: number }
       ).n;
+      const byId = new Map(folderRows().map((c) => [c.id, c]));
+      const pendingByFolder: Record<string, number> = {};
+      rows.forEach((r, i) => {
+        if (states[i] !== 'pending' || !r.folder_id) return;
+        for (let f = byId.get(r.folder_id), n = 0; f && n < 200; n++) {
+          pendingByFolder[f.id] = (pendingByFolder[f.id] ?? 0) + 1;
+          f = f.parent_id ? byId.get(f.parent_id) : undefined;
+        }
+      });
       return {
         pinned: dtos(pinned),
         recent: dtos(recent),
-        arrivalCount: rows.filter((r) => r.arrival === 1).length,
-        contexts: contextDtos(),
-        toCompleteCount: rows.filter((r) => r.to_complete === 1).length,
-        foundCount,
-        pendingByContext: rows.reduce<Record<string, number>>((acc, r, i) => {
-          if (states[i] === 'pending' && r.context_id)
-            acc[r.context_id] = (acc[r.context_id] ?? 0) + 1;
-          return acc;
-        }, {}),
+        pendingCount: rows.filter((r) => r.folder_id === null).length,
+        folders: folderDtos(),
+        pendingByFolder,
         health: {
           items: rows.length,
-          // On the PC (an archived element is on the disk only).
-          bytes: rows
-            .filter((r) => r.kind !== 'link' && !r.archived_at)
-            .reduce((s, r) => s + r.size, 0),
+          // On the PC (an archived one is on the disk only).
+          bytes: rows.filter((r) => !r.archived_at).reduce((s, r) => s + r.size, 0),
           diskFree: pcDisk.free,
           diskTotal: pcDisk.total,
           trashCount,
@@ -629,29 +1071,25 @@ export default defineBackendModule({
           archived: states.filter((st) => st === 'archived').length,
           index: textIndex.status(),
           missingOnPc: rows.filter(
-            (r) =>
-              r.kind !== 'link' &&
-              !r.archived_at &&
-              r.rel_path &&
-              !existsSync(library.abs(r.rel_path)),
+            (r) => !r.archived_at && r.rel_path && !existsSync(library.abs(r.rel_path)),
           ).length,
         },
       };
     });
 
-    // --- Depositing ------------------------------------------------------------------
+    // --- Depositing -------------------------------------------------------------------
 
-    const contextRefs = (): ContextRef[] => {
-      const rows = contextRows();
+    const folderRefs = (): FolderRef[] => {
+      const rows = folderRows();
       const byId = new Map(rows.map((c) => [c.id, c]));
-      return rows.map((c) => ({ id: c.id, path: pathOf(byId, c.id) }));
+      return rows.filter((c) => !c.project).map((c) => ({ id: c.id, path: pathOf(byId, c.id) }));
     };
     const sitesSeen = () =>
       ctx.db
         .prepare(
-          `SELECT a.value AS host, i.context_id AS contextId FROM ${attributes} a JOIN ${items} i ON i.id = a.item_id WHERE a.deleted_at IS NULL AND i.deleted_at IS NULL AND i.trashed_at IS NULL AND a.key = 'site' AND i.context_id IS NOT NULL`,
+          `SELECT l.value AS host, i.folder_id AS folderId FROM ${labels} l JOIN ${items} i ON i.id = l.item_id WHERE l.deleted_at IS NULL AND i.deleted_at IS NULL AND i.trashed_at IS NULL AND l.family = 'site' AND i.folder_id IS NOT NULL`,
         )
-        .all() as { host: string; contextId: string }[];
+        .all() as { host: string; folderId: string }[];
     const duplicateOf = (sha: string | null) => {
       if (!sha) return null;
       const row = ctx.db
@@ -659,7 +1097,7 @@ export default defineBackendModule({
         .get(sha) as ItemRow | undefined;
       if (!row) return null;
       const dto = dtos([row])[0]!;
-      return { id: dto.id, name: dto.name, contextPath: dto.contextPath };
+      return { id: dto.id, name: dto.name, folderPath: dto.folderPath };
     };
     const coursesSafe = () => {
       try {
@@ -670,8 +1108,8 @@ export default defineBackendModule({
       }
     };
     /**
-     * v0.47.0: « Maintenant » — the course of the Agenda in progress or starting within
-     * 15 minutes, its context and that context's elements (most recent first). Null
+     * « Maintenant » — the course of the Agenda in progress or starting within
+     * 15 minutes, its folder and that folder's files (most recent first). Null
      * without the Agenda, or with no course now. Read only.
      */
     ctx.routes.get('/now', (): NowDto | null => {
@@ -683,16 +1121,15 @@ export default defineBackendModule({
       }
       const course = list[0];
       if (!course) return null;
-      const all = contextDtos();
-      const context = contextOfCourse(all, course);
+      const folder = folderOfCourse(folderDtos(), course);
       let rows: ItemRow[] = [];
-      if (context)
+      if (folder)
         rows = ctx.db
           .prepare(
-            `SELECT * FROM ${items} WHERE deleted_at IS NULL AND trashed_at IS NULL AND (context_id = ? OR id IN (SELECT item_id FROM ${also} WHERE deleted_at IS NULL AND context_id = ?))
+            `SELECT * FROM ${items} WHERE deleted_at IS NULL AND trashed_at IS NULL AND folder_id = ?
              ORDER BY MAX(COALESCE(opened_at, ''), created_at, updated_at) DESC LIMIT 12`,
           )
-          .all(context.id, context.id) as ItemRow[];
+          .all(folder.id) as ItemRow[];
       return {
         course: {
           name: course.name,
@@ -702,101 +1139,91 @@ export default defineBackendModule({
           location: course.location,
           inProgress: course.inProgress,
         },
-        context,
+        folder,
         items: dtos(rows),
       };
     });
-    /** The Agenda's courses (a course context's header), empty without the Agenda. */
+    /** The Agenda's courses (a course folder's header), empty without the Agenda. */
     ctx.routes.get('/courses', (): CourseHint[] => coursesSafe());
 
-    /** One dropped path: what it is and what the Coffre proposes. Nothing is written. */
-    const propose = async (
-      source: string,
-      refs: ContextRef[],
-      courses: ReturnType<typeof coursesSafe>,
-      sites: ReturnType<typeof sitesSeen>,
-      walked?: Walked,
-    ): Promise<ProposalDto> => {
-      const st = statSync(source);
-      const name = path.basename(source);
-      let sha256: string | null = null;
-      let size = st.size;
-      let fileCount = 1;
-      let folderLanguage: string | null = null;
-      let setAside: ProposalDto['setAside'] = [];
-      if (st.isDirectory()) {
-        // v0.49.0: read without blocking, recreatable folders set aside before counting.
-        const w = walked ?? (await walkFolder(source, { inProject: true }));
-        fileCount = w.files.length;
-        size = w.bytes;
-        setAside = w.setAside;
-        if (fileCount <= MAX_PROJECT_FILES) {
-          const h = await hashFiles(source, w.files);
-          sha256 = h.sha256;
-          folderLanguage = h.language;
-        }
-      } else sha256 = await hashFile(source);
+    /**
+     * The labels proposed for a file (nothing written): its folder's default
+     * labels first (the nearest), then the deductions and what was learned for
+     * the families the defaults leave free.
+     */
+    const proposeLabels = (
+      name: string,
+      fileDate: string | null,
+      provenance: ReturnType<typeof ctx.files.provenance>,
+      folderId: string | null,
+    ): LabelDto[] => {
       const deduced = deduce({
         name,
-        isDirectory: st.isDirectory(),
-        fileDate: st.mtime.toISOString(),
-        provenance: st.isDirectory() ? null : ctx.files.provenance(source),
-        contexts: refs,
-        courses,
-        sites,
-        folderLanguage,
+        isDirectory: false,
+        fileDate,
+        provenance,
+        folders: folderRefs(),
+        courses: coursesSafe(),
+        sites: sitesSeen(),
       });
-      // v0.47.0: what was learned comes first (« deviné », its reason says « appris »).
-      const provenance = st.isDirectory() ? null : ctx.files.provenance(source);
-      const guessed = applyRules(
+      const learned = applyRules(
         deduced,
         learner.rules(),
         {
           name,
           site: hostOf(provenance?.referrerUrl) ?? hostOf(provenance?.hostUrl),
-          ext: st.isDirectory() ? '' : extOf(name),
+          ext: extOf(name),
         },
-        contextPathOf,
+        folderPathOf,
       );
-      return {
-        path: source,
-        name,
-        isDirectory: st.isDirectory(),
-        fileCount,
-        size,
-        sha256,
-        duplicate: duplicateOf(sha256),
-        setAside,
-        ...guessed,
-      };
+      return mergeGuesses(inheritedDefaults(folderId), learned.labels);
     };
 
-    const writeAttributes = (itemId: string, list: AttributeDto[]) => {
-      for (const a of list) {
-        if (!ATTRIBUTE_KEYS.includes(a.key) || typeof a.value !== 'string' || !a.value.trim())
-          continue;
-        store.create('attributes', {
-          item_id: itemId,
-          key: a.key,
-          value: a.value.trim().slice(0, 200),
-          origin: a.origin === 'chosen' ? 'chosen' : 'guessed',
-          reason: a.origin === 'chosen' ? null : (a.reason ?? null),
-        });
-      }
-    };
-
-    // v0.49.0: depositing = background tasks (analysis, rangement; backend/deposit.ts).
+    // Depositing = background tasks (analysis, rangement; backend/deposit.ts).
     const deposits = registerDeposit({
       ctx,
       store,
       library,
-      contextRows,
-      ensureContext: (names) => ensureContext(names),
+      folderRows,
+      ensureFolder: (names, parentId) => ensureFolder(names, parentId),
       folderOf,
-      propose: (abs, walked) => propose(abs, contextRefs(), coursesSafe(), sitesSeen(), walked),
+      propose: (abs, folderId) => {
+        const st = statSync(abs);
+        const name = path.basename(abs);
+        const provenance = st.isDirectory() ? null : ctx.files.provenance(abs);
+        const deduced = deduce({
+          name,
+          isDirectory: st.isDirectory(),
+          fileDate: st.mtime.toISOString(),
+          provenance,
+          folders: folderRefs(),
+          courses: coursesSafe(),
+          sites: sitesSeen(),
+        });
+        const learned = applyRules(
+          deduced,
+          learner.rules(),
+          {
+            name,
+            site: hostOf(provenance?.referrerUrl) ?? hostOf(provenance?.hostUrl),
+            ext: st.isDirectory() ? '' : extOf(name),
+          },
+          folderPathOf,
+        );
+        const target = folderId ?? (learned.route?.kind === 'existing' ? learned.route.id : null);
+        const result: Pick<ProposalDto, 'route' | 'labels'> = {
+          route: learned.route,
+          // A folder: what applies to all its files (each file gets its own deductions too).
+          labels: st.isDirectory()
+            ? learned.labels.filter((l) => l.family === 'course' || l.family === 'prof')
+            : mergeGuesses(inheritedDefaults(target), learned.labels),
+        };
+        return result;
+      },
+      proposeLabels,
       duplicateOf,
-      writeAttributes: (id, list) => writeAttributes(id, list),
-      learnFrom: (row, contextId) => learnFrom(row, contextId),
+      writeLabels: (id, list) => writeLabels(id, list),
+      learnFrom: (row, folderId) => learnFrom(row, folderId),
       remember: (run) => remember(run),
       removeIfEmpty: (ids) => removeIfEmpty(ids),
       dtos,
@@ -811,19 +1238,19 @@ export default defineBackendModule({
         ),
       after: (paths, created) => {
         if (created) textIndex.kick();
-        // v0.47.0: a new download put away is no longer proposed.
+        // A new download put away is no longer proposed.
         downloads.ranged(paths);
       },
     });
 
-    // v0.49.0: the disk's update waits for a deposit or an import running.
+    // The disk's update waits for a deposit running.
     disk.waitsFor = () => deposits.busy();
-    // v0.49.0: « Réinitialiser le Coffre » (backend/reset.ts).
+    // « Réinitialiser le Coffre » (backend/reset.ts).
     const reset = registerReset(deps, disk, {
       dtos,
       fileOf: (row) => absOf(row),
       clearDerived: () => {
-        for (const table of ['text', 'text_state', 'downloads', 'imports'])
+        for (const table of ['text', 'text_state', 'downloads'])
           ctx.db.prepare(`DELETE FROM ${ctx.db.table(table)}`).run();
       },
     });
@@ -832,49 +1259,82 @@ export default defineBackendModule({
         ? 'Le Coffre a été réinitialisé : renomme d’abord son ancien dossier sur ce disque (Gestion)'
         : null;
 
-    // --- v0.48.0: importing an arborescence (ADR 0065) ----------------------------------
-    const imports = registerImport({
-      ctx,
-      store,
-      library,
-      t: { items, imports: ctx.db.table('imports') },
-      contextRows,
-      pathOf,
-      folderOf,
-      ensureContext: (names) => ensureContext(names),
-      propose: (abs) => propose(abs, contextRefs(), coursesSafe(), sitesSeen()),
-      duplicateOf,
-      writeAttributes: (id, list) => writeAttributes(id, list),
-      remember: (run) => remember(run),
-      removeIfEmpty: (ids) => removeIfEmpty(ids),
-      dtos,
-      kick: () => {
-        textIndex.kick();
-        lookForFolders();
-      },
-      busy: () => disk.busy,
-    });
-    /** Folders put in the Coffre by hand: looked at the start and every few minutes (proposed only). */
-    let foundCount = 0;
-    const lookForFolders = () => {
-      // v0.49.0: read without blocking (a big folder found takes a while to count).
-      void imports.imp
-        .found()
-        .then((list) => {
-          foundCount = list.length;
-        })
-        .catch((error: unknown) =>
-          ctx.logger.warn(`Dossiers ajoutés à la main : ${String(error)}`),
-        );
-    };
+    // --- « Nouveau fichier… » ---------------------------------------------------------
 
-    // --- Changing an element -------------------------------------------------------------
-
-    /** Name, context (the file moves: one transaction, back on failure), pinned, Arrivée. */
     /**
-     * Moves and / or renames an element: its file follows (one block, back on a
-     * failure); archived, only its sheet (the disk follows at the next update).
-     * `target`: its new context (null: Arrivée), or undefined (unchanged).
+     * POST /files/create { folderId | null, name }: an EMPTY file with the name
+     * and extension typed (valid on Windows; refused when the name is taken:
+     * never over another), its labels proposed (the folder's defaults first).
+     * Returns how to open it (code → VS Code; else its application; a program or
+     * a script: never launched without a confirmation).
+     */
+    ctx.routes.post('/files/create', async (request) => {
+      const b = requestBody(request);
+      const folderId = typeof b.folderId === 'string' && b.folderId ? b.folderId : null;
+      const raw = String(b.name ?? '').trim();
+      if (!raw) throw new HttpError(400, 'Nom de fichier vide');
+      if (!splitExtension(raw).ext)
+        throw new HttpError(400, `« ${raw} » : tape aussi son extension (notes.md, main.py…)`);
+      const name = safeName(raw);
+      if (name !== raw)
+        throw new HttpError(400, `« ${raw} » : nom refusé par Windows (essaie « ${name} »)`);
+      if (folderId && getFolder(folderId).project)
+        throw new HttpError(409, 'Dans un projet, crée le fichier dans VS Code (indivisible)');
+      const dir = folderOf(folderId);
+      library.ensureDir(dir);
+      const target = path.join(library.abs(dir), name);
+      if (existsSync(target) || library.freeIn(library.abs(dir), name) !== name)
+        throw new HttpError(409, `« ${name} » existe déjà ici : choisis un autre nom`);
+      const handle = await openFile(target, 'wx');
+      await handle.close();
+      const st = statSync(target);
+      const row = store.create<ItemRow & { updated_at: string }>(
+        'items',
+        emptyItem({
+          kind: 'file',
+          name,
+          rel_path: `${dir}/${name}`,
+          sha256: await hashFile(target),
+          ext: extOf(name),
+          folder_id: folderId,
+          file_date: st.mtime.toISOString(),
+        }),
+      );
+      writeLabels(row.id, [
+        ...proposeLabels(name, st.mtime.toISOString(), null, folderId).filter(
+          (l) => l.family !== 'origin',
+        ),
+        {
+          family: 'origin',
+          value: 'fait par moi',
+          origin: 'guessed',
+          reason: 'créé dans le Coffre',
+        },
+      ]);
+      const undoId = remember(async () => {
+        const now = getRow(row.id);
+        // Still empty: it goes to the Recycle Bin of Windows; written in meanwhile: kept.
+        if (now.rel_path && library.exists(now.rel_path)) {
+          if (statSync(library.abs(now.rel_path)).size > 0)
+            throw new HttpError(409, `« ${now.name} » n’est plus vide : il reste`);
+          await ctx.files.trash(library.abs(now.rel_path));
+        }
+        store.remove('items', row.id);
+      });
+      return {
+        item: one(row.id),
+        undoId,
+        open: kindOf(name)?.language ? 'vscode' : isRunnable(target) ? 'confirm' : 'app',
+      };
+    });
+
+    // --- Changing a file ----------------------------------------------------------------
+
+    /**
+     * Moves and / or renames a file: its file follows (one block, back on a
+     * failure); archived, only its row (the disk follows at the next update).
+     * `target`: its new folder (null: À ranger), or undefined (unchanged).
+     * A project's content moves only with its folder (indivisible).
      * Returns what puts it back (« Annuler »).
      */
     const relocate = async (
@@ -883,39 +1343,43 @@ export default defineBackendModule({
       wantedName: string | null,
     ): Promise<() => Promise<void>> => {
       const row = getRow(id);
+      if (row.kind === 'project')
+        throw new HttpError(
+          409,
+          'Un projet se déplace et se renomme avec son dossier (indivisible)',
+        );
       const fields: Record<string, string | number | null> = {};
-      const contextChange = target !== undefined;
-      const contextId = contextChange ? target : row.context_id;
-      if (contextChange) {
-        if (contextId) folderOf(contextId); // 404 when it does not exist
-        fields.context_id = contextId;
-        fields.arrival = contextId ? 0 : 1;
+      const folderChange = target !== undefined;
+      const folderId = folderChange ? target : row.folder_id;
+      if (folderChange) {
+        if (folderId && getFolder(folderId).project)
+          throw new HttpError(
+            409,
+            `« ${getFolder(folderId).name} » est un projet : rien n'y entre depuis le Coffre`,
+          );
+        fields.folder_id = folderId;
       }
       const newName = wantedName?.trim() ? safeName(wantedName) : null;
       const renamed = newName !== null && newName !== row.name;
       const before = { rel: row.rel_path, undo: { ...row } };
       let moved: string | null = null;
-      if (row.archived_at && row.rel_path && (contextChange || renamed)) {
-        const dir = contextId ? folderOf(contextId) : ARRIVAL_FOLDER;
+      if (row.archived_at && row.rel_path && (folderChange || renamed)) {
+        const dir = folderOf(folderId);
         const free = library.freeIn(library.abs(dir), newName ?? row.name);
         fields.rel_path = `${dir}/${free}`;
         fields.name = free;
-      } else if (row.rel_path && (contextChange || renamed)) {
-        moved = await library.move(
-          row.rel_path,
-          contextId ? folderOf(contextId) : ARRIVAL_FOLDER,
-          newName ?? row.name,
-        );
+      } else if (row.rel_path && (folderChange || renamed)) {
+        moved = await library.move(row.rel_path, folderOf(folderId), newName ?? row.name);
         fields.rel_path = moved;
         fields.name = path.posix.basename(moved);
       } else if (newName) fields.name = newName;
-      // v0.48.0: renamed, the first name is kept (searchable).
+      // Renamed: the first name is kept (searchable).
       if (fields.name !== undefined && fields.name !== row.name && !row.original_name)
         fields.original_name = row.name;
       try {
         if (Object.keys(fields).length) store.update('items', id, fields);
-        // v0.47.0: moved by Thomas into another context: the rules learn the correction.
-        if (contextChange && contextId !== row.context_id) learnFrom(getRow(id), contextId);
+        // Moved by Thomas into another folder: the rules learn the correction.
+        if (folderChange && folderId !== row.folder_id) learnFrom(getRow(id), folderId);
       } catch (error) {
         if (moved && before.rel) {
           const back = path.posix.dirname(before.rel);
@@ -926,8 +1390,7 @@ export default defineBackendModule({
       return async () => {
         const now = getRow(id);
         const restore: Record<string, string | number | null> = {
-          context_id: before.undo.context_id,
-          arrival: before.undo.arrival,
+          folder_id: before.undo.folder_id,
           name: before.undo.name,
           original_name: before.undo.original_name,
         };
@@ -945,69 +1408,46 @@ export default defineBackendModule({
       };
     };
 
-    /** A context given as `contextId`, `newContext` (created now) or `arrival`; undefined: unchanged. */
+    /** A folder given as `folderId`, `newFolder` (a route created now) or `later` (À ranger). */
     const targetOf = (b: Record<string, unknown>): string | null | undefined => {
-      if (b.arrival === true) return null;
-      if (Array.isArray(b.newContext) && b.newContext.length)
-        return ensureContext(b.newContext.map(String));
-      if ('contextId' in b)
-        return typeof b.contextId === 'string' && b.contextId ? b.contextId : null;
+      if (b.later === true) return null;
+      if (Array.isArray(b.newFolder) && b.newFolder.length)
+        return ensureFolder(b.newFolder.map(String));
+      if ('folderId' in b) return typeof b.folderId === 'string' && b.folderId ? b.folderId : null;
       return undefined;
     };
 
-    /** Name, context (the file moves: one transaction, back on failure), pinned, Arrivée. */
-    ctx.routes.patch('/items/:id', async (request) => {
+    /** Name, folder (the file moves: one transaction, back on failure), pinned. */
+    ctx.routes.patch('/files/:id', async (request) => {
       const id = uuidParam(request.params);
       const row = getRow(id);
       if (row.trashed_at) throw new HttpError(409, 'Dans la corbeille : le récupérer d’abord');
       const b = requestBody(request);
-      const put = await relocate(
-        id,
-        targetOf(b),
-        typeof b.name === 'string' && b.name.trim() ? b.name : null,
-      );
+      const target = targetOf(b);
+      const name = typeof b.name === 'string' && b.name.trim() ? b.name : null;
+      const put =
+        target !== undefined || name ? await relocate(id, target, name) : async () => undefined;
       const pinned = row.pinned;
       if (typeof b.pinned === 'boolean') store.update('items', id, { pinned: b.pinned ? 1 : 0 });
-      // v0.48.0: « Fiche vérifiée »: no longer « à compléter ».
-      const toComplete = row.to_complete;
-      if (b.toComplete === false) store.update('items', id, { to_complete: 0 });
       const undoId = remember(async () => {
         await put();
-        store.update('items', id, { pinned, to_complete: toComplete });
+        store.update('items', id, { pinned });
       });
       return { item: one(id), undoId };
     });
 
-    /** The values of one key replaced (one transaction); returns the ones before. */
-    const replaceKey = (id: string, key: AttributeKey, list: AttributeDto[]): AttributeDto[] => {
-      const before =
-        attributesOf([id])
-          .get(id)
-          ?.filter((a) => a.key === key) ?? [];
-      ctx.db.transaction(() => {
-        const rows = ctx.db
-          .prepare(
-            `SELECT id FROM ${attributes} WHERE deleted_at IS NULL AND item_id = ? AND key = ?`,
-          )
-          .all(id, key) as { id: string }[];
-        for (const r of rows) store.remove('attributes', r.id);
-        writeAttributes(id, list);
-      });
-      return before;
-    };
-
     /**
-     * v0.48.0 (Expérimental): « Modifier la sélection » — one setting for several
-     * elements already stored: their context (a route created now), nature,
-     * origin, year (null removes), tags added / removed, their names (computed by
-     * the page from the template). Every value is « choisi ». All or nothing;
-     * ONE « Annuler » for the lot.
+     * « Modifier la sélection » / « Pour tous » — one setting for several files
+     * already stored: their folder (a route created now), one value for nature,
+     * origin or year (empty removes), free labels added / removed, labels added
+     * (a named set), their names (computed by the page from the template).
+     * Every value is « choisi ». All or nothing; ONE « Annuler » for the lot.
      */
-    ctx.routes.post('/items/batch', async (request) => {
+    ctx.routes.post('/files/batch', async (request) => {
       const b = requestBody(request);
       const ids = (Array.isArray(b.ids) ? b.ids : []).map(String);
-      if (!ids.length) throw new HttpError(400, 'Aucun élément choisi');
-      if (ids.length > 2000) throw new HttpError(400, 'Trop d’éléments à la fois');
+      if (!ids.length) throw new HttpError(400, 'Aucun fichier choisi');
+      if (ids.length > 2000) throw new HttpError(400, 'Trop de fichiers à la fois');
       for (const id of ids) {
         const row = getRow(id);
         if (row.trashed_at) throw new HttpError(409, `« ${row.name} » est dans la corbeille`);
@@ -1017,169 +1457,226 @@ export default defineBackendModule({
         unknown
       >;
       const set = (b.set && typeof b.set === 'object' ? b.set : {}) as Record<string, unknown>;
-      const tagsAdd = (Array.isArray(b.tagsAdd) ? b.tagsAdd : []).map((t) => String(t).trim());
-      const tagsRemove = (Array.isArray(b.tagsRemove) ? b.tagsRemove : []).map((t) =>
+      const freeAdd = (Array.isArray(b.freeAdd) ? b.freeAdd : []).map((t) => String(t).trim());
+      const freeRemove = (Array.isArray(b.freeRemove) ? b.freeRemove : []).map((t) =>
         String(t).trim().toLowerCase(),
       );
-      const contextsBefore = new Set(contextRows().map((c) => c.id));
+      const add = cleanLabels(b.add);
+      const foldersBefore = new Set(folderRows().map((c) => c.id));
       const journal: (() => Promise<void> | void)[] = [];
       try {
         const target = targetOf(b);
         for (const id of ids) {
           const name = typeof names[id] === 'string' ? (names[id] as string) : null;
           if (target !== undefined || name) journal.push(await relocate(id, target, name));
-          for (const key of ['nature', 'origin', 'year'] as const) {
-            if (!(key in set)) continue;
-            const v = set[key];
+          let list = labelsOf([id]).get(id) ?? [];
+          for (const family of ['nature', 'origin', 'year'] as const) {
+            if (!(family in set)) continue;
+            const v = set[family];
             const value = typeof v === 'string' ? v.trim() : '';
-            const old = replaceKey(
-              id,
-              key,
-              value ? [{ key, value, origin: 'chosen', reason: null }] : [],
+            list = [
+              ...list.filter((l) => l.family !== family),
+              ...(value ? [{ family, value, origin: 'chosen' as const, reason: null }] : []),
+            ];
+          }
+          if (freeAdd.length || freeRemove.length) {
+            const kept = list.filter(
+              (l) => l.family !== 'free' || !freeRemove.includes(l.value.toLowerCase()),
             );
-            journal.push(() => void replaceKey(id, key, old));
-          }
-          if (b.complete === true) {
-            const was = getRow(id).to_complete;
-            store.update('items', id, { to_complete: 0 });
-            journal.push(() => void store.update('items', id, { to_complete: was }));
-          }
-          if (tagsAdd.length || tagsRemove.length) {
-            const now = (attributesOf([id]).get(id) ?? []).filter((a) => a.key === 'tag');
-            const kept = now.filter((a) => !tagsRemove.includes(a.value.toLowerCase()));
-            const added = tagsAdd
+            const added = freeAdd
               .filter(Boolean)
-              .filter((t) => !kept.some((a) => a.value.toLowerCase() === t.toLowerCase()))
+              .filter(
+                (t) =>
+                  !kept.some(
+                    (l) => l.family === 'free' && l.value.toLowerCase() === t.toLowerCase(),
+                  ),
+              )
               .map((value) => ({
-                key: 'tag' as const,
+                family: 'free' as const,
                 value,
                 origin: 'chosen' as const,
                 reason: null,
               }));
-            const old = replaceKey(id, 'tag', [...kept, ...added]);
-            journal.push(() => void replaceKey(id, 'tag', old));
+            list = [...kept, ...added];
           }
+          for (const a of add)
+            if (!list.some((l) => l.family === a.family && fold(l.value) === fold(a.value)))
+              list.push({ ...a, origin: 'chosen', reason: null });
+          const old = replaceLabels(id, list);
+          journal.push(() => void replaceLabels(id, old));
         }
       } catch (error) {
         for (const step of [...journal].reverse()) await step();
         await removeIfEmpty(
-          contextRows()
-            .filter((c) => !contextsBefore.has(c.id))
+          folderRows()
+            .filter((c) => !foldersBefore.has(c.id))
             .map((c) => c.id),
         );
         throw error;
       }
-      const newContexts = contextRows()
-        .filter((c) => !contextsBefore.has(c.id))
+      const newFolders = folderRows()
+        .filter((c) => !foldersBefore.has(c.id))
         .map((c) => c.id);
       const undoId = remember(async () => {
         for (const step of [...journal].reverse()) await step();
-        await removeIfEmpty(newContexts);
+        await removeIfEmpty(newFolders);
       });
       return { items: dtos(ids.map((id) => getRow(id))), undoId };
     });
 
     /**
-     * PUT /items/:id/attributes { key, values }: Thomas's values for a key
-     * (« choisi »: never replaced by a deduction); no value removes the key.
+     * « Coller les étiquettes » (Ctrl+Maj+V) on one or more files: `add` keeps
+     * theirs and adds these (a pasted value replaces a guess of its family);
+     * `replace` puts exactly these. Pasted labels are « choisi ». ONE « Annuler ».
      */
-    ctx.routes.put('/items/:id/attributes', (request) => {
-      const id = uuidParam(request.params);
-      getRow(id);
+    ctx.routes.post('/files/labels/paste', (request) => {
       const b = requestBody(request);
-      const key = String(b.key) as AttributeKey;
-      if (!ATTRIBUTE_KEYS.includes(key)) throw new HttpError(400, 'Attribut inconnu');
-      const values = (Array.isArray(b.values) ? b.values : [])
-        .map((v) => String(v).trim())
-        .filter(Boolean);
-      if (key !== 'tag' && values.length > 1)
-        throw new HttpError(400, 'Une seule valeur pour cet attribut');
-      const before = replaceKey(
-        id,
-        key,
-        values.map((value) => ({ key, value, origin: 'chosen', reason: null })),
-      );
-      // v0.47.0: a nature chosen in a context: « .pdf in Thermo = synthèse » learns it.
-      if (key === 'nature' && values[0]) {
-        const row = getRow(id);
-        if (row.context_id)
-          try {
-            learner.learn({
-              name: '',
-              site: null,
-              ext: row.ext,
-              contextId: row.context_id,
-              nature: values[0],
-            });
-          } catch (error) {
-            ctx.logger.warn(`Apprentissage : ${String(error)}`);
-          }
+      const ids = (Array.isArray(b.ids) ? b.ids : []).map(String);
+      if (!ids.length) throw new HttpError(400, 'Aucun fichier choisi');
+      const pasted = cleanLabels(b.labels);
+      if (!pasted.length) throw new HttpError(400, 'Aucune étiquette à coller');
+      const mode = b.mode === 'replace' ? 'replace' : 'add';
+      for (const id of ids) getRow(id);
+      const chosen = pasted.map((l) => ({ ...l, origin: 'chosen' as const, reason: null }));
+      const families = new Set(chosen.map((c) => c.family));
+      const before = new Map<string, LabelDto[]>();
+      for (const id of ids) {
+        const own = labelsOf([id]).get(id) ?? [];
+        const next =
+          mode === 'replace'
+            ? chosen
+            : [
+                ...own.filter(
+                  (l) =>
+                    !chosen.some((c) => c.family === l.family && fold(c.value) === fold(l.value)) &&
+                    !(l.origin === 'guessed' && l.family !== 'free' && families.has(l.family)),
+                ),
+                ...chosen,
+              ];
+        before.set(id, replaceLabels(id, next));
       }
-      const undoId = remember(async () => void replaceKey(id, key, before));
+      const undoId = remember(async () => {
+        for (const [id, old] of before) replaceLabels(id, old);
+      });
+      return { items: dtos(ids.map((id) => getRow(id))), undoId };
+    });
+
+    /**
+     * PUT /files/:id/labels { family, values }: Thomas's values for a family
+     * (« choisi »: never replaced by a deduction); no value removes the family.
+     */
+    ctx.routes.put('/files/:id/labels', (request) => {
+      const id = uuidParam(request.params);
+      const row = getRow(id);
+      const b = requestBody(request);
+      const family = String(b.family) as LabelFamily;
+      if (!LABEL_FAMILIES.includes(family))
+        throw new HttpError(400, 'Famille d’étiquettes inconnue');
+      const values = (Array.isArray(b.values) ? b.values : [])
+        .map((v) => String(v).trim().slice(0, MAX_LABEL))
+        .filter(Boolean);
+      const own = labelsOf([id]).get(id) ?? [];
+      const before = replaceLabels(id, [
+        ...own.filter((l) => l.family !== family),
+        ...values.map((value) => ({ family, value, origin: 'chosen' as const, reason: null })),
+      ]);
+      // A nature chosen in a folder: « .pdf in Thermo = synthèse » learns it.
+      if (family === 'nature' && values[0] && row.folder_id)
+        try {
+          learner.learn({
+            name: '',
+            site: null,
+            ext: row.ext,
+            folderId: row.folder_id,
+            nature: values[0],
+          });
+        } catch (error) {
+          ctx.logger.warn(`Apprentissage : ${String(error)}`);
+        }
+      const undoId = remember(async () => void replaceLabels(id, before));
       return { item: one(id), undoId };
     });
 
-    /** Re-run the deductions on an element: Thomas's choices are kept (mergeGuesses). */
-    ctx.routes.post('/items/:id/guess', (request) => {
+    /** Re-run the deductions on a file: Thomas's choices and the defaults are kept. */
+    ctx.routes.post('/files/:id/guess', (request) => {
       const id = uuidParam(request.params);
       const row = getRow(id);
-      const current = attributesOf([id]).get(id) ?? [];
-      const guessed = deduce({
-        name: row.name,
-        isDirectory: row.kind === 'project',
-        fileDate: row.file_date,
-        provenance:
-          row.source_url || row.referrer_url
-            ? { zone: 3, hostUrl: row.source_url, referrerUrl: row.referrer_url }
-            : null,
-        contexts: contextRefs(),
-        courses: coursesSafe(),
-        sites: sitesSeen(),
-      });
-      const learnedGuess = applyRules(
-        guessed,
-        learner.rules(),
-        { name: row.name, site: hostOf(row.referrer_url) ?? hostOf(row.source_url), ext: row.ext },
-        contextPathOf,
-      );
-      const merged = mergeGuesses(current, learnedGuess.attributes);
-      ctx.db.transaction(() => {
-        const rows = ctx.db
-          .prepare(`SELECT id FROM ${attributes} WHERE deleted_at IS NULL AND item_id = ?`)
-          .all(id) as { id: string }[];
-        for (const r of rows) store.remove('attributes', r.id);
-        writeAttributes(id, merged);
-      });
+      const current = labelsOf([id]).get(id) ?? [];
+      const guessed = proposeLabels(
+        row.name,
+        row.file_date,
+        row.source_url || row.referrer_url
+          ? { zone: 3, hostUrl: row.source_url, referrerUrl: row.referrer_url }
+          : null,
+        row.folder_id,
+      ).filter((l) => l.origin === 'guessed');
+      replaceLabels(id, mergeGuesses(current, guessed));
       return one(id);
     });
 
-    /** « Aussi utilisé » in another context (a link, never a copy). */
-    ctx.routes.post('/items/:id/also', (request) => {
-      const id = uuidParam(request.params);
-      getRow(id);
-      const contextId = String(requestBody(request).contextId ?? '');
-      folderOf(contextId);
-      const exists = ctx.db
-        .prepare(
-          `SELECT id FROM ${also} WHERE deleted_at IS NULL AND item_id = ? AND context_id = ?`,
-        )
-        .get(id, contextId);
-      if (!exists) store.create('also', { item_id: id, context_id: contextId });
-      return one(id);
+    // --- Named sets of labels ---------------------------------------------------------
+
+    const setDtos = (): LabelSetDto[] =>
+      (
+        ctx.db
+          .prepare(
+            `SELECT * FROM ${labelSets} WHERE deleted_at IS NULL ORDER BY name COLLATE NOCASE`,
+          )
+          .all() as LabelSetRow[]
+      ).map((r) => {
+        let list: LabelValue[];
+        try {
+          list = cleanLabels(JSON.parse(r.labels_json));
+        } catch {
+          list = [];
+        }
+        return { id: r.id, name: r.name, labels: list };
+      });
+    const setName = (v: unknown) => {
+      const name = String(v ?? '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 80);
+      if (!name) throw new HttpError(400, 'Nom de l’ensemble vide');
+      return name;
+    };
+    ctx.routes.get('/label-sets', () => setDtos());
+    ctx.routes.post('/label-sets', (request) => {
+      const b = requestBody(request);
+      const list = cleanLabels(b.labels);
+      if (!list.length) throw new HttpError(400, 'Un ensemble a au moins une étiquette');
+      const name = setName(b.name);
+      if (setDtos().some((s) => fold(s.name) === fold(name)))
+        throw new HttpError(409, `Un ensemble « ${name} » existe déjà`);
+      const row = store.create('label_sets', { name, labels_json: JSON.stringify(list) });
+      return setDtos().find((s) => s.id === row.id);
     });
-    ctx.routes.delete('/items/:id/also/:context', (request) => {
-      const { id, context } = request.params as { id: string; context: string };
-      const rows = ctx.db
-        .prepare(
-          `SELECT id FROM ${also} WHERE deleted_at IS NULL AND item_id = ? AND context_id = ?`,
-        )
-        .all(id, context) as { id: string }[];
-      for (const r of rows) store.remove('also', r.id);
-      return one(id);
+    ctx.routes.patch('/label-sets/:id', (request) => {
+      const id = uuidParam(request.params);
+      const b = requestBody(request);
+      if (!setDtos().some((s) => s.id === id)) throw new HttpError(404, 'Ensemble introuvable');
+      const fields: Record<string, string> = {};
+      if ('name' in b) {
+        const name = setName(b.name);
+        if (setDtos().some((s) => s.id !== id && fold(s.name) === fold(name)))
+          throw new HttpError(409, `Un ensemble « ${name} » existe déjà`);
+        fields.name = name;
+      }
+      if ('labels' in b) fields.labels_json = JSON.stringify(cleanLabels(b.labels));
+      store.update('label_sets', id, fields);
+      return setDtos().find((s) => s.id === id);
+    });
+    ctx.routes.delete('/label-sets/:id', (request) => {
+      const id = uuidParam(request.params);
+      if (!setDtos().some((s) => s.id === id)) throw new HttpError(404, 'Ensemble introuvable');
+      store.remove('label_sets', id);
+      const undoId = remember(async () => void store.restore('label_sets', id));
+      return { ok: true, undoId };
     });
 
     // --- The Coffre's Recycle Bin (règle 3) -------------------------------------------
 
+    /** A project goes with its folder (indivisible): the folder leaves the map. */
     const trash = async (row: ItemRow) => {
       let relPath = row.rel_path;
       if (row.rel_path && library.exists(row.rel_path))
@@ -1190,11 +1687,17 @@ export default defineBackendModule({
         rel_path: relPath,
         pinned: 0,
       });
+      if (row.kind === 'project' && row.folder_id) store.remove('folders', row.folder_id);
     };
     const restore = async (row: ItemRow) => {
-      // Back in its context (or in Arrivée when that context is gone).
-      const contextOk = row.context_id && contextRows().some((c) => c.id === row.context_id);
-      const dir = contextOk ? folderOf(row.context_id) : ARRIVAL_FOLDER;
+      if (row.kind === 'project' && row.folder_id) store.restore('folders', row.folder_id);
+      const folderOk = Boolean(row.folder_id && folderRows().some((c) => c.id === row.folder_id));
+      // A project: back as its folder (its parent's place); a file: in its folder, else À ranger.
+      let dir = folderOk ? folderOf(row.folder_id) : PENDING_FOLDER;
+      if (row.kind === 'project' && folderOk) {
+        const parent = path.posix.dirname(dir);
+        dir = parent === '.' ? '' : parent;
+      }
       let relPath = row.rel_path;
       if (row.rel_path && library.exists(row.rel_path))
         relPath = await library.move(row.rel_path, dir);
@@ -1202,10 +1705,10 @@ export default defineBackendModule({
         trashed_at: null,
         trash_from: null,
         rel_path: relPath,
-        ...(contextOk ? {} : { context_id: null, arrival: 1 }),
+        ...(folderOk ? {} : { folder_id: null }),
       });
     };
-    ctx.routes.delete('/items/:id', async (request) => {
+    ctx.routes.delete('/files/:id', async (request) => {
       const id = uuidParam(request.params);
       const row = getRow(id);
       if (row.trashed_at) throw new HttpError(409, 'Déjà dans la corbeille');
@@ -1213,7 +1716,16 @@ export default defineBackendModule({
       const undoId = remember(async () => restore(getRow(id)));
       return { ok: true, undoId };
     });
-    ctx.routes.post('/items/:id/restore', async (request) => {
+    /** A Projet folder to the Recycle Bin: whole (indivisible). */
+    ctx.routes.delete('/folders/:id/project', async (request) => {
+      const id = uuidParam(request.params);
+      const entry = projectItemOf(id);
+      if (!entry) throw new HttpError(409, 'Ce dossier n’est pas un projet');
+      await trash(entry);
+      const undoId = remember(async () => restore(getRow(entry.id)));
+      return { ok: true, undoId };
+    });
+    ctx.routes.post('/files/:id/restore', async (request) => {
       const id = uuidParam(request.params);
       const row = getRow(id);
       if (!row.trashed_at) return one(id);
@@ -1221,25 +1733,25 @@ export default defineBackendModule({
       return one(id);
     });
     /** Erase for good (only from the Recycle Bin, and only when the page confirmed). */
-    ctx.routes.post('/items/:id/erase', async (request) => {
+    ctx.routes.post('/files/:id/erase', async (request) => {
       const id = uuidParam(request.params);
       const row = getRow(id);
       if (!row.trashed_at) throw new HttpError(409, 'Seulement depuis la corbeille du Coffre');
       if (requestBody(request).confirm !== true)
         throw new HttpError(400, 'Effacement définitif : confirmation nécessaire');
-      // An archived element has no file on the PC: its path may be another element's now.
+      // An archived one has no file on the PC: its path may be another's now.
       if (row.rel_path && !row.archived_at) await library.erase(row.rel_path);
       const trashDir = `${TRASH_FOLDER}/${row.id}`;
       if (library.exists(trashDir)) await library.erase(trashDir);
-      // v0.46.0: a copy on the disk goes to the disk's Recycle Bin at the next update and can
-      // be recovered from there: its sheet (attributes) is kept with it.
+      // A copy on the disk goes to the disk's Recycle Bin at the next update and can be
+      // recovered from there: its labels are kept with it.
       const onDisk = copiesOf([id]).has(id);
       ctx.db.transaction(() => {
         if (!onDisk) {
           const rows = ctx.db
-            .prepare(`SELECT id FROM ${attributes} WHERE deleted_at IS NULL AND item_id = ?`)
+            .prepare(`SELECT id FROM ${labels} WHERE deleted_at IS NULL AND item_id = ?`)
             .all(id) as { id: string }[];
-          for (const r of rows) store.remove('attributes', r.id);
+          for (const r of rows) store.remove('labels', r.id);
         }
         store.remove('items', id);
       });
@@ -1257,7 +1769,7 @@ export default defineBackendModule({
 
     // --- Opening (règle 4) --------------------------------------------------------------
 
-    /** VS Code's program, when it is installed (Windows' usual places, else « code » in the PATH). */
+    /** VS Code's program, when it is installed (Windows' usual places). */
     const vscode = (): string | null => {
       const candidates = [
         process.env.LOCALAPPDATA &&
@@ -1269,6 +1781,12 @@ export default defineBackendModule({
       ].filter((p): p is string => Boolean(p));
       return candidates.find((p) => existsSync(p)) ?? null;
     };
+    const openInVsCode = (target: string) => {
+      const exe = vscode();
+      if (!exe) throw new HttpError(404, 'VS Code n’est pas installé');
+      spawn(exe, [target], { detached: true, stdio: 'ignore' }).unref();
+      return { ok: true };
+    };
     ctx.routes.get('/tools', () => ({
       vscode: vscode() !== null,
       animations: ctx.settings.get<boolean>('animations') !== false,
@@ -1276,12 +1794,11 @@ export default defineBackendModule({
     }));
 
     /**
-     * POST /items/:id/open { how: 'app' | 'folder' | 'vscode', runnable? }:
-     * its application (Windows'), its folder in the Explorer, or VS Code for a
-     * project. A program or a script only with `runnable: true` (the page asked,
-     * naming it).
+     * POST /files/:id/open { how: 'app' | 'folder' | 'vscode' | 'readcopy', runnable? }:
+     * its application (Windows'), its folder in the Explorer, or VS Code. A
+     * program or a script only with `runnable: true` (the page asked, naming it).
      */
-    ctx.routes.post('/items/:id/open', async (request) => {
+    ctx.routes.post('/files/:id/open', async (request) => {
       const row = getRow(uuidParam(request.params));
       const file = absOf(row);
       if (row.archived_at && !file)
@@ -1291,20 +1808,20 @@ export default defineBackendModule({
         );
       if (!file || !existsSync(file)) throw new HttpError(404, 'Fichier introuvable sur le disque');
       const b = requestBody(request);
-      // v0.46.0: when it was last opened (« pas ouverts depuis 6 mois »: a suggestion only).
+      // When it was last opened (« pas ouverts depuis 6 mois »: a suggestion only).
       store.update('items', row.id, { opened_at: new Date().toISOString() });
       if (b.how === 'folder') {
         ctx.files.reveal(file);
         return { ok: true };
       }
-      // An archived element is not modified: reactivate it, or open a read-only copy.
+      // An archived one is not modified: reactivate it, or open a read-only copy.
       if (row.archived_at && b.how !== 'readcopy')
         throw new HttpError(
           409,
           'Archivé : « Réactiver pour le modifier » ou « Ouvrir une copie en lecture »',
         );
       if (b.how === 'readcopy') {
-        if (!row.archived_at) throw new HttpError(400, 'Seulement pour un élément archivé');
+        if (!row.archived_at) throw new HttpError(400, 'Seulement pour un fichier archivé');
         if (isRunnable(file) && b.runnable !== true)
           throw new HttpError(
             409,
@@ -1314,12 +1831,7 @@ export default defineBackendModule({
         await ctx.files.open(copy, { runnable: b.runnable === true });
         return { ok: true, copy };
       }
-      if (b.how === 'vscode') {
-        const exe = vscode();
-        if (!exe) throw new HttpError(404, 'VS Code n’est pas installé');
-        spawn(exe, [file], { detached: true, stdio: 'ignore' }).unref();
-        return { ok: true };
-      }
+      if (b.how === 'vscode') return openInVsCode(file);
       if (isRunnable(file) && b.runnable !== true)
         throw new HttpError(
           409,
@@ -1328,12 +1840,39 @@ export default defineBackendModule({
       await ctx.files.open(file, { runnable: b.runnable === true });
       return { ok: true };
     });
-
     /**
-     * v0.47.0: « Lire en plein écran » — the element in a reading window of its own
-     * (ADR 0058): the same readers, without the ToolBox interface. Opens nothing else.
+     * A folder opened outside ToolBox, on request: VS Code (a project), the
+     * Explorer, or one file of its inside (`rel`, under the folder). Code goes
+     * to VS Code, never to its application (v0.47.1); a program: confirmed.
      */
-    ctx.routes.post('/items/:id/read-window', (request) => {
+    ctx.routes.post('/folders/:id/open', async (request) => {
+      const id = uuidParam(request.params);
+      getFolder(id);
+      const b = requestBody(request);
+      const abs = library.abs(folderOf(id));
+      let target = abs;
+      if (typeof b.rel === 'string' && b.rel) {
+        target = path.resolve(abs, ...b.rel.split('/'));
+        if (!target.startsWith(abs + path.sep)) throw new HttpError(400, 'Chemin refusé');
+      }
+      if (!existsSync(target)) throw new HttpError(404, 'Introuvable sur le PC');
+      if (b.how === 'vscode') return openInVsCode(target);
+      if (b.how === 'folder') {
+        ctx.files.reveal(target);
+        return { ok: true };
+      }
+      if (kindOf(path.basename(target))?.language) return openInVsCode(target);
+      if (isRunnable(target) && b.runnable !== true)
+        throw new HttpError(
+          409,
+          `« ${path.basename(target)} » lance un programme : confirmation nécessaire`,
+        );
+      await ctx.files.open(target, { runnable: b.runnable === true });
+      return { ok: true };
+    });
+
+    /** « Lire en plein écran » — a reading window of its own (ADR 0058). */
+    ctx.routes.post('/files/:id/read-window', (request) => {
       const row = getRow(uuidParam(request.params));
       if (row.trashed_at) throw new HttpError(409, 'Dans la corbeille : le récupérer d’abord');
       const opened = ctx.ui.openWindow(`/m/coffre/lire/${row.id}`, { title: row.name });
@@ -1342,13 +1881,13 @@ export default defineBackendModule({
     });
 
     /** The preview was opened (« pas ouverts depuis 6 mois » counts it as opened). */
-    ctx.routes.post('/items/:id/seen', (request) => {
+    ctx.routes.post('/files/:id/seen', (request) => {
       const row = getRow(uuidParam(request.params));
       store.update('items', row.id, { opened_at: new Date().toISOString() });
       return { ok: true };
     });
 
-    // v0.47.0: files sent by Windows (« Ranger dans ToolBox », « Envoyer vers », ADR 0059):
+    // Files sent by Windows (« Ranger dans ToolBox », « Envoyer vers », ADR 0059):
     // one batch = one rangement window. Nothing is written until Thomas clicks « Ranger ».
     const received = new Map<string, { at: number; paths: string[] }>();
     ctx.ui.receiveFiles((paths) => {
@@ -1363,11 +1902,11 @@ export default defineBackendModule({
       const batch = received.get(id);
       if (!batch) throw new HttpError(404, 'Ces fichiers ne sont plus en attente');
       const paths = batch.paths.filter((p) => existsSync(p));
-      const folders = paths.filter((p) => statSync(p).isDirectory()).length;
-      return { id, paths, folders, missing: batch.paths.length - paths.length };
+      const dirs = paths.filter((p) => statSync(p).isDirectory()).length;
+      return { id, paths, folders: dirs, missing: batch.paths.length - paths.length };
     });
 
-    // v0.47.0: « Proposer de ranger mes nouveaux téléchargements » (OFF by default, ADR 0060).
+    // « Proposer de ranger mes nouveaux téléchargements » (OFF by default, ADR 0060).
     const downloads = new DownloadWatcher(ctx, (sha) => duplicateOf(sha) !== null);
     ctx.settings.onChange((key) => {
       if (key === 'watchDownloads' || key === 'downloadsFolder') {
@@ -1398,16 +1937,20 @@ export default defineBackendModule({
     ctx.onShutdown(() => downloads.stop());
 
     registerDiskRoutes(deps, disk);
-    registerArchiveRoutes(deps, disk);
+    registerArchiveRoutes(deps, disk, (folderId) =>
+      filesIn([folderId, ...descendants(folderId).map((d) => d.id)])
+        .filter((r) => !r.trashed_at)
+        .map((r) => r.id),
+    );
     registerRestoreRoutes(deps, disk);
     registerVerifyRoutes(deps, disk);
     registerSearch({
       ctx,
       items,
-      attributes,
+      labels,
       textIndex,
       dtos,
-      contextRows,
+      folderRows,
       pathOf,
       scanPc: () => disk.scanPc(),
     });
@@ -1415,14 +1958,17 @@ export default defineBackendModule({
     // The Coffre's folders exist from the first opening (readable in the Explorer).
     try {
       library.ensure();
+      // The old « _Arrivée » folder, empty, goes (« À ranger » replaces it).
+      const old = library.abs(OLD_ARRIVAL_FOLDER);
+      if (existsSync(old) && readdirSync(old).length === 0) rmdirSync(old);
     } catch (error) {
       ctx.logger.warn(`Dossier du Coffre non créé : ${String(error)}`);
     }
     // The disk is looked for every few seconds, READ ONLY (only a click writes on it).
     disk.start();
-    // ToolBox's own temporary copies on the PC (an element or a version copied back from the
-    // disk and never finished; the previous files kept for « Annuler », which a restart ends:
-    // those versions are on the disk): removed at startup.
+    // ToolBox's own temporary copies on the PC (a file or a version copied back from the
+    // disk and never finished; the previous files kept for « Annuler », which a restart
+    // ends: those versions are on the disk): removed at startup.
     cleanReadCopies();
     for (const dir of ['tmp', 'annuler'])
       try {
@@ -1430,36 +1976,23 @@ export default defineBackendModule({
       } catch (error) {
         ctx.logger.warn(`Fichiers temporaires du Coffre : ${String(error)}`);
       }
-    // What changed in the PC's files while ToolBox was closed (only the PC's database is written).
-    // v0.47.0: then the texts not read yet (the existing elements once; what changed) — in the
-    // background, interruptible, resumed at the next start.
+    // What changed in the PC's files while ToolBox was closed (only the PC's database is
+    // written), then the texts not read yet — in the background, interruptible, resumed.
     textIndex.forgetErased();
-    // v0.48.0: an import that was running when ToolBox closed is resumed where it stopped.
-    const resumeImports = setTimeout(() => {
-      try {
-        imports.resume();
-      } catch (error) {
-        ctx.logger.warn(`Reprise des imports : ${String(error)}`);
-      }
-    }, 2000);
-    resumeImports.unref?.();
     const startupScan = setTimeout(() => {
       disk
         .scanPc()
         .catch((error) => ctx.logger.warn(`Fichiers du PC : ${String(error)}`))
         .finally(() => textIndex.kick());
-      lookForFolders();
-    }, 3000);
+    }, 1500);
     startupScan.unref?.();
-    // v0.47.0: a file changed in its folder while ToolBox is open (opened from the Explorer)
-    // is seen within the next minutes (sizes and dates compared; only what changed is read).
+    // A file changed in its folder while ToolBox is open (opened from the Explorer) is seen
+    // within the next minutes (sizes and dates compared; only what changed is read).
     const rescan = setInterval(() => {
       disk.scanPc().catch((error) => ctx.logger.warn(`Fichiers du PC : ${String(error)}`));
-      lookForFolders();
     }, RESCAN_MS);
     rescan.unref?.();
     ctx.onShutdown(async () => {
-      clearTimeout(resumeImports);
       clearTimeout(startupScan);
       clearInterval(rescan);
       disk.stop();

@@ -1,23 +1,23 @@
 // v0.47.0 (Expérimental): what the Coffre learns from Thomas's choices (ADR
 // 0061) — simple rules, each with how often it was confirmed and how often
 // it was corrected:
-//   site → context        (« moodle.ecam.be » → Cours › Réseaux)
-//   word → context        (a word or a course code of the name: « labo », « th2c »)
-//   ext in context → nature (« .pdf » in Cours › Thermo → « synthèse »)
+//   site → folder        (« moodle.ecam.be » → Cours › Réseaux)
+//   word → folder        (a word or a course code of the name: « labo », « th2c »)
+//   ext in folder → nature (« .pdf » in Cours › Thermo → « synthèse »)
 // A rule proposes only when it is sure enough (confirmed twice, right at
 // least 2 times out of 3); its reason is shown on hover. A value Thomas chose
 // is never replaced (the proposals stay « deviné »). Pure (tested).
 import { wordsOf } from './deduce';
-import type { AttributeDto, ProposalDto } from './types';
+import type { LabelDto, ProposalDto } from './types';
 
 export type RuleKind = 'site' | 'word' | 'ext';
 
 export interface LearnedRule {
   id: string;
   kind: RuleKind;
-  /** The host, the folded word, or « <context id>:<ext> ». */
+  /** The host, the folded word, or « <folder id>:<ext> ». */
   key: string;
-  /** A context's id (site, word), or a nature (ext). */
+  /** A folder's id (site, word), or a nature (ext). */
   value: string;
   hits: number;
   misses: number;
@@ -57,8 +57,8 @@ export interface Placement {
   /** The site it was downloaded from (Mark of the Web), if any. */
   site: string | null;
   ext: string;
-  /** Where it was put (null: Arrivée, nothing learned for the context). */
-  contextId: string | null;
+  /** Where it was put (null: À ranger, nothing learned for the folder). */
+  folderId: string | null;
   /** Its nature as kept (chosen, or the guess Thomas left), if any. */
   nature: string | null;
 }
@@ -66,11 +66,11 @@ export interface Placement {
 /** What a placement teaches: each rule's key, and the value Thomas gave. */
 export function lessonsOf(p: Placement): { kind: RuleKind; key: string; value: string }[] {
   const out: { kind: RuleKind; key: string; value: string }[] = [];
-  if (p.contextId) {
-    if (p.site) out.push({ kind: 'site', key: p.site, value: p.contextId });
-    for (const w of placeWords(p.name)) out.push({ kind: 'word', key: w, value: p.contextId });
+  if (p.folderId) {
+    if (p.site) out.push({ kind: 'site', key: p.site, value: p.folderId });
+    for (const w of placeWords(p.name)) out.push({ kind: 'word', key: w, value: p.folderId });
     if (p.nature && p.ext)
-      out.push({ kind: 'ext', key: `${p.contextId}:${p.ext}`, value: p.nature });
+      out.push({ kind: 'ext', key: `${p.folderId}:${p.ext}`, value: p.nature });
   }
   return out;
 }
@@ -78,21 +78,21 @@ export function lessonsOf(p: Placement): { kind: RuleKind; key: string; value: s
 const plural = (n: number, word: string) => `${n} ${word}${n > 1 ? 's' : ''}`;
 
 /**
- * The context the rules propose for a file (site first, then the name's
+ * The folder the rules propose for a file (site first, then the name's
  * words: the surest), with its reason; null when no rule is sure.
  */
-export function contextFromRules(
+export function folderFromRules(
   rules: readonly LearnedRule[],
   input: { name: string; site: string | null },
-  labelOf: (contextId: string) => string | null,
-): { contextId: string; reason: string } | null {
+  labelOf: (folderId: string) => string | null,
+): { folderId: string; reason: string } | null {
   if (input.site) {
     const r = rules
       .filter((x) => x.kind === 'site' && x.key === input.site && sure(x) && labelOf(x.value))
       .sort((a, b) => confidenceOf(b) - confidenceOf(a) || b.hits - a.hits)[0];
     if (r)
       return {
-        contextId: r.value,
+        folderId: r.value,
         reason: `${plural(r.hits, 'fichier')} de ce site rangé${r.hits > 1 ? 's' : ''} dans « ${labelOf(r.value)} » (appris)`,
       };
   }
@@ -102,68 +102,60 @@ export function contextFromRules(
     .sort((a, b) => confidenceOf(b) - confidenceOf(a) || b.hits - a.hits)[0];
   if (r)
     return {
-      contextId: r.value,
+      folderId: r.value,
       reason: `« ${r.key} » dans le nom : ${plural(r.hits, 'fichier')} rangé${r.hits > 1 ? 's' : ''} dans « ${labelOf(r.value)} » (appris)`,
     };
   return null;
 }
 
-/** The nature the rules propose for an extension in a context, with its reason. */
+/** The nature the rules propose for an extension in a folder, with its reason. */
 export function natureFromRules(
   rules: readonly LearnedRule[],
-  contextId: string | null,
+  folderId: string | null,
   ext: string,
-  labelOf: (contextId: string) => string | null,
+  labelOf: (folderId: string) => string | null,
 ): { nature: string; reason: string } | null {
-  if (!contextId || !ext) return null;
+  if (!folderId || !ext) return null;
   const r = rules
-    .filter((x) => x.kind === 'ext' && x.key === `${contextId}:${ext}` && sure(x))
+    .filter((x) => x.kind === 'ext' && x.key === `${folderId}:${ext}` && sure(x))
     .sort((a, b) => confidenceOf(b) - confidenceOf(a) || b.hits - a.hits)[0];
   if (!r) return null;
   return {
     nature: r.value,
-    reason: `${plural(r.hits, 'fichier')} .${ext} de « ${labelOf(contextId) ?? 'ce contexte'} » ${r.hits > 1 ? 'sont' : 'est'} « ${r.value} » (appris)`,
+    reason: `${plural(r.hits, 'fichier')} .${ext} de « ${labelOf(folderId) ?? 'ce dossier'} » ${r.hits > 1 ? 'sont' : 'est'} « ${r.value} » (appris)`,
   };
 }
 
 /**
- * The proposal with what was learned: a sure rule's context first (it comes
+ * The proposal with what was learned: a sure rule's folder first (it comes
  * from Thomas's own choices), then the nature of that extension in that
- * context. Only « deviné » values change; the reasons say « appris ».
+ * folder. Only « deviné » values change; the reasons say « appris ».
  */
 export function applyRules(
-  proposal: Pick<ProposalDto, 'context' | 'attributes'>,
+  proposal: Pick<ProposalDto, 'route' | 'labels'>,
   rules: readonly LearnedRule[],
   input: { name: string; site: string | null; ext: string },
-  pathOf: (contextId: string) => string[] | null,
-): Pick<ProposalDto, 'context' | 'attributes'> {
+  pathOf: (folderId: string) => string[] | null,
+): Pick<ProposalDto, 'route' | 'labels'> {
   const labelOf = (id: string) => pathOf(id)?.join(' › ') ?? null;
-  let context = proposal.context;
-  const learned = contextFromRules(rules, input, labelOf);
+  let route = proposal.route;
+  const learned = folderFromRules(rules, input, labelOf);
   if (learned) {
-    const path = pathOf(learned.contextId)!;
-    context = { kind: 'existing', id: learned.contextId, path, reason: learned.reason };
+    const path = pathOf(learned.folderId)!;
+    route = { kind: 'existing', id: learned.folderId, path, reason: learned.reason };
   }
-  let attributes: AttributeDto[] = proposal.attributes;
+  let labels: LabelDto[] = proposal.labels;
   const nature = natureFromRules(
     rules,
-    context?.kind === 'existing' ? context.id : null,
+    route?.kind === 'existing' ? route.id : null,
     input.ext,
     labelOf,
   );
-  if (nature)
-    attributes = [
-      ...attributes.filter((a) => a.key !== 'nature' || a.origin === 'chosen'),
-      ...(attributes.some((a) => a.key === 'nature' && a.origin === 'chosen')
-        ? []
-        : [
-            {
-              key: 'nature' as const,
-              value: nature.nature,
-              origin: 'guessed' as const,
-              reason: nature.reason,
-            },
-          ]),
+  const held = labels.some((l) => l.family === 'nature' && l.origin !== 'guessed');
+  if (nature && !held)
+    labels = [
+      ...labels.filter((l) => l.family !== 'nature'),
+      { family: 'nature', value: nature.nature, origin: 'guessed', reason: nature.reason },
     ];
-  return { context, attributes };
+  return { route, labels };
 }

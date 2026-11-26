@@ -6,12 +6,12 @@ import { existsSync, readdirSync, rmdirSync } from 'node:fs';
 import { mkdir, rename, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { HttpError, newId, requestBody, uuidParam } from '@hub/sdk/core';
-import { freeName, ARRIVAL_FOLDER, folderName } from '../shared/names';
+import { freeName, PENDING_FOLDER, folderName } from '../shared/names';
 import { copyVerified, place } from './copy';
 import { baseName, DISK_TRASH_DIR, historyPath, isInDiskTrash, TMP_DIR } from './disk-layout';
 import type { CoffreDeps, DiskManager } from './disk';
 import { DISK_TRASH_DAYS, versionsOf } from './disk-routes';
-import type { ContextRow, CopyRow, ItemRow, VersionRow } from './rows';
+import type { FolderRow, CopyRow, ItemRow, VersionRow } from './rows';
 
 /** Room kept free on the PC beyond what a copy back needs. */
 export const PC_MARGIN = 200 * 1024 * 1024;
@@ -32,7 +32,7 @@ export interface DiskTrashDto {
   old: boolean;
   /** Still in the Coffre's own Recycle Bin on the PC (« Récupérer » there), or erased on the PC. */
   onPc: boolean;
-  contextPath: string[];
+  folderPath: string[];
 }
 
 export function registerHistoryRoutes(d: CoffreDeps, disk: DiskManager): void {
@@ -48,14 +48,14 @@ export function registerHistoryRoutes(d: CoffreDeps, disk: DiskManager): void {
   };
   const pcTemp = () => ctx.files.dataPath('tmp', newId());
   const pcFree = async () => (await library.disk()).free;
-  const contextPath = (contextId: string | null): string[] => {
+  const folderPath = (folderId: string | null): string[] => {
     const rows = ctx.db
-      .prepare(`SELECT * FROM ${d.t.contexts} WHERE deleted_at IS NULL`)
-      .all() as ContextRow[];
+      .prepare(`SELECT * FROM ${d.t.folders} WHERE deleted_at IS NULL`)
+      .all() as FolderRow[];
     const byId = new Map(rows.map((c) => [c.id, c]));
     const out: string[] = [];
     for (
-      let c = contextId ? byId.get(contextId) : undefined;
+      let c = folderId ? byId.get(folderId) : undefined;
       c;
       c = c.parent_id ? byId.get(c.parent_id) : undefined
     )
@@ -65,7 +65,7 @@ export function registerHistoryRoutes(d: CoffreDeps, disk: DiskManager): void {
 
   // --- D: the versions -----------------------------------------------------------------
 
-  ctx.routes.get('/items/:id/versions', (request) => {
+  ctx.routes.get('/files/:id/versions', (request) => {
     const id = uuidParam(request.params);
     item(id);
     const row = disk.disk();
@@ -86,7 +86,7 @@ export function registerHistoryRoutes(d: CoffreDeps, disk: DiskManager): void {
    * update, or put there now when it is not on the disk yet). « Annuler » puts
    * the PC's file back as it was.
    */
-  ctx.routes.post('/items/:id/versions/:vid/restore', async (request) => {
+  ctx.routes.post('/files/:id/versions/:vid/restore', async (request) => {
     const { id, vid } = request.params as { id: string; vid: string };
     if (requestBody(request).confirm !== true)
       throw new HttpError(400, 'Restaurer une version : confirmation nécessaire');
@@ -191,7 +191,7 @@ export function registerHistoryRoutes(d: CoffreDeps, disk: DiskManager): void {
           trashedAt: copy.trashed_at,
           old: Boolean(copy.trashed_at && copy.trashed_at < old),
           onPc: !it.deleted_at,
-          contextPath: contextPath(it.context_id),
+          folderPath: folderPath(it.folder_id),
           copy,
           item: it,
         },
@@ -207,8 +207,8 @@ export function registerHistoryRoutes(d: CoffreDeps, disk: DiskManager): void {
 
   /**
    * « Récupérer » an element erased on the PC: copied back from the disk's
-   * Recycle Bin (fingerprint checked), its sheet with it, in its context (or
-   * Arrivée). One still in the PC's Recycle Bin is recovered there instead.
+   * Recycle Bin (fingerprint checked), its sheet with it, in its folder (or
+   * À ranger). One still in the PC's Recycle Bin is recovered there instead.
    */
   ctx.routes.post('/disk/trash/recover', async (request) => {
     const itemId = String(requestBody(request).itemId ?? '');
@@ -225,12 +225,12 @@ export function registerHistoryRoutes(d: CoffreDeps, disk: DiskManager): void {
       if (free !== null && entry.size + PC_MARGIN > free)
         throw new HttpError(409, 'Pas assez de place sur le PC pour le récupérer');
       const it = entry.item;
-      const contextOk =
-        it.context_id &&
+      const folderOk =
+        it.folder_id &&
         (ctx.db
-          .prepare(`SELECT 1 FROM ${d.t.contexts} WHERE deleted_at IS NULL AND id = ?`)
-          .get(it.context_id) as unknown);
-      const dir = contextOk ? contextPath(it.context_id).map(folderName).join('/') : ARRIVAL_FOLDER;
+          .prepare(`SELECT 1 FROM ${d.t.folders} WHERE deleted_at IS NULL AND id = ?`)
+          .get(it.folder_id) as unknown);
+      const dir = folderOk ? folderPath(it.folder_id).map(folderName).join('/') : PENDING_FOLDER;
       const temp = pcTemp();
       const back = await copyVerified(disk.abs(root, entry.copy.rel_path), temp);
       if (entry.copy.sha256 && back.sha256 !== entry.copy.sha256) {
@@ -256,10 +256,10 @@ export function registerHistoryRoutes(d: CoffreDeps, disk: DiskManager): void {
           trash_from: null,
           archived_at: null,
           stat_json: null,
-          ...(contextOk ? {} : { context_id: null, arrival: 1 }),
+          ...(folderOk ? {} : { folder_id: null, arrival: 1 }),
         });
       });
-      return { ok: true, contextPath: contextOk ? contextPath(it.context_id) : null };
+      return { ok: true, folderPath: folderOk ? folderPath(it.folder_id) : null };
     });
   });
 

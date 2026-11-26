@@ -7,8 +7,8 @@
 import { fold } from './deduce';
 import { invalidName } from './names';
 
-/** What the picker needs of a context. */
-export interface RouteContext {
+/** What the picker needs of a folder. */
+export interface RouteFolder {
   id: string;
   parentId: string | null;
   name: string;
@@ -20,7 +20,7 @@ export type RoutePick =
   | { kind: 'existing'; id: string }
   /** To create at the validation (its existing beginning included). */
   | { kind: 'new'; path: string[] }
-  | { kind: 'arrival' }
+  | { kind: 'pending' }
   | { kind: 'root' };
 
 /** The separators accepted between two segments. */
@@ -60,19 +60,19 @@ export interface RouteSuggestion {
 }
 
 /**
- * The existing contexts a typed route may mean, best first. The typed
- * segments match the path's segments in order, the last one the context's
- * own name; one segment alone matches a context anywhere in the tree.
+ * The existing folders a typed route may mean, best first. The typed
+ * segments match the path's segments in order, the last one the folder's
+ * own name; one segment alone matches a folder anywhere in the tree.
  */
 export function suggestRoutes(
   text: string,
-  contexts: readonly RouteContext[],
+  folders: readonly RouteFolder[],
   limit = 30,
 ): RouteSuggestion[] {
   const { segments } = splitRoute(text);
   if (!segments.length) return [];
   const out: RouteSuggestion[] = [];
-  for (const c of contexts) {
+  for (const c of folders) {
     if (c.path.length < segments.length) continue;
     const last = segmentScore(segments[segments.length - 1]!, c.path[c.path.length - 1]!);
     if (!last) continue;
@@ -104,7 +104,7 @@ export function suggestRoutes(
 
 export interface ResolvedSegment {
   name: string;
-  /** The existing context of this segment, or null (« nouveau »). */
+  /** The existing folder of this segment, or null (« nouveau »). */
   id: string | null;
   /** Why Windows refuses it (only for a new one), or null. */
   error: string | null;
@@ -112,7 +112,7 @@ export interface ResolvedSegment {
 
 export interface ResolvedRoute {
   segments: ResolvedSegment[];
-  /** The context the route names, when every segment exists. */
+  /** The folder the route names, when every segment exists. */
   existingId: string | null;
   /** The route to create at the validation (the existing beginning included), or null. */
   newPath: string[] | null;
@@ -121,15 +121,15 @@ export interface ResolvedRoute {
 }
 
 /** The route exactly as typed: each segment existing (exact name, accents ignored) or new. */
-export function resolveRoute(text: string, contexts: readonly RouteContext[]): ResolvedRoute {
+export function resolveRoute(text: string, folders: readonly RouteFolder[]): ResolvedRoute {
   const { segments } = splitRoute(text);
   const out: ResolvedSegment[] = [];
   let parent: string | null = null;
   let creating = false;
   for (const name of segments) {
-    const found: RouteContext | undefined = creating
+    const found: RouteFolder | undefined = creating
       ? undefined
-      : contexts.find((c) => c.parentId === parent && fold(c.name) === fold(name));
+      : folders.find((c) => c.parentId === parent && fold(c.name) === fold(name));
     if (found) {
       out.push({ name: found.name, id: found.id, error: null });
       parent = found.id;
@@ -152,20 +152,20 @@ export function resolveRoute(text: string, contexts: readonly RouteContext[]): R
  * Tab: the typed text completed — its last segment replaced by the best
  * suggestion's path (the earlier segments too, when they were partial).
  */
-export function completeRoute(text: string, contexts: readonly RouteContext[]): string | null {
-  const best = suggestRoutes(text, contexts, 1)[0];
+export function completeRoute(text: string, folders: readonly RouteFolder[]): string | null {
+  const best = suggestRoutes(text, folders, 1)[0];
   if (!best) return null;
   const done = best.path.join('/');
   return fold(done) === fold(splitRoute(text).segments.join('/')) ? null : done;
 }
 
-/** The context and all its descendants (a context never moves into one of them). */
-export function subtreeOf(id: string, contexts: readonly RouteContext[]): Set<string> {
+/** The folder and all its descendants (a folder never moves into one of them). */
+export function subtreeOf(id: string, folders: readonly RouteFolder[]): Set<string> {
   const out = new Set([id]);
   let grew = true;
   while (grew) {
     grew = false;
-    for (const c of contexts)
+    for (const c of folders)
       if (c.parentId && out.has(c.parentId) && !out.has(c.id)) {
         out.add(c.id);
         grew = true;

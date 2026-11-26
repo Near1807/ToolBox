@@ -20,7 +20,7 @@ export function ReaderPage() {
   const { id = '' } = useParams();
   const [params] = useSearchParams();
   const module = useModule();
-  const item = useApi<ItemDto>(id ? module.url(`/items/${id}`) : null);
+  const item = useApi<ItemDto>(id ? module.url(`/files/${id}`) : null);
   const tools = useApi<Tools>(module.url('/tools'));
   const it = item.data;
   useEffect(() => {
@@ -42,13 +42,13 @@ export function ReaderPage() {
   if (item.error) return <ErrorMessage>{item.error}</ErrorMessage>;
   if (!it || !source) return null;
 
-  const code = it.attributes.some((a) => a.key === 'nature' && a.value === 'code');
+  const code = it.labels.some((a) => a.family === 'nature' && a.value === 'code');
   const openIn = (how: 'app' | 'vscode' | 'folder') => {
     const runnable =
       how === 'app' && isRunnable(it.name) ? window.confirm(runnableQuestion(it.name)) : false;
     if (how === 'app' && isRunnable(it.name) && !runnable) return;
     void module.api
-      .post(`/items/${it.id}/open`, {
+      .post(`/files/${it.id}/open`, {
         how: it.diskState === 'archived' && how === 'app' ? 'readcopy' : how,
         runnable,
       })
@@ -62,7 +62,7 @@ export function ReaderPage() {
           <strong>{it.name}</strong>
           <span className="muted small">
             {[
-              it.contextPath?.join(' › ') ?? 'Arrivée',
+              it.folderPath?.join(' › ') ?? 'À ranger',
               formatBytes(it.size),
               it.diskState === 'archived' ? 'archivé, lu depuis le disque' : '',
             ]

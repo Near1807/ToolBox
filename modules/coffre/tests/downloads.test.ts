@@ -57,7 +57,7 @@ describe('surveillance de Téléchargements', () => {
     d = await check();
     expect(names(d)).toEqual(['cours.pdf', 'td.pdf']);
     // The home and the sidebar's counter.
-    expect((await ok<HomeDto>(w, 'GET', `${API}/home`)).arrivalCount).toBe(0);
+    expect((await ok<HomeDto>(w, 'GET', `${API}/home`)).pendingCount).toBe(0);
     // Nothing was put away alone; the originals untouched.
     const coffre = snapshot(path.join(w.hub.dataDir, 'coffre'));
     expect(coffre.filter((l) => l.startsWith('Cours/Thermo/') && !l.includes('deja'))).toEqual([]);
@@ -69,9 +69,7 @@ describe('surveillance de Téléchargements', () => {
     });
     expect(names(d)).toEqual(['td.pdf']);
     await job(w, 'POST', `${API}/deposit/apply`, {
-      entries: [
-        { path: path.join(folder, 'td.pdf'), newContext: ['Cours', 'Réseaux'], attributes: [] },
-      ],
+      entries: [{ path: path.join(folder, 'td.pdf'), newFolder: ['Cours', 'Réseaux'], labels: [] }],
     });
     expect((await check()).pending).toEqual([]);
     expect(sha(path.join(folder, 'td.pdf'))).toBe(before);

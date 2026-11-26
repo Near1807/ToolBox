@@ -39,7 +39,7 @@ describe('ranger depuis Windows', () => {
     // « Ranger »: the deposit's own rules (copies, the originals untouched).
     const shaBefore = sha(files[0]!);
     const r = await job<{ created: unknown[] }>(w, 'POST', `${API}/deposit/apply`, {
-      entries: files.map((p) => ({ path: p, newContext: ['Cours', 'Réseaux'], attributes: [] })),
+      entries: files.map((p) => ({ path: p, newFolder: ['Cours', 'Réseaux'], labels: [] })),
     });
     expect(r.created).toHaveLength(10);
     expect(sha(files[0]!)).toBe(shaBefore);
@@ -53,7 +53,7 @@ describe('ranger depuis Windows', () => {
     const p = path.join(w.dl, 'cours.txt');
     writeFileSync(p, 'x');
     await job(w, 'POST', `${API}/deposit/apply`, {
-      entries: [{ path: p, newContext: ['Cours'], attributes: [] }],
+      entries: [{ path: p, newFolder: ['Cours'], labels: [] }],
     });
     const home = () => ok<{ health: { missingOnPc: number } }>(w, 'GET', `${API}/home`);
     expect((await home()).health.missingOnPc).toBe(0);

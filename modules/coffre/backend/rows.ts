@@ -1,6 +1,10 @@
 // The Coffre's rows (SQLite), shared by the backend's files.
-import type { AttributeKey, ItemKind } from '../shared/types';
+import type { ItemKind, LabelFamily, LabelOrigin } from '../shared/types';
 
+/**
+ * v0.50.0 (ADR 0067): an entry of the Coffre — a file, or the content of a
+ * Projet folder (`kind = 'project'`, its path = the folder's).
+ */
 export interface ItemRow {
   id: string;
   created_at: string;
@@ -9,31 +13,30 @@ export interface ItemRow {
   kind: ItemKind;
   name: string;
   rel_path: string | null;
-  external_path: string | null;
   size: number;
   sha256: string | null;
   ext: string;
-  context_id: string | null;
-  arrival: number;
+  /** Its folder (null: À ranger). A project: the Projet folder itself. */
+  folder_id: string | null;
   pinned: number;
   trashed_at: string | null;
   trash_from: string | null;
+  /** The original (left in its place) and its fingerprint when dropped (v0.52). */
   source_path: string | null;
+  source_sha256: string | null;
   source_url: string | null;
   referrer_url: string | null;
   file_date: string | null;
-  // v0.46.0 (migration 2)
   archived_at: string | null;
   /** The PC file's last known size and date (a project: per file), to see changes. */
   stat_json: string | null;
   opened_at: string | null;
-  // v0.48.0 (migration 7)
-  /** The name the file had before Thomas renamed it (kept, searchable). */
+  /** The name it had before Thomas renamed it (kept, searchable). */
   original_name: string | null;
-  /** 1: imported with an arborescence, its sheet not yet checked (« À compléter »). */
-  to_complete: number;
 }
-export interface ContextRow {
+
+/** v0.50.0: a folder of the Coffre (a real folder: its route is its path). */
+export interface FolderRow {
   id: string;
   created_at: string;
   deleted_at: string | null;
@@ -41,17 +44,30 @@ export interface ContextRow {
   name: string;
   color: string | null;
   sort: number | null;
-  cover_item_id: string | null;
-  /** v0.47.0 (migration 6): « Lié au cours … » (null: by its name or code; « - »: none). */
+  /** « Lié au cours … » (null: by its name or code; « - »: none). */
   course_name: string | null;
+  /** 1: « Fin de route » (its sub-folders not on the map). */
+  end_of_route: number;
+  /** 1: « Projet » (indivisible; its content is ONE item of kind « project »). */
+  project: number;
+  /** Its default labels (JSON LabelValue[]). */
+  default_labels_json: string;
 }
-export interface AttributeRow {
+
+export interface LabelRow {
   id: string;
   item_id: string;
-  key: AttributeKey;
+  family: LabelFamily;
   value: string;
-  origin: 'guessed' | 'chosen';
+  origin: LabelOrigin;
   reason: string | null;
+}
+
+export interface LabelSetRow {
+  id: string;
+  deleted_at: string | null;
+  name: string;
+  labels_json: string;
 }
 
 /** v0.46.0: a disk of the Coffre (one for now; the model allows a second one later). */

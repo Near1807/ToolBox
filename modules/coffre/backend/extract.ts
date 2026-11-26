@@ -11,7 +11,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { strFromU8, Unzip, UnzipInflate } from 'fflate';
 import { extOf, languageOfExt } from '../shared/kinds';
-import { filesOf as listFiles } from './library';
+import { listFiles } from './copy';
 
 export interface TextPart {
   /** « 3 » (a PDF's page, a slide), « src/main.c » (a project's file), or « ». */

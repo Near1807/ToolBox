@@ -18,7 +18,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createTestHost, dumpTables } from '@hub/sdk/testing';
 import type {
-  ContextDto,
+  FolderDto,
   DiskStatusDto,
   ItemDto,
   ResetPreviewDto,
@@ -78,14 +78,14 @@ describe('réinitialiser le Coffre', () => {
     await deposit(W, { 'notes.md': 'à part' }, ['Perso']);
     const s = await registerDisk(W, path.join(W.E, 'S'));
     await update(W);
-    await runJob(W, 'POST', `${API}/items/archive`, { ids: [archived!.id], confirm: true });
+    await runJob(W, 'POST', `${API}/files/archive`, { ids: [archived!.id], confirm: true });
     // The original of « disparu » removed, the one of « change » modified.
     renameSync(path.join(W.dl, 'disparu.md'), path.join(W.dl, '..', 'ailleurs.md'));
     writeFileSync(path.join(W.dl, 'change.md'), 'après');
     const todoBefore = dumpTables(W.hub.dataDir, 'todo__');
 
     const preview = await runJob<ResetPreviewDto>(W, 'POST', `${API}/reset/preview`, {});
-    expect(preview).toMatchObject({ items: 5, contexts: 3, archived: 1, links: 0 });
+    expect(preview).toMatchObject({ items: 5, folders: 3, archived: 1 });
     expect(preview.disk).toMatchObject({ connected: true });
     const reasons = Object.fromEntries(preview.onlyHere.map((o) => [o.name, o.reason]));
     expect(reasons).toEqual({
@@ -95,7 +95,7 @@ describe('réinitialiser le Coffre', () => {
     });
     expect(gone && changed).toBeTruthy();
 
-    // « Exporter ces éléments d'abord »: copies, by context, the archived one read from the disk.
+    // « Exporter ces éléments d'abord »: copies, by folder, the archived one read from the disk.
     const out = mkdtempSync(path.join(tmpdir(), 'export-'));
     const exp = await runJob<{ exported: number; folder: string }>(
       W,
@@ -140,8 +140,8 @@ describe('réinitialiser le Coffre', () => {
     );
     expect(json.elements.find((e) => e.nom === 'vieux.pdf')!.etatDisque).toBe('archived');
     // The Coffre empty; its files in the Recycle Bin (not deleted).
-    expect(await ok<ItemDto[]>(W, 'GET', `${API}/items`)).toEqual([]);
-    expect(await ok<ContextDto[]>(W, 'GET', `${API}/contexts`)).toEqual([]);
+    expect(await ok<ItemDto[]>(W, 'GET', `${API}/files`)).toEqual([]);
+    expect(await ok<FolderDto[]>(W, 'GET', `${API}/folders`)).toEqual([]);
     const inBin = readdirSync(bin)
       .map((n) => n.replace(/^\d+-/, ''))
       .sort();
@@ -170,7 +170,7 @@ describe('réinitialiser le Coffre', () => {
     expect(dumpTables(W.hub.dataDir, 'todo__')).toEqual(todoBefore);
     // Usable again: a new deposit, a disk update.
     const [fresh] = await deposit(W, { 'nouveau.md': 'neuf' }, ['Cours']);
-    expect(fresh!.contextPath).toEqual(['Cours']);
+    expect(fresh!.folderPath).toEqual(['Cours']);
     expect((await update(W)).status).toBe('succeeded');
     expect(readFileSync(path.join(s.root!, 'Cours', 'nouveau.md'), 'utf8')).toBe('neuf');
   }, 120_000);

@@ -22,22 +22,22 @@ describe('fenêtre de lecture', () => {
     const r1 = await ok<{ opened: boolean; route: string }>(
       w,
       'POST',
-      `${API}/items/${a!.id}/read-window`,
+      `${API}/files/${a!.id}/read-window`,
     );
-    await ok(w, 'POST', `${API}/items/${b!.id}/read-window`);
+    await ok(w, 'POST', `${API}/files/${b!.id}/read-window`);
     expect(r1).toEqual({ opened: true, route: `/w/m/coffre/lire/${a!.id}` });
     expect(opened).toEqual([
       { route: `/m/coffre/lire/${a!.id}`, title: 'synthese.md' },
       { route: `/m/coffre/lire/${b!.id}`, title: 'cours.pdf' },
     ]);
-    await ok(w, 'DELETE', `${API}/items/${b!.id}`);
-    expect((await w.hub.request('POST', `${API}/items/${b!.id}/read-window`)).status).toBe(409);
+    await ok(w, 'DELETE', `${API}/files/${b!.id}`);
+    expect((await w.hub.request('POST', `${API}/files/${b!.id}/read-window`)).status).toBe(409);
   });
 
   it('sans hôte de bureau : rien d’ouvert, la page propose un onglet', async () => {
     w = await diskWorld();
     const [a] = await deposit(w, { 'n.txt': 'texte' });
-    const r = await ok<{ opened: boolean }>(w, 'POST', `${API}/items/${a!.id}/read-window`);
+    const r = await ok<{ opened: boolean }>(w, 'POST', `${API}/files/${a!.id}/read-window`);
     expect(r.opened).toBe(false);
   });
 });

@@ -12,7 +12,6 @@ type Item = Pick<
 type Copy = Pick<CopyRow, 'rel_path' | 'sha256' | 'damaged_at'>;
 
 export function stateOf(item: Item, copy: Copy | null): DiskState {
-  if (item.kind === 'link') return 'link';
   if (item.trashed_at || item.deleted_at) return 'trash';
   if (item.archived_at) return 'archived';
   if (!copy || copy.damaged_at || !copy.sha256 || copy.sha256 !== item.sha256) return 'pending';
@@ -34,8 +33,8 @@ export interface Step {
 }
 
 /**
- * What the update does for one element, or null (nothing to do, or nothing
- * possible: a link, an element never saved and now deleted).
+ * What the update does for one entry, or null (nothing to do, or nothing
+ * possible: an entry never saved and now deleted).
  */
 export function stepOf(
   item: Item & { size: number },
@@ -43,7 +42,6 @@ export function stepOf(
   /** Its copy's file is really on the disk (false: copy it again). */
   copyPresent = true,
 ): Step | null {
-  if (item.kind === 'link') return null;
   const to = wantedDiskPath(item);
   if (!to) return null;
   const base = { itemId: item.id, name: item.name, from: copy?.rel_path ?? null, to };
@@ -53,7 +51,7 @@ export function stepOf(
     if (!present || isInDiskTrash(copy.rel_path)) return null;
     return { ...base, kind: 'trash', size: 0 };
   }
-  // Archived: on the disk only; it may have changed context (a move).
+  // Archived: on the disk only; it may have changed folder (a move).
   if (item.archived_at) {
     if (!present || copy.rel_path === to) return null;
     return { ...base, kind: 'move', size: 0 };

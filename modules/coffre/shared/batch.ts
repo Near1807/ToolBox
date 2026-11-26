@@ -1,19 +1,19 @@
 // v0.48.0 (Expérimental): « Pour tous » — one setting for a batch of files
-// (in the rangement window, or « Modifier la sélection » of elements already
-// stored). The rename template ({nom} without its extension, {n}, {date},
-// {contexte}), valid Windows names, collisions numbered « (2) », the values
+// (in the rangement window, or « Modifier la sélection » of files already
+// stored; v0.50.0: labels). The rename template ({nom} without its extension, {n}, {date},
+// {dossier}), valid Windows names, collisions numbered « (2) », the values
 // shown « mixte » while they differ and are not changed. Pure (tested).
 import { freeName, safeName, splitExtension } from './names';
 
-/** The single-valued attributes « Pour tous » sets. */
+/** The label families « Pour tous » sets to one value (its other values replaced). */
 export const BATCH_KEYS = ['nature', 'origin', 'year'] as const;
 export type BatchKey = (typeof BATCH_KEYS)[number];
 
 /** The fields of « Pour tous » (an exception is per field). */
-export type BatchField = 'route' | BatchKey | 'tags' | 'rename';
+export type BatchField = 'route' | BatchKey | 'free' | 'rename' | 'set';
 
 /** The template's words. */
-export const TEMPLATE_TOKENS = ['{nom}', '{n}', '{date}', '{contexte}'] as const;
+export const TEMPLATE_TOKENS = ['{nom}', '{n}', '{date}', '{dossier}'] as const;
 
 /** « 2026-11-24 » (the local date). */
 export function isoDay(d = new Date()): string {
@@ -30,7 +30,7 @@ export function isoDay(d = new Date()): string {
 export function renderName(
   template: string,
   original: string,
-  v: { n: number; total: number; date: string; context: string | null },
+  v: { n: number; total: number; date: string; folder: string | null },
 ): string {
   const { base, ext } = splitExtension(original);
   const t = template.trim();
@@ -40,7 +40,7 @@ export function renderName(
     .replace(/\{nom\}/gi, base)
     .replace(/\{n\}/gi, String(v.n).padStart(width, '0'))
     .replace(/\{date\}/gi, v.date)
-    .replace(/\{contexte\}/gi, v.context ?? 'Arrivée');
+    .replace(/\{dossier\}/gi, v.folder ?? 'À ranger');
   // A template that already ends with the extension does not get it twice.
   const stem =
     ext && out.toLowerCase().endsWith(ext.toLowerCase()) ? out.slice(0, -ext.length) : out;
@@ -53,7 +53,7 @@ export function renderName(
  * already in the folder is numbered the same way when it is written).
  */
 export function batchNames(
-  files: readonly { key: string; name: string; context: string | null }[],
+  files: readonly { key: string; name: string; folder: string | null }[],
   template: string,
   date = isoDay(),
 ): Map<string, string> {
@@ -64,10 +64,10 @@ export function batchNames(
       n: i + 1,
       total: files.length,
       date,
-      context: f.context,
+      folder: f.folder,
     });
     // Collisions per destination folder.
-    const where = (f.context ?? '').toLowerCase();
+    const where = (f.folder ?? '').toLowerCase();
     const name = freeName(wanted, (c) => taken.has(`${where}\u0000${c.toLowerCase()}`));
     taken.add(`${where}\u0000${name.toLowerCase()}`);
     out.set(f.key, name);
@@ -85,8 +85,8 @@ export function common<T>(
   return values.every((v) => same(v, first)) ? { mixed: false, value: first } : { mixed: true };
 }
 
-/** Tags after « Pour tous »: those added, minus those removed (case ignored), in order. */
-export function batchTags(
+/** Free labels after « Pour tous »: those added, minus those removed (case ignored), in order. */
+export function batchFree(
   current: readonly string[],
   add: readonly string[],
   remove: readonly string[],

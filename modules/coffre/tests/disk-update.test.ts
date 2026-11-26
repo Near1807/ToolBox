@@ -82,7 +82,7 @@ afterEach(async () => {
 });
 
 const lib = (w: DiskWorld, ...p: string[]) => path.join(w.hub.dataDir, 'coffre', ...p);
-const item = (w: DiskWorld, id: string) => ok<ItemDto>(w, 'GET', `${API}/items/${id}`);
+const item = (w: DiskWorld, id: string) => ok<ItemDto>(w, 'GET', `${API}/files/${id}`);
 
 async function update(
   w: DiskWorld,
@@ -97,9 +97,9 @@ async function update(
   };
 }
 
-async function setup(files: Record<string, string | Buffer>, context?: string[]) {
+async function setup(files: Record<string, string | Buffer>, folder?: string[]) {
   w = await diskWorld();
-  const created = await deposit(w, files, context);
+  const created = await deposit(w, files, folder);
   const s = await registerDisk(w, path.join(w.E, 'Sauvegardes'));
   return { created, root: s.root! };
 }
@@ -156,12 +156,12 @@ describe('mettre à jour le disque', () => {
     expect(readFileSync(path.join(history, old!), 'utf8')).toBe('version 1');
   });
 
-  it('changement de contexte, renommage, suppression : reproduits ; supprimé = corbeille du disque', async () => {
+  it('changement de dossier, renommage, suppression : reproduits ; supprimé = corbeille du disque', async () => {
     const { created, root } = await setup({ 'a.pdf': 'A', 'b.pdf': 'B' });
     await update(w);
     const [a, b] = created;
-    await ok(w, 'PATCH', `${API}/items/${a!.id}`, { newContext: ['Perso', 'Administratif'] });
-    await ok(w, 'PATCH', `${API}/items/${b!.id}`, { name: 'b renommé.pdf' });
+    await ok(w, 'PATCH', `${API}/files/${a!.id}`, { newFolder: ['Perso', 'Administratif'] });
+    await ok(w, 'PATCH', `${API}/files/${b!.id}`, { name: 'b renommé.pdf' });
     const s = await status(w);
     expect(s.counts.move).toBe(2);
     const r = await update(w);
@@ -169,7 +169,7 @@ describe('mettre à jour le disque', () => {
     expect(readFileSync(path.join(root, 'Perso', 'Administratif', 'a.pdf'), 'utf8')).toBe('A');
     expect(readFileSync(path.join(root, 'Cours', 'Thermo', 'b renommé.pdf'), 'utf8')).toBe('B');
     expect(existsSync(path.join(root, 'Cours', 'Thermo', 'a.pdf'))).toBe(false);
-    await ok(w, 'DELETE', `${API}/items/${a!.id}`);
+    await ok(w, 'DELETE', `${API}/files/${a!.id}`);
     expect((await status(w)).counts.trash).toBe(1);
     const r2 = await update(w);
     expect(r2.report.trashed).toBe(1);
@@ -183,9 +183,9 @@ describe('mettre à jour le disque', () => {
     const { created, root } = await setup({ 'x.txt': 'X', 'y.txt': 'Y' });
     await update(w);
     const [x, y] = created;
-    await ok(w, 'PATCH', `${API}/items/${x!.id}`, { name: 'tmp.txt' });
-    await ok(w, 'PATCH', `${API}/items/${y!.id}`, { name: 'x.txt' });
-    await ok(w, 'PATCH', `${API}/items/${x!.id}`, { name: 'y.txt' });
+    await ok(w, 'PATCH', `${API}/files/${x!.id}`, { name: 'tmp.txt' });
+    await ok(w, 'PATCH', `${API}/files/${y!.id}`, { name: 'x.txt' });
+    await ok(w, 'PATCH', `${API}/files/${x!.id}`, { name: 'y.txt' });
     await update(w);
     expect(readFileSync(path.join(root, 'Cours', 'Thermo', 'x.txt'), 'utf8')).toBe('Y');
     expect(readFileSync(path.join(root, 'Cours', 'Thermo', 'y.txt'), 'utf8')).toBe('X');
@@ -298,7 +298,7 @@ describe('mettre à jour le disque', () => {
     writeFileSync(path.join(proj, 'Cargo.toml'), '[package]');
     writeFileSync(path.join(proj, 'src', 'main.rs'), 'fn main() {}');
     const r = await runJob<{ created: ItemDto[] }>(w, 'POST', `${API}/deposit/apply`, {
-      entries: [{ path: proj, newContext: ['Programmation'], attributes: [] }],
+      entries: [{ path: proj, newFolder: ['Programmation'], labels: [] }],
     });
     const s = await registerDisk(w, path.join(w.E, 'S'));
     await update(w);
@@ -318,7 +318,7 @@ describe('mettre à jour le disque', () => {
   it('chemin long (> 260 caractères sous Windows) : copié et relu', async () => {
     const deep = Array.from(
       { length: 5 },
-      (_, i) => `Contexte assez long numéro ${i} pour le chemin`,
+      (_, i) => `Dossier assez long numéro ${i} pour le chemin`,
     );
     const { created, root } = await setup({ [`${'n'.repeat(90)}.txt`]: 'long' }, deep);
     const r = await update(w);
@@ -341,7 +341,7 @@ describe.runIf(process.env.COFFRE_TEST_BIG === '1')('gros fichier (≥ 2 Go)', (
     ftruncateSync(fd, 2 * 1024 ** 3 + 17);
     closeSync(fd);
     await runJob(w, 'POST', `${API}/deposit/apply`, {
-      entries: [{ path: big, newContext: ['Vidéos'], attributes: [] }],
+      entries: [{ path: big, newFolder: ['Vidéos'], labels: [] }],
     });
     const s = await registerDisk(w, path.join(w.E, 'S'));
     const rss = process.memoryUsage().rss;

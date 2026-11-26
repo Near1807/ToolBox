@@ -25,7 +25,7 @@ export function itemsWithCopies(
 ): { item: ItemRow; copy: CopyRow | null }[] {
   const items = d.ctx.db
     .prepare(
-      `SELECT * FROM ${d.t.items} WHERE kind != 'link' AND (deleted_at IS NULL OR id IN (SELECT item_id FROM ${d.t.copies} WHERE deleted_at IS NULL AND disk_id = ?))`,
+      `SELECT * FROM ${d.t.items} WHERE (deleted_at IS NULL OR id IN (SELECT item_id FROM ${d.t.copies} WHERE deleted_at IS NULL AND disk_id = ?))`,
     )
     .all(diskId) as ItemRow[];
   const copies = new Map(
@@ -86,9 +86,7 @@ export function diskStatus(d: CoffreDeps, disk: DiskManager): DiskStatusDto {
   const pairs = row
     ? itemsWithCopies(d, row.id)
     : (
-        d.ctx.db
-          .prepare(`SELECT * FROM ${d.t.items} WHERE deleted_at IS NULL AND kind != 'link'`)
-          .all() as ItemRow[]
+        d.ctx.db.prepare(`SELECT * FROM ${d.t.items} WHERE deleted_at IS NULL`).all() as ItemRow[]
       ).map((item) => ({ item, copy: null }));
   const old = new Date(Date.now() - DISK_TRASH_DAYS * 86_400_000).toISOString();
   const steps: Step[] = [];

@@ -28,7 +28,7 @@ export function ReceivedPage(props: { home: ComponentType }) {
       coffre.notify(
         `${got.data.missing} fichier${got.data.missing > 1 ? 's' : ''} introuvable${got.data.missing > 1 ? 's' : ''} (déplacé${got.data.missing > 1 ? 's' : ''} entre-temps).`,
       );
-    coffre.range(got.data.paths, got.data.folders);
+    coffre.range(got.data.paths);
   }, [got.data, batch, coffre]);
   const Home = props.home;
   return (

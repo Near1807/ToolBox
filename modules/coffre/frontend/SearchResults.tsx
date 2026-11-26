@@ -82,7 +82,7 @@ export function SearchResults(props: { query: string }) {
       )}
       {data && !results.length && (
         <p className="muted coffre-empty-line">
-          Rien trouvé (noms, fiches, attributs et contenu des fichiers).
+          Rien trouvé (noms, étiquettes et contenu des fichiers).
         </p>
       )}
       {!data && <p className="muted coffre-empty-line">Recherche…</p>}
@@ -122,7 +122,7 @@ export function SearchResults(props: { query: string }) {
               <strong>{hit.item.name}</strong>
               <span className="muted small">
                 {[
-                  hit.item.contextPath?.join(' › ') ?? 'Arrivée',
+                  hit.item.folderPath?.join(' › ') ?? 'À ranger',
                   hit.partCount > 1 ? `${hit.partCount} passages` : '',
                   hit.item.diskState === 'archived' ? 'archivé' : '',
                 ]
@@ -172,7 +172,7 @@ export function ViewPage(props: { home: ComponentType }) {
   const [params] = useSearchParams();
   const module = useModule();
   const coffre = useCoffre();
-  const item = useApi<ItemDto>(id ? module.url(`/items/${id}`) : null);
+  const item = useApi<ItemDto>(id ? module.url(`/files/${id}`) : null);
   const opened = useRef<string | null>(null);
   const page = Number(params.get('page')) || undefined;
   const query = params.get('q') ?? undefined;

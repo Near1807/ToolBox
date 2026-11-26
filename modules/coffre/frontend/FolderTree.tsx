@@ -1,14 +1,14 @@
-// v0.48.0 (Expérimental): the compact tree of the contexts, beside the map —
+// v0.48.0 (Expérimental): the compact tree of the folders, beside the map —
 // the same actions (right click, F2, Suppr, Alt+↑ ↓), drag and drop (a
-// context dropped on another one moves into it, asked first), a complete
+// folder dropped on another one moves into it, asked first), a complete
 // keyboard: ↑ ↓ from line to line, → opens a branch / goes to its first
-// child, ← closes it / goes to the parent, Entrée opens the context.
+// child, ← closes it / goes to the parent, Entrée opens the folder.
 import { useMemo, useRef, useState, type DragEvent } from 'react';
 import { Icon, type MenuItem, type useContextMenu } from '@hub/sdk/frontend';
-import type { ContextDto } from '../shared/types';
-import { treeOrder } from './tree-actions';
+import type { FolderDto } from '../shared/types';
+import { treeOrder } from './folder-actions';
 
-const DRAG_TYPE = 'application/x-toolbox-coffre-context';
+const DRAG_TYPE = 'application/x-toolbox-coffre-folder';
 const OPEN_KEY = 'toolbox.coffre.treeClosed';
 
 function closedAtStart(): Set<string> {
@@ -21,32 +21,32 @@ function closedAtStart(): Set<string> {
 }
 
 interface Row {
-  c: ContextDto;
+  c: FolderDto;
   depth: number;
   hasKids: boolean;
 }
 
-export function ContextTree(props: {
-  contexts: readonly ContextDto[];
+export function FolderTree(props: {
+  folders: readonly FolderDto[];
   current?: string | null;
   onOpen: (id: string) => void;
   onMove: (srcId: string, dstId: string | null) => void;
-  menuOf: (c: ContextDto) => MenuItem[];
+  menuOf: (c: FolderDto) => MenuItem[];
   bindMenu: ReturnType<typeof useContextMenu>['bind'];
-  onRename: (c: ContextDto) => void;
-  onRemove: (c: ContextDto) => void;
-  onReorder: (c: ContextDto, delta: -1 | 1) => void;
-  onCreate: (parent: ContextDto | null) => void;
+  onRename: (c: FolderDto) => void;
+  onRemove: (c: FolderDto) => void;
+  onReorder: (c: FolderDto, delta: -1 | 1) => void;
+  onCreate: (parent: FolderDto | null) => void;
 }) {
-  const { contexts } = props;
+  const { folders } = props;
   const [closed, setClosed] = useState<Set<string>>(closedAtStart);
   const [focus, setFocus] = useState<string | null>(props.current ?? null);
   const [over, setOver] = useState<string | null>(null);
   const list = useRef<HTMLUListElement>(null);
 
   const rows = useMemo(() => {
-    const kids = new Map<string | null, ContextDto[]>();
-    for (const c of contexts) {
+    const kids = new Map<string | null, FolderDto[]>();
+    for (const c of folders) {
       const l = kids.get(c.parentId) ?? [];
       l.push(c);
       kids.set(c.parentId, l);
@@ -61,7 +61,7 @@ export function ContextTree(props: {
     };
     walk(null, 0);
     return out;
-  }, [contexts, closed]);
+  }, [folders, closed]);
 
   const toggle = (id: string, open?: boolean) =>
     setClosed((s) => {
@@ -158,8 +158,8 @@ export function ContextTree(props: {
         <button
           type="button"
           className="icon-button"
-          aria-label="Nouveau contexte à la racine"
-          title="Nouveau contexte"
+          aria-label="Nouveau dossier à la racine"
+          title="Nouveau dossier"
           onClick={() => props.onCreate(null)}
         >
           <Icon name="folder-plus" />
@@ -169,7 +169,7 @@ export function ContextTree(props: {
         ref={list}
         className={`coffre-tree__list${over === '' ? ' is-target' : ''}`}
         role="tree"
-        aria-label="Arbre des contextes (glisser un contexte sur un autre pour l’y déplacer)"
+        aria-label="Arbre des dossiers (glisser un dossier sur un autre pour l’y déplacer)"
         onDragOver={(e) => dragOver(e, null)}
         onDragLeave={() => setOver(null)}
         onDrop={(e) => dropOn(e, null)}
@@ -183,9 +183,9 @@ export function ContextTree(props: {
               aria-level={r.depth + 1}
               aria-expanded={r.hasKids ? !closed.has(r.c.id) : undefined}
               aria-selected={props.current === r.c.id}
-              aria-label={`${r.c.name}, ${r.c.count} élément${r.c.count > 1 ? 's' : ''}`}
+              aria-label={`${r.c.name}${r.c.project ? ', projet' : r.c.endOfRoute ? ', fin de route' : ''}, ${r.c.total} fichier${r.c.total > 1 ? 's' : ''}`}
               data-tree-id={r.c.id}
-              data-coffre-context={r.c.id}
+              data-coffre-folder={r.c.id}
               tabIndex={r.c.id === tabStop ? 0 : -1}
               draggable
               className={`coffre-tree__row${props.current === r.c.id ? ' is-current' : ''}${over === r.c.id ? ' is-target' : ''}`}
@@ -222,14 +222,19 @@ export function ContextTree(props: {
               )}
               <i className="coffre-tree__dot" style={{ background: r.c.css }} aria-hidden="true" />
               <span className="coffre-tree__name">{r.c.name}</span>
+              {r.c.project ? (
+                <span className="coffre-kind coffre-kind--project">Projet</span>
+              ) : (
+                r.c.endOfRoute && <span className="coffre-kind">Fin de route</span>
+              )}
               {r.c.fresh > 0 && (
                 <span className="coffre-tree__fresh" title="Nouveau cette semaine" />
               )}
-              <span className="coffre-tree__count">{r.c.count || ''}</span>
+              <span className="coffre-tree__count">{r.c.total || ''}</span>
             </li>
           );
         })}
-        {!rows.length && <li className="coffre-picker__empty">Aucun contexte</li>}
+        {!rows.length && <li className="coffre-picker__empty">Aucun dossier</li>}
       </ul>
     </div>
   );

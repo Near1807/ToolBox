@@ -6,10 +6,10 @@ import {
   splitRoute,
   subtreeOf,
   suggestRoutes,
-  type RouteContext,
+  type RouteFolder,
 } from '../shared/route';
 
-const tree: RouteContext[] = [];
+const tree: RouteFolder[] = [];
 const add = (id: string, parentId: string | null, name: string) => {
   const parent = tree.find((c) => c.id === parentId);
   tree.push({ id, parentId, name, path: [...(parent?.path ?? []), name] });
@@ -62,7 +62,7 @@ describe('sélecteur de route', () => {
     expect(resolveRoute('', tree).error).toBe('Route vide');
   });
 
-  it('un contexte et ses descendants (exclus de « Déplacer dans… »)', () => {
+  it('un dossier et ses descendants (exclus de « Déplacer dans… »)', () => {
     expect([...subtreeOf('cours', tree)].sort()).toEqual(['cours', 'labos', 'reseaux', 'thermo']);
   });
 });

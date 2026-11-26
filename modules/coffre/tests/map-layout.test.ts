@@ -1,5 +1,5 @@
 // v0.48.0 C: the map's layout (pure) — stable (the same tree, the same
-// picture), never overlapping neighbours, fast with hundreds of contexts.
+// picture), never overlapping neighbours, fast with hundreds of folders.
 import { describe, expect, it } from 'vitest';
 import { fitView, layoutMap, nodeAt, pathIds, type MapInput } from '../frontend/map-layout';
 
@@ -9,14 +9,14 @@ function bigTree(n: number): MapInput[] {
   const add = (parentId: string | null, depth: number) => {
     if (i >= n) return;
     const id = `c${i++}`;
-    out.push({ id, parentId, name: `Contexte ${id}`, sort: null, count: (i * 7) % 13 });
+    out.push({ id, parentId, name: `Dossier ${id}`, sort: null, count: (i * 7) % 13 });
     if (depth < 4) for (let k = 0; k < 4 && i < n; k++) add(id, depth + 1);
   };
   while (i < n) add(null, 1);
   return out;
 }
 
-describe('carte des contextes', () => {
+describe('carte des dossiers', () => {
   it('stable : le même arbre donne la même image, quel que soit l’ordre reçu', () => {
     const tree = bigTree(60);
     const a = layoutMap(tree);
@@ -26,7 +26,7 @@ describe('carte des contextes', () => {
     );
   });
 
-  it('ajouter un contexte ne déplace pas les autres branches', () => {
+  it('ajouter un dossier ne déplace pas les autres branches', () => {
     const tree: MapInput[] = [
       { id: 'cours', parentId: null, name: 'Cours', sort: null, count: 2 },
       { id: 'perso', parentId: null, name: 'Perso', sort: null, count: 1 },
@@ -60,7 +60,7 @@ describe('carte des contextes', () => {
     expect(nodeAt(l, deep.x, deep.y)?.id).toBe(deep.id);
   });
 
-  it('300 contextes : disposés en quelques millisecondes, sans chevauchement de deux voisins', () => {
+  it('300 dossiers : disposés en quelques millisecondes, sans chevauchement de deux voisins', () => {
     // Regular branches AND a small shallow one (« Cours » and 3 leaves): the case seen on screen.
     const tree = [
       ...bigTree(296),
@@ -94,7 +94,7 @@ describe('carte des contextes', () => {
     expect(overlaps).toBe(0);
     const v = fitView(l.box, 1000, 640);
     expect(v.k).toBeGreaterThan(0);
-    console.info(`carte : 300 contextes disposés en ${ms.toFixed(2)} ms`);
+    console.info(`carte : 300 dossiers disposés en ${ms.toFixed(2)} ms`);
   });
 });
 

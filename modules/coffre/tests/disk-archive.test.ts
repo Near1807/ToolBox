@@ -52,7 +52,7 @@ const update = async (w: DiskWorld) => {
   expect(job.status, job.error ?? '').toBe('succeeded');
   return job.result as UpdateReport;
 };
-const item = (w: DiskWorld, id: string) => ok<ItemDto>(w, 'GET', `${API}/items/${id}`);
+const item = (w: DiskWorld, id: string) => ok<ItemDto>(w, 'GET', `${API}/files/${id}`);
 
 describe('archiver et réactiver', () => {
   it('seulement actif et disque branché ; les deux copies relues ; place libérée ; trouvable ; lu depuis le disque', async () => {
@@ -65,7 +65,7 @@ describe('archiver et réactiver', () => {
     const refused = await runJob<{ archived: number; refused: { reason: string }[] }>(
       w,
       'POST',
-      `${API}/items/archive`,
+      `${API}/files/archive`,
       {
         ids: [doc!.id],
         confirm: true,
@@ -73,11 +73,11 @@ describe('archiver et réactiver', () => {
     );
     expect(refused.archived).toBe(0);
     expect(refused.refused[0]!.reason).toMatch(/pas encore sur le disque/);
-    expect((await w.hub.request('POST', `${API}/items/archive`, { ids: [doc!.id] })).status).toBe(
+    expect((await w.hub.request('POST', `${API}/files/archive`, { ids: [doc!.id] })).status).toBe(
       400,
     );
     await update(w);
-    const r = await runJob<{ archived: number; freed: number }>(w, 'POST', `${API}/items/archive`, {
+    const r = await runJob<{ archived: number; freed: number }>(w, 'POST', `${API}/files/archive`, {
       ids: [doc!.id],
       confirm: true,
     });
@@ -89,9 +89,9 @@ describe('archiver et réactiver', () => {
     // Read from the disk by the app's own server.
     expect((await w.hub.request('GET', a.url!)).status).toBe(200);
     // Not modified directly: reactivate, or a read-only copy.
-    const direct = await w.hub.request('POST', `${API}/items/${doc!.id}/open`, { how: 'app' });
+    const direct = await w.hub.request('POST', `${API}/files/${doc!.id}/open`, { how: 'app' });
     expect(direct.status).toBe(409);
-    const copy = await ok<{ copy: string }>(w, 'POST', `${API}/items/${doc!.id}/open`, {
+    const copy = await ok<{ copy: string }>(w, 'POST', `${API}/files/${doc!.id}/open`, {
       how: 'readcopy',
     });
     expect(opened).toEqual([copy.copy]);
@@ -103,16 +103,16 @@ describe('archiver et réactiver', () => {
     await status(w);
     const away = await item(w, doc!.id);
     expect(away).toMatchObject({ diskState: 'archived', unavailable: true, url: null });
-    const found = await ok<ItemDto[]>(w, 'GET', `${API}/items?context=${a.contextId}`);
+    const found = await ok<ItemDto[]>(w, 'GET', `${API}/files?folder=${a.folderId}`);
     expect(found.map((i) => i.id)).toContain(doc!.id);
-    const closed = await w.hub.request('POST', `${API}/items/${doc!.id}/open`, { how: 'readcopy' });
+    const closed = await w.hub.request('POST', `${API}/files/${doc!.id}/open`, { how: 'readcopy' });
     expect(JSON.stringify(closed.body)).toMatch(/Branche le disque « Disque 1 To »/);
     // Back on another letter: it opens.
     renameSync(path.join(w.E, '..', 'ailleurs'), path.join(w.F, 'S'));
     expect((await status(w)).root).toBe(path.join(w.F, 'S', 'ToolBox-Coffre'));
     expect((await item(w, doc!.id)).unavailable).toBe(false);
     // Reactivated: back on the PC, active.
-    await runJob(w, 'POST', `${API}/items/${doc!.id}/reactivate`);
+    await runJob(w, 'POST', `${API}/files/${doc!.id}/reactivate`);
     expect(readFileSync(lib(w, 'Cours', 'Thermo', 'cours.pdf'), 'utf8')).toBe('%PDF cours');
     expect((await item(w, doc!.id)).diskState).toBe('active');
     void s;
@@ -127,7 +127,7 @@ describe('archiver et réactiver', () => {
     const r = await runJob<{ archived: number; refused: { reason: string }[] }>(
       w,
       'POST',
-      `${API}/items/archive`,
+      `${API}/files/archive`,
       {
         ids: [doc!.id],
         confirm: true,
@@ -138,20 +138,20 @@ describe('archiver et réactiver', () => {
     expect(readFileSync(lib(w, 'Cours', 'Thermo', 'note.md'), 'utf8')).toBe('texte juste');
   });
 
-  it('un archivé change de contexte : le disque suit ; son nom lui reste réservé sur le PC', async () => {
+  it('un archivé change de dossier : le disque suit ; son nom lui reste réservé sur le PC', async () => {
     const w = await world();
     const [doc] = await deposit(w, { 'plan.pdf': 'P' });
     const s = await registerDisk(w, path.join(w.E, 'S'));
     await update(w);
-    await runJob(w, 'POST', `${API}/items/archive`, { ids: [doc!.id], confirm: true });
-    // Another « plan.pdf » in the same context never takes the archived one's place.
+    await runJob(w, 'POST', `${API}/files/archive`, { ids: [doc!.id], confirm: true });
+    // Another « plan.pdf » in the same folder never takes the archived one's place.
     const [other] = await deposit(w, { 'plan.pdf': 'autre' });
     expect(other!.name).toBe('plan (2).pdf');
-    await ok(w, 'PATCH', `${API}/items/${doc!.id}`, { newContext: ['Archives', '2025'] });
+    await ok(w, 'PATCH', `${API}/files/${doc!.id}`, { newFolder: ['Archives', '2025'] });
     expect((await status(w)).counts.move).toBe(1);
     await update(w);
     expect(readFileSync(path.join(s.root!, 'Archives', '2025', 'plan.pdf'), 'utf8')).toBe('P');
-    await runJob(w, 'POST', `${API}/items/${doc!.id}/reactivate`);
+    await runJob(w, 'POST', `${API}/files/${doc!.id}/reactivate`);
     expect(readFileSync(lib(w, 'Archives', '2025', 'plan.pdf'), 'utf8')).toBe('P');
   });
 
@@ -160,9 +160,9 @@ describe('archiver et réactiver', () => {
     const [doc] = await deposit(w, { 'video.mp4': Buffer.alloc(1024, 2) });
     await registerDisk(w, path.join(w.E, 'S'));
     await update(w);
-    await runJob(w, 'POST', `${API}/items/archive`, { ids: [doc!.id], confirm: true });
+    await runJob(w, 'POST', `${API}/files/archive`, { ids: [doc!.id], confirm: true });
     vi.spyOn(Library.prototype, 'disk').mockResolvedValue({ free: 1000, total: 10_000 });
-    const { jobId } = await ok<{ jobId: string }>(w, 'POST', `${API}/items/${doc!.id}/reactivate`);
+    const { jobId } = await ok<{ jobId: string }>(w, 'POST', `${API}/files/${doc!.id}/reactivate`);
     const r = await waitJob(w, jobId);
     expect(r.status).toBe('failed');
     expect(r.error).toMatch(/Pas assez de place sur le PC/);
@@ -196,18 +196,18 @@ describe('restaurer depuis un disque', () => {
       'tp.py': 'print(1)',
       'vieux.docx': 'archivé',
     });
-    await ok(w1, 'PUT', `${API}/items/${tp!.id}/attributes`, { key: 'tag', values: ['à rendre'] });
+    await ok(w1, 'PUT', `${API}/files/${tp!.id}/labels`, { family: 'free', values: ['à rendre'] });
     const proj = path.join(w1.dl, 'projet');
     mkdirSync(path.join(proj, 'src'), { recursive: true });
     writeFileSync(path.join(proj, 'src', 'main.rs'), 'fn main(){}');
     await runJob(w1, 'POST', `${API}/deposit/apply`, {
-      entries: [{ path: proj, newContext: ['Code'], attributes: [] }],
+      entries: [{ path: proj, newFolder: ['Code'], labels: [] }],
     });
     await registerDisk(w1, path.join(w1.E, 'S'));
     await update(w1);
-    await runJob(w1, 'POST', `${API}/items/archive`, { ids: [vieux!.id], confirm: true });
+    await runJob(w1, 'POST', `${API}/files/archive`, { ids: [vieux!.id], confirm: true });
     await update(w1);
-    const before = await ok<ItemDto[]>(w1, 'GET', `${API}/items`);
+    const before = await ok<ItemDto[]>(w1, 'GET', `${API}/files`);
     // A new PC, empty, the same disk plugged in.
     const w2 = await world({ volumes: { E: w1.E, F: w1.F } });
     const preview = await ok<{
@@ -226,16 +226,16 @@ describe('restaurer depuis un disque', () => {
     });
     expect(job.status, job.error ?? '').toBe('succeeded');
     expect(job.result).toMatchObject({ copied: 3, backup: null, conflicts: [] });
-    const after = await ok<ItemDto[]>(w2, 'GET', `${API}/items`);
+    const after = await ok<ItemDto[]>(w2, 'GET', `${API}/files`);
     const key = (i: ItemDto) =>
-      `${i.id}|${i.name}|${i.sha256}|${i.contextPath?.join('>')}|${i.diskState}`;
+      `${i.id}|${i.name}|${i.sha256}|${i.folderPath?.join('>')}|${i.diskState}`;
     expect(after.map(key).sort()).toEqual(before.map(key).sort());
     expect(sha(lib(w2, 'Cours', 'Thermo', 'cours.pdf'))).toBe(
       sha(lib(w1, 'Cours', 'Thermo', 'cours.pdf')),
     );
     expect(readFileSync(lib(w2, 'Code', 'projet', 'src', 'main.rs'), 'utf8')).toBe('fn main(){}');
     expect(existsSync(lib(w2, 'Cours', 'Thermo', 'vieux.docx'))).toBe(false);
-    expect((await item(w2, tp!.id)).attributes.map((a) => a.value)).toContain('à rendre');
+    expect((await item(w2, tp!.id)).labels.map((a) => a.value)).toContain('à rendre');
     expect((await status(w2)).connected).toBe(true);
     void cours;
   });

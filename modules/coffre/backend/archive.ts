@@ -7,7 +7,7 @@ import { chmodSync, existsSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { mkdir, rename, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { HttpError, newId, requestBody, uuidParam } from '@hub/sdk/core';
+import { HttpError, newId, requestBody, uuidParam, type JobRunContext } from '@hub/sdk/core';
 import { copyVerified, fingerprint } from './copy';
 import type { CoffreDeps, DiskManager } from './disk';
 import { PC_MARGIN } from './history';
@@ -71,34 +71,44 @@ export async function readCopy(source: string, itemId: string): Promise<string> 
   return target;
 }
 
-export function registerArchiveRoutes(d: CoffreDeps, disk: DiskManager): void {
+export function registerArchiveRoutes(
+  d: CoffreDeps,
+  disk: DiskManager,
+  /** v0.50.0: the files of a folder and its sub-folders (archived or reactivated as a folder). */
+  filesOfFolder: (folderId: string) => string[],
+): void {
   const { ctx, store, library } = d;
   const getItem = (id: string) => {
     const row = store.get<ItemRow & { updated_at: string }>('items', id) as ItemRow | null;
-    if (!row) throw new HttpError(404, 'Élément introuvable');
+    if (!row) throw new HttpError(404, 'Fichier introuvable');
     return row;
   };
 
   /**
-   * POST /items/archive { ids, confirm }: disk plugged in, each element
-   * « actif ». Both copies are read again NOW; identical → the PC's copy is
+   * POST /files/archive { ids | folderId, confirm }: disk plugged in, each
+   * file « actif » (a project: whole). Both copies are read again NOW; identical → the PC's copy is
    * removed; otherwise nothing is removed and the reason is given.
    */
   taskRoute<
     { ids: string[] },
     { archived: number; freed: number; refused: { itemId: string; name: string; reason: string }[] }
   >(ctx, {
-    route: '/items/archive',
+    route: '/files/archive',
     type: 'archive',
     input: (request) => {
       const b = requestBody(request);
       if (b.confirm !== true) throw new HttpError(400, 'Archiver : confirmation nécessaire');
-      const ids = Array.isArray(b.ids) ? b.ids.map(String) : [];
+      const ids =
+        typeof b.folderId === 'string' && b.folderId
+          ? filesOfFolder(b.folderId)
+          : Array.isArray(b.ids)
+            ? b.ids.map(String)
+            : [];
       if (!ids.length) throw new HttpError(400, 'Rien à archiver');
       disk.rootOrThrow();
       return { ids };
     },
-    title: (i) => `Coffre : archiver ${i.ids.length} élément${i.ids.length > 1 ? 's' : ''}`,
+    title: (i) => `Coffre : archiver ${i.ids.length} fichier${i.ids.length > 1 ? 's' : ''}`,
     // v0.49.0: a background task; each element refused is in the report with its reason.
     run: async (job) => {
       const ids = job.input.ids;
@@ -113,16 +123,12 @@ export function registerArchiveRoutes(d: CoffreDeps, disk: DiskManager): void {
         for (const id of ids) {
           if (job.signal.aborted) break;
           const row = getItem(id);
-          job.step(n++, ids.length, { unit: 'éléments', current: row.name });
+          job.step(n++, ids.length, { unit: 'fichiers', current: row.name });
           const copy = disk.copyOf(row.id, diskRow.id);
           const refuse = (reason: string) => {
             refused.push({ itemId: row.id, name: row.name, reason });
             job.problem(row.name, reason);
           };
-          if (row.kind === 'link') {
-            refuse('un lien externe n’est pas sauvegardé');
-            continue;
-          }
           if (row.archived_at) {
             refuse('déjà archivé');
             continue;
@@ -160,60 +166,92 @@ export function registerArchiveRoutes(d: CoffreDeps, disk: DiskManager): void {
     },
   });
 
-  /** Reactivate: the PC's room checked first, the disk's copy read back onto the PC. */
-  taskRoute<{ id: string }, { ok: true }>(ctx, {
-    route: '/items/:id/reactivate',
+  /** Reactivates one archived file: the PC's room checked first, the disk's copy read back. */
+  const reactivateOne = async (row: ItemRow, root: string, diskId: string): Promise<void> => {
+    const copy = disk.copyOf(row.id, diskId);
+    if (!copy || !existsSync(disk.abs(root, copy.rel_path)))
+      throw new HttpError(404, 'Introuvable sur le disque');
+    const free = (await library.disk()).free;
+    if (free !== null && copy.size + PC_MARGIN > free)
+      throw new HttpError(
+        409,
+        `Pas assez de place sur le PC pour le réactiver (${Math.ceil(copy.size / 1024 ** 2)} Mo nécessaires) : rien n’a changé.`,
+      );
+    const temp = ctx.files.dataPath('tmp', newId());
+    const back = await copyVerified(disk.abs(root, copy.rel_path), temp);
+    if (copy.sha256 && back.sha256 !== copy.sha256) {
+      await rm(temp, { recursive: true, force: true });
+      throw new HttpError(
+        409,
+        'La copie du disque ne correspond plus à son empreinte : rien n’a changé',
+      );
+    }
+    const rel = row.rel_path ?? copy.rel_path;
+    const dirRel = path.posix.dirname(rel) === '.' ? '' : path.posix.dirname(rel);
+    const dirAbs = library.abs(dirRel);
+    await mkdir(dirAbs, { recursive: true });
+    // Its own place (kept for it while archived); another name only if a file took it anyway.
+    const name = existsSync(path.join(dirAbs, path.posix.basename(rel)))
+      ? library.freeIn(dirAbs, path.posix.basename(rel))
+      : path.posix.basename(rel);
+    await rename(temp, path.join(dirAbs, name));
+    store.update('items', row.id, {
+      archived_at: null,
+      rel_path: dirRel ? `${dirRel}/${name}` : name,
+      name,
+      stat_json: null,
+    });
+  };
+
+  /**
+   * Reactivate a file (`/files/:id/reactivate`) or a folder (`/folders/:id/reactivate`:
+   * its archived files, a project whole). Each refusal is in the report with its reason.
+   */
+  const reactivateRun = async (job: JobRunContext<{ ids: string[] }>) => {
+    const rows = job.input.ids.map(getItem).filter((r) => r.archived_at);
+    if (!rows.length) return { done: 0 };
+    const root = disk.rootOrThrow();
+    const diskRow = disk.disk()!;
+    return disk.exclusive('réactivation', async () => {
+      let done = 0;
+      for (const [n, row] of rows.entries()) {
+        if (job.signal.aborted) break;
+        job.step(n, rows.length, { unit: 'fichiers', current: row.name });
+        try {
+          await reactivateOne(row, root, diskRow.id);
+          done++;
+        } catch (error) {
+          if (rows.length === 1) throw error;
+          job.problem(row.name, error instanceof Error ? error.message : String(error));
+        }
+      }
+      job.step(rows.length, rows.length, { current: null });
+      return { done };
+    });
+  };
+  taskRoute<{ ids: string[] }, { done: number }>(ctx, {
+    route: '/files/:id/reactivate',
     type: 'reactivate',
     input: (request) => {
       const row = getItem(uuidParam(request.params));
       if (row.archived_at) disk.rootOrThrow();
-      return { id: row.id };
+      return { ids: [row.id] };
     },
-    title: (i) => `Coffre : réactiver « ${getItem(i.id).name} »`,
-    // v0.49.0: a background task (a big file read back from the disk).
-    run: async (job) => {
-      const row = getItem(job.input.id);
-      job.step(0, 1, { unit: 'élément', current: row.name });
-      if (!row.archived_at) return { ok: true };
-      const root = disk.rootOrThrow();
-      const diskRow = disk.disk()!;
-      return disk.exclusive('réactivation', async () => {
-        const copy = disk.copyOf(row.id, diskRow.id);
-        if (!copy || !existsSync(disk.abs(root, copy.rel_path)))
-          throw new HttpError(404, 'Introuvable sur le disque');
-        const free = (await library.disk()).free;
-        if (free !== null && copy.size + PC_MARGIN > free)
-          throw new HttpError(
-            409,
-            `Pas assez de place sur le PC pour le réactiver (${Math.ceil(copy.size / 1024 ** 2)} Mo nécessaires) : rien n’a changé.`,
-          );
-        const temp = ctx.files.dataPath('tmp', newId());
-        const back = await copyVerified(disk.abs(root, copy.rel_path), temp);
-        if (copy.sha256 && back.sha256 !== copy.sha256) {
-          await rm(temp, { recursive: true, force: true });
-          throw new HttpError(
-            409,
-            'La copie du disque ne correspond plus à son empreinte : rien n’a changé',
-          );
-        }
-        const rel = row.rel_path ?? copy.rel_path;
-        const dirRel = path.posix.dirname(rel) === '.' ? '' : path.posix.dirname(rel);
-        const dirAbs = library.abs(dirRel);
-        await mkdir(dirAbs, { recursive: true });
-        // Its own place (kept for it while archived); another name only if a file took it anyway.
-        const name = existsSync(path.join(dirAbs, path.posix.basename(rel)))
-          ? library.freeIn(dirAbs, path.posix.basename(rel))
-          : path.posix.basename(rel);
-        await rename(temp, path.join(dirAbs, name));
-        store.update('items', row.id, {
-          archived_at: null,
-          rel_path: dirRel ? `${dirRel}/${name}` : name,
-          name,
-          stat_json: null,
-        });
-        return { ok: true };
-      });
+    title: (i) => `Coffre : réactiver « ${getItem(i.ids[0]!).name} »`,
+    // A background task (a big file read back from the disk).
+    run: reactivateRun,
+  });
+  taskRoute<{ ids: string[] }, { done: number }>(ctx, {
+    route: '/folders/:id/reactivate',
+    type: 'reactivate-folder',
+    input: (request) => {
+      const ids = filesOfFolder(uuidParam(request.params)).filter((id) => getItem(id).archived_at);
+      if (!ids.length) throw new HttpError(409, 'Rien d’archivé dans ce dossier');
+      disk.rootOrThrow();
+      return { ids };
     },
+    title: (i) => `Coffre : réactiver ${i.ids.length} fichier${i.ids.length > 1 ? 's' : ''}`,
+    run: reactivateRun,
   });
 
   /** « 40 éléments pas ouverts depuis 6 mois (3,2 Go) — Voir »: a suggestion, never applied alone. */
@@ -223,7 +261,7 @@ export function registerArchiveRoutes(d: CoffreDeps, disk: DiskManager): void {
     const since = new Date(Date.now() - SUGGEST_DAYS * 86_400_000).toISOString();
     const rows = ctx.db
       .prepare(
-        `SELECT * FROM ${d.t.items} WHERE deleted_at IS NULL AND trashed_at IS NULL AND archived_at IS NULL AND kind != 'link' AND pinned = 0 AND COALESCE(opened_at, created_at) < ?`,
+        `SELECT * FROM ${d.t.items} WHERE deleted_at IS NULL AND trashed_at IS NULL AND archived_at IS NULL AND pinned = 0 AND COALESCE(opened_at, created_at) < ?`,
       )
       .all(since) as ItemRow[];
     const active = rows.filter((r) => stateOf(r, disk.copyOf(r.id, diskRow.id)) === 'active');

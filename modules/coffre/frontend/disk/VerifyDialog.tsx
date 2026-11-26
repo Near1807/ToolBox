@@ -7,11 +7,11 @@ import {
   Button,
   ErrorMessage,
   errorMessage,
-  Gauge,
   Icon,
-  useJobs,
   useModule,
+  useTaskFollow,
 } from '@hub/sdk/frontend';
+import { TaskGauge } from './TaskGauge';
 import { plural } from './useDisk';
 
 interface Problem {
@@ -34,21 +34,18 @@ export function VerifyDialog(props: {
   onUpdate: () => void;
 }) {
   const module = useModule();
-  const { jobs, cancel } = useJobs(module.id);
-  const [jobId, setJobId] = useState<string | null>(null);
+  const task = useTaskFollow();
+  const { job, start } = task;
   const [error, setError] = useState<string | null>(null);
   const [marked, setMarked] = useState(0);
-  const job = jobs.find((j) => j.id === jobId) ?? null;
-  const running = !job || job.status === 'queued' || job.status === 'running';
+  const running = task.phase === 'starting' || task.phase === 'active';
 
+  // Started at the opening — once (a second start is ignored by the hook).
   useEffect(() => {
-    module.api
-      .post<{ jobId: string }>('/disk/verify')
-      .then((r) => setJobId(r.jobId))
-      .catch((e: unknown) => setError(errorMessage(e)));
-  }, [module.api]);
+    start(() => module.api.post<{ jobId: string }>('/disk/verify'));
+  }, [module.api, start]);
 
-  const report = job && !running ? (job.result as Report | null) : null;
+  const report = task.phase === 'ended' && job ? (job.result as Report | null) : null;
   const recopy = (report?.problems ?? []).filter((p) => p.canRecopy);
   const repair = async () => {
     try {
@@ -78,27 +75,11 @@ export function VerifyDialog(props: {
             </button>
           )}
         </header>
-        {running && (
-          <div className="coffre-update__progress">
-            <Gauge
-              value={job?.progress ?? 0}
-              label={`${Math.round((job?.progress ?? 0) * 100)} %`}
-              sub="relu"
-              size={140}
-            />
-            <div>
-              <p className="coffre-update__message">{job?.message ?? 'Démarrage…'}</p>
-              <p className="muted small">
-                Chaque fichier du disque est relu et son empreinte comparée. Rien n'est modifié.
-              </p>
-              {job && (
-                <Button variant="secondary" onClick={() => void cancel(job.id)}>
-                  Annuler
-                </Button>
-              )}
-            </div>
-          </div>
-        )}
+        <TaskGauge task={task} sub="relu" onFail={(e) => setError(errorMessage(e))}>
+          <p className="muted small">
+            Chaque fichier du disque est relu et son empreinte comparée. Rien n'est modifié.
+          </p>
+        </TaskGauge>
         {report && (
           <>
             {report.problems.length === 0 ? (
@@ -149,8 +130,10 @@ export function VerifyDialog(props: {
             </footer>
           </>
         )}
-        {job?.status === 'failed' && <ErrorMessage>{job.error}</ErrorMessage>}
-        {error && <ErrorMessage>{error}</ErrorMessage>}
+        {task.phase === 'ended' && job?.status === 'failed' && (
+          <ErrorMessage>{job.error}</ErrorMessage>
+        )}
+        {(error ?? task.error) && <ErrorMessage>{error ?? task.error}</ErrorMessage>}
       </div>
     </div>
   );

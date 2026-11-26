@@ -1,17 +1,17 @@
 // v0.45.0: the large preview — over the page: the reader in the middle, the
 // sheet on the side (changed at once, « Annuler » in the message); ← → the
-// previous / next element, Échap (or Espace) closes.
+// previous / next file, Échap (or Espace) closes. v0.50.0: labels; a
+// project's content is indivisible (its route changes with its folder).
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Button, formatBytes, Icon, useApi, useModule } from '@hub/sdk/frontend';
-import type { AttributeKey, ItemDto } from '../shared/types';
+import type { LabelFamily, ItemDto } from '../shared/types';
 import { useCoffre } from './frame';
-import { extOfItem, openPlan, shortDate, type ContextChoice } from './logic';
+import { extOfItem, openPlan, shortDate, type FolderChoice } from './logic';
 import { iconOf, ReaderView } from './ReaderView';
 import type { ReaderLocate } from './readers';
 import { Sheet } from './Sheet';
 import { Versions } from './disk/Versions';
-import { AlsoIn } from './AlsoIn';
 
 const typing = (t: EventTarget | null) =>
   t instanceof HTMLElement &&
@@ -33,13 +33,13 @@ export function Preview(props: {
   const navigate = useNavigate();
   const base = props.items[props.index];
   // Read again after each change (the sheet shows what is stored).
-  const fresh = useApi<ItemDto>(base ? module.url(`/items/${base.id}`) : null);
+  const fresh = useApi<ItemDto>(base ? module.url(`/files/${base.id}`) : null);
   const item = fresh.data?.id === base?.id ? fresh.data : base;
   const { onClose, onIndex, index, items } = props;
   // v0.46.0: seen (« pas ouverts depuis 6 mois » counts a look as an opening).
   const seenId = base?.id;
   useEffect(() => {
-    if (seenId) void module.api.post(`/items/${seenId}/seen`).catch(() => undefined);
+    if (seenId) void module.api.post(`/files/${seenId}/seen`).catch(() => undefined);
   }, [seenId, module.api]);
 
   useEffect(() => {
@@ -71,6 +71,10 @@ export function Preview(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [item?.id, item?.url, item?.size],
   );
+  // v0.50.0: Ctrl+Maj+C / Ctrl+Maj+V act on the file previewed.
+  useEffect(() => {
+    if (item) coffre.setTargets([item]);
+  }, [item, coffre]);
   if (!item || !source) return null;
 
   const done = (r: { undoId?: string | null }, message: string) => {
@@ -78,36 +82,30 @@ export function Preview(props: {
     coffre.refresh();
     fresh.reload();
   };
-  const choice: ContextChoice = item.contextId
-    ? { kind: 'existing', id: item.contextId, origin: 'chosen', reason: null }
+  const choice: FolderChoice = item.folderId
+    ? { kind: 'existing', id: item.folderId, origin: 'chosen', reason: null }
     : null;
-  const onChoice = (next: ContextChoice) => {
+  const onChoice = (next: FolderChoice) => {
     const body =
       next === null
-        ? { arrival: true }
+        ? { later: true }
         : next.kind === 'existing'
-          ? { contextId: next.id }
-          : { newContext: next.path };
+          ? { folderId: next.id }
+          : { newFolder: next.path };
     coffre.api
-      .patch<{ undoId: string }>(`/items/${item.id}`, body)
+      .patch<{ undoId: string }>(`/files/${item.id}`, body)
       .then((r) => done(r, `« ${item.name} » déplacé.`))
       .catch(coffre.fail);
   };
-  const onValues = (key: AttributeKey, values: string[]) =>
+  const onValues = (key: LabelFamily, values: string[]) =>
     coffre.api
-      .put<{ undoId: string }>(`/items/${item.id}/attributes`, { key, values })
-      .then((r) => done(r, 'Fiche modifiée.'))
-      .catch(coffre.fail);
-  /** v0.48.0: « Fiche vérifiée »: no longer « à compléter » (Annuler). */
-  const checked = () =>
-    coffre.api
-      .patch<{ undoId: string }>(`/items/${item.id}`, { toComplete: false })
-      .then((r) => done(r, 'Fiche vérifiée.'))
+      .put<{ undoId: string }>(`/files/${item.id}/labels`, { family: key, values })
+      .then((r) => done(r, 'Étiquettes modifiées.'))
       .catch(coffre.fail);
   const rename = (name: string) => {
     if (!name.trim() || name.trim() === item.name) return;
     coffre.api
-      .patch<{ undoId: string }>(`/items/${item.id}`, { name })
+      .patch<{ undoId: string }>(`/files/${item.id}`, { name })
       .then((r) => done(r, `Renommé en « ${name.trim()} ».`))
       .catch(coffre.fail);
   };
@@ -124,8 +122,8 @@ export function Preview(props: {
           <strong>{item.name}</strong>
           <span className="muted">
             {[
-              item.contextPath?.join(' › ') ?? 'Arrivée',
-              item.kind === 'link' ? 'lien externe' : formatBytes(item.size),
+              item.folderPath?.join(' › ') ?? 'À ranger',
+              formatBytes(item.size),
               shortDate(item.fileDate),
             ]
               .filter(Boolean)
@@ -183,10 +181,8 @@ export function Preview(props: {
                   {item.unavailable
                     ? `Archivé : sur le disque « ${coffre.disk?.disk?.name ?? 'du coffre'} ». Branche-le pour le voir.`
                     : item.kind === 'project'
-                      ? 'Un projet (dossier entier).'
-                      : item.kind === 'link'
-                        ? `Lien externe : ${item.externalPath ?? ''}`
-                        : 'Pas d’aperçu pour ce type de fichier.'}
+                      ? 'Un projet : ouvre son dossier pour le parcourir.'
+                      : 'Pas d’aperçu pour ce type de fichier.'}
                 </p>
                 <Button onClick={() => coffre.open(item)}>
                   {item.kind === 'project' && coffre.tools.vscode
@@ -208,10 +204,14 @@ export function Preview(props: {
         </button>
         <aside className="coffre-preview__sheet">
           <Sheet
-            link={item.kind === 'link'}
             choice={choice}
             onChoice={onChoice}
-            attributes={item.attributes}
+            routeLocked={
+              item.inProject
+                ? 'Un projet se déplace avec son dossier (indivisible) : depuis la carte ou l’arbre'
+                : null
+            }
+            labels={item.labels}
             onValues={(key, values) => void onValues(key, values)}
             onShowAll={(key, value) => {
               onClose();
@@ -219,18 +219,6 @@ export function Preview(props: {
             }}
           >
             <NameField key={`${item.id}:${item.name}`} name={item.name} onRename={rename} />
-            {item.toComplete && (
-              <div className="coffre-tocomplete" role="status" data-coffre-tocomplete-sheet>
-                <span>Importé : fiche devinée, à compléter.</span>
-                <button
-                  type="button"
-                  className="button button--small button--secondary"
-                  onClick={() => void checked()}
-                >
-                  Fiche vérifiée
-                </button>
-              </div>
-            )}
             {item.originalName && (
               <p className="coffre-sheet__row muted small" data-coffre-original>
                 <span className="coffre-sheet__label">Nom d’origine</span>
@@ -238,11 +226,10 @@ export function Preview(props: {
               </p>
             )}
           </Sheet>
-          <AlsoIn item={item} onChanged={() => fresh.reload()} />
           <Versions item={item} onRestored={() => fresh.reload()} />
           {item.sourcePath && (
             <p className="coffre-preview__origin muted" title={item.sourcePath}>
-              Déposé depuis : {item.sourcePath}
+              Original : {item.sourcePath}
             </p>
           )}
         </aside>

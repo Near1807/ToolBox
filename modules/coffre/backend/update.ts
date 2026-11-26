@@ -402,14 +402,15 @@ export async function exportBase(
   const all = (t: string) => ctx.db.prepare(`SELECT * FROM ${t}`).all();
   const sheets = {
     format: 'toolbox-coffre-fiches',
-    version: 1,
+    // v0.50.0 (ADR 0067): version 2 — folders, labels, sets of labels.
+    version: 2,
     exportedAt: at,
     disk: { id: row.id, name: row.name },
     tables: {
-      contexts: all(d.t.contexts),
+      folders: all(d.t.folders),
       items: all(d.t.items),
-      attributes: all(d.t.attributes),
-      also: all(d.t.also),
+      labels: all(d.t.labels),
+      label_sets: all(d.t.labelSets),
       copies: ctx.db.prepare(`SELECT * FROM ${d.t.copies} WHERE disk_id = ?`).all(row.id),
       versions: ctx.db.prepare(`SELECT * FROM ${d.t.versions} WHERE disk_id = ?`).all(row.id),
     },

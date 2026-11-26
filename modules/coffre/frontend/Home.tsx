@@ -1,6 +1,6 @@
 // v0.45.0: the Coffre's dashboard. v0.48.0: two pages — « Contenu » (by
 // default: the search, « Maintenant », « En cours », the recent elements,
-// Arrivée, the map and the tree, the tiles; a small witness of the disk) and
+// À ranger, the map and the tree, the tiles; a small witness of the disk) and
 // « Gestion » (the disk, the health and gauges, the Recycle Bins, the
 // downloads, what was learned, the settings). The disk's banner (frame.tsx)
 // stays above both.
@@ -14,10 +14,9 @@ import {
   Icon,
   Page,
   useApi,
-  useContextMenu,
   useModule,
 } from '@hub/sdk/frontend';
-import type { ContextDto, HomeDto } from '../shared/types';
+import type { FolderDto, HomeDto } from '../shared/types';
 import { draggingFiles, useCoffre } from './frame';
 import { Items } from './Items';
 import { SearchResults } from './SearchResults';
@@ -29,22 +28,23 @@ import { RestoreDialog } from './disk/RestoreDialog';
 import { DiskSettings } from './disk/DiskSettings';
 import { LearnedSettings } from './Learned';
 import { Atlas } from './Atlas';
-import { ImportsPanel } from './Import';
 import { PendingDiskRename, SensitiveZone } from './Reset';
 
-/** A context's tile that takes what is dropped on it. */
-export function Tile(props: { context: ContextDto; showPath?: boolean }) {
+/** A folder's tile that takes what is dropped on it. */
+export function Tile(props: { folder: FolderDto; showPath?: boolean }) {
   const coffre = useCoffre();
   const navigate = useNavigate();
   const [dropping, setDropping] = useState(false);
-  const c = props.context;
+  const c = props.folder;
+  const where = props.showPath && c.path.length > 2 ? c.path.slice(1, -1).join(' › ') : '';
+  const badge = c.project ? 'Projet' : c.endOfRoute ? 'Fin de route' : '';
   return (
     <ContextTile
       name={c.name}
       color={c.css}
-      count={c.count}
+      count={c.endOfRoute ? c.total : c.count}
       fresh={c.fresh}
-      path={props.showPath && c.path.length > 2 ? c.path.slice(1, -1).join(' › ') : undefined}
+      path={[badge, where].filter(Boolean).join(' · ') || undefined}
       onOpen={() => navigate(coffre.path(`c/${c.id}`))}
       dropping={dropping}
       onDragOver={(e: DragEvent<HTMLElement>) => {
@@ -59,9 +59,14 @@ export function Tile(props: { context: ContextDto; showPath?: boolean }) {
         // Handled here (defaultPrevented): the page's zone only closes.
         e.preventDefault();
         setDropping(false);
+        // A project is indivisible: nothing enters it from the Coffre.
+        if (c.project) {
+          coffre.notify(`« ${c.name} » est un projet : rien n’y entre depuis le Coffre.`);
+          return;
+        }
         coffre.drop(e.dataTransfer, c.id);
       }}
-      bind={{ 'data-coffre-context': c.id }}
+      bind={{ 'data-coffre-folder': c.id }}
     />
   );
 }
@@ -102,7 +107,6 @@ export function HomePage() {
   const module = useModule();
   const coffre = useCoffre();
   const location = useLocation();
-  const linkMenu = useContextMenu();
   const home = useApi<HomeDto>(module.url('/home'));
   // v0.47.0: « Tous les résultats » of the hub's search lands here (?q=).
   const [params, setParams] = useSearchParams();
@@ -157,8 +161,11 @@ export function HomePage() {
   }, [setTab]);
 
   const h = home.data;
-  const families = useMemo(() => familiesOf(h?.contexts ?? []), [h?.contexts]);
-  const empty = h && !h.health.items && !h.contexts.length;
+  const families = useMemo(
+    () => familiesOf((h?.folders ?? []).filter((f) => !f.inside)),
+    [h?.folders],
+  );
+  const empty = h && !h.health.items && !h.folders.length;
 
   const tabs = (
     <div className="coffre-tabs" role="tablist" aria-label="Pages du Coffre">
@@ -197,30 +204,11 @@ export function HomePage() {
         <>
           <SearchBox value={query} onChange={setQuery} />
           <Button onClick={() => coffre.pick()}>Ranger des fichiers…</Button>
-          <Button
-            variant="secondary"
-            onClick={(e) => {
-              const r = e.currentTarget.getBoundingClientRect();
-              linkMenu.openAt(
-                () => [
-                  { title: 'Lien externe (non sauvegardé)' },
-                  {
-                    label: 'Un ou plusieurs fichiers…',
-                    icon: 'file',
-                    onSelect: () => coffre.addLink('file'),
-                  },
-                  {
-                    label: 'Un dossier…',
-                    icon: 'folder',
-                    onSelect: () => coffre.addLink('folder'),
-                  },
-                ],
-                r.left,
-                r.bottom + 4,
-              );
-            }}
-          >
-            Ajouter un lien externe…
+          <Button variant="secondary" onClick={() => coffre.pickDir()}>
+            Ranger un dossier…
+          </Button>
+          <Button variant="secondary" onClick={() => coffre.create('folder', null)}>
+            Nouveau dossier
           </Button>
         </>
       }
@@ -253,7 +241,6 @@ export function HomePage() {
           )
         )}
       </div>
-      {linkMenu.node}
       {restoring && <RestoreDialog onClose={() => setRestoring(false)} onDone={coffre.refresh} />}
     </Page>
   );
@@ -274,12 +261,12 @@ function ContentTab(props: {
     <>
       <div className="coffre-strip" data-coffre-strip>
         <Link
-          to={coffre.path('arrivee')}
-          className={`coffre-chip${h.arrivalCount ? ' coffre-chip--accent' : ''}`}
-          data-coffre-arrival
+          to={coffre.path('a-ranger')}
+          className={`coffre-chip${h.pendingCount ? ' coffre-chip--accent' : ''}`}
+          data-coffre-pending
         >
           <Icon name="folder-input" />
-          {h.arrivalCount ? `Arrivée : ${h.arrivalCount} à ranger` : 'Arrivée : tout est rangé'}
+          {h.pendingCount ? `À ranger : ${h.pendingCount}` : 'À ranger : rien'}
         </Link>
         <button
           type="button"
@@ -296,27 +283,6 @@ function ContentTab(props: {
               : 'Tout est sauvegardé'}
           <span className="coffre-chip__more">Gestion</span>
         </button>
-        {h.toCompleteCount > 0 && (
-          <Link
-            to={coffre.path('etat/tocomplete')}
-            className="coffre-chip coffre-chip--accent"
-            data-coffre-tocomplete
-          >
-            <Icon name="pencil" />À compléter : {h.toCompleteCount}
-          </Link>
-        )}
-        {h.foundCount > 0 && (
-          <button
-            type="button"
-            className="coffre-chip coffre-chip--warn"
-            onClick={props.onManage}
-            title="Un dossier ajouté à la main dans le Coffre : l’adopter depuis Gestion"
-            data-coffre-found-witness
-          >
-            <Icon name="folder-plus" />
-            {h.foundCount} dossier{h.foundCount > 1 ? 's' : ''} à adopter
-          </button>
-        )}
       </div>
       <NowPanel />
       {props.empty && (
@@ -335,22 +301,24 @@ function ContentTab(props: {
       {h.pinned.length > 0 && (
         <section className="coffre-section">
           <h2 className="coffre-h2">En cours</h2>
-          <Items items={h.pinned} large showContext />
+          <Items items={h.pinned} large showFolder />
         </section>
       )}
       {h.recent.length > 0 && (
         <section className="coffre-section">
           <h2 className="coffre-h2">Récents</h2>
-          <Items items={h.recent} showContext />
+          <Items items={h.recent} showFolder />
         </section>
       )}
-      {h.contexts.length > 0 && <Atlas contexts={coffre.contexts} pending={h.pendingByContext} />}
+      {h.folders.length > 0 && (
+        <Atlas folders={coffre.folders} pending={h.pendingByFolder} waiting={h.pendingCount} />
+      )}
       {props.families.map((f) => (
         <section key={f.family} className="coffre-section">
           <h2 className="coffre-h2">{f.family}</h2>
           <div className="coffre-tiles">
             {f.tiles.map((c) => (
-              <Tile key={c.id} context={c} showPath />
+              <Tile key={c.id} folder={c} showPath />
             ))}
           </div>
         </section>
@@ -415,7 +383,6 @@ function ManageTab(props: { home: HomeDto; onRestore: () => void }) {
           <DownloadsPanel />
         </div>
       </div>
-      <ImportsPanel />
       <section className="coffre-section coffre-manage" aria-label="Réglages du Coffre">
         <DiskSettings />
         <LearnedSettings />

@@ -1,6 +1,8 @@
-// v0.45.0: a context's page (header, filters in pills, cards or list, drop =
-// put away here), the views by attribute (« Python », « Prof PCH »),
-// Arrivée and the Coffre's Recycle Bin.
+// v0.45.0, v0.50.0: a folder's view (header with its badges and default
+// labels, filters in pills, cards or list, drop = put away here, « Nouveau
+// dossier », « Nouveau fichier… »), a Fin de route or a Projet browsed inside
+// (Inside.tsx), the views by label (« Python », « Prof PCH »), À ranger and the
+// Coffre's Recycle Bin.
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import {
@@ -20,19 +22,21 @@ import { fold } from '../shared/deduce';
 import { facetsOf, filterItems, type FacetSelection } from '../shared/facets';
 import { linkedTo, NO_COURSE } from '../shared/now';
 import {
-  ATTRIBUTE_KEYS,
-  ATTRIBUTE_LABELS,
-  type AttributeKey,
+  LABEL_FAMILIES,
+  FAMILY_NAMES,
+  type LabelFamily,
   type CourseHint,
   type ItemDto,
 } from '../shared/types';
 import { useCoffre } from './frame';
-import { useTreeActions } from './tree-actions';
+import { useTreeActions } from './folder-actions';
 import { SelectBar, useSelection } from './BatchEdit';
 import { Tile } from './Home';
 import { Items, useView, ViewBar } from './Items';
 import { shortDate } from './logic';
 import { DiskTrash } from './disk/DiskTrash';
+import { DefaultLabels } from './Labels';
+import { Inside } from './Inside';
 import { useDisk } from './disk/useDisk';
 
 /** The pills of a list: combinable (AND between keys, OR inside one). */
@@ -40,14 +44,14 @@ export function Facets(props: {
   items: ItemDto[];
   selection: FacetSelection;
   onChange: (s: FacetSelection) => void;
-  /** Keys left out (the view's own key). */
-  without?: AttributeKey[];
+  /** Families left out (the view's own family). */
+  without?: LabelFamily[];
 }) {
   const facets = facetsOf(props.items, props.selection).filter(
     (f) => !props.without?.includes(f.key) && (f.values.length > 1 || f.values.some((v) => v.on)),
   );
   if (!facets.length) return null;
-  const toggle = (key: AttributeKey, value: string) => {
+  const toggle = (key: LabelFamily, value: string) => {
     const now = props.selection[key] ?? [];
     const on = now.some((v) => fold(v) === fold(value));
     props.onChange({
@@ -55,14 +59,12 @@ export function Facets(props: {
       [key]: on ? now.filter((v) => fold(v) !== fold(value)) : [...now, value],
     });
   };
-  const any = ATTRIBUTE_KEYS.some((k) => props.selection[k]?.length);
+  const any = LABEL_FAMILIES.some((k) => props.selection[k]?.length);
   return (
     <div className="coffre-facets" aria-label="Filtres">
       {facets.map((f) => (
         <div key={f.key} className="coffre-facets__group">
-          <span className="coffre-facets__label">
-            {f.key === 'tag' ? 'Tags' : ATTRIBUTE_LABELS[f.key]}
-          </span>
+          <span className="coffre-facets__label">{FAMILY_NAMES[f.key]}</span>
           {f.values.slice(0, 14).map((v) => (
             <FilterPill
               key={v.value}
@@ -85,8 +87,8 @@ export function Facets(props: {
 
 function FilteredItems(props: {
   items: ItemDto[];
-  showContext?: boolean;
-  without?: AttributeKey[];
+  showFolder?: boolean;
+  without?: LabelFamily[];
   empty: string;
 }) {
   const [selection, setSelection] = useState<FacetSelection>({});
@@ -148,11 +150,11 @@ function FilteredItems(props: {
         items={shown}
         select={sel.selecting ? { ids: sel.ids, toggle: sel.toggle } : undefined}
         onModClick={sel.modClick}
-        showContext={props.showContext}
+        showFolder={props.showFolder}
         view={view.view}
         sort={view.sort}
         onSort={view.setSort}
-        empty={props.items.length ? 'Aucun élément avec ces filtres.' : props.empty}
+        empty={props.items.length ? 'Aucun fichier avec ces filtres.' : props.empty}
       />
     </>
   );
@@ -166,38 +168,40 @@ const slot = (next: NonNullable<CourseHint['next']>) => {
   return `${day}, ${hour(start)} – ${hour(end)}${next.location ? ` · ${next.location}` : ''}`;
 };
 
-export function ContextPage() {
+export function FolderPage() {
   const { id = '' } = useParams();
   const module = useModule();
   const coffre = useCoffre();
   const navigate = useNavigate();
-  const items = useApi<ItemDto[]>(module.url(`/items?context=${encodeURIComponent(id)}`));
+  const items = useApi<ItemDto[]>(module.url(`/files?folder=${encodeURIComponent(id)}`));
   const courses = useApi<CourseHint[]>(module.url('/courses'));
   const tree = useTreeActions();
   const treeMenu = useContextMenu();
-  const context = coffre.contexts.find((c) => c.id === id);
-  const children = coffre.contexts.filter((c) => c.parentId === id);
+  const folder = coffre.folders.find((c) => c.id === id);
+  const children = coffre.folders.filter((c) => c.parentId === id);
   useEffect(() => {
     coffre.setHere(id);
     return () => coffre.setHere(null);
   }, [coffre, id]);
 
   // v0.47.0: linked by hand (« Lié au cours … »), else by its name or code.
+  const hint = useApi<{ project: string | null }>(
+    folder && !folder.project ? module.url(`/folders/${id}/hint`) : null,
+  );
   const course = useMemo(() => {
-    if (!context) return null;
-    return (courses.data ?? []).find((c) => linkedTo(context, c)) ?? null;
-  }, [context, courses.data]);
+    if (!folder) return null;
+    return (courses.data ?? []).find((c) => linkedTo(folder, c)) ?? null;
+  }, [folder, courses.data]);
   const linkCourse = (courseName: string | null) =>
     void module.api
-      .patch(`/contexts/${id}`, { courseName })
+      .patch(`/folders/${id}`, { courseName })
       .then(() => coffre.refresh())
       .catch(coffre.fail);
-  const cover = context?.coverItemId ? items.data?.find((i) => i.id === context.coverItemId) : null;
 
-  if (!context)
+  if (!folder)
     return (
-      <Page title="Contexte">
-        <EmptyState title="Ce contexte n’existe plus">
+      <Page title="Dossier">
+        <EmptyState title="Ce dossier n’existe plus">
           <Link to={coffre.path('')}>Retour au Coffre</Link>
         </EmptyState>
       </Page>
@@ -205,19 +209,19 @@ export function ContextPage() {
 
   const recolor = (color: string) =>
     coffre.api
-      .patch(`/contexts/${id}`, { color: color || null })
+      .patch(`/folders/${id}`, { color: color || null })
       .then(coffre.refresh)
       .catch(coffre.fail);
 
   return (
     <Page
-      title={context.name}
+      title={folder.name}
       subtitle={
         <span className="coffre-crumbs">
           <Link to={coffre.path('')}>Coffre</Link>
-          {context.path.slice(0, -1).map((name, i) => {
-            const parent = coffre.contexts.find(
-              (c) => c.path.length === i + 1 && c.path.every((p, j) => p === context.path[j]),
+          {folder.path.slice(0, -1).map((name, i) => {
+            const parent = coffre.folders.find(
+              (c) => c.path.length === i + 1 && c.path.every((p, j) => p === folder.path[j]),
             );
             return (
               <span key={i}>
@@ -230,9 +234,19 @@ export function ContextPage() {
       }
       actions={
         <>
-          <Button onClick={() => coffre.pick(id)}>Ranger des fichiers ici…</Button>
+          {!folder.project && (
+            <>
+              <Button onClick={() => coffre.pick(id)}>Ranger des fichiers ici…</Button>
+              <Button variant="secondary" onClick={() => coffre.create('folder', id)}>
+                Nouveau dossier
+              </Button>
+              <Button variant="secondary" onClick={() => coffre.create('file', id)}>
+                Nouveau fichier…
+              </Button>
+            </>
+          )}
           {/* v0.48.0: the same actions as the tree and the map (ADR 0064). */}
-          <Button variant="secondary" onClick={() => tree.rename(context)}>
+          <Button variant="secondary" onClick={() => tree.rename(folder)}>
             Renommer
           </Button>
           <Button
@@ -240,38 +254,22 @@ export function ContextPage() {
             aria-haspopup="menu"
             onClick={(e) => {
               const r = e.currentTarget.getBoundingClientRect();
-              treeMenu.openAt(() => tree.menuOf(context), r.left, r.bottom + 4);
+              treeMenu.openAt(() => tree.menuOf(folder), r.left, r.bottom + 4);
             }}
-            {...treeMenu.bind(() => tree.menuOf(context), context.name)}
+            {...treeMenu.bind(() => tree.menuOf(folder), folder.name)}
           >
             Organiser…
           </Button>
-          {context.coverItemId && (
-            <Button
-              variant="secondary"
-              onClick={() =>
-                coffre.api
-                  .patch(`/contexts/${id}`, { coverItemId: null })
-                  .then(() => {
-                    coffre.notify('Couverture retirée (l’image reste dans le contexte).');
-                    coffre.refresh();
-                  })
-                  .catch(coffre.fail)
-              }
-            >
-              Retirer la couverture
-            </Button>
-          )}
           <label className="coffre-color">
             <span
               className="coffre-color__dot"
-              style={{ background: context.css }}
+              style={{ background: folder.css }}
               aria-hidden="true"
             />
             <select
               className="input"
-              aria-label="Couleur du contexte"
-              value={context.color ?? ''}
+              aria-label="Couleur du dossier"
+              value={folder.color ?? ''}
               onChange={(e) => void recolor(e.target.value)}
             >
               <option value="">Couleur de la famille</option>
@@ -287,14 +285,48 @@ export function ContextPage() {
     >
       <div
         data-coffre-page
-        data-coffre-context={id}
-        className="coffre-context"
-        style={{ '--context-color': context.css } as React.CSSProperties}
+        data-coffre-folder={id}
+        className="coffre-folder"
+        style={{ '--folder-color': folder.css } as React.CSSProperties}
       >
-        <div className="coffre-context__band" aria-hidden="true" />
-        {(cover?.url || course) && (
-          <section className="coffre-context__head">
-            {cover?.url && <img className="coffre-context__cover" src={cover.url} alt="" />}
+        <div className="coffre-folder__band" aria-hidden="true" />
+        {/* v0.50.0: its route, its count, its disk state, its badges, its default labels. */}
+        <section className="coffre-folder__info" data-coffre-folder-info>
+          <span>
+            {folder.total} fichier{folder.total > 1 ? 's' : ''}
+            {folder.total !== folder.count ? ` (dont ${folder.count} ici)` : ''}
+          </span>
+          {(items.data ?? []).some((i) => i.diskState === 'pending') && (
+            <span className="coffre-chip coffre-chip--warn">pas encore tout sur le disque</span>
+          )}
+          {folder.project && <span className="coffre-kind coffre-kind--project">Projet</span>}
+          {folder.endOfRoute && !folder.project && (
+            <span className="coffre-kind">Fin de route</span>
+          )}
+          {!folder.project && hint.data?.project && (
+            <span className="coffre-hint" data-coffre-project-hint>
+              Ressemble à un projet ({hint.data.project}).{' '}
+              <button
+                type="button"
+                className="coffre-linklike"
+                onClick={() =>
+                  void module.api
+                    .post<{ undoId?: string }>(`/folders/${id}/project`, { on: true })
+                    .then((r) => {
+                      coffre.notify(`« ${folder.name} » est un projet.`, r.undoId ?? null);
+                      coffre.refresh();
+                    })
+                    .catch(coffre.fail)
+                }
+              >
+                Marquer comme projet
+              </button>
+            </span>
+          )}
+        </section>
+        {!folder.project && <DefaultLabels folder={folder} />}
+        {course && (
+          <section className="coffre-folder__head">
             {course && (
               <div className="coffre-course">
                 <span className="coffre-course__tag">Cours de l’Agenda</span>
@@ -316,11 +348,11 @@ export function ContextPage() {
           </section>
         )}
         {(courses.data?.length ?? 0) > 0 && (
-          <label className="coffre-context__course-link">
+          <label className="coffre-folder__course-link">
             <span className="muted small">Lié au cours</span>{' '}
             <select
               className="input"
-              value={context.courseName ?? ''}
+              value={folder.courseName ?? ''}
               onChange={(e) => linkCourse(e.target.value || null)}
             >
               <option value="">
@@ -336,27 +368,33 @@ export function ContextPage() {
             </select>
           </label>
         )}
-        {children.length > 0 && (
-          <div className="coffre-tiles coffre-tiles--small">
-            {children.map((c) => (
-              <Tile key={c.id} context={c} />
-            ))}
-          </div>
+        {folder.endOfRoute ? (
+          <Inside folder={folder} files={items.data ?? null} />
+        ) : (
+          <>
+            {children.length > 0 && (
+              <div className="coffre-tiles coffre-tiles--small">
+                {children.map((c) => (
+                  <Tile key={c.id} folder={c} />
+                ))}
+              </div>
+            )}
+            {items.error && <ErrorMessage>{items.error}</ErrorMessage>}
+            {items.data && (
+              <FilteredItems
+                items={items.data}
+                empty="Rien ici pour l’instant : glisse des fichiers sur cette page pour les ranger dans ce dossier."
+              />
+            )}
+          </>
         )}
-        {items.error && <ErrorMessage>{items.error}</ErrorMessage>}
-        {items.data && (
-          <FilteredItems
-            items={items.data}
-            empty="Rien ici pour l’instant : glisse des fichiers sur cette page pour les ranger dans ce contexte."
-          />
-        )}
-        <p className="muted coffre-context__foot">
+        <p className="muted coffre-folder__foot">
           <button
             type="button"
             className="coffre-linklike"
             onClick={() => navigate(coffre.path(''))}
           >
-            <Icon name="arrow-left" /> Tous les contextes
+            <Icon name="arrow-left" /> Tous les dossiers
           </button>
         </p>
       </div>
@@ -366,23 +404,23 @@ export function ContextPage() {
   );
 }
 
-export function AttributePage() {
+export function LabelPage() {
   const { key = '', value = '' } = useParams();
   const module = useModule();
   const coffre = useCoffre();
-  const k = key as AttributeKey;
+  const k = key as LabelFamily;
   const items = useApi<ItemDto[]>(
-    module.url(`/items?key=${encodeURIComponent(key)}&value=${encodeURIComponent(value)}`),
+    module.url(`/files?family=${encodeURIComponent(key)}&value=${encodeURIComponent(value)}`),
   );
   useEffect(() => coffre.setHere(null), [coffre]);
-  const label = ATTRIBUTE_KEYS.includes(k) ? (k === 'tag' ? 'Tag' : ATTRIBUTE_LABELS[k]) : key;
+  const label = LABEL_FAMILIES.includes(k) ? FAMILY_NAMES[k] : key;
   return (
     <Page
       title={`${label} : ${value}`}
       subtitle={
         <span className="coffre-crumbs">
           <Link to={coffre.path('')}>Coffre</Link> › tout ce qui est « {value} », dans tous les
-          contextes
+          dossiers
         </span>
       }
     >
@@ -391,7 +429,7 @@ export function AttributePage() {
         {items.data && (
           <FilteredItems
             items={items.data}
-            showContext
+            showFolder
             without={[k]}
             empty="Plus rien avec cette valeur."
           />
@@ -401,22 +439,22 @@ export function AttributePage() {
   );
 }
 
-export function ArrivalPage() {
+export function PendingPage() {
   const module = useModule();
   const coffre = useCoffre();
-  const items = useApi<ItemDto[]>(module.url('/items?arrival=1'));
+  const items = useApi<ItemDto[]>(module.url('/files?pending=1'));
   const view = useView();
   useEffect(() => coffre.setHere(null), [coffre]);
   const list = items.data ?? [];
   return (
     <Page
-      title="Arrivée"
-      subtitle="Ce qui attend d’être rangé. Espace ou clic sur l’aperçu : la fiche, avec son contexte."
+      title="À ranger"
+      subtitle="Ce qui attend d’être rangé (« Ranger plus tard »). Espace ou clic sur l’aperçu : sa route et ses étiquettes."
       actions={
         list.length > 0 && <Button onClick={() => coffre.preview(list, 0)}>Ranger un par un</Button>
       }
     >
-      <div data-coffre-page data-coffre-arrival>
+      <div data-coffre-page data-coffre-pending>
         {items.error && <ErrorMessage>{items.error}</ErrorMessage>}
         {items.data && !list.length ? (
           <EmptyState title="Tout est rangé" />
@@ -434,11 +472,11 @@ export function ArrivalPage() {
 export function TrashPage() {
   const module = useModule();
   const coffre = useCoffre();
-  const items = useApi<ItemDto[]>(module.url('/items?trash=1'));
+  const items = useApi<ItemDto[]>(module.url('/files?trash=1'));
   useEffect(() => coffre.setHere(null), [coffre]);
   const restore = (item: ItemDto) =>
     coffre.api
-      .post(`/items/${item.id}/restore`)
+      .post(`/files/${item.id}/restore`)
       .then(() => {
         coffre.notify(`« ${item.name} » est revenu.`);
         coffre.refresh();
@@ -452,7 +490,7 @@ export function TrashPage() {
     )
       return;
     coffre.api
-      .post(`/items/${item.id}/erase`, { confirm: true })
+      .post(`/files/${item.id}/erase`, { confirm: true })
       .then(() => {
         coffre.notify(`« ${item.name} » est effacé définitivement.`);
         coffre.refresh();
@@ -484,11 +522,9 @@ export function TrashPage() {
               {list.map((item) => (
                 <tr key={item.id}>
                   <td className="coffre-table__name">{item.name}</td>
-                  <td>{item.contextPath?.join(' › ') ?? 'Arrivée'}</td>
+                  <td>{item.folderPath?.join(' › ') ?? 'À ranger'}</td>
                   <td>{shortDate(item.trashedAt)}</td>
-                  <td className="coffre-table__num">
-                    {item.kind === 'link' ? '' : formatBytes(item.size)}
-                  </td>
+                  <td className="coffre-table__num">{formatBytes(item.size)}</td>
                   <td className="coffre-table__actions">
                     <Button variant="secondary" small onClick={() => void restore(item)}>
                       Récupérer
@@ -523,25 +559,17 @@ const STATE_TITLES: Record<string, { title: string; subtitle: string; empty: str
   },
   archived: {
     title: 'Archivés',
-    subtitle:
-      'Sur le disque seulement : fiches visibles et trouvables ici, fichiers sur le disque dur.',
-    empty: 'Aucun élément archivé.',
-  },
-  // v0.48.0: imported with an arborescence, sheet not yet checked.
-  tocomplete: {
-    title: 'À compléter',
-    subtitle:
-      'Importés avec une arborescence : leur fiche est devinée. « Sélectionner… » puis « Modifier la sélection » pour en compléter plusieurs ; « Fiche vérifiée » dans l’aperçu pour un seul.',
-    empty: 'Rien à compléter.',
+    subtitle: 'Sur le disque seulement : visibles et trouvables ici, fichiers sur le disque dur.',
+    empty: 'Aucun fichier archivé.',
   },
 };
 
-/** v0.46.0: the elements in a disk state (« pas encore sur le disque », archivés). */
+/** v0.46.0: the files in a disk state (« pas encore sur le disque », archivés). */
 export function StatePage() {
   const { state = 'pending' } = useParams();
   const module = useModule();
   const coffre = useCoffre();
-  const items = useApi<ItemDto[]>(module.url(`/items?state=${encodeURIComponent(state)}`));
+  const items = useApi<ItemDto[]>(module.url(`/files?state=${encodeURIComponent(state)}`));
   useEffect(() => coffre.setHere(null), [coffre]);
   const t = STATE_TITLES[state] ?? STATE_TITLES.pending!;
   return (
@@ -555,7 +583,7 @@ export function StatePage() {
     >
       <div data-coffre-page>
         {items.error && <ErrorMessage>{items.error}</ErrorMessage>}
-        {items.data && <FilteredItems items={items.data} showContext empty={t.empty} />}
+        {items.data && <FilteredItems items={items.data} showFolder empty={t.empty} />}
       </div>
     </Page>
   );

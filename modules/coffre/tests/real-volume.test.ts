@@ -61,13 +61,13 @@ describe.runIf(process.platform === 'win32' && volume && vhd)(
           (await ok<{ jobId: string }>(w, 'POST', `${API}/disk/update`)).jobId,
         );
         expect(first.status, first.error ?? '').toBe('succeeded');
-        const cours = await ok<{ id: string }>(w, 'POST', `${API}/contexts`, { name: 'Cours' });
-        const all = await ok<{ id: string; name: string }[]>(w, 'GET', `${API}/contexts`);
+        const cours = await ok<{ id: string }>(w, 'POST', `${API}/folders`, { name: 'Cours' });
+        const all = await ok<{ id: string; name: string }[]>(w, 'GET', `${API}/folders`);
         for (const name of ['thermo', 'Réseaux', 'GPU'])
-          await runJob(w, 'POST', `${API}/contexts/${all.find((c) => c.name === name)!.id}/move`, {
+          await runJob(w, 'POST', `${API}/folders/${all.find((c) => c.name === name)!.id}/move`, {
             parentId: cours.id,
           });
-        await ok(w, 'PATCH', `${API}/contexts/${all.find((c) => c.name === 'thermo')!.id}`, {
+        await ok(w, 'PATCH', `${API}/folders/${all.find((c) => c.name === 'thermo')!.id}`, {
           name: 'Thermo',
         });
         const lib = path.join(w.hub.dataDir, 'coffre');
@@ -146,7 +146,7 @@ describe.runIf(process.platform === 'win32' && volume && vhd)(
         w = await diskWorld({ realVolumes: true });
         const deep = Array.from(
           { length: 5 },
-          (_, i) => `Contexte assez long numéro ${i} pour le chemin`,
+          (_, i) => `Dossier assez long numéro ${i} pour le chemin`,
         );
         const [doc] = await deposit(
           w,

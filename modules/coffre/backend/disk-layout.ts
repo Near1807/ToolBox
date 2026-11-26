@@ -10,7 +10,7 @@ import { DISK_SYSTEM_FOLDER } from '../shared/names';
 export const DISK_FOLDER = 'ToolBox-Coffre';
 /** The identity file, at the root of DISK_FOLDER. */
 export const IDENTITY_FILE = '_identite-toolbox-coffre.json';
-/** ToolBox's own folder on the disk (a context never takes this name: folderName). */
+/** ToolBox's own folder on the disk (a folder never takes this name: folderName). */
 export const SYSTEM_FOLDER = DISK_SYSTEM_FOLDER;
 export const HISTORY_DIR = `${SYSTEM_FOLDER}/Historique`;
 export const DISK_TRASH_DIR = `${SYSTEM_FOLDER}/Corbeille`;

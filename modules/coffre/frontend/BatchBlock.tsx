@@ -1,6 +1,6 @@
 // v0.48.0 (Expérimental): the « Pour tous » block — one setting for a batch:
-// route (the route picker), nature, origin, year, tags added / removed, an
-// optional rename template ({nom}, {n}, {date}, {contexte}) with a preview of
+// route (the route picker), nature, origin, year, free labels added / removed, a named set, an
+// optional rename template ({nom}, {n}, {date}, {dossier}) with a preview of
 // the names. A field that differs among the files shows « mixte » as long as
 // it is not changed. The same block in the rangement window and for
 // « Modifier la sélection » of elements already stored.
@@ -8,10 +8,11 @@ import { useState } from 'react';
 import { Icon } from '@hub/sdk/frontend';
 import { TEMPLATE_TOKENS } from '../shared/batch';
 import { NATURE_CHOICES, ORIGIN_CHOICES } from '../shared/kinds';
-import type { ContextDto } from '../shared/types';
+import type { FolderDto } from '../shared/types';
 import { useCoffre } from './frame';
 import { choiceLabel, pickToChoice, type BatchValues, type batchSummary } from './logic';
 import { RoutePicker } from './RoutePicker';
+import { SetPicker } from './Labels';
 
 type Summary = ReturnType<typeof batchSummary>;
 const MIXED = '__mixte__';
@@ -63,28 +64,28 @@ export function BatchBlock(props: {
   onChange: (v: BatchValues) => void;
   /** A few names after the template (the preview). */
   preview: { before: string; after: string }[];
-  /** Arrivée offered as a route (the rangement window). */
-  arrival?: boolean;
+  /** À ranger offered as a route (the rangement window). */
+  pending?: boolean;
 }) {
   const coffre = useCoffre();
   const { values: v, summary: s, onChange } = props;
   const [picking, setPicking] = useState(false);
-  const [tag, setTag] = useState('');
+  const [free, setFree] = useState('');
   const set = (change: Partial<BatchValues>) => onChange({ ...v, ...change });
-  const addTag = () => {
-    const t = tag.trim();
+  const addFree = () => {
+    const t = free.trim();
     if (!t) return;
     set({
-      tagsAdd: v.tagsAdd.some((x) => x.toLowerCase() === t.toLowerCase())
-        ? v.tagsAdd
-        : [...v.tagsAdd, t],
-      tagsRemove: v.tagsRemove.filter((x) => x.toLowerCase() !== t.toLowerCase()),
+      freeAdd: v.freeAdd.some((x) => x.toLowerCase() === t.toLowerCase())
+        ? v.freeAdd
+        : [...v.freeAdd, t],
+      freeRemove: v.freeRemove.filter((x) => x.toLowerCase() !== t.toLowerCase()),
     });
-    setTag('');
+    setFree('');
   };
   const routeText =
     v.route !== undefined
-      ? choiceLabel(v.route, coffre.contexts as ContextDto[])
+      ? choiceLabel(v.route, coffre.folders as FolderDto[])
       : s.route.mixed
         ? 'mixte (inchangé)'
         : (s.route.value ?? '—');
@@ -126,8 +127,8 @@ export function BatchBlock(props: {
           {picking && (
             <RoutePicker
               label="Route pour tous"
-              contexts={coffre.contexts}
-              arrival={props.arrival}
+              folders={coffre.folders}
+              pending={props.pending}
               onClose={() => setPicking(false)}
               onPick={(pick) => {
                 setPicking(false);
@@ -163,32 +164,32 @@ export function BatchBlock(props: {
             }}
           />
         </label>
-        <div className="coffre-batch__field coffre-batch__tags">
-          <span className="coffre-batch__label">Tags</span>
+        <div className="coffre-batch__field coffre-batch__labels">
+          <span className="coffre-batch__label">Étiquettes libres</span>
           <div className="coffre-batch__chips">
-            {[...s.tags.everywhere, ...s.tags.some]
+            {[...s.free.everywhere, ...s.free.some]
               .filter(
                 (t) =>
-                  ![...v.tagsRemove, ...v.tagsAdd].some((x) => x.toLowerCase() === t.toLowerCase()),
+                  ![...v.freeRemove, ...v.freeAdd].some((x) => x.toLowerCase() === t.toLowerCase()),
               )
               .map((t) => (
                 <span key={`has:${t}`} className="coffre-value">
                   <span className="coffre-value__text">
                     {t}
-                    {s.tags.some.includes(t) && <span className="muted small"> (certains)</span>}
+                    {s.free.some.includes(t) && <span className="muted small"> (certains)</span>}
                   </span>
                   <button
                     type="button"
                     className="coffre-value__remove"
                     aria-label={`Retirer « ${t} » de tous`}
                     title="Retirer de tous"
-                    onClick={() => set({ tagsRemove: [...v.tagsRemove, t] })}
+                    onClick={() => set({ freeRemove: [...v.freeRemove, t] })}
                   >
                     <Icon name="close" />
                   </button>
                 </span>
               ))}
-            {v.tagsAdd.map((t) => (
+            {v.freeAdd.map((t) => (
               <span key={`add:${t}`} className="coffre-value coffre-value--added">
                 <span className="coffre-value__text">+ {t}</span>
                 <button
@@ -197,8 +198,8 @@ export function BatchBlock(props: {
                   aria-label={`Ne plus ajouter « ${t} »`}
                   onClick={() =>
                     set({
-                      tagsAdd: v.tagsAdd.filter((x) => x !== t),
-                      tagsRemove: [...v.tagsRemove, t],
+                      freeAdd: v.freeAdd.filter((x) => x !== t),
+                      freeRemove: [...v.freeRemove, t],
                     })
                   }
                 >
@@ -206,32 +207,64 @@ export function BatchBlock(props: {
                 </button>
               </span>
             ))}
-            {v.tagsRemove.map((t) => (
+            {v.freeRemove.map((t) => (
               <span key={`rm:${t}`} className="coffre-value coffre-value--removed">
                 <span className="coffre-value__text">− {t}</span>
                 <button
                   type="button"
                   className="coffre-value__remove"
                   aria-label={`Ne plus retirer « ${t} »`}
-                  onClick={() => set({ tagsRemove: v.tagsRemove.filter((x) => x !== t) })}
+                  onClick={() => set({ freeRemove: v.freeRemove.filter((x) => x !== t) })}
                 >
                   <Icon name="close" />
                 </button>
               </span>
             ))}
             <input
-              className="input coffre-batch__tag"
-              placeholder="+ tag, Entrée"
-              aria-label="Ajouter un tag à tous"
-              value={tag}
-              onChange={(e) => setTag(e.target.value)}
+              className="input coffre-batch__free"
+              placeholder="+ étiquette, Entrée"
+              aria-label="Ajouter une étiquette libre à tous"
+              value={free}
+              onChange={(e) => setFree(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault();
                   e.stopPropagation();
-                  addTag();
+                  addFree();
                 }
               }}
+            />
+          </div>
+        </div>
+        {/* v0.50.0: a named set of labels added to all, in one click. */}
+        <div className="coffre-batch__field coffre-batch__sets">
+          <span className="coffre-batch__label">Ensemble</span>
+          <div className="coffre-batch__chips">
+            {(v.add ?? []).map((l) => (
+              <span key={`${l.family}:${l.value}`} className="coffre-value coffre-value--added">
+                <span className="coffre-value__text">+ {l.value}</span>
+                <button
+                  type="button"
+                  className="coffre-value__remove"
+                  aria-label={`Ne plus ajouter « ${l.value} »`}
+                  onClick={() => set({ add: (v.add ?? []).filter((x) => x !== l) })}
+                >
+                  <Icon name="close" />
+                </button>
+              </span>
+            ))}
+            <SetPicker
+              onPick={(setDto) =>
+                set({
+                  add: [
+                    ...(v.add ?? []),
+                    ...setDto.labels.filter(
+                      (l) =>
+                        !(v.add ?? []).some((x) => x.family === l.family && x.value === l.value),
+                    ),
+                  ],
+                })
+              }
             />
           </div>
         </div>

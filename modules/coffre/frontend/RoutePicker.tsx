@@ -1,6 +1,6 @@
 // v0.48.0 (Expérimental): the route picker — the ONE component used wherever
-// a context is chosen (rangement, « Pour tous », changer de contexte, déplacer
-// un contexte, aussi utilisé dans, Arrivée, Téléchargements, import). Type a
+// a folder is chosen (rangement, « Pour tous », changer de dossier, déplacer
+// un dossier, nouveau dossier, À ranger, Téléchargements). Type a
 // route (« Cours/Thermo/Labos », « › » and « \ » too), completed segment by
 // segment (Tab accepts), the new segments shown « nouveau » and created only
 // when the choice is validated, or pick it in the small tree. At the top: the
@@ -14,7 +14,7 @@ import {
   routeLabel,
   splitRoute,
   suggestRoutes,
-  type RouteContext,
+  type RouteFolder,
   type RoutePick,
 } from '../shared/route';
 
@@ -58,16 +58,16 @@ const depthPad = (depth: number) => ({ paddingLeft: `${8 + depth * 14}px` });
 
 export function RoutePicker(props: {
   label: string;
-  contexts: readonly RouteContext[];
+  folders: readonly RouteFolder[];
   onPick: (pick: RoutePick) => void;
   onClose: () => void;
   /** A route typed may be created (default: yes). */
   allowNew?: boolean;
-  /** « Arrivée (à ranger plus tard) » offered. */
-  arrival?: boolean;
-  /** « À la racine » offered (moving a context). */
+  /** « À ranger (à ranger plus tard) » offered. */
+  pending?: boolean;
+  /** « À la racine » offered (moving a folder). */
   root?: boolean;
-  /** Contexts that cannot be chosen (a context and its descendants, when it moves). */
+  /** Folders that cannot be chosen (a folder and its descendants, when it moves). */
   exclude?: ReadonlySet<string>;
   /** The route the Coffre proposes, and why. */
   proposed?: { pick: RoutePick; label: string; reason: string | null } | null;
@@ -76,14 +76,14 @@ export function RoutePicker(props: {
   /** Shown in place (no floating panel). */
   inline?: boolean;
 }) {
-  const { contexts, exclude, onClose, onPick } = props;
+  const { folders, exclude, onClose, onPick } = props;
   const allowNew = props.allowNew !== false;
   const [query, setQuery] = useState(props.initial ?? '');
   const [active, setActive] = useState(0);
   const [showTree, setShowTree] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLInputElement>(null);
-  const usable = useMemo(() => contexts.filter((c) => !exclude?.has(c.id)), [contexts, exclude]);
+  const usable = useMemo(() => folders.filter((c) => !exclude?.has(c.id)), [folders, exclude]);
 
   const lines = useMemo((): Line[] => {
     const out: Line[] = [];
@@ -108,11 +108,11 @@ export function RoutePicker(props: {
         });
       }
       if (props.root) out.push({ key: 'root', label: 'À la racine', pick: { kind: 'root' } });
-      if (props.arrival)
+      if (props.pending)
         out.push({
-          key: 'arrival',
-          label: 'Arrivée (à ranger plus tard)',
-          pick: { kind: 'arrival' },
+          key: 'pending',
+          label: 'À ranger (plus tard)',
+          pick: { kind: 'pending' },
         });
       return out;
     }
@@ -134,7 +134,7 @@ export function RoutePicker(props: {
       else out.push(line);
     }
     return out;
-  }, [query, usable, allowNew, props.proposed, props.root, props.arrival]);
+  }, [query, usable, allowNew, props.proposed, props.root, props.pending]);
 
   // A click outside closes it.
   useEffect(() => {
@@ -149,7 +149,7 @@ export function RoutePicker(props: {
   const choose = (pick: RoutePick | null) => {
     if (!pick) return;
     if (pick.kind === 'existing') {
-      const c = contexts.find((x) => x.id === pick.id);
+      const c = folders.find((x) => x.id === pick.id);
       if (c) rememberRoute(c.path);
     } else if (pick.kind === 'new') rememberRoute(pick.path);
     onPick(pick);
@@ -272,7 +272,7 @@ export function RoutePicker(props: {
         )}
       </ul>
       {showTree && (
-        <ul className="coffre-route__tree" role="tree" aria-label="Arbre des contextes">
+        <ul className="coffre-route__tree" role="tree" aria-label="Arbre des dossiers">
           {treeShown.map((c) => (
             <li key={c.id} role="treeitem" aria-selected={false} className="coffre-route__node">
               <button
@@ -288,8 +288,8 @@ export function RoutePicker(props: {
                 <button
                   type="button"
                   className="icon-button coffre-route__add"
-                  aria-label={`Nouveau sous-contexte dans « ${c.name} »`}
-                  title="+ sous-contexte ici"
+                  aria-label={`Nouveau sous-dossier dans « ${c.name} »`}
+                  title="+ sous-dossier ici"
                   onClick={() => childOf(c.path)}
                 >
                   <Icon name="plus" />
@@ -297,7 +297,7 @@ export function RoutePicker(props: {
               )}
             </li>
           ))}
-          {!treeShown.length && <li className="coffre-picker__empty">Aucun contexte</li>}
+          {!treeShown.length && <li className="coffre-picker__empty">Aucun dossier</li>}
         </ul>
       )}
     </div>

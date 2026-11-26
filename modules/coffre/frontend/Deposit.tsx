@@ -1,15 +1,15 @@
 // v0.45.0: the rangement window — opened as soon as files are dropped. The
 // preview on the left, the sheet already filled on the right (what was
 // guessed marked « deviné »); Entrée = Ranger; « Ranger plus tard » sends it
-// to Arrivée. Several files: the list, one proposal each; v0.48.0: « Pour
+// to À ranger. Several files: the list, one proposal each; v0.48.0: « Pour
 // tous » (one setting for the checked ones, exceptions per file), Entrée =
-// « Ranger les cochés » (the unchecked ones to Arrivée), one « Annuler ».
+// « Ranger les cochés » (the unchecked ones to À ranger), one « Annuler ».
 // Nothing is written before « Ranger » (and « Annuler » undoes it after).
 import { useCallback, useMemo, useRef, useState, type KeyboardEvent } from 'react';
-import { Button, formatBytes, Icon, waitForJob } from '@hub/sdk/frontend';
+import { announceJobs, Button, formatBytes, Icon, waitForJob } from '@hub/sdk/frontend';
 import { extOf } from '../shared/kinds';
 import type { ApplyResultDto, ItemDto } from '../shared/types';
-import { useCoffre } from './frame';
+import { setAsideText, useCoffre } from './frame';
 import { fly } from './fly';
 import {
   applyBatch,
@@ -40,10 +40,10 @@ const STATE_LABEL: Record<DepositEntry['state'], string> = {
   skipped: 'laissé',
 };
 
-/** Where the flight lands: the context's tile, the Arrivée counter, or the page. */
+/** Where the flight lands: the folder's tile, the À ranger counter, or the page. */
 const targetOf = (item: ItemDto | undefined) =>
-  (item?.contextId && document.querySelector(`[data-coffre-context="${item.contextId}"]`)) ||
-  (item?.arrival && document.querySelector('[data-coffre-arrival]')) ||
+  (item?.folderId && document.querySelector(`[data-coffre-folder="${item.folderId}"]`)) ||
+  (item?.folderId === null && document.querySelector('[data-coffre-pending]')) ||
   document.querySelector('[data-coffre-page]');
 
 export function Deposit(props: { entries: DepositEntry[]; onClose: () => void }) {
@@ -82,7 +82,7 @@ export function Deposit(props: { entries: DepositEntry[]; onClose: () => void })
   const changeBatch = (v: BatchValues) => {
     const reset = batch.template.trim() !== '' && v.template.trim() === '';
     setBatch(v);
-    setEntries((list) => applyBatch(list, v, coffre.contexts, undefined, reset));
+    setEntries((list) => applyBatch(list, v, coffre.folders, undefined, reset));
   };
   /** A file's own change: an exception to « Pour tous » for that field. */
   const own = (e: DepositEntry, field: BatchField, change: Partial<DepositEntry>) =>
@@ -93,7 +93,7 @@ export function Deposit(props: { entries: DepositEntry[]; onClose: () => void })
         keys.includes(e.key) ? (checked ? { ...e, checked } : uncheck(e)) : e,
       );
       // Newly checked: « Pour tous » applies to them too.
-      return checked ? applyBatch(next, batch, coffre.contexts) : next;
+      return checked ? applyBatch(next, batch, coffre.folders) : next;
     });
 
   const source = useMemo(
@@ -134,6 +134,7 @@ export function Deposit(props: { entries: DepositEntry[]; onClose: () => void })
         const left = next.findIndex((e) => e.state === 'todo');
         if (left < 0) onClose();
         else setCurrent(left);
+        announceJobs();
         void waitForJob(jobId).then((job) => {
           const r = job.result as ApplyResultDto | null;
           const errors = job.details?.errorCount ?? 0;
@@ -143,7 +144,7 @@ export function Deposit(props: { entries: DepositEntry[]; onClose: () => void })
           }
           if (!r) return;
           const n = r.created.length;
-          const where = r.created[0]?.contextPath?.join(' › ') ?? 'Arrivée';
+          const where = r.created[0]?.folderPath?.join(' › ') ?? 'À ranger';
           const message =
             job.status === 'cancelled'
               ? `Rangement annulé : ${n} élément${n > 1 ? 's' : ''} déjà rangé${n > 1 ? 's' : ''} (gardé${n > 1 ? 's' : ''}).`
@@ -154,9 +155,9 @@ export function Deposit(props: { entries: DepositEntry[]; onClose: () => void })
                 : n === 1
                   ? `« ${r.created[0]!.name} » rangé dans ${where}.`
                   : later
-                    ? `${n} éléments mis dans Arrivée.`
+                    ? `${n} éléments mis dans À ranger.`
                     : toArrival
-                      ? `${n - toArrival} éléments rangés, ${toArrival} dans Arrivée.`
+                      ? `${n - toArrival} éléments rangés, ${toArrival} dans À ranger.`
                       : `${n} éléments rangés.`;
           coffre.notify(
             [
@@ -176,7 +177,7 @@ export function Deposit(props: { entries: DepositEntry[]; onClose: () => void })
           requestAnimationFrame(() =>
             fly(from, targetOf(first), first?.name ?? '', coffre.tools.animations),
           );
-        });
+        }, coffre.fail);
       } catch (error) {
         coffre.fail(error);
       } finally {
@@ -188,7 +189,7 @@ export function Deposit(props: { entries: DepositEntry[]; onClose: () => void })
 
   const openExisting = async (id: string) => {
     try {
-      const item = await coffre.api.get<ItemDto>(`/items/${id}`);
+      const item = await coffre.api.get<ItemDto>(`/files/${id}`);
       if (entry) update(entry.key, { state: 'skipped' });
       if (!many) onClose();
       coffre.preview([item], 0);
@@ -199,12 +200,12 @@ export function Deposit(props: { entries: DepositEntry[]; onClose: () => void })
 
   const todo = entries.filter((e) => e.state === 'todo');
   const validAll = todo.filter((e) => !isHeldDuplicate(e));
-  // v0.48.0: « Ranger les cochés » — the checked ones placed, the others to Arrivée (one « Annuler »).
+  // v0.48.0: « Ranger les cochés » — the checked ones placed, the others to À ranger (one « Annuler »).
   const lot = validAll;
   const checkedCount = lot.filter((e) => e.checked).length;
   const summary = batchSummary(
     todo.filter((e) => e.checked),
-    coffre.contexts,
+    coffre.folders,
   );
   const preview = todo
     .filter((e) => e.checked && !e.exceptions.includes('rename'))
@@ -228,7 +229,7 @@ export function Deposit(props: { entries: DepositEntry[]; onClose: () => void })
   };
 
   if (!entry || !source) return null;
-  const dup = entry.as !== 'link' ? entry.proposal.duplicate : null;
+  const dup = entry.proposal.duplicate;
   return (
     <div
       className="coffre-modal"
@@ -239,13 +240,7 @@ export function Deposit(props: { entries: DepositEntry[]; onClose: () => void })
     >
       <div className={`coffre-modal__box coffre-deposit${many ? ' coffre-deposit--many' : ''}`}>
         <header className="coffre-deposit__head">
-          <h2>
-            {many
-              ? `Ranger ${entries.length} éléments`
-              : entry.as === 'link'
-                ? 'Ajouter un lien externe'
-                : 'Ranger dans le Coffre'}
-          </h2>
+          <h2>{many ? `Ranger ${entries.length} éléments` : 'Ranger dans le Coffre'}</h2>
           <span className="muted">L’original ne bouge pas : le Coffre en garde une copie.</span>
           <button type="button" className="icon-button" aria-label="Fermer" onClick={onClose}>
             <Icon name="close" />
@@ -259,7 +254,7 @@ export function Deposit(props: { entries: DepositEntry[]; onClose: () => void })
               summary={summary}
               onChange={changeBatch}
               preview={preview}
-              arrival
+              pending
             />
             <div className="coffre-deposit__checkall">
               <button
@@ -303,7 +298,7 @@ export function Deposit(props: { entries: DepositEntry[]; onClose: () => void })
                       title={
                         e.checked
                           ? 'Coché : « Pour tous » s’applique'
-                          : 'Décoché : ira dans Arrivée'
+                          : 'Décoché : ira dans À ranger'
                       }
                       checked={e.checked}
                       disabled={e.state !== 'todo'}
@@ -319,8 +314,8 @@ export function Deposit(props: { entries: DepositEntry[]; onClose: () => void })
                         {isHeldDuplicate(e)
                           ? 'déjà dans le Coffre'
                           : e.checked || e.state !== 'todo'
-                            ? choiceLabel(e.choice, coffre.contexts)
-                            : 'Arrivée (décoché)'}
+                            ? choiceLabel(e.choice, coffre.folders)
+                            : 'À ranger (décoché)'}
                       </span>
                       {e.exceptions.length > 0 && e.state === 'todo' && (
                         <span
@@ -348,13 +343,7 @@ export function Deposit(props: { entries: DepositEntry[]; onClose: () => void })
               <ReaderView
                 source={source}
                 mode="full"
-                icon={
-                  entry.proposal.isDirectory
-                    ? 'folder'
-                    : entry.as === 'link'
-                      ? 'external-link'
-                      : 'file'
-                }
+                icon={entry.proposal.isDirectory ? 'folder' : 'file'}
                 fallback={
                   <p className="muted">
                     {entry.proposal.isDirectory
@@ -373,7 +362,7 @@ export function Deposit(props: { entries: DepositEntry[]; onClose: () => void })
               <div className="coffre-duplicate" role="alert">
                 <p>
                   <strong>Déjà dans le Coffre :</strong> « {dup.name} »
-                  {dup.contextPath ? ` (${dup.contextPath.join(' › ')})` : ' (Arrivée)'}
+                  {dup.folderPath ? ` (${dup.folderPath.join(' › ')})` : ' (À ranger)'}
                 </p>
                 <div className="coffre-duplicate__actions">
                   <Button variant="secondary" small onClick={() => void openExisting(dup.id)}>
@@ -390,21 +379,21 @@ export function Deposit(props: { entries: DepositEntry[]; onClose: () => void })
                 </div>
               </div>
             )}
+            {entry.proposal.isDirectory && (
+              <FolderSummary
+                entry={entry}
+                onProjects={(projects) => update(entry.key, { projects })}
+              />
+            )}
             <Sheet
-              link={entry.as === 'link'}
               choice={entry.choice}
+              folder={entry.proposal.isDirectory}
               onChoice={(choice) => own(entry, 'route', { choice })}
-              attributes={entry.attributes}
+              labels={entry.labels}
               onValues={(key, values) =>
-                own(
-                  entry,
-                  key === 'tag'
-                    ? 'tags'
-                    : key === 'nature' || key === 'origin' || key === 'year'
-                      ? key
-                      : 'tags',
-                  { attributes: chooseValues(entry.attributes, key, values) },
-                )
+                own(entry, key === 'nature' || key === 'origin' || key === 'year' ? key : 'free', {
+                  labels: chooseValues(entry.labels, key, values),
+                })
               }
             >
               <label className="coffre-sheet__row">
@@ -425,7 +414,7 @@ export function Deposit(props: { entries: DepositEntry[]; onClose: () => void })
                 variant="secondary"
                 disabled={busy || !lot.length}
                 onClick={() => void apply(lot, true)}
-                title="Tous dans Arrivée, à ranger plus tard"
+                title="Tous dans À ranger, à ranger plus tard"
               >
                 Tout ranger plus tard
               </Button>
@@ -433,7 +422,7 @@ export function Deposit(props: { entries: DepositEntry[]; onClose: () => void })
                 autoFocus
                 disabled={busy || !lot.length}
                 onClick={() => void apply(lot, (x) => !x.checked)}
-                title="Entrée — les décochés vont dans Arrivée ; un seul « Annuler » pour le lot"
+                title="Entrée — les décochés vont dans À ranger ; un seul « Annuler » pour le lot"
                 data-coffre-range-lot
               >
                 Ranger les cochés ({checkedCount})
@@ -448,7 +437,7 @@ export function Deposit(props: { entries: DepositEntry[]; onClose: () => void })
                 variant="secondary"
                 disabled={busy}
                 onClick={() => void apply([entry], true)}
-                title="Il attend dans Arrivée"
+                title="Il attend dans À ranger"
               >
                 Ranger plus tard
               </Button>
@@ -468,6 +457,57 @@ export function Deposit(props: { entries: DepositEntry[]; onClose: () => void })
           )}
         </footer>
       </div>
+    </div>
+  );
+}
+
+/**
+ * v0.50.0: a dropped folder arrives as it is — what it holds (files, sub-folders,
+ * size, its files already in the Coffre, the recreatable folders set aside) and
+ * the sub-folders that look like code projects, « Projet » proposed (a box each,
+ * the reason shown; a project inside a project: only the highest counts).
+ */
+function FolderSummary(props: { entry: DepositEntry; onProjects: (projects: string[]) => void }) {
+  const p = props.entry.proposal;
+  const hints = p.projects ?? [];
+  const on = new Set(props.entry.projects);
+  const covered = (rel: string) =>
+    [...on].some((r) => r !== rel && (r === '' || rel.startsWith(`${r}/`)));
+  return (
+    <div className="coffre-foldersum" data-coffre-foldersum>
+      <p className="small">
+        Arrive <strong>tel quel</strong> : {p.fileCount.toLocaleString('fr-FR')} fichier
+        {p.fileCount > 1 ? 's' : ''}, {p.folderCount} sous-dossier{p.folderCount > 1 ? 's' : ''},{' '}
+        {formatBytes(p.size)}.
+        {p.innerDuplicates ? ` ${p.innerDuplicates} déjà dans le Coffre (copiés quand même).` : ''}
+      </p>
+      {(p.setAside?.length ?? 0) > 0 && (
+        <p className="muted small">Écartés (recréables) : {setAsideText(p.setAside ?? [])}.</p>
+      )}
+      {hints.length > 0 && (
+        <fieldset className="coffre-foldersum__projects">
+          <legend className="small">Projets proposés</legend>
+          {hints.map((h) => (
+            <label key={h.rel || '.'} className="small" data-coffre-project-hint={h.rel}>
+              <input
+                type="checkbox"
+                checked={on.has(h.rel)}
+                disabled={covered(h.rel)}
+                onChange={(e) =>
+                  props.onProjects(
+                    e.target.checked ? [...on, h.rel] : [...on].filter((r) => r !== h.rel),
+                  )
+                }
+              />{' '}
+              <span className="coffre-kind coffre-kind--project">Projet</span> {h.rel || p.name}{' '}
+              <span className="muted">
+                ({h.reason}
+                {covered(h.rel) ? ' ; dans un autre projet : seul le plus haut compte' : ''})
+              </span>
+            </label>
+          ))}
+        </fieldset>
+      )}
     </div>
   );
 }

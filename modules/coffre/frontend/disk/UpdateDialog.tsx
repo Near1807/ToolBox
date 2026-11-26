@@ -9,12 +9,12 @@ import {
   ErrorMessage,
   errorMessage,
   formatBytes,
-  Gauge,
   Icon,
-  useJobs,
   useModule,
+  useTaskFollow,
 } from '@hub/sdk/frontend';
 import type { DiskStatusDto, UpdateReport } from '../../shared/types';
+import { TaskGauge } from './TaskGauge';
 import { plural } from './useDisk';
 
 interface Step {
@@ -59,18 +59,21 @@ export function UpdateDialog(props: {
   onChanged: () => void;
 }) {
   const module = useModule();
-  const { jobs, cancel } = useJobs(module.id);
+  // v0.50.0 (bug G): the task followed from the click — « Démarrage… » until it
+  // is seen, then the gauge; never two launches; « introuvable » never read as ended.
+  const task = useTaskFollow(props.status.jobId);
+  const { job } = task;
   const [plan, setPlan] = useState<Plan | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [jobId, setJobId] = useState<string | null>(props.status.jobId);
   const [eject, setEject] = useState<string | null>(null);
   const [open, setOpen] = useState<Step['kind'] | null>(null);
-  const job = jobs.find((j) => j.id === jobId) ?? null;
-  const running = job && (job.status === 'queued' || job.status === 'running');
+  const launched = task.phase !== 'idle';
+  const running = task.phase === 'starting' || task.phase === 'active';
+  const ended = task.phase === 'ended' || task.phase === 'lost';
   const { onChanged } = props;
 
   useEffect(() => {
-    if (jobId) return;
+    if (launched) return;
     let live = true;
     module.api
       .get<Plan>('/disk/plan')
@@ -79,18 +82,14 @@ export function UpdateDialog(props: {
     return () => {
       live = false;
     };
-  }, [module.api, jobId]);
+  }, [module.api, launched]);
   useEffect(() => {
-    if (job && !running) onChanged();
-  }, [job, running, onChanged]);
+    if (ended) onChanged();
+  }, [ended, onChanged]);
 
-  const start = async () => {
+  const start = () => {
     setError(null);
-    try {
-      setJobId((await module.api.post<{ jobId: string }>('/disk/update')).jobId);
-    } catch (e) {
-      setError(errorMessage(e));
-    }
+    task.start(() => module.api.post<{ jobId: string }>('/disk/update'));
   };
   const doEject = async () => {
     setEject('Éjection…');
@@ -104,7 +103,9 @@ export function UpdateDialog(props: {
   };
 
   const report =
-    job && !running ? ((job.result as UpdateReport | null) ?? props.status.lastUpdate) : null;
+    task.phase === 'ended' && job
+      ? ((job.result as UpdateReport | null) ?? props.status.lastUpdate)
+      : null;
   const name = props.status.disk?.name ?? 'disque';
 
   return (
@@ -129,7 +130,7 @@ export function UpdateDialog(props: {
           )}
         </header>
 
-        {!jobId && plan && (
+        {!launched && plan && (
           <>
             <div className="coffre-update__counters">
               <Counter
@@ -201,36 +202,27 @@ export function UpdateDialog(props: {
               <Button variant="secondary" onClick={props.onClose}>
                 Pas maintenant
               </Button>
-              <Button disabled={!plan.enough || !plan.steps.length} onClick={() => void start()}>
+              <Button
+                disabled={!plan.enough || !plan.steps.length}
+                onClick={start}
+                data-coffre-update-go
+              >
                 Mettre à jour
               </Button>
             </footer>
           </>
         )}
-        {!jobId && !plan && !error && <p className="muted">Calcul du plan (lecture du disque)…</p>}
-
-        {jobId && running && job && (
-          <div className="coffre-update__progress">
-            <Gauge
-              value={job.progress ?? 0}
-              label={job.progress === null ? '…' : `${Math.round((job.progress ?? 0) * 100)} %`}
-              sub="copié et vérifié"
-              size={140}
-            />
-            <div>
-              <p className="coffre-update__message">{job.message ?? 'Démarrage…'}</p>
-              <p className="muted small">
-                Annuler laisse le disque en ordre : ce qui est déjà copié reste valide, le reste se
-                fera à la prochaine mise à jour.
-              </p>
-              <Button variant="secondary" onClick={() => void cancel(job.id)}>
-                Annuler
-              </Button>
-            </div>
-          </div>
+        {!launched && !plan && !error && (
+          <p className="muted">Calcul du plan (lecture du disque)…</p>
         )}
 
-        {jobId && !running && (
+        <TaskGauge task={task} sub="copié et vérifié" onFail={(e) => setError(errorMessage(e))}>
+          <p className="muted small">
+            Annuler laisse le disque en ordre : ce qui est déjà copié reste valide, le reste se fera
+            à la prochaine mise à jour.
+          </p>
+        </TaskGauge>
+        {ended && (
           <div className="coffre-update__report">
             {job?.status === 'succeeded' && report ? (
               <p className="coffre-update__done">
@@ -238,7 +230,8 @@ export function UpdateDialog(props: {
               </p>
             ) : (
               <p className="coffre-update__stopped">
-                <Icon name="warning" /> {report?.stopped ?? job?.error ?? 'Mise à jour arrêtée.'}
+                <Icon name="warning" />{' '}
+                {report?.stopped ?? task.error ?? job?.error ?? 'Mise à jour arrêtée.'}
                 {report && ` (${reportText(report)})`}
               </p>
             )}
@@ -281,7 +274,9 @@ export function UpdateDialog(props: {
             </footer>
           </div>
         )}
-        {error && <ErrorMessage>{error}</ErrorMessage>}
+        {(error ?? (task.phase === 'idle' ? task.error : null)) && (
+          <ErrorMessage>{error ?? task.error}</ErrorMessage>
+        )}
       </div>
     </div>
   );

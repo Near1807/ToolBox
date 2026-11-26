@@ -1,7 +1,7 @@
 // v0.45.0: the Coffre du PC on the disk — userData/coffre (ctx.files.libraryDir).
-// Its folders are the contexts' tree (Cours/Thermo/fichier.pdf), readable
-// without ToolBox; « _Arrivée » holds what is not put away yet, « _Corbeille »
-// what was deleted. The original a user drops is only READ (règle 6): the
+// Its folders are Thomas's folders (Cours/Thermo/fichier.pdf: the route),
+// readable without ToolBox; « _À ranger » holds what is not put away yet,
+// « _Corbeille » what was deleted. The original a user drops is only READ (règle 6): the
 // Coffre copies it. A name never replaces a file (« fichier (2).pdf »).
 import { createHash } from 'node:crypto';
 import { createReadStream, existsSync, mkdirSync, readdirSync, statSync } from 'node:fs';
@@ -9,8 +9,7 @@ import { constants as fsConstants } from 'node:fs';
 import { copyFile, cp, rename, rm, statfs } from 'node:fs/promises';
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
-import { kindOf } from '../shared/kinds';
-import { ARRIVAL_FOLDER, freeName, safeName, TRASH_FOLDER } from '../shared/names';
+import { PENDING_FOLDER, freeName, safeName, TRASH_FOLDER } from '../shared/names';
 
 /** A relative path of the Coffre, always with « / ». */
 export const toRel = (p: string) => p.split(path.sep).join('/');
@@ -21,53 +20,6 @@ export async function hashFile(file: string): Promise<string> {
   await pipeline(createReadStream(file), hash);
   return hash.digest('hex');
 }
-
-/** Every file of a folder (relative paths, « / », sorted), its links not followed. */
-export function filesOf(folder: string): string[] {
-  const out: string[] = [];
-  const walk = (dir: string) => {
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) walk(full);
-      else if (entry.isFile()) out.push(toRel(path.relative(folder, full)));
-    }
-  };
-  walk(folder);
-  return out.sort();
-}
-
-/**
- * A folder's fingerprint (a project): sha256 of its files' relative paths and
- * contents, its total size, its files, and its most frequent language.
- */
-export async function hashFolder(folder: string): Promise<{
-  sha256: string;
-  size: number;
-  files: number;
-  language: string | null;
-}> {
-  const hash = createHash('sha256');
-  let size = 0;
-  const languages = new Map<string, number>();
-  const files = filesOf(folder);
-  for (const rel of files) {
-    const full = path.join(folder, rel);
-    size += statSync(full).size;
-    hash.update(`${rel}\0${await hashFile(full)}\n`);
-    const language = kindOf(rel)?.language;
-    // Configuration and data files (Cargo.toml, package.json) never outweigh a real language.
-    if (language)
-      languages.set(
-        language,
-        (languages.get(language) ?? 0) + (DATA_LANGUAGES.has(language) ? 0.01 : 1),
-      );
-  }
-  const language = [...languages].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
-  return { sha256: hash.digest('hex'), size, files: files.length, language };
-}
-
-/** Languages of configuration and data, not of a project's code. */
-const DATA_LANGUAGES = new Set(['JSON', 'YAML', 'TOML', 'XML']);
 
 export class Library {
   /**
@@ -82,8 +34,13 @@ export class Library {
 
   /** The Coffre's own folders, created on first use. */
   ensure(): void {
-    for (const dir of [this.root, this.abs(ARRIVAL_FOLDER), this.abs(TRASH_FOLDER)])
+    for (const dir of [this.root, this.abs(PENDING_FOLDER), this.abs(TRASH_FOLDER)])
       mkdirSync(dir, { recursive: true });
+  }
+
+  /** v0.50.0: a folder of the Coffre created on the PC (its parents too). */
+  ensureDir(rel: string): void {
+    mkdirSync(this.abs(rel), { recursive: true });
   }
 
   /** The absolute path of a relative one, refusing anything outside the Coffre. */

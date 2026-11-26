@@ -4,11 +4,10 @@ import { Icon, type IconName } from '@hub/sdk/frontend';
 import type { ItemDto } from '../shared/types';
 import { readerFor, type ReaderLocate, type ReaderSource } from './readers';
 
-/** The icon of an element without a preview (by its nature). */
-export function iconOf(item: Pick<ItemDto, 'kind' | 'attributes'>): IconName {
+/** The icon of a file without a preview (by its nature). */
+export function iconOf(item: Pick<ItemDto, 'kind' | 'labels'>): IconName {
   if (item.kind === 'project') return 'folder';
-  if (item.kind === 'link') return 'external-link';
-  const nature = item.attributes.find((a) => a.key === 'nature')?.value;
+  const nature = item.labels.find((a) => a.family === 'nature')?.value;
   const icons: Record<string, IconName> = {
     image: 'image',
     vidéo: 'film',

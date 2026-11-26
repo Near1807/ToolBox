@@ -1,7 +1,7 @@
-// v0.48.0 (Expérimental): the map of the contexts — a radial tree, computed
+// v0.48.0 (Expérimental): the map of the folders — a radial tree, computed
 // (no physics): the same tree always gives the same picture, nothing
-// « dances », and adding a context only opens a little room among its
-// siblings. Each context gets an angular sector in proportion to its leaves
+// « dances », and adding a folder only opens a little room among its
+// siblings. Each folder gets an angular sector in proportion to its leaves
 // (so a big branch gets more room), its depth gives its ring; each ring is
 // far enough for two neighbours on it never to overlap.
 // Pure (tested), no screen.
@@ -84,7 +84,7 @@ export function layoutMap(input: readonly MapInput[]): MapLayout {
   for (const r of roots) measure(r, 1, seen);
   const allLeaves = roots.reduce((sum, r) => sum + (leaves.get(r.id) ?? 1), 0) || 1;
 
-  // 1. The angles: each context a sector in proportion to its leaves (radii come after).
+  // 1. The angles: each folder a sector in proportion to its leaves (radii come after).
   const placed: { c: MapInput; depth: number; angle: number; total: number }[] = [];
   const place = (c: MapInput, depth: number, from: number, to: number) => {
     placed.push({ c, depth, angle: (from + to) / 2, total: totals.get(c.id) ?? c.count });
@@ -158,7 +158,7 @@ export function layoutMap(input: readonly MapInput[]): MapLayout {
   };
 }
 
-/** A context and its ancestors (the path lit by the search). */
+/** A folder and its ancestors (the path lit by the search). */
 export function pathIds(layout: MapLayout, id: string): Set<string> {
   const out = new Set<string>();
   for (

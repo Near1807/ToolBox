@@ -27,7 +27,7 @@ function pdfjs(): Promise<PdfJs> {
   return loading;
 }
 
-/** Thumbnails one at a time (a context with 200 PDF does not freeze the page). */
+/** Thumbnails one at a time (a folder with 200 PDF does not freeze the page). */
 let queue: Promise<unknown> = Promise.resolve();
 function inTurn<T>(job: () => Promise<T>): Promise<T> {
   const run = queue.then(job, job);

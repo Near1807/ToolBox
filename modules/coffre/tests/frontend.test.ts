@@ -1,19 +1,19 @@
 // v0.45.0: the Coffre's pages without a screen — the rangement window's
-// entries and what « Ranger » sends, the context typed, sorts and families,
+// entries and what « Ranger » sends, the folder typed, sorts and families,
 // the readers' registry (a fake reader needs no change anywhere else), safe
 // Markdown, coloured code that stays escaped, the isolated HTML frame.
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import type { ContextDto, ItemDto, ProposalDto } from '../shared/types';
+import type { FolderDto, ItemDto, ProposalDto } from '../shared/types';
 import {
   applyEntry,
   chooseValues,
-  contextOfPath,
+  folderOfPath,
   entriesOf,
   familiesOf,
   isHeldDuplicate,
-  parseContextPath,
+  parseFolderPath,
   sortItems,
 } from '../frontend/logic';
 import { readerFor, readers, registerReader } from '../frontend/readers';
@@ -27,20 +27,21 @@ const proposal = (over: Partial<ProposalDto> = {}): ProposalDto => ({
   name: 'cours.pdf',
   isDirectory: false,
   fileCount: 1,
+  folderCount: 0,
   size: 10,
   sha256: 'a',
   duplicate: null,
-  context: {
+  route: {
     kind: 'existing',
     id: 'c1',
     path: ['Cours', 'Thermo'],
     reason: 'mot « thermo » du nom',
   },
-  attributes: [{ key: 'nature', value: 'document', origin: 'guessed', reason: 'extension .pdf' }],
+  labels: [{ family: 'nature', value: 'document', origin: 'guessed', reason: 'extension .pdf' }],
   ...over,
 });
 
-const ctx = (id: string, path: string[], count = 1): ContextDto => ({
+const ctx = (id: string, path: string[], count = 1): FolderDto => ({
   id,
   parentId: null,
   name: path[path.length - 1]!,
@@ -49,8 +50,12 @@ const ctx = (id: string, path: string[], count = 1): ContextDto => ({
   sort: null,
   path,
   count,
+  total: count,
   fresh: 0,
-  coverItemId: null,
+  endOfRoute: false,
+  project: false,
+  inside: false,
+  defaults: [],
   courseName: null,
 });
 
@@ -61,29 +66,27 @@ const item = (name: string, over: Partial<ItemDto> = {}): ItemDto => ({
   ext: name.split('.').pop() ?? '',
   size: 1,
   sha256: null,
-  contextId: null,
-  contextPath: null,
-  arrival: false,
+  folderId: null,
+  folderPath: null,
+  inProject: false,
   pinned: false,
   trashedAt: null,
-  externalPath: null,
   sourcePath: null,
+  sourceSha256: null,
   fileDate: null,
   createdAt: '2026-01-01T00:00:00Z',
   updatedAt: '2026-01-01T00:00:00Z',
-  attributes: [],
-  alsoIn: [],
+  labels: [],
   url: null,
   path: null,
   diskState: 'pending',
   unavailable: false,
   originalName: null,
-  toComplete: false,
   ...over,
 });
 
 describe('fenêtre de rangement', () => {
-  it('reprend la proposition (devinée, avec sa raison) ou le contexte où l’on a déposé (choisi)', () => {
+  it('reprend la proposition (devinée, avec sa raison) ou le dossier où l’on a déposé (choisi)', () => {
     const [guessed] = entriesOf([proposal()]);
     expect(guessed!.choice).toEqual({
       kind: 'existing',
@@ -93,68 +96,60 @@ describe('fenêtre de rangement', () => {
     });
     const [fixed] = entriesOf([proposal()], { fixed: 'c9' });
     expect(fixed!.choice).toMatchObject({ kind: 'existing', id: 'c9', origin: 'chosen' });
-    const [none] = entriesOf([proposal({ context: null })]);
+    const [none] = entriesOf([proposal({ route: null })]);
     expect(none!.choice).toBeNull();
     const [made] = entriesOf([
       proposal({
-        context: { kind: 'new', path: ['Cours', 'Réseaux'], reason: 'cours de l’Agenda' },
+        route: { kind: 'new', path: ['Cours', 'Réseaux'], reason: 'cours de l’Agenda' },
       }),
     ]);
     expect(made!.choice).toMatchObject({ kind: 'new', path: ['Cours', 'Réseaux'] });
   });
 
-  it('« Ranger » envoie le contexte, « Ranger plus tard » envoie dans Arrivée', () => {
+  it('« Ranger » envoie le dossier, « Ranger plus tard » envoie dans À ranger', () => {
     const [e] = entriesOf([proposal()]);
     expect(applyEntry(e!)).toMatchObject({
       path: '/dl/cours.pdf',
-      contextId: 'c1',
-      arrival: false,
+      folderId: 'c1',
+      later: false,
     });
     expect(applyEntry(e!, true)).toMatchObject({
-      contextId: null,
-      newContext: null,
-      arrival: true,
+      folderId: null,
+      newFolder: null,
+      later: true,
     });
-    const [n] = entriesOf([
-      proposal({ context: { kind: 'new', path: ['Cours', 'X'], reason: '' } }),
-    ]);
+    const [n] = entriesOf([proposal({ route: { kind: 'new', path: ['Cours', 'X'], reason: '' } })]);
     expect(applyEntry(n!)).toMatchObject({
-      contextId: null,
-      newContext: ['Cours', 'X'],
-      arrival: false,
+      folderId: null,
+      newFolder: ['Cours', 'X'],
+      later: false,
     });
-    const [link] = entriesOf([proposal()], { as: 'link' });
-    expect(applyEntry(link!).as).toBe('link');
   });
 
   it('un doublon est laissé de côté par « Tout valider » tant qu’il n’est pas « gardé quand même »', () => {
     const [d] = entriesOf([
-      proposal({ duplicate: { id: 'x', name: 'cours.pdf', contextPath: null } }),
+      proposal({ duplicate: { id: 'x', name: 'cours.pdf', folderPath: null } }),
     ]);
     expect(isHeldDuplicate(d!)).toBe(true);
     expect(isHeldDuplicate({ ...d!, keepDuplicate: true })).toBe(false);
-    const [link] = entriesOf([proposal({ duplicate: { id: 'x', name: 'a', contextPath: null } })], {
-      as: 'link',
-    });
-    expect(isHeldDuplicate(link!)).toBe(false);
   });
 
   it('une valeur changée est « choisie », les autres clés restent', () => {
-    const list = chooseValues(proposal().attributes, 'language', ['CSS', ' CSS ', '']);
+    const list = chooseValues(proposal().labels, 'language', ['CSS', ' CSS ', '']);
     expect(list).toEqual([
-      { key: 'nature', value: 'document', origin: 'guessed', reason: 'extension .pdf' },
-      { key: 'language', value: 'CSS', origin: 'chosen', reason: null },
+      { family: 'nature', value: 'document', origin: 'guessed', reason: 'extension .pdf' },
+      { family: 'language', value: 'CSS', origin: 'chosen', reason: null },
     ]);
     expect(chooseValues(list, 'nature', [])).toEqual([list[1]]);
   });
 
-  it('un contexte écrit : « Cours › Thermo », « Cours/Thermo », l’existant retrouvé sans accents ni casse', () => {
-    expect(parseContextPath(' Cours ›  Thermo ')).toEqual(['Cours', 'Thermo']);
-    expect(parseContextPath('Cours/Thermo')).toEqual(['Cours', 'Thermo']);
-    expect(parseContextPath('  ')).toEqual([]);
+  it('un dossier écrit : « Cours › Thermo », « Cours/Thermo », l’existant retrouvé sans accents ni casse', () => {
+    expect(parseFolderPath(' Cours ›  Thermo ')).toEqual(['Cours', 'Thermo']);
+    expect(parseFolderPath('Cours/Thermo')).toEqual(['Cours', 'Thermo']);
+    expect(parseFolderPath('  ')).toEqual([]);
     const list = [ctx('a', ['Cours', 'Électricité'])];
-    expect(contextOfPath(list, ['cours', 'electricite'])?.id).toBe('a');
-    expect(contextOfPath(list, ['Cours'])).toBeNull();
+    expect(folderOfPath(list, ['cours', 'electricite'])?.id).toBe('a');
+    expect(folderOfPath(list, ['Cours'])).toBeNull();
   });
 });
 
@@ -165,7 +160,7 @@ describe('listes', () => {
       item('b2.pdf', { size: 9, fileDate: '2026-01-01' }),
       item('a.py', {
         size: 1,
-        attributes: [{ key: 'nature', value: 'code', origin: 'guessed', reason: null }],
+        labels: [{ family: 'nature', value: 'code', origin: 'guessed', reason: null }],
       }),
     ];
     expect(sortItems(list, 'name').map((i) => i.name)).toEqual(['a.py', 'b2.pdf', 'b10.pdf']);

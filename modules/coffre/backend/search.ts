@@ -1,21 +1,21 @@
 // v0.47.0 (Expérimental): the Coffre's search, on the server — the names,
-// sheets and contexts (as in v0.45) AND the content (the text index), grouped
-// by element, with the extract and the page. Also the Coffre's provider of
+// labels and routes AND the content (the text index), grouped by file, with
+// the extract and the page (v0.50.0: labels instead of the old sheet). Also the Coffre's provider of
 // the hub's search (Ctrl+K everywhere, MODULES.md §5.18, ADR 0057). Read only.
 import type { ModuleContext, SearchResult } from '@hub/sdk/core';
 import { fold } from '../shared/deduce';
 import type { ItemDto, SearchDto, SearchHitDto } from '../shared/types';
-import type { AttributeRow, ContextRow, ItemRow } from './rows';
+import type { FolderRow, ItemRow, LabelRow } from './rows';
 import type { TextIndex } from './text-index';
 
 interface Deps {
   ctx: ModuleContext;
   items: string;
-  attributes: string;
+  labels: string;
   textIndex: TextIndex;
   dtos: (rows: ItemRow[]) => ItemDto[];
-  contextRows: () => ContextRow[];
-  pathOf: (byId: Map<string, ContextRow>, id: string | null) => string[];
+  folderRows: () => FolderRow[];
+  pathOf: (byId: Map<string, FolderRow>, id: string | null) => string[];
 }
 
 /** At most this many elements in one answer. */
@@ -27,33 +27,27 @@ export function searchCoffre(d: Deps, query: string, limit = MAX_RESULTS): Searc
   const t0 = performance.now();
   const words = fold(query).split(/\s+/).filter(Boolean);
   if (!words.length) return { query, results: [], ms: 0, index: d.textIndex.status() };
-  // 1. The names, sheets and contexts (every word, as the v0.45 search).
+  // 1. The names, labels and routes (every word).
   const rows = d.ctx.db
     .prepare(`SELECT * FROM ${d.items} WHERE deleted_at IS NULL AND trashed_at IS NULL`)
     .all() as ItemRow[];
   const byId = new Map(rows.map((r) => [r.id, r]));
-  const contexts = new Map(d.contextRows().map((c) => [c.id, c]));
+  const folders = new Map(d.folderRows().map((c) => [c.id, c]));
   const values = new Map<string, string[]>();
   for (const a of d.ctx.db
-    .prepare(`SELECT item_id, value FROM ${d.attributes} WHERE deleted_at IS NULL`)
-    .all() as Pick<AttributeRow, 'item_id' | 'value'>[])
+    .prepare(`SELECT item_id, value FROM ${d.labels} WHERE deleted_at IS NULL`)
+    .all() as Pick<LabelRow, 'item_id' | 'value'>[])
     values.set(a.item_id, [...(values.get(a.item_id) ?? []), a.value]);
   const pathCache = new Map<string, string>();
   const byName = new Set<string>();
   for (const r of rows) {
-    let ctxPath = r.context_id ? pathCache.get(r.context_id) : '';
-    if (ctxPath === undefined) {
-      ctxPath = d.pathOf(contexts, r.context_id).join(' ');
-      pathCache.set(r.context_id!, ctxPath);
+    let routePath = r.folder_id ? pathCache.get(r.folder_id) : '';
+    if (routePath === undefined) {
+      routePath = d.pathOf(folders, r.folder_id).join(' ');
+      pathCache.set(r.folder_id!, routePath);
     }
     const hay = fold(
-      [
-        r.name,
-        r.original_name ?? '',
-        ctxPath,
-        ...(values.get(r.id) ?? []),
-        r.external_path ?? '',
-      ].join(' '),
+      [r.name, r.original_name ?? '', routePath, ...(values.get(r.id) ?? [])].join(' '),
     );
     if (words.every((w) => hay.includes(w))) byName.add(r.id);
   }
@@ -137,7 +131,7 @@ export function registerSearch(d: Deps & { scanPc: () => Promise<unknown> }): vo
     reading: d.textIndex.reading,
   }));
   /** The pages of one element holding the words (the reader's occurrences). */
-  d.ctx.routes.get('/items/:id/matches', (request) => {
+  d.ctx.routes.get('/files/:id/matches', (request) => {
     const { id } = request.params as { id: string };
     const q = String((request.query as { q?: string } | undefined)?.q ?? '');
     return { parts: d.textIndex.partsOf(id, q) };
@@ -157,7 +151,7 @@ export function registerSearch(d: Deps & { scanPc: () => Promise<unknown> }): vo
           title: hit.item.name,
           snippet: first?.snippet,
           hint: [
-            hit.item.contextPath?.join(' › ') ?? 'Arrivée',
+            hit.item.folderPath?.join(' › ') ?? 'À ranger',
             where,
             hit.partCount > 1 ? `${hit.partCount} passages` : '',
           ]

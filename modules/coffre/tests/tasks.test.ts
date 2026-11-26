@@ -55,7 +55,7 @@ describe('tâches de fond du Coffre', () => {
       put(path.join(W.dl, `cours ${i + 1}.pdf`), `pdf ${i}`),
     );
     // The 4th disappears before the rangement (moved by Thomas, a key removed…).
-    const entries = files.map((p) => ({ path: p, newContext: ['Cours'], attributes: [] }));
+    const entries = files.map((p) => ({ path: p, newFolder: ['Cours'], labels: [] }));
     const lost = files[3]!;
     const kept = readdirSync(W.dl);
     rmSync(lost);
@@ -90,8 +90,9 @@ describe('tâches de fond du Coffre', () => {
     process.env.TOOLBOX_COFFRE_DEPOSIT_PAUSE_MS = '5'; // never finished before the cancel
     const { jobId } = await ok<{ jobId: string }>(W, 'POST', `${API}/deposit/apply`, {
       entries: [
-        { path: small, newContext: ['Projets'], attributes: [] },
-        { path: proj, newContext: ['Projets'], attributes: [] },
+        { path: small, newFolder: ['Projets'], labels: [] },
+        // A project: copied whole (a temporary folder, read back, then put in place).
+        { path: proj, newFolder: ['Projets'], labels: [], projects: [''] },
       ],
     });
     await until(async () => ((await waitJobNow(W, jobId))?.details?.done ?? 0) > 100);
@@ -115,7 +116,7 @@ describe('tâches de fond du Coffre', () => {
     );
     process.env.TOOLBOX_COFFRE_DEPOSIT_PAUSE_MS = '60';
     const { jobId } = await ok<{ jobId: string }>(W, 'POST', `${API}/deposit/apply`, {
-      entries: files.map((p) => ({ path: p, newContext: ['Réseaux'], attributes: [] })),
+      entries: files.map((p) => ({ path: p, newFolder: ['Réseaux'], labels: [] })),
     });
     await until(async () => ((await waitJobNow(W, jobId))?.details?.done ?? 0) >= 4);
     await W.close();
@@ -130,7 +131,7 @@ describe('tâches de fond du Coffre', () => {
     const names = readdirSync(path.join(dataDir, 'coffre', 'Réseaux')).sort();
     expect(names).toHaveLength(12);
     expect(names.some((n) => n.includes('(2)') || n.startsWith('.~'))).toBe(false);
-    const items = await ok<ItemDto[]>(W, 'GET', `${API}/items`);
+    const items = await ok<ItemDto[]>(W, 'GET', `${API}/files`);
     expect(items).toHaveLength(12);
   });
 
@@ -143,30 +144,25 @@ describe('tâches de fond du Coffre', () => {
     for (let i = 0; i < 400; i++) put(path.join(proj, 'node_modules', `p${i}`, 'index.js'), `${i}`);
     const r = await runJob<AnalyzeResultDto>(W, 'POST', `${API}/deposit/analyze`, {
       paths: [proj],
-      expand: true,
     });
-    expect(r.proposals.map((p) => p.name).sort()).toEqual(['app.js', 'package.json']);
+    // v0.50.0: the folder arrives as it is; its recreatable folders set aside before counting.
+    expect(r.proposals[0]).toMatchObject({ isDirectory: true, fileCount: 2 });
+    expect(r.proposals[0]!.setAside?.map((s) => s.name)).toEqual(['node_modules']);
     expect(r.setAside).toEqual([
       expect.objectContaining({ rel: 'site/node_modules', files: 400, partial: false }),
     ]);
-    const asProject = await runJob<AnalyzeResultDto>(W, 'POST', `${API}/deposit/analyze`, {
-      paths: [proj],
-    });
-    expect(asProject.proposals[0]).toMatchObject({ isDirectory: true, fileCount: 2 });
     // The threshold (lowered for the test): asked first, nothing analysed.
     process.env.TOOLBOX_COFFRE_WARN_FILES = '1';
     const big = await runJob<AnalyzeResultDto>(W, 'POST', `${API}/deposit/analyze`, {
       paths: [proj],
-      expand: true,
     });
     expect(big.proposals).toEqual([]);
     expect(big.needsConfirm).toMatchObject({ files: 2 });
     const go = await runJob<AnalyzeResultDto>(W, 'POST', `${API}/deposit/analyze`, {
       paths: [proj],
-      expand: true,
       confirmed: true,
     });
-    expect(go.proposals).toHaveLength(2);
+    expect(go.proposals).toHaveLength(1);
   });
 
   it('mise à jour du disque pendant un rangement : refusée avec un message clair, possible à la fin', async () => {
@@ -176,7 +172,7 @@ describe('tâches de fond du Coffre', () => {
     const files = Array.from({ length: 8 }, (_, i) => put(path.join(W.dl, `x${i}.md`), `x${i}`));
     process.env.TOOLBOX_COFFRE_DEPOSIT_PAUSE_MS = '80';
     const { jobId } = await ok<{ jobId: string }>(W, 'POST', `${API}/deposit/apply`, {
-      entries: files.map((p) => ({ path: p, newContext: ['Cours'], attributes: [] })),
+      entries: files.map((p) => ({ path: p, newFolder: ['Cours'], labels: [] })),
     });
     await until(async () => (await waitJobNow(W, jobId))?.status === 'running');
     const refused = await W.hub.request('POST', `${API}/disk/update`);

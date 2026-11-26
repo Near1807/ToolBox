@@ -6,9 +6,99 @@
 import { createHash } from 'node:crypto';
 import { opendir, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { kindOf } from '../shared/kinds';
-import { isDepsFolder, isIgnoredFile } from './import';
+import { extOf, kindOf, languageOfExt } from '../shared/kinds';
 import { hashFile } from './library';
+
+/** System and temporary files: never kept (listed in the preview). */
+const SYSTEM_FILE =
+  /^(thumbs\.db|desktop\.ini|\.ds_store|ehthumbs(_vista)?\.db|\.directory|icon\r)$/i;
+const TEMP_FILE = /^(~\$.+|\.~lock\..*#|.+\.(tmp|temp|crdownload|part|partial|swp|swo)|.+~)$/i;
+export const isIgnoredFile = (name: string) => SYSTEM_FILE.test(name) || TEMP_FILE.test(name);
+
+/** Dependencies and build folders: unambiguous anywhere. */
+const DEPS_ANYWHERE = new Set([
+  'node_modules',
+  '.venv',
+  'venv',
+  '.cache',
+  '__pycache__',
+  '.pio',
+  '.mypy_cache',
+  '.pytest_cache',
+  '.tox',
+  '.gradle',
+  '.next',
+  '.nuxt',
+  '.parcel-cache',
+  '.dart_tool',
+]);
+/** …and these only inside a code project (« build » can be a folder of Thomas's elsewhere). */
+const DEPS_IN_PROJECT = new Set([
+  'env',
+  'build',
+  'dist',
+  'target',
+  'bin',
+  'obj',
+  'out',
+  'coverage',
+  'cmake-build-debug',
+  'cmake-build-release',
+  'DerivedData',
+  'Pods',
+]);
+export const isDepsFolder = (name: string, inProject: boolean) =>
+  DEPS_ANYWHERE.has(name) || (inProject && DEPS_IN_PROJECT.has(name));
+
+/** Files that say « this folder is a code project ». */
+const MARKER_FILES = [
+  'package.json',
+  'pyproject.toml',
+  'requirements.txt',
+  'setup.py',
+  'setup.cfg',
+  'Pipfile',
+  'Cargo.toml',
+  'platformio.ini',
+  'CMakeLists.txt',
+  'go.mod',
+  'pom.xml',
+  'build.gradle',
+  'build.gradle.kts',
+  'composer.json',
+  'Gemfile',
+  'meson.build',
+  'pubspec.yaml',
+  'Makefile',
+];
+const MARKER_EXTS = ['.sln', '.csproj', '.vcxproj', '.uvprojx', '.ino', '.xcodeproj'];
+
+/** Why a folder is a code project (its marker), or null. */
+export function projectMarker(entries: readonly { name: string; dir: boolean }[]): string | null {
+  const git = entries.find((e) => e.name === '.git');
+  if (git) return '.git';
+  for (const m of MARKER_FILES) if (entries.some((e) => !e.dir && e.name === m)) return m;
+  for (const ext of MARKER_EXTS) {
+    const hit = entries.find((e) => e.name.toLowerCase().endsWith(ext));
+    if (hit) return hit.name;
+  }
+  // Mostly code files (at least 2, at least half of its own files).
+  const files = entries.filter((e) => !e.dir && !isIgnoredFile(e.name));
+  const code = files.filter((e) => languageOfExt(extOf(e.name)));
+  if (code.length >= 2 && code.length * 2 >= files.length) return 'fichiers de code';
+  return null;
+}
+
+/**
+ * v0.50.0: a hidden folder (ADR 0067): a dot name (.git, .vscode, .idea…) or a
+ * recreatable one. Hidden everywhere by default; .git is hidden but never excluded.
+ */
+export const isHiddenName = (name: string, inProject: boolean) =>
+  name.startsWith('.') || isDepsFolder(name, inProject);
+
+/** v0.50.0: « contient du code » reads better than the marker's internal name. */
+export const projectReason = (marker: string) =>
+  marker === 'fichiers de code' ? 'contient du code' : marker;
 
 export interface WalkedFile {
   /** Relative to the folder read, with « / ». */

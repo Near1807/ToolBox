@@ -1,6 +1,6 @@
 // v0.45.0: elements as cards (grid) or as a compact list you can sort — the
 // choice is remembered on this PC. A card: its preview, its name, its nature,
-// its context (views by attribute), its date; on hover Ouvrir, Ouvrir dans…,
+// its folder (views by label), its date; on hover Ouvrir, Ouvrir dans…,
 // Épingler; right click the common menu; Espace or a click on the preview:
 // the large preview; double click: its application.
 import { useMemo, useState, type KeyboardEvent, type MouseEvent } from 'react';
@@ -17,7 +17,7 @@ import { useCoffre } from './frame';
 import { extOfItem, shortDate, SORTS, sortItems, type SortKey } from './logic';
 import { iconOf, ReaderView } from './ReaderView';
 
-const natureOf = (item: ItemDto) => item.attributes.find((a) => a.key === 'nature')?.value ?? '';
+const natureOf = (item: ItemDto) => item.labels.find((a) => a.family === 'nature')?.value ?? '';
 
 function stored<T extends string>(key: string, allowed: readonly T[], fallback: T): T {
   try {
@@ -136,8 +136,8 @@ export function CardPreview(props: { item: ItemDto }) {
 
 export function Items(props: {
   items: ItemDto[];
-  /** Show each element's context (views by attribute, search, Arrivée). */
-  showContext?: boolean;
+  /** Show each element's folder (views by label, search, À ranger). */
+  showFolder?: boolean;
   /** Large cards (« En cours »), never a list. */
   large?: boolean;
   view?: ViewMode;
@@ -160,10 +160,18 @@ export function Items(props: {
 
   const preview = (i: number) => coffre.preview(items, i);
   const order = items.map((x) => x.id);
+  // v0.50.0: the file in focus (or the selection) is what Ctrl+Maj+C / Ctrl+Maj+V act on.
+  const target = (id: string) => {
+    const chosen = props.select?.ids.size ? items.filter((x) => props.select!.ids.has(x.id)) : [];
+    const one = items.find((x) => x.id === id);
+    coffre.setTargets(chosen.length ? chosen : one ? [one] : []);
+  };
   const modClick = (id: string) => ({
     onClickCapture: (e: MouseEvent) => {
       props.onModClick?.(e, id, order);
+      target(id);
     },
+    onFocus: () => target(id),
   });
   const keys = (i: number) => (e: KeyboardEvent) => {
     if (e.target !== e.currentTarget) return;
@@ -207,7 +215,7 @@ export function Items(props: {
   const meta = (item: ItemDto) =>
     [
       natureOf(item),
-      props.showContext ? (item.contextPath?.join(' › ') ?? 'Arrivée') : null,
+      props.showFolder ? (item.folderPath?.join(' › ') ?? 'À ranger') : null,
       shortDate(item.fileDate ?? item.createdAt),
     ]
       .filter(Boolean)
@@ -232,7 +240,7 @@ export function Items(props: {
             <tr>
               {head('Nom', 'name')}
               {head('Nature', 'nature')}
-              {props.showContext && <th>Contexte</th>}
+              {props.showFolder && <th>Dossier</th>}
               {head('Date', 'date')}
               {head('Taille', 'size')}
             </tr>
@@ -268,15 +276,12 @@ export function Items(props: {
                     {item.name}
                   </button>
                   {item.pinned && <Icon name="star" label="Épinglé" />}
-                  {item.kind === 'link' && <span className="coffre-chip">lien externe</span>}
                   <DiskChip item={item} />
                 </td>
                 <td>{natureOf(item)}</td>
-                {props.showContext && <td>{item.contextPath?.join(' › ') ?? 'Arrivée'}</td>}
+                {props.showFolder && <td>{item.folderPath?.join(' › ') ?? 'À ranger'}</td>}
                 <td>{shortDate(item.fileDate ?? item.createdAt)}</td>
-                <td className="coffre-table__num">
-                  {item.kind === 'link' ? '' : formatBytes(item.size)}
-                </td>
+                <td className="coffre-table__num">{formatBytes(item.size)}</td>
               </tr>
             ))}
           </tbody>
@@ -299,18 +304,12 @@ export function Items(props: {
             meta={meta(item)}
             muted={item.diskState === 'archived'}
             badges={
-              item.kind === 'link' ||
-              item.pinned ||
-              item.diskState === 'pending' ||
-              item.diskState === 'archived' ? (
+              item.pinned || item.diskState === 'pending' || item.diskState === 'archived' ? (
                 <>
                   {item.pinned && (
                     <span className="coffre-chip coffre-chip--accent">
                       <Icon name="star" /> en cours
                     </span>
-                  )}
-                  {item.kind === 'link' && (
-                    <span className="coffre-chip">lien externe, non sauvegardé</span>
                   )}
                   <DiskChip item={item} />
                 </>

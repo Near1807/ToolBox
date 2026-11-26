@@ -1,6 +1,6 @@
-// v0.45.0: a context's colour — Thomas's choice from the Agenda's category
+// v0.45.0: a folder's colour — Thomas's choice from the Agenda's category
 // palette (« p:<id> », « #rrggbb »), else a theme token chosen from its
-// family (the root context's name), so a family keeps one colour. Pure.
+// family (the root folder's name), so a family keeps one colour. Pure.
 import { colorValue } from '@hub/sdk/palette';
 
 const SERIES = 8;
@@ -12,6 +12,6 @@ export function familyToken(name: string): string {
   return `var(--series-${(h % SERIES) + 1})`;
 }
 
-/** The CSS value of a context's colour: its own, else its family's token. */
-export const contextCss = (color: string | null, familyName: string) =>
+/** The CSS value of a folder's colour: its own, else its family's token. */
+export const folderCss = (color: string | null, familyName: string) =>
   colorValue(color, familyToken(familyName));

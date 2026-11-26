@@ -16,9 +16,9 @@ import { findDisk, readIdentity, spaceOf, splitVolume, volumeRoots } from './vol
 
 export interface Tables {
   items: string;
-  contexts: string;
-  attributes: string;
-  also: string;
+  folders: string;
+  labels: string;
+  labelSets: string;
   disks: string;
   copies: string;
   versions: string;
@@ -308,7 +308,7 @@ export class DiskManager {
     row: ItemRow,
     options: CopyOptions = {},
   ): Promise<'unchanged' | 'missing' | { sha256: string; size: number; stat: StatCache }> {
-    if (!row.rel_path || row.kind === 'link' || row.archived_at) return 'unchanged';
+    if (!row.rel_path || row.archived_at) return 'unchanged';
     const file = this.d.library.abs(row.rel_path);
     const s = await stat(file).catch(() => null);
     if (!s) return 'missing';
@@ -362,7 +362,7 @@ export class DiskManager {
   private async scanPcOnce(options: CopyOptions): Promise<{ changed: number; missing: string[] }> {
     const rows = this.d.ctx.db
       .prepare(
-        `SELECT * FROM ${this.d.t.items} WHERE deleted_at IS NULL AND trashed_at IS NULL AND archived_at IS NULL AND kind != 'link' AND rel_path IS NOT NULL`,
+        `SELECT * FROM ${this.d.t.items} WHERE deleted_at IS NULL AND trashed_at IS NULL AND archived_at IS NULL AND rel_path IS NOT NULL`,
       )
       .all() as ItemRow[];
     let changed = 0;

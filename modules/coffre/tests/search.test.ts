@@ -139,13 +139,13 @@ describe('recherche dans le contenu', () => {
     const m = await ok<{ parts: string[] }>(
       w,
       'GET',
-      `${API}/items/${doc!.id}/matches?q=electricite`,
+      `${API}/files/${doc!.id}/matches?q=electricite`,
     );
     expect(m.parts.sort()).toEqual(['3', '4']);
     // The name still counts.
     expect((await search(w, 'autre')).results[0]).toMatchObject({ byName: true });
     // In the Recycle Bin: not found.
-    await ok(w, 'DELETE', `${API}/items/${doc!.id}`);
+    await ok(w, 'DELETE', `${API}/files/${doc!.id}`);
     expect((await search(w, 'joule')).results).toHaveLength(0);
   });
 
@@ -174,7 +174,7 @@ describe('recherche dans le contenu', () => {
     const job = await waitJob(w, jobId);
     expect(job.status).toBe('succeeded');
     void (job.result as UpdateReport);
-    await runJob(w, 'POST', `${API}/items/archive`, { ids: [doc!.id], confirm: true });
+    await runJob(w, 'POST', `${API}/files/archive`, { ids: [doc!.id], confirm: true });
     renameSync(path.join(w.E, 'S'), path.join(w.E, '..', 'ailleurs'));
     expect((await status(w)).connected).toBe(false);
     const r = await search(w, 'entropie');

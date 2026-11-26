@@ -1,9 +1,9 @@
-// v0.48.0 (Expérimental): the map of the contexts — the whole tree at once,
-// each context a node tied to its parent (radial and computed: it never
+// v0.48.0 (Expérimental): the map of the folders — the whole tree at once,
+// each folder a node tied to its parent (radial and computed: it never
 // moves by itself), sized by its elements (descendants included), in its
 // colour, marked when it holds something new or « pas encore sur le disque ».
 // Zoom and move with the mouse, the wheel or the keyboard (arrows, + −, 0 =
-// tout voir). A click opens the context; hover gives its route and count;
+// tout voir). A click opens the folder; hover gives its route and count;
 // the search lights the node and its path (Entrée goes there). Dragging a
 // node onto another one moves it (always asked first, then « Annuler »).
 import {
@@ -17,7 +17,7 @@ import {
 } from 'react';
 import { Icon, type MenuItem, type useContextMenu } from '@hub/sdk/frontend';
 import { routeLabel, suggestRoutes } from '../shared/route';
-import type { ContextDto } from '../shared/types';
+import type { FolderDto } from '../shared/types';
 import { fitView, layoutMap, nodeAt, pathIds, type MapLayout, type MapNode } from './map-layout';
 
 interface View {
@@ -31,43 +31,44 @@ const ZOOM_MAX = 4;
 const clampK = (k: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, k));
 /** Below this zoom, only the first two levels (and the lit ones) carry their name. */
 const DETAIL_ZOOM = 0.75;
-/** The centre (the Coffre itself): dropping there puts a context at the root. */
+/** The centre (the Coffre itself): dropping there puts a folder at the root. */
 const ROOT_ID = '__root__';
 
-export interface ContextMapProps {
-  contexts: readonly ContextDto[];
+export interface FolderMapProps {
+  folders: readonly FolderDto[];
   pending: Readonly<Record<string, number>>;
   height: number;
   onOpen: (id: string) => void;
   /** A node dropped on another one (null: on the centre, the root). */
   onMove: (srcId: string, dstId: string | null) => void;
-  menuOf: (c: ContextDto) => MenuItem[];
+  menuOf: (c: FolderDto) => MenuItem[];
   bindMenu: ReturnType<typeof useContextMenu>['bind'];
-  onRename?: (c: ContextDto) => void;
-  onRemove?: (c: ContextDto) => void;
-  /** The context shown on the page (lit). */
+  onRename?: (c: FolderDto) => void;
+  onRemove?: (c: FolderDto) => void;
+  /** The folder shown on the page (lit). */
   current?: string | null;
 }
 
-export function ContextMap(props: ContextMapProps) {
-  const { contexts, onOpen, onMove } = props;
+export function FolderMap(props: FolderMapProps) {
+  const { folders, onOpen, onMove } = props;
   const frame = useRef<HTMLDivElement>(null);
   const svg = useRef<SVGSVGElement>(null);
   const [width, setWidth] = useState(800);
   const layout = useMemo(
     () =>
       layoutMap(
-        contexts.map((c) => ({
+        folders.map((c) => ({
           id: c.id,
           parentId: c.parentId,
           name: c.name,
           sort: c.sort,
-          count: c.count,
+          // v0.50.0: an end of route holds its sub-folders' files (they are not on the map).
+          count: c.endOfRoute ? c.total : c.count,
         })),
       ),
-    [contexts],
+    [folders],
   );
-  const byId = useMemo(() => new Map(contexts.map((c) => [c.id, c])), [contexts]);
+  const byId = useMemo(() => new Map(folders.map((c) => [c.id, c])), [folders]);
   const [view, setView] = useState<View>(() => fitView(layout.box, 800, props.height));
   const fitted = useRef(false);
   const [query, setQuery] = useState('');
@@ -109,8 +110,8 @@ export function ContextMap(props: ContextMapProps) {
   const found = useMemo(() => {
     const q = query.trim();
     if (!q) return null;
-    return suggestRoutes(q, contexts, 1)[0]?.id ?? null;
-  }, [query, contexts]);
+    return suggestRoutes(q, folders, 1)[0]?.id ?? null;
+  }, [query, folders]);
   const lit = useMemo(() => {
     const id = found ?? current ?? null;
     return id ? pathIds(layout, id) : new Set<string>();
@@ -125,7 +126,7 @@ export function ContextMap(props: ContextMapProps) {
   };
   const search = (q: string) => {
     setQuery(q);
-    if (q.trim()) centreOn(suggestRoutes(q.trim(), contexts, 1)[0]?.id ?? null);
+    if (q.trim()) centreOn(suggestRoutes(q.trim(), folders, 1)[0]?.id ?? null);
   };
 
   // The wheel zooms around the pointer (not passive: the page does not scroll).
@@ -224,7 +225,7 @@ export function ContextMap(props: ContextMapProps) {
             className="input"
             type="search"
             placeholder="Trouver sur la carte (cours/thermo)…"
-            aria-label="Trouver un contexte sur la carte"
+            aria-label="Trouver un dossier sur la carte"
             value={query}
             onChange={(e) => search(e.target.value)}
             onKeyDown={(e) => {
@@ -237,7 +238,7 @@ export function ContextMap(props: ContextMapProps) {
         </label>
         {query.trim() && (
           <span className="coffre-map__found muted small" role="status">
-            {found ? routeLabel(byId.get(found)?.path ?? []) : 'Aucun contexte'}
+            {found ? routeLabel(byId.get(found)?.path ?? []) : 'Aucun dossier'}
           </span>
         )}
         <span className="coffre-map__tools">
@@ -275,7 +276,7 @@ export function ContextMap(props: ContextMapProps) {
         width="100%"
         height={props.height}
         role="group"
-        aria-label="Carte des contextes : flèches pour se déplacer, + et − pour zoomer, 0 pour tout voir"
+        aria-label="Carte des dossiers : flèches pour se déplacer, + et − pour zoomer, 0 pour tout voir"
         tabIndex={0}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -340,10 +341,10 @@ export function ContextMap(props: ContextMapProps) {
         {drag
           ? drag.target
             ? `Lâcher pour déplacer « ${byId.get(drag.id)?.name ?? ''} » dans « ${drag.target === ROOT_ID ? 'la racine' : (byId.get(drag.target)?.name ?? '')} »`
-            : 'Lâche sur un autre contexte pour l’y déplacer (au centre : à la racine)'
+            : 'Lâche sur un autre dossier pour l’y déplacer (au centre : à la racine)'
           : hovered && hoveredNode
-            ? `${routeLabel(hovered.path)} · ${hoveredNode.total} élément${hoveredNode.total > 1 ? 's' : ''}${hoveredNode.total !== hovered.count ? ` (dont ${hovered.count} directement)` : ''}${props.pending[hovered.id] ? ` · ${props.pending[hovered.id]} pas encore sur le disque` : ''}`
-            : `${contexts.length} contexte${contexts.length > 1 ? 's' : ''} · clic : ouvrir · glisser un nœud sur un autre : déplacer · molette : zoom`}
+            ? `${routeLabel(hovered.path)}${hovered.project ? ' · projet' : hovered.endOfRoute ? ' · fin de route' : ''} · ${hoveredNode.total} fichier${hoveredNode.total > 1 ? 's' : ''}${hoveredNode.total !== hovered.count ? ` (dont ${hovered.count} directement)` : ''}${props.pending[hovered.id] ? ` · ${props.pending[hovered.id]} pas encore sur le disque` : ''}`
+            : `${folders.length} dossier${folders.length > 1 ? 's' : ''} · clic : ouvrir · glisser un nœud sur un autre : déplacer · molette : zoom`}
       </p>
     </div>
   );
@@ -351,7 +352,7 @@ export function ContextMap(props: ContextMapProps) {
 
 const Nodes = memo(function Nodes(props: {
   layout: MapLayout;
-  byId: Map<string, ContextDto>;
+  byId: Map<string, FolderDto>;
   pending: Readonly<Record<string, number>>;
   lit: Set<string>;
   detail: boolean;
@@ -360,10 +361,10 @@ const Nodes = memo(function Nodes(props: {
   dragging: string | null;
   onHover: (id: string | null) => void;
   onOpen: (id: string) => void;
-  menuOf: (c: ContextDto) => MenuItem[];
-  bindMenu: ContextMapProps['bindMenu'];
-  onRename?: (c: ContextDto) => void;
-  onRemove?: (c: ContextDto) => void;
+  menuOf: (c: FolderDto) => MenuItem[];
+  bindMenu: FolderMapProps['bindMenu'];
+  onRename?: (c: FolderDto) => void;
+  onRemove?: (c: FolderDto) => void;
 }) {
   const { layout, byId, lit } = props;
   return (
@@ -417,7 +418,7 @@ const Nodes = memo(function Nodes(props: {
 
 function Node(props: {
   n: MapNode;
-  c: ContextDto;
+  c: FolderDto;
   pending: number;
   lit: boolean;
   showLabel: boolean;
@@ -425,21 +426,22 @@ function Node(props: {
   dragging: boolean;
   onHover: (id: string | null) => void;
   onOpen: (id: string) => void;
-  menuOf: (c: ContextDto) => MenuItem[];
-  bindMenu: ContextMapProps['bindMenu'];
-  onRename?: (c: ContextDto) => void;
-  onRemove?: (c: ContextDto) => void;
+  menuOf: (c: FolderDto) => MenuItem[];
+  bindMenu: FolderMapProps['bindMenu'];
+  onRename?: (c: FolderDto) => void;
+  onRemove?: (c: FolderDto) => void;
 }) {
   const { n, c } = props;
   if (!c) return null;
   const right = Math.cos(n.angle) >= -0.2 || n.depth === 1;
   const menu = props.bindMenu(() => props.menuOf(c), c.name);
-  const label = `${routeLabel(c.path)}, ${n.total} élément${n.total > 1 ? 's' : ''}${c.fresh ? `, ${c.fresh} nouveau${c.fresh > 1 ? 'x' : ''}` : ''}${props.pending ? `, ${props.pending} pas encore sur le disque` : ''}`;
+  const badge = c.project ? ', projet' : c.endOfRoute ? ', fin de route' : '';
+  const label = `${routeLabel(c.path)}${badge}, ${n.total} fichier${n.total > 1 ? 's' : ''}${c.fresh ? `, ${c.fresh} nouveau${c.fresh > 1 ? 'x' : ''}` : ''}${props.pending ? `, ${props.pending} pas encore sur le disque` : ''}`;
   return (
     <g
       data-map-node={c.id}
-      data-coffre-context={c.id}
-      className={`coffre-map__node${props.lit ? ' is-lit' : ''}${props.target ? ' is-target' : ''}${props.dragging ? ' is-dragging' : ''}`}
+      data-coffre-folder={c.id}
+      className={`coffre-map__node${c.project ? ' is-project' : c.endOfRoute ? ' is-end' : ''}${props.lit ? ' is-lit' : ''}${props.target ? ' is-target' : ''}${props.dragging ? ' is-dragging' : ''}`}
       transform={`translate(${n.x} ${n.y})`}
       tabIndex={0}
       role="link"
@@ -466,6 +468,8 @@ function Node(props: {
     >
       <title>{label}</title>
       <circle className="coffre-map__dot" r={n.r} />
+      {/* v0.50.0: a Projet or a Fin de route: a ring (its inside is in its view). */}
+      {c.endOfRoute && <circle className="coffre-map__badge" r={n.r + 3} />}
       {c.fresh > 0 && (
         <circle className="coffre-map__fresh" cx={n.r * 0.75} cy={-n.r * 0.75} r={4} />
       )}

@@ -89,14 +89,14 @@ describe('restaurer une version', () => {
     const { versions } = await ok<{ versions: { id: string; size: number }[] }>(
       w,
       'GET',
-      `${API}/items/${doc!.id}/versions`,
+      `${API}/files/${doc!.id}/versions`,
     );
     expect(versions).toHaveLength(1);
-    const url = `${API}/items/${doc!.id}/versions/${versions[0]!.id}/restore`;
+    const url = `${API}/files/${doc!.id}/versions/${versions[0]!.id}/restore`;
     expect((await w.hub.request('POST', url, {})).status).toBe(400);
     const r = await ok<{ undoId: string }>(w, 'POST', url, { confirm: true });
     expect(readFileSync(pc, 'utf8')).toBe('v1');
-    expect((await ok<ItemDto>(w, 'GET', `${API}/items/${doc!.id}`)).diskState).toBe('pending');
+    expect((await ok<ItemDto>(w, 'GET', `${API}/files/${doc!.id}`)).diskState).toBe('pending');
     await ok(w, 'POST', `${API}/undo`, { undoId: r.undoId });
     expect(readFileSync(pc, 'utf8')).toBe('v2');
     // Again, and an update: the disk's current is v1, v2 in the history.
@@ -107,7 +107,7 @@ describe('restaurer une version', () => {
     const after = await ok<{ versions: { id: string }[] }>(
       w,
       'GET',
-      `${API}/items/${doc!.id}/versions`,
+      `${API}/files/${doc!.id}/versions`,
     );
     expect(after.versions).toHaveLength(2);
   });
@@ -124,16 +124,16 @@ describe('restaurer une version', () => {
     const { versions } = await ok<{ versions: { id: string }[] }>(
       w,
       'GET',
-      `${API}/items/${doc!.id}/versions`,
+      `${API}/files/${doc!.id}/versions`,
     );
-    await ok(w, 'POST', `${API}/items/${doc!.id}/versions/${versions[0]!.id}/restore`, {
+    await ok(w, 'POST', `${API}/files/${doc!.id}/versions/${versions[0]!.id}/restore`, {
       confirm: true,
     });
     expect(readFileSync(pc, 'utf8')).toBe('v1');
     const after = await ok<{ versions: { id: string; name: string }[] }>(
       w,
       'GET',
-      `${API}/items/${doc!.id}/versions`,
+      `${API}/files/${doc!.id}/versions`,
     );
     // v3 (never on the disk) is now kept there too.
     const s = await status(w);
@@ -151,12 +151,12 @@ describe('corbeille du disque', () => {
   it('un supprimé y va ; effacé du PC, il se récupère avec sa fiche ; effacer : seulement confirmé', async () => {
     w = await diskWorld();
     const [doc] = await deposit(w, { 'contrat.pdf': 'signé' });
-    await ok(w, 'PUT', `${API}/items/${doc!.id}/attributes`, { key: 'tag', values: ['important'] });
+    await ok(w, 'PUT', `${API}/files/${doc!.id}/labels`, { family: 'free', values: ['important'] });
     const s = await registerDisk(w, path.join(w.E, 'S'));
     await update();
-    await ok(w, 'DELETE', `${API}/items/${doc!.id}`);
+    await ok(w, 'DELETE', `${API}/files/${doc!.id}`);
     await update();
-    await ok(w, 'POST', `${API}/items/${doc!.id}/erase`, { confirm: true });
+    await ok(w, 'POST', `${API}/files/${doc!.id}/erase`, { confirm: true });
     const trash = await ok<{ itemId: string; onPc: boolean; old: boolean }[]>(
       w,
       'GET',
@@ -165,8 +165,8 @@ describe('corbeille du disque', () => {
     expect(trash).toMatchObject([{ itemId: doc!.id, onPc: false, old: false }]);
     // Recovered: back on the PC, its tag with it; the next update takes it out of the Recycle Bin.
     await ok(w, 'POST', `${API}/disk/trash/recover`, { itemId: doc!.id });
-    const back = await ok<ItemDto>(w, 'GET', `${API}/items/${doc!.id}`);
-    expect(back.attributes.map((a) => a.value)).toContain('important');
+    const back = await ok<ItemDto>(w, 'GET', `${API}/files/${doc!.id}`);
+    expect(back.labels.map((a) => a.value)).toContain('important');
     expect(readFileSync(lib('Cours', 'Thermo', 'contrat.pdf'), 'utf8')).toBe('signé');
     await update();
     expect(readFileSync(path.join(s.root!, 'Cours', 'Thermo', 'contrat.pdf'), 'utf8')).toBe(
@@ -174,7 +174,7 @@ describe('corbeille du disque', () => {
     );
     expect(await ok(w, 'GET', `${API}/disk/trash`)).toEqual([]);
     // Deleted again: erasing from the disk's Recycle Bin needs the confirmation.
-    await ok(w, 'DELETE', `${API}/items/${doc!.id}`);
+    await ok(w, 'DELETE', `${API}/files/${doc!.id}`);
     await update();
     const trashed = path.join(s.root!, '_ToolBox', 'Corbeille', doc!.id, 'contrat.pdf');
     expect(existsSync(trashed)).toBe(true);
@@ -191,7 +191,7 @@ describe('corbeille du disque', () => {
     const [doc] = await deposit(w, { 'vieux.txt': 'vieux' });
     const s = await registerDisk(w, path.join(w.E, 'S'));
     await update();
-    await ok(w, 'DELETE', `${API}/items/${doc!.id}`);
+    await ok(w, 'DELETE', `${API}/files/${doc!.id}`);
     await update();
     // 31 days later.
     const db = new Database(path.join(w.hub.dataDir, 'hub.db'));

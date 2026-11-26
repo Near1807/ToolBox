@@ -1,6 +1,6 @@
 // v0.47.0 (Expérimental): « Maintenant » on the Coffre's home — a course of
 // the Agenda in progress or starting within 15 minutes: its name, when it
-// ends, and its context's elements, the most recent first. No Agenda, or no
+// ends, and its folder's elements, the most recent first. No Agenda, or no
 // course now: nothing.
 import { useEffect } from 'react';
 import { Link } from 'react-router';
@@ -39,19 +39,19 @@ export function NowPanel() {
             : `commence à ${hm(c.start)}, jusqu’à ${hm(c.end)}`}
         </span>
         {c.location && <span className="muted"> · {c.location}</span>}
-        {n.context && (
+        {n.folder && (
           <>
             {' '}
-            · <Link to={coffre.path(`c/${n.context.id}`)}>{n.context.path.join(' › ')}</Link>
+            · <Link to={coffre.path(`c/${n.folder.id}`)}>{n.folder.path.join(' › ')}</Link>
           </>
         )}
       </p>
-      {n.context ? (
-        <Items items={n.items} empty="Rien encore dans ce contexte." />
+      {n.folder ? (
+        <Items items={n.items} empty="Rien encore dans ce dossier." />
       ) : (
         <p className="muted small">
-          Aucun contexte pour ce cours : nomme un contexte comme le cours (ou son code), ou choisis
-          « Lié au cours » sur la page d’un contexte.
+          Aucun dossier pour ce cours : nomme un dossier comme le cours (ou son code), ou choisis «
+          Lié au cours » sur la page d’un dossier.
         </p>
       )}
     </section>

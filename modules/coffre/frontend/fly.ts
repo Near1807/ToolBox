@@ -1,5 +1,5 @@
 // The short flight of a file towards its tile after « Ranger » (or the
-// Arrivée counter). Off with the setting « Animations », or when the system
+// À ranger counter). Off with the setting « Animations », or when the system
 // asks for less motion (prefers-reduced-motion).
 export const motionAllowed = (enabled: boolean) =>
   enabled &&

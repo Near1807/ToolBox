@@ -4,7 +4,7 @@
 // Changing nothing here touches an element: only future proposals.
 import { useState } from 'react';
 import { Button, ErrorMessage, errorMessage, useApi, useModule } from '@hub/sdk/frontend';
-import type { ContextDto, LearnedRuleDto } from '../shared/types';
+import type { FolderDto, LearnedRuleDto } from '../shared/types';
 
 const KIND: Record<LearnedRuleDto['kind'], string> = {
   site: 'Site',
@@ -15,12 +15,12 @@ const KIND: Record<LearnedRuleDto['kind'], string> = {
 export function LearnedSettings() {
   const module = useModule();
   const rules = useApi<LearnedRuleDto[]>(module.url('/learned'));
-  const contexts = useApi<ContextDto[]>(module.url('/contexts'));
+  const folders = useApi<FolderDto[]>(module.url('/folders'));
   const [error, setError] = useState<string | null>(null);
   const run = (p: Promise<unknown>) =>
     void p.then(() => rules.reload()).catch((e: unknown) => setError(errorMessage(e)));
   const list = rules.data ?? [];
-  const sorted = [...(contexts.data ?? [])].sort((a, b) =>
+  const sorted = [...(folders.data ?? [])].sort((a, b) =>
     a.path.join('/').localeCompare(b.path.join('/'), 'fr'),
   );
   return (
@@ -55,7 +55,7 @@ export function LearnedSettings() {
                   {r.kind === 'ext' && (
                     <span className="muted small">
                       {' '}
-                      dans {r.contextPath?.join(' › ') ?? 'un contexte supprimé'}
+                      dans {r.folderPath?.join(' › ') ?? 'un dossier supprimé'}
                     </span>
                   )}
                 </td>
@@ -74,13 +74,13 @@ export function LearnedSettings() {
                   ) : (
                     <select
                       className="input"
-                      aria-label="Contexte proposé"
-                      value={r.contextId}
+                      aria-label="Dossier proposé"
+                      value={r.folderId}
                       onChange={(e) =>
-                        run(module.api.patch(`/learned/${r.id}`, { contextId: e.target.value }))
+                        run(module.api.patch(`/learned/${r.id}`, { folderId: e.target.value }))
                       }
                     >
-                      {!r.contextPath && <option value={r.contextId}>(contexte supprimé)</option>}
+                      {!r.folderPath && <option value={r.folderId}>(dossier supprimé)</option>}
                       {sorted.map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.path.join(' › ')}

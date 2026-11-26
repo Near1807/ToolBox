@@ -1,8 +1,8 @@
-// v0.45.0: what every page of the Coffre shares — drop anywhere on the page
-// (fenêtre de rangement), the message with « Annuler », the preview over the
-// page, opening (an executable never without a confirmation naming it), the
-// context menu of an element, Ctrl+K (the Coffre's search, before the
-// sidebar's while a Coffre page is open).
+// v0.45.0, v0.50.0: what every page of the Coffre shares — drop anywhere on
+// the page (fenêtre de rangement; a folder arrives as it is), the message with
+// « Annuler », the preview over the page, opening (an executable never without
+// a confirmation naming it), a file's menu, « Nouveau dossier » / « Nouveau
+// fichier… », the labels copied (Ctrl+Maj+C) and pasted (Ctrl+Maj+V).
 import {
   createContext,
   useCallback,
@@ -16,32 +16,35 @@ import {
 } from 'react';
 import { isRunnable, runnableQuestion } from '@hub/sdk/core';
 import {
+  announceJobs,
   Button,
   errorMessage,
   formatBytes,
-  waitForJob,
   getFilePath,
+  type MenuItem,
+  type ModuleContextValue,
   notifyDataChanged,
   pickFiles,
   pickFolder,
+  runJob,
   UndoToast,
   useApi,
   useContextMenu,
   useModule,
-  type MenuItem,
-  type ModuleContextValue,
+  waitForJob,
 } from '@hub/sdk/frontend';
 import type {
   AnalyzeResultDto,
-  ContextDto,
   DiskStatusDto,
+  FolderDto,
   ItemDto,
+  LabelValue,
   SetAsideDto,
 } from '../shared/types';
 import { Deposit } from './Deposit';
 import { DiskWitness } from './disk/DiskWitness';
-import { ImportDialog } from './Import';
-import { CoffreTasks, runTask } from './Tasks';
+import { NewItemDialog, PasteLabelsDialog } from './NewItem';
+import { CoffreTasks } from './Tasks';
 import { UpdateDialog } from './disk/UpdateDialog';
 import { VerifyDialog } from './disk/VerifyDialog';
 import { useDisk } from './disk/useDisk';
@@ -67,34 +70,41 @@ export type OpenHow = 'app' | 'folder' | 'vscode' | 'readcopy';
 export interface CoffreValue {
   api: ModuleContextValue['api'];
   path: (page?: string) => string;
-  contexts: ContextDto[];
+  folders: FolderDto[];
   values: Record<string, string[]>;
   tools: Tools;
   /** Every open screen of the Coffre reads its data again. */
   refresh(): void;
-  /** Files dropped (a DataTransfer); `fixed`: the context they were dropped on. */
+  /** Files or folders dropped (a DataTransfer); `fixed`: the folder they were dropped on. */
   drop(data: DataTransfer, fixed?: string | null): void;
-  addLink(kind: 'file' | 'folder'): void;
   /** « Ranger des fichiers… »: the file picker, then the rangement window. */
   pick(fixed?: string | null): void;
-  /** The context of the page shown: what is dropped on the page goes there. */
-  setHere(contextId: string | null): void;
+  /** v0.50.0: « Ranger un dossier… »: the folder picker (it arrives as it is). */
+  pickDir(fixed?: string | null): void;
+  /** v0.50.0: « Nouveau dossier » / « Nouveau fichier… » in a folder (null: the top / À ranger). */
+  create(kind: 'folder' | 'file', folderId: string | null): void;
+  /** v0.50.0: the labels copied (Ctrl+Maj+C), or null. */
+  copied: LabelValue[] | null;
+  copyLabels(item: ItemDto): void;
+  /** Pasted on these files: « Ajouter » or « Remplacer » asked first. */
+  pasteLabels(items: ItemDto[], labels?: LabelValue[]): void;
+  /** The files Ctrl+Maj+C / Ctrl+Maj+V act on (the card in focus, the selection, the preview). */
+  setTargets(items: ItemDto[]): void;
+  /** The folder of the page shown: what is dropped on the page goes there. */
+  setHere(folderId: string | null): void;
   notify(message: string, undoId?: string | null): void;
   fail(error: unknown): void;
   /** v0.47.0: `locate`: opened from a search (its page, the words marked). */
   preview(items: ItemDto[], index: number, locate?: ReaderLocate): void;
   open(item: ItemDto, how?: OpenHow): void;
-  /**
-   * v0.47.0: paths to put away (sent by Windows, new downloads): the rangement
-   * window, or first the question for folders (a project / the files one by one).
-   */
-  range(paths: string[], folders?: number): void;
+  /** v0.47.0: paths to put away (sent by Windows, new downloads): the rangement window. */
+  range(paths: string[]): void;
   /** v0.47.0: « Lire en plein écran » — a reading window of its own (Alt+Tab). */
   readWindow(item: ItemDto): void;
   trash(item: ItemDto): void;
   pin(item: ItemDto): void;
-  move(item: ItemDto, contextId: string | null): void;
-  /** The context menu of an element (the same actions as elsewhere, ADR 0048). */
+  move(item: ItemDto, folderId: string | null): void;
+  /** A file's menu (the same actions as elsewhere, ADR 0048). */
   menuOf(item: ItemDto, extra?: MenuItem[]): MenuItem[];
   bindMenu: ReturnType<typeof useContextMenu>['bind'];
   /** v0.46.0: the disk's status (null while it is read). */
@@ -102,12 +112,6 @@ export interface CoffreValue {
   verify(): void;
   /** v0.48.0: the disk's update window (plan, update, eject), from the « Gestion » tab. */
   update(): void;
-  /**
-   * v0.48.0: « Importer une arborescence » — a folder (or the folder picker),
-   * its preview, then the import in the background. `adopt`: a folder already
-   * in the Coffre (no copy). `route`: a context where it goes (dropped on it).
-   */
-  importTree(source?: string | null, options?: { adopt?: boolean; route?: string | null }): void;
   archive(items: ItemDto[]): void;
   reactivate(item: ItemDto): void;
 }
@@ -115,10 +119,8 @@ export interface CoffreValue {
 const Ctx = createContext<CoffreValue | null>(null);
 
 interface AnalyzeOptions {
-  expand?: boolean;
   files?: Map<string, File>;
   fixed?: string | null;
-  as?: 'link';
   /** v0.47.0: added to the rangement window already open (files sent a moment later). */
   append?: boolean;
   /** v0.49.0: beyond the threshold, « Continuer ». */
@@ -142,11 +144,10 @@ export function useCoffre(): CoffreValue {
   return value;
 }
 
-/** The paths and files of a drop, and how many are folders. */
+/** The paths and files of a drop. */
 function droppedOf(data: DataTransfer) {
   const paths: string[] = [];
   const files = new Map<string, File>();
-  let folders = 0;
   let unknown = 0;
   for (const item of Array.from(data.items)) {
     if (item.kind !== 'file') continue;
@@ -159,10 +160,9 @@ function droppedOf(data: DataTransfer) {
       continue;
     }
     paths.push(p);
-    if (entry?.isDirectory) folders++;
-    else files.set(p, file);
+    if (!entry?.isDirectory) files.set(p, file);
   }
-  return { paths, files, folders, unknown };
+  return { paths, files, unknown };
 }
 
 /** Does a drag carry files (not a card of the page)? */
@@ -171,8 +171,8 @@ export const draggingFiles = (e: DragEvent) => Array.from(e.dataTransfer.types).
 export function CoffreFrame(props: { children: ReactNode }) {
   const module = useModule();
   const menu = useContextMenu();
-  const contexts = useApi<ContextDto[]>(module.url('/contexts'));
-  const values = useApi<Record<string, string[]>>(module.url('/values'));
+  const folders = useApi<FolderDto[]>(module.url('/folders'));
+  const values = useApi<Record<string, string[]>>(module.url('/labels/values'));
   const tools = useApi<Tools>(module.url('/tools'));
   const disk = useDisk();
   const diskName = disk.data?.disk?.name ?? 'du coffre';
@@ -206,17 +206,13 @@ export function CoffreFrame(props: { children: ReactNode }) {
   useEffect(() => {
     entriesOpen.current = entries !== null;
   }, [entries]);
-  const [importing, setImporting] = useState<{
-    source: string;
-    adopt: boolean;
-    route: string | null;
+  const [creating, setCreating] = useState<{
+    kind: 'folder' | 'file';
+    folderId: string | null;
   } | null>(null);
-  const [folderQuestion, setFolderQuestion] = useState<{
-    paths: string[];
-    files: Map<string, File>;
-    fixed: string | null;
-    folders: number;
-  } | null>(null);
+  const [copied, setCopied] = useState<LabelValue[] | null>(null);
+  const [pasting, setPasting] = useState<{ items: ItemDto[]; labels: LabelValue[] } | null>(null);
+  const targets = useRef<ItemDto[]>([]);
   const [preview, setPreview] = useState<{
     items: ItemDto[];
     index: number;
@@ -248,9 +244,10 @@ export function CoffreFrame(props: { children: ReactNode }) {
       try {
         const { jobId } = await module.api.post<{ jobId: string }>('/deposit/analyze', {
           paths,
-          expand: options.expand === true,
+          folderId: options.fixed ?? null,
           confirmed: options.confirmed === true,
         });
+        announceJobs();
         const job = await waitForJob(jobId);
         const r = job.result as AnalyzeResultDto | null;
         if (job.status === 'failed') throw new Error(job.error ?? 'Analyse impossible');
@@ -284,30 +281,9 @@ export function CoffreFrame(props: { children: ReactNode }) {
         );
         return;
       }
-      if (got.folders) setFolderQuestion({ ...got, fixed });
-      else void analyze(got.paths, { files: got.files, fixed });
+      void analyze(got.paths, { files: got.files, fixed });
     },
     [analyze, notify],
-  );
-
-  const addLink = useCallback(
-    async (kind: 'file' | 'folder') => {
-      try {
-        const paths =
-          kind === 'file'
-            ? await pickFiles({
-                title: 'Lien externe : choisir un ou plusieurs fichiers',
-                multiple: true,
-              })
-            : [await pickFolder({ title: 'Lien externe : choisir un dossier' })].filter(
-                (p): p is string => Boolean(p),
-              );
-        if (paths.length) void analyze(paths, { as: 'link' });
-      } catch (error) {
-        fail(error);
-      }
-    },
-    [analyze, fail],
   );
 
   const pick = useCallback(
@@ -322,16 +298,26 @@ export function CoffreFrame(props: { children: ReactNode }) {
     [analyze, fail],
   );
 
+  const pickDir = useCallback(
+    async (fixed: string | null = null) => {
+      try {
+        const dir = await pickFolder({ title: 'Ranger un dossier dans le Coffre (tel quel)' });
+        if (dir) void analyze([dir], { fixed });
+      } catch (error) {
+        fail(error);
+      }
+    },
+    [analyze, fail],
+  );
+
   const t: Tools = useMemo(
     () => tools.data ?? { vscode: false, animations: true, root: '' },
     [tools.data],
   );
 
   const range = useCallback(
-    (paths: string[], folders = 0) => {
-      if (!paths.length) return;
-      if (folders) setFolderQuestion({ paths, files: new Map(), fixed: null, folders });
-      else void analyze(paths, { append: entriesOpen.current });
+    (paths: string[]) => {
+      if (paths.length) void analyze(paths, { append: entriesOpen.current });
     },
     [analyze],
   );
@@ -339,7 +325,7 @@ export function CoffreFrame(props: { children: ReactNode }) {
   const readWindow = useCallback(
     (item: ItemDto) => {
       module.api
-        .post<{ opened: boolean; route: string }>(`/items/${item.id}/read-window`)
+        .post<{ opened: boolean; route: string }>(`/files/${item.id}/read-window`)
         .then((r) => {
           // Outside the desktop app (a browser in development): a tab.
           if (!r.opened) window.open(`#${r.route}`, '_blank', 'noopener');
@@ -379,7 +365,7 @@ export function CoffreFrame(props: { children: ReactNode }) {
         if (!window.confirm(runnableQuestion(item.name))) return;
         runnable = true;
       }
-      module.api.post(`/items/${item.id}/open`, { how: mode, runnable }).catch(fail);
+      module.api.post(`/files/${item.id}/open`, { how: mode, runnable }).catch(fail);
     },
     [module.api, t, fail, notify, diskName],
   );
@@ -390,22 +376,22 @@ export function CoffreFrame(props: { children: ReactNode }) {
       const ok = list.filter((i) => i.diskState === 'active');
       if (!ok.length) {
         notify(
-          'Rien à archiver : seulement un élément déjà sur le disque (mets le disque à jour d’abord).',
+          'Rien à archiver : seulement un fichier déjà sur le disque (mets le disque à jour d’abord).',
         );
         return;
       }
       const freed = ok.reduce((sum, i) => sum + i.size, 0);
       if (
         !window.confirm(
-          `Archiver ${ok.length > 1 ? `ces ${ok.length} éléments` : `« ${ok[0]!.name} »`} ?
+          `Archiver ${ok.length > 1 ? `ces ${ok.length} fichiers` : `« ${ok[0]!.name} »`} ?
 
-Ils restent sur le disque « ${diskName} » (vérifiés avant), et leur copie est retirée de ce PC : ${formatBytes(freed)} libérés. Leurs fiches restent ici ; pour les modifier, il faudra les réactiver (disque branché).`,
+Ils restent sur le disque « ${diskName} » (vérifiés avant), et leur copie est retirée de ce PC : ${formatBytes(freed)} libérés. Ils restent visibles et trouvables ici ; pour les modifier, il faudra les réactiver (disque branché).`,
         )
       )
         return;
       // v0.49.0: a background task (the panel shows it; each refusal in its report).
-      runTask<{ archived: number; freed: number; refused: { name: string; reason: string }[] }>(
-        module.api.post('/items/archive', { ids: ok.map((i) => i.id), confirm: true }),
+      runJob<{ archived: number; freed: number; refused: { name: string; reason: string }[] }>(
+        module.api.post('/files/archive', { ids: ok.map((i) => i.id), confirm: true }),
       )
         .then((r) => {
           const refused = r.refused.length
@@ -423,7 +409,7 @@ Ils restent sur le disque « ${diskName} » (vérifiés avant), et leur copie es
   );
   const reactivate = useCallback(
     (item: ItemDto) => {
-      runTask(module.api.post(`/items/${item.id}/reactivate`))
+      runJob(module.api.post(`/files/${item.id}/reactivate`))
         .then(() => {
           notify(`« ${item.name} » est de nouveau sur le PC : modifiable.`);
           refresh();
@@ -437,7 +423,7 @@ Ils restent sur le disque « ${diskName} » (vérifiés avant), et leur copie es
   const trash = useCallback(
     (item: ItemDto) => {
       module.api
-        .delete<{ undoId: string }>(`/items/${item.id}`)
+        .delete<{ undoId: string }>(`/files/${item.id}`)
         .then((r) => {
           notify(`« ${item.name} » est dans la corbeille du Coffre.`, r.undoId);
           refresh();
@@ -448,22 +434,19 @@ Ils restent sur le disque « ${diskName} » (vérifiés avant), et leur copie es
   );
   const pin = useCallback(
     (item: ItemDto) => {
-      module.api.patch(`/items/${item.id}`, { pinned: !item.pinned }).then(refresh).catch(fail);
+      module.api.patch(`/files/${item.id}`, { pinned: !item.pinned }).then(refresh).catch(fail);
     },
     [module.api, refresh, fail],
   );
-  const list = useMemo(() => contexts.data ?? [], [contexts.data]);
+  const list = useMemo(() => folders.data ?? [], [folders.data]);
   const move = useCallback(
-    (item: ItemDto, contextId: string | null) => {
+    (item: ItemDto, folderId: string | null) => {
       module.api
-        .patch<{ undoId: string }>(
-          `/items/${item.id}`,
-          contextId ? { contextId } : { arrival: true },
-        )
+        .patch<{ undoId: string }>(`/files/${item.id}`, folderId ? { folderId } : { later: true })
         .then((r) => {
-          const where = contextId
-            ? (list.find((c) => c.id === contextId)?.path.join(' › ') ?? '')
-            : 'Arrivée';
+          const where = folderId
+            ? (list.find((c) => c.id === folderId)?.path.join(' › ') ?? '')
+            : 'À ranger';
           notify(`« ${item.name} » est maintenant dans ${where}.`, r.undoId);
           refresh();
         })
@@ -472,30 +455,62 @@ Ils restent sur le disque « ${diskName} » (vérifiés avant), et leur copie es
     [module.api, list, notify, refresh, fail],
   );
 
+  const copyLabels = useCallback(
+    (item: ItemDto) => {
+      if (!item.labels.length) {
+        notify(`« ${item.name} » n’a pas d’étiquette à copier.`);
+        return;
+      }
+      setCopied(item.labels.map((l) => ({ family: l.family, value: l.value })));
+      notify(
+        `${item.labels.length} étiquette${item.labels.length > 1 ? 's' : ''} copiée${item.labels.length > 1 ? 's' : ''} : Ctrl+Maj+V pour les coller.`,
+      );
+    },
+    [notify],
+  );
+
   const menuOf = useCallback(
     (item: ItemDto, extra: MenuItem[] = []): MenuItem[] => [
       { title: item.name },
       {
-        label: item.arrival ? 'Ranger…' : 'Modifier la fiche…',
+        label: item.folderId === null ? 'Ranger…' : 'Route et étiquettes…',
         icon: 'pencil',
         shortcut: 'Espace',
         onSelect: () => setPreview({ items: [item], index: 0 }),
       },
       {
-        label: 'Changer de contexte',
+        label: 'Copier les étiquettes',
+        icon: 'copy',
+        shortcut: 'Ctrl+Maj+C',
+        disabled: item.labels.length ? false : 'Aucune étiquette',
+        onSelect: () => copyLabels(item),
+      },
+      {
+        label: 'Coller les étiquettes…',
+        icon: 'copy',
+        shortcut: 'Ctrl+Maj+V',
+        disabled: copied ? false : 'Copie d’abord les étiquettes d’un fichier',
+        onSelect: () => copied && setPasting({ items: [item], labels: copied }),
+      },
+      {
+        label: 'Changer de dossier',
         icon: 'folder-input',
+        disabled: item.inProject
+          ? 'Un projet se déplace avec son dossier (indivisible) : depuis la carte ou l’arbre'
+          : false,
         submenu: [
           ...[...list]
+            .filter((c) => !c.project)
             .sort((a, b) => a.path.join('/').localeCompare(b.path.join('/'), 'fr'))
             .map((c) => ({
               label: c.path.join(' › '),
-              disabled: c.id === item.contextId ? 'Il y est déjà' : false,
+              disabled: c.id === item.folderId ? 'Il y est déjà' : false,
               onSelect: () => move(item, c.id),
             })),
           { separator: true as const },
           {
-            label: 'Arrivée (à ranger plus tard)',
-            disabled: item.arrival ? 'Il y est déjà' : false,
+            label: 'À ranger (plus tard)',
+            disabled: item.folderId === null ? 'Il y est déjà' : false,
             onSelect: () => move(item, null),
           },
         ],
@@ -505,20 +520,6 @@ Ils restent sur le disque « ${diskName} » (vérifiés avant), et leur copie es
         icon: 'star',
         onSelect: () => pin(item),
       },
-      ...(item.contextId && item.url && /^(png|jpe?g|webp|gif|avif)$/.test(item.ext)
-        ? [
-            {
-              label: 'Utiliser comme couverture du contexte',
-              icon: 'image' as const,
-              onSelect: () => {
-                module.api
-                  .patch(`/contexts/${item.contextId}`, { coverItemId: item.id })
-                  .then(refresh)
-                  .catch(fail);
-              },
-            },
-          ]
-        : []),
       ...(item.diskState === 'archived'
         ? [
             {
@@ -528,7 +529,7 @@ Ils restent sur le disque « ${diskName} » (vérifiés avant), et leur copie es
               onSelect: () => reactivate(item),
             },
           ]
-        : item.kind !== 'link' && !item.trashedAt
+        : !item.trashedAt
           ? [
               {
                 label: `Archiver (libère ${formatBytes(item.size)} sur le PC)`,
@@ -573,14 +574,16 @@ Ils restent sur le disque « ${diskName} » (vérifiés avant), et leur copie es
       },
       { separator: true },
       {
-        label: 'Supprimer',
+        label: item.kind === 'project' ? 'Supprimer le projet (entier)' : 'Supprimer',
         icon: 'trash',
         danger: true,
-        confirm: `Mettre « ${item.name} » dans la corbeille du Coffre ?\n\nTu pourras le récupérer (ou « Annuler » juste après).`,
+        confirm: `Mettre « ${item.name} » dans la corbeille du Coffre${item.kind === 'project' ? ' (le projet entier, indivisible)' : ''} ?\n\nTu pourras le récupérer (ou « Annuler » juste après).`,
         onSelect: () => trash(item),
       },
     ],
     [
+      copied,
+      copyLabels,
       readWindow,
       list,
       move,
@@ -588,9 +591,6 @@ Ils restent sur le disque « ${diskName} » (vérifiés avant), et leur copie es
       open,
       trash,
       t,
-      module.api,
-      refresh,
-      fail,
       disk.data,
       diskName,
       archive,
@@ -599,18 +599,51 @@ Ils restent sur le disque « ${diskName} » (vérifiés avant), et leur copie es
   );
 
   // v0.47.0: Ctrl+K is the hub's search (everywhere, the Coffre's content included).
+  // v0.50.0: Ctrl+Maj+C copies the labels of the file in focus (or previewed), Ctrl+Maj+V
+  // pastes them on the selection (or the file in focus) — « Ajouter » or « Remplacer ».
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || !e.shiftKey) return;
+      const k = e.key.toLowerCase();
+      if (k !== 'c' && k !== 'v') return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      const list = targets.current;
+      if (!list.length) return;
+      e.preventDefault();
+      if (k === 'c') copyLabels(list[0]!);
+      else if (copied) setPasting({ items: list, labels: copied });
+      else notify('Copie d’abord les étiquettes d’un fichier (Ctrl+Maj+C).');
+    };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, [copied, copyLabels, notify]);
 
   const value = useMemo<CoffreValue>(
     () => ({
       api: module.api,
       path: module.path,
-      contexts: list,
+      folders: list,
       values: values.data ?? {},
       tools: t,
       refresh,
       drop,
-      addLink: (kind) => void addLink(kind),
       pick: (fixed) => void pick(fixed ?? here.current),
+      pickDir: (fixed) => void pickDir(fixed ?? here.current),
+      create: (kind, folderId) => setCreating({ kind, folderId }),
+      copied,
+      copyLabels,
+      pasteLabels: (items, labels) => {
+        const list = labels ?? copied;
+        if (!list) {
+          notify('Copie d’abord les étiquettes d’un fichier (Ctrl+Maj+C).');
+          return;
+        }
+        if (items.length) setPasting({ items, labels: list });
+      },
+      setTargets: (items) => {
+        targets.current = items;
+      },
       setHere: (id) => {
         here.current = id;
       },
@@ -628,18 +661,6 @@ Ils restent sur le disque « ${diskName} » (vérifiés avant), et leur copie es
       disk: disk.data,
       verify: () => setVerifying(true),
       update: () => setUpdating(true),
-      importTree: (source, options) => {
-        if (source) {
-          setImporting({ source, adopt: options?.adopt === true, route: options?.route ?? null });
-          return;
-        }
-        void pickFolder({ title: 'Importer une arborescence : choisir le dossier' })
-          .then((folder) => {
-            if (folder)
-              setImporting({ source: folder, adopt: false, route: options?.route ?? null });
-          })
-          .catch(fail);
-      },
       archive,
       reactivate,
     }),
@@ -652,8 +673,10 @@ Ils restent sur le disque « ${diskName} » (vérifiés avant), et leur copie es
       t,
       refresh,
       drop,
-      addLink,
       pick,
+      pickDir,
+      copied,
+      copyLabels,
       notify,
       fail,
       open,
@@ -689,7 +712,7 @@ Ils restent sur le disque « ${diskName} » (vérifiés avant), et leur copie es
         }}
         onDrop={(e) => {
           if (!draggingFiles(e)) return;
-          // A tile took it already (its own context): the zone only closes.
+          // A tile took it already (its own folder): the zone only closes.
           const taken = e.defaultPrevented;
           e.preventDefault();
           depth.current = 0;
@@ -837,86 +860,25 @@ Ils restent sur le disque « ${diskName} » (vérifiés avant), et leur copie es
             >
               Continuer
             </Button>
-            {bigQuestion.paths.length === 1 && (
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  const q = bigQuestion;
-                  setBigQuestion(null);
-                  setImporting({
-                    source: q.paths[0]!,
-                    adopt: false,
-                    route: q.options.fixed ?? null,
-                  });
-                }}
-                title="L’aperçu de l’import : décocher des dossiers, des projets, des dépendances"
-              >
-                Choisir ce qu’on garde
-              </Button>
-            )}
             <Button variant="secondary" onClick={() => setBigQuestion(null)}>
               Annuler
             </Button>
           </div>
         </div>
       )}
-      {folderQuestion && (
-        <div className="coffre-modal" role="dialog" aria-modal="true" aria-label="Un dossier">
-          <div className="coffre-modal__box coffre-question">
-            <h2>
-              {folderQuestion.folders > 1 ? `${folderQuestion.folders} dossiers` : 'Un dossier'} :
-              comment le ranger ?
-            </h2>
-            <Button
-              autoFocus
-              onClick={() => {
-                const q = folderQuestion;
-                setFolderQuestion(null);
-                void analyze(q.paths, { files: q.files, fixed: q.fixed });
-              }}
-            >
-              Un projet (le dossier entier)
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={() => {
-                const q = folderQuestion;
-                setFolderQuestion(null);
-                void analyze(q.paths, { expand: true, files: q.files, fixed: q.fixed });
-              }}
-            >
-              Les fichiers un par un
-            </Button>
-            <Button
-              variant="secondary"
-              disabled={folderQuestion.paths.length !== 1}
-              title={
-                folderQuestion.paths.length !== 1
-                  ? 'Un dossier à la fois'
-                  : 'Ses sous-dossiers deviennent des contextes, ses fichiers y vont (aperçu d’abord)'
-              }
-              onClick={() => {
-                const q = folderQuestion;
-                setFolderQuestion(null);
-                setImporting({ source: q.paths[0]!, adopt: false, route: q.fixed });
-              }}
-              data-coffre-import-tree
-            >
-              Importer comme arborescence de contextes
-            </Button>
-            <Button variant="secondary" onClick={() => setFolderQuestion(null)}>
-              Annuler
-            </Button>
-          </div>
-        </div>
-      )}
       {entries && <Deposit entries={entries} onClose={() => setEntries(null)} />}
-      {importing && (
-        <ImportDialog
-          source={importing.source}
-          adopt={importing.adopt}
-          route={importing.route}
-          onClose={() => setImporting(null)}
+      {creating && (
+        <NewItemDialog
+          kind={creating.kind}
+          folderId={creating.folderId}
+          onClose={() => setCreating(null)}
+        />
+      )}
+      {pasting && (
+        <PasteLabelsDialog
+          items={pasting.items}
+          labels={pasting.labels}
+          onClose={() => setPasting(null)}
         />
       )}
       {preview && (

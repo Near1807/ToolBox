@@ -25,9 +25,9 @@ export function Versions(props: { item: ItemDto; onRestored: () => void }) {
   const module = useModule();
   const coffre = useCoffre();
   const { item } = props;
-  const data = useApi<VersionsDto>(module.url(`/items/${item.id}/versions`));
+  const data = useApi<VersionsDto>(module.url(`/files/${item.id}/versions`));
   const [busy, setBusy] = useState<string | null>(null);
-  if (item.kind === 'link' || !data.data?.diskName) return null;
+  if (!data.data?.diskName) return null;
   const v = data.data;
   const restore = async (id: string, savedAt: string) => {
     if (
@@ -39,7 +39,7 @@ export function Versions(props: { item: ItemDto; onRestored: () => void }) {
     setBusy(id);
     try {
       const r = await module.api.post<{ undoId: string }>(
-        `/items/${item.id}/versions/${id}/restore`,
+        `/files/${item.id}/versions/${id}/restore`,
         {
           confirm: true,
         },

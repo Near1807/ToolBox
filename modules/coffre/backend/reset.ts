@@ -81,11 +81,10 @@ export function registerReset(
       let n = 0;
       for (const r of all) {
         if (job.signal.aborted) break;
-        job.step(n++, all.length, { unit: 'éléments vérifiés', current: r.name });
-        if (r.kind === 'link') continue; // left in its place: nothing lost
+        job.step(n++, all.length, { unit: 'fichiers vérifiés', current: r.name });
         const dto = dtos.get(r.id);
         const add = (reason: OnlyHereReason) =>
-          onlyHere.push({ id: r.id, name: r.name, contextPath: dto?.contextPath ?? null, reason });
+          onlyHere.push({ id: r.id, name: r.name, folderPath: dto?.folderPath ?? null, reason });
         if (r.archived_at) {
           add('archived');
           continue;
@@ -121,13 +120,10 @@ export function registerReset(
       job.step(n, all.length, { current: null });
       const s = disk.disk();
       return {
-        items: all.filter((r) => r.kind !== 'link').length,
-        contexts: live(t.contexts).length,
-        links: all.filter((r) => r.kind === 'link').length,
+        items: all.length,
+        folders: live(t.folders).length,
         archived: all.filter((r) => r.archived_at).length,
-        bytes: all
-          .filter((r) => r.kind !== 'link' && !r.archived_at)
-          .reduce((sum, r) => sum + r.size, 0),
+        bytes: all.filter((r) => !r.archived_at).reduce((sum, r) => sum + r.size, 0),
         disk: s
           ? { name: s.name, connected: disk.state.root !== null, root: disk.state.root }
           : null,
@@ -173,7 +169,7 @@ export function registerReset(
           );
           continue;
         }
-        const dir = path.join(folder, ...(all.get(id)?.contextPath ?? ['Arrivée']));
+        const dir = path.join(folder, ...(all.get(id)?.folderPath ?? ['À ranger']));
         await mkdir(dir, { recursive: true });
         let target = path.join(dir, r.name);
         for (let k = 2; existsSync(target); k++) target = path.join(dir, `${k} - ${r.name}`);
@@ -201,11 +197,14 @@ export function registerReset(
     mkdirSync(target, { recursive: true });
     const lines = items.map((i) => ({
       nom: i.name,
-      contexte: i.contextPath?.join(' › ') ?? 'Arrivée',
-      nature: i.attributes.find((a) => a.key === 'nature')?.value ?? '',
-      tags: i.attributes
-        .filter((a) => a.key === 'tag')
-        .map((a) => a.value)
+      dossier: i.folderPath?.join(' › ') ?? 'À ranger',
+      nature: i.labels
+        .filter((l) => l.family === 'nature')
+        .map((l) => l.value)
+        .join(', '),
+      etiquettes: i.labels
+        .filter((l) => l.family !== 'nature')
+        .map((l) => l.value)
         .join(', '),
       cheminDansLeCoffre: i.path ?? '',
       cheminDOrigine: i.sourcePath ?? '',
@@ -216,9 +215,9 @@ export function registerReset(
     const cell = (v: string) => `"${v.replace(/"/g, '""')}"`;
     const head = [
       'nom',
-      'contexte',
+      'dossier',
       'nature',
-      'tags',
+      'étiquettes',
       'chemin dans le coffre',
       "chemin d'origine",
       'empreinte',
@@ -230,9 +229,9 @@ export function registerReset(
       ...lines.map((l) =>
         [
           l.nom,
-          l.contexte,
+          l.dossier,
           l.nature,
-          l.tags,
+          l.etiquettes,
           l.cheminDansLeCoffre,
           l.cheminDOrigine,
           l.empreinte,
@@ -323,11 +322,11 @@ export function registerReset(
           } satisfies PendingDisk),
         );
       }
-      // 4. The Coffre's sheets (soft-deleted: the backup and the journal keep them), its derived data.
-      job.step(3, steps, { current: 'fiches du Coffre' });
-      const counts = { items: live(t.items).length, contexts: live(t.contexts).length };
+      // 4. The Coffre's rows (soft-deleted: the backup and the journal keep them), its derived data.
+      job.step(3, steps, { current: 'données du Coffre' });
+      const counts = { items: live(t.items).length, folders: live(t.folders).length };
       ctx.db.transaction(() => {
-        for (const table of ['attributes', 'also', 'versions', 'items', 'contexts'] as const)
+        for (const table of ['labels', 'label_sets', 'versions', 'items', 'folders'] as const)
           for (const id of live(ctx.db.table(table))) store.remove(table, id);
         // The disk's copies: the disk's folder is no longer the Coffre's (renamed, or soon).
         for (const id of live(t.copies)) store.remove('copies', id);

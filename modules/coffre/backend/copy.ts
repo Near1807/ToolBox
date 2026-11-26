@@ -10,6 +10,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, readdirSync } from 'node:fs';
 import { mkdir, open, rename, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
+import { isDepsFolder } from './walk';
 import { toRel } from './library';
 
 const CHUNK = 1024 * 1024;
@@ -114,6 +115,9 @@ export function listFiles(folder: string): string[] {
   const walk = (dir: string) => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       const full = path.join(dir, entry.name);
+      // v0.50.0: a project's excluded folders (node_modules, build…) are never saved;
+      // .git is (hidden, never excluded).
+      if (entry.isDirectory() && isDepsFolder(entry.name, true)) continue;
       if (entry.isDirectory()) walk(full);
       else if (entry.isFile()) out.push(toRel(path.relative(folder, full)));
     }

@@ -85,3 +85,4 @@ Modèle :
 | 0064 | [Coffre : gérer l'arbre des contextes (déplacer, fusionner, supprimer, réordonner)](0064-coffre-arbre-des-contextes.md)                                          |
 | 0065 | [Coffre : importer une arborescence existante (copie ou adoption)](0065-coffre-importer-une-arborescence.md)                                                     |
 | 0066 | [Tâches de fond : plus jamais de page figée](0066-taches-de-fond.md)                                                                                             |
+| 0067 | [Coffre : « tout est dossier » (remplace contextes, éléments et attributs)](0067-coffre-tout-est-dossier.md)                                                     |

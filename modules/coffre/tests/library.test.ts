@@ -1,6 +1,6 @@
 // v0.45.0: the Coffre's data and its folder (docs/coffre/CAHIER-DES-CHARGES.md):
 // names valid on Windows, copies that never touch the original, duplicates,
-// projects and links, a context change that moves the file (back on failure),
+// projects and links, a folder change that moves the file (back on failure),
 // the Recycle Bin, the provenance, Thomas's choices never replaced.
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
@@ -33,21 +33,21 @@ describe('names valid on Windows', () => {
 });
 
 describe('the deductions (pure)', () => {
-  const contexts = [
+  const folders = [
     { id: 'c1', path: ['Cours'] },
     { id: 'c2', path: ['Cours', 'Thermo'] },
   ];
-  it('extension, Mark of the Web, a context in the name, a course of the Agenda, the year', () => {
+  it('extension, Mark of the Web, a folder in the name, a course of the Agenda, the year', () => {
     const r = deduce({
       name: 'TP3_thermo.py',
       isDirectory: false,
       fileDate: '2026-11-20T10:00:00.000Z',
       provenance: { zone: 3, hostUrl: 'https://moodle.ecam.be/x/TP3.py', referrerUrl: null },
-      contexts,
+      folders,
       courses: [],
       sites: [],
     });
-    const byKey = Object.fromEntries(r.attributes.map((a) => [a.key, a]));
+    const byKey = Object.fromEntries(r.labels.map((a) => [a.family, a]));
     expect(byKey.language).toMatchObject({
       value: 'Python',
       origin: 'guessed',
@@ -57,55 +57,55 @@ describe('the deductions (pure)', () => {
     expect(byKey.origin?.value).toBe('téléchargé');
     expect(byKey.site?.value).toBe('moodle.ecam.be');
     expect(byKey.year?.value).toBe('2026');
-    expect(r.context).toMatchObject({ kind: 'existing', id: 'c2' });
-    // A course of the Agenda (no such context yet: a new one, under « Cours »), its teacher.
+    expect(r.route).toMatchObject({ kind: 'existing', id: 'c2' });
+    // A course of the Agenda (no such folder yet: a new one, under « Cours »), its teacher.
     const c = deduce({
       name: 'Reseaux locaux - chap 2.pdf',
       isDirectory: false,
       fileDate: null,
       provenance: null,
-      contexts,
+      folders,
       courses: [{ name: 'Réseaux locaux', code: 'RE4L', teachers: ['LMT'], next: null }],
       sites: [],
     });
-    expect(c.context).toMatchObject({ kind: 'new', path: ['Cours', 'Réseaux locaux'] });
-    expect(c.attributes.find((a) => a.key === 'prof')?.value).toBe('LMT');
-    // The same site as an element already put away: its context.
+    expect(c.route).toMatchObject({ kind: 'new', path: ['Cours', 'Réseaux locaux'] });
+    expect(c.labels.find((a) => a.family === 'prof')?.value).toBe('LMT');
+    // The same site as an element already put away: its folder.
     const s = deduce({
       name: 'scan.pdf',
       isDirectory: false,
       fileDate: null,
       provenance: { zone: 3, hostUrl: null, referrerUrl: 'https://www.moodle.ecam.be/course/7' },
-      contexts,
+      folders,
       courses: [],
-      sites: [{ host: 'moodle.ecam.be', contextId: 'c2' }],
+      sites: [{ host: 'moodle.ecam.be', folderId: 'c2' }],
     });
-    expect(s.context).toMatchObject({ kind: 'existing', id: 'c2' });
+    expect(s.route).toMatchObject({ kind: 'existing', id: 'c2' });
     // No clue: nothing proposed (never at random).
     const n = deduce({
       name: 'IMG_2041.heic',
       isDirectory: false,
       fileDate: null,
       provenance: null,
-      contexts,
+      folders,
       courses: [],
       sites: [],
     });
-    expect(n.context).toBeNull();
+    expect(n.route).toBeNull();
   });
   it('a value Thomas chose is never replaced by a guess', () => {
     const merged = mergeGuesses(
-      [{ key: 'language', value: 'CSS', origin: 'chosen', reason: null }],
+      [{ family: 'language', value: 'CSS', origin: 'chosen', reason: null }],
       [
-        { key: 'language', value: 'Python', origin: 'guessed', reason: 'extension .py' },
-        { key: 'nature', value: 'code', origin: 'guessed', reason: 'extension .py' },
+        { family: 'language', value: 'Python', origin: 'guessed', reason: 'extension .py' },
+        { family: 'nature', value: 'code', origin: 'guessed', reason: 'extension .py' },
       ],
     );
-    expect(merged.find((a) => a.key === 'language')).toMatchObject({
+    expect(merged.find((a) => a.family === 'language')).toMatchObject({
       value: 'CSS',
       origin: 'chosen',
     });
-    expect(merged.find((a) => a.key === 'nature')?.value).toBe('code');
+    expect(merged.find((a) => a.family === 'nature')?.value).toBe('code');
   });
 });
 
@@ -158,23 +158,21 @@ describe('the Coffre through its routes', () => {
       { entries },
     );
 
-  it('a file: copied into its context, the original untouched; a duplicate said; Annuler', async () => {
+  it('a file: copied into its folder, the original untouched; a duplicate said; Annuler', async () => {
     const original = file('thermo chap1.pdf', '%PDF-1.4 thermo');
     const before = sha(original);
-    const thermo = await call<{ id: string }>('POST', '/contexts', { name: 'Cours' });
-    const sub = await call<{ id: string; path: string[] }>('POST', '/contexts', {
+    const thermo = await call<{ id: string }>('POST', '/folders', { name: 'Cours' });
+    const sub = await call<{ id: string; path: string[] }>('POST', '/folders', {
       name: 'Thermo',
       parentId: thermo.id,
     });
     expect(sub.path).toEqual(['Cours', 'Thermo']);
     const [proposal] = await analyzeCall({ paths: [original] });
-    expect(proposal!.context).toMatchObject({ kind: 'existing', id: sub.id });
+    expect(proposal!.route).toMatchObject({ kind: 'existing', id: sub.id });
     expect(proposal!.duplicate).toBeNull();
-    const done = await apply([
-      { path: original, as: 'file', contextId: sub.id, attributes: proposal!.attributes },
-    ]);
+    const done = await apply([{ path: original, folderId: sub.id, labels: proposal!.labels }]);
     const item = done.created[0]!;
-    expect(item.contextPath).toEqual(['Cours', 'Thermo']);
+    expect(item.folderPath).toEqual(['Cours', 'Thermo']);
     expect(existsSync(path.join(library(), 'Cours', 'Thermo', 'thermo chap1.pdf'))).toBe(true);
     // The original is still there, unchanged.
     expect(existsSync(original)).toBe(true);
@@ -182,13 +180,11 @@ describe('the Coffre through its routes', () => {
     expect(item.sha256).toBe(before);
     // The same content again: said, not copied (unless kept anyway: a free name).
     const [again] = await analyzeCall({ paths: [original] });
-    expect(again!.duplicate).toMatchObject({ id: item.id, contextPath: ['Cours', 'Thermo'] });
-    const skipped = await apply([{ path: original, as: 'file', contextId: sub.id }]);
+    expect(again!.duplicate).toMatchObject({ id: item.id, folderPath: ['Cours', 'Thermo'] });
+    const skipped = await apply([{ path: original, folderId: sub.id }]);
     expect(skipped.created).toHaveLength(0);
     expect(skipped.skipped).toHaveLength(1);
-    const kept = await apply([
-      { path: original, as: 'file', contextId: sub.id, keepDuplicate: true },
-    ]);
+    const kept = await apply([{ path: original, folderId: sub.id, keepDuplicate: true }]);
     expect(kept.created[0]!.name).toBe('thermo chap1 (2).pdf');
     // Annuler: the copy and its sheet are gone; the original stays.
     await call('POST', '/undo', { undoId: kept.undoId });
@@ -196,55 +192,45 @@ describe('the Coffre through its routes', () => {
     expect(existsSync(original)).toBe(true);
   });
 
-  it('« Ranger plus tard »: in Arrivée; a project (the whole folder); a link left in its place', async () => {
+  it('« Ranger plus tard »: in À ranger; a folder marked « Projet »: one entry (the whole folder)', async () => {
     const later = file('notes.md', '# notes');
-    const arrived = await apply([{ path: later, as: 'file', arrival: true }]);
-    expect(arrived.created[0]).toMatchObject({ arrival: true, contextId: null });
-    expect(existsSync(path.join(library(), '_Arrivée', 'notes.md'))).toBe(true);
-    const home = await call<{ arrivalCount: number }>('GET', '/home');
-    expect(home.arrivalCount).toBe(1);
-    // A project.
+    const arrived = await apply([{ path: later, later: true }]);
+    expect(arrived.created[0]).toMatchObject({ folderId: null, folderPath: null });
+    expect(existsSync(path.join(library(), '_À ranger', 'notes.md'))).toBe(true);
+    const home = await call<{ pendingCount: number }>('GET', '/home');
+    expect(home.pendingCount).toBe(1);
+    // A folder dropped: « Projet » proposed with its reason.
     file('projet/src/main.rs', 'fn main() {}');
     file('projet/Cargo.toml', '[package]');
-    const [proposal] = await analyzeCall({
-      paths: [path.join(dir, 'projet')],
-    });
-    expect(proposal).toMatchObject({ isDirectory: true, fileCount: 2 });
-    expect(proposal!.attributes.find((a) => a.key === 'language')?.value).toBe('Rust');
+    const [proposal] = await analyzeCall({ paths: [path.join(dir, 'projet')] });
+    expect(proposal).toMatchObject({ isDirectory: true, fileCount: 2, folderCount: 1 });
+    expect(proposal!.projects).toEqual([{ rel: '', reason: 'Cargo.toml', nested: false }]);
     const project = await apply([
-      { path: path.join(dir, 'projet'), as: 'project', newContext: ['Programmation', 'Rust'] },
+      { path: path.join(dir, 'projet'), newFolder: ['Programmation', 'Rust'], projects: [''] },
     ]);
     expect(project.created[0]).toMatchObject({
       kind: 'project',
-      contextPath: ['Programmation', 'Rust'],
+      folderPath: ['Programmation', 'Rust', 'projet'],
     });
     expect(
       existsSync(path.join(library(), 'Programmation', 'Rust', 'projet', 'src', 'main.rs')),
     ).toBe(true);
-    // « Les fichiers un par un »: one proposal per file.
-    const each = await analyzeCall({
-      paths: [path.join(dir, 'projet')],
-      expand: true,
+    // A folder never cut up: a folder in À ranger is refused (it goes to a route).
+    const refused = await hub.request('POST', `${API}/deposit/apply`, {
+      entries: [{ path: path.join(dir, 'projet'), later: true }],
     });
-    expect(each.map((p) => p.name).sort()).toEqual(['Cargo.toml', 'main.rs']);
-    // A link: nothing copied, marked as such.
-    const flp = file('morceau.flp', 'FLhd');
-    const link = await apply([{ path: flp, as: 'link', arrival: true }]);
-    expect(link.created[0]).toMatchObject({ kind: 'link', externalPath: flp });
-    expect(existsSync(path.join(library(), '_Arrivée', 'morceau.flp'))).toBe(false);
+    expect(refused.status).toBe(400);
   });
 
-  it('a context change moves the file; when the sheet cannot be written, the file comes back', async () => {
-    const a = await call<{ id: string }>('POST', '/contexts', { name: 'Perso' });
-    const b = await call<{ id: string }>('POST', '/contexts', { name: 'Scouts' });
-    const done = await apply([
-      { path: file('contrat.pdf', '%PDF contrat'), as: 'file', contextId: a.id },
-    ]);
+  it('a folder change moves the file; when the sheet cannot be written, the file comes back', async () => {
+    const a = await call<{ id: string }>('POST', '/folders', { name: 'Perso' });
+    const b = await call<{ id: string }>('POST', '/folders', { name: 'Scouts' });
+    const done = await apply([{ path: file('contrat.pdf', '%PDF contrat'), folderId: a.id }]);
     const id = done.created[0]!.id;
-    const moved = await call<{ item: ItemDto; undoId: string }>('PATCH', `/items/${id}`, {
-      contextId: b.id,
+    const moved = await call<{ item: ItemDto; undoId: string }>('PATCH', `/files/${id}`, {
+      folderId: b.id,
     });
-    expect(moved.item.contextPath).toEqual(['Scouts']);
+    expect(moved.item.folderPath).toEqual(['Scouts']);
     expect(existsSync(path.join(library(), 'Scouts', 'contrat.pdf'))).toBe(true);
     expect(existsSync(path.join(library(), 'Perso', 'contrat.pdf'))).toBe(false);
     // Annuler: back in « Perso ».
@@ -258,49 +244,49 @@ describe('the Coffre through its routes', () => {
       rowId,
       fields,
     ) {
-      if (table === 'items' && 'context_id' in fields) throw new Error('disque plein (simulé)');
+      if (table === 'items' && 'folder_id' in fields) throw new Error('disque plein (simulé)');
       return real.call(this, table, rowId, fields);
     });
-    const r = await hub.request('PATCH', `${API}/items/${id}`, { contextId: b.id });
+    const r = await hub.request('PATCH', `${API}/files/${id}`, { folderId: b.id });
     expect(r.status).toBe(500);
     spy.mockRestore();
     expect(existsSync(path.join(library(), 'Perso', 'contrat.pdf'))).toBe(true);
     expect(existsSync(path.join(library(), 'Scouts', 'contrat.pdf'))).toBe(false);
-    expect((await call<ItemDto>('GET', `/items/${id}`)).contextPath).toEqual(['Perso']);
+    expect((await call<ItemDto>('GET', `/files/${id}`)).folderPath).toEqual(['Perso']);
     // A rename: valid on Windows, never replacing another file.
-    const renamed = await call<{ item: ItemDto }>('PATCH', `/items/${id}`, {
+    const renamed = await call<{ item: ItemDto }>('PATCH', `/files/${id}`, {
       name: 'contrat: bail?.pdf',
     });
     expect(renamed.item.name).toBe('contrat_ bail_.pdf');
   });
 
-  it('a context renamed: its folder follows, with its elements', async () => {
-    const c = await call<{ id: string }>('POST', '/contexts', { name: 'Admin' });
-    await apply([{ path: file('bail.pdf', '%PDF bail'), as: 'file', contextId: c.id }]);
-    await call('PATCH', `/contexts/${c.id}`, { name: 'Administratif' });
+  it('a folder renamed: its folder follows, with its elements', async () => {
+    const c = await call<{ id: string }>('POST', '/folders', { name: 'Admin' });
+    await apply([{ path: file('bail.pdf', '%PDF bail'), folderId: c.id }]);
+    await call('PATCH', `/folders/${c.id}`, { name: 'Administratif' });
     expect(existsSync(path.join(library(), 'Administratif', 'bail.pdf'))).toBe(true);
-    const list = await call<ItemDto[]>('GET', `/items?context=${c.id}`);
+    const list = await call<ItemDto[]>('GET', `/files?folder=${c.id}`);
     expect(list[0]!.path).toBe(path.join(library(), 'Administratif', 'bail.pdf'));
   });
 
   it('the Recycle Bin: deleted → Annuler; erased only from the bin and when confirmed', async () => {
-    const done = await apply([{ path: file('vieux.txt', 'vieux'), as: 'file', arrival: true }]);
+    const done = await apply([{ path: file('vieux.txt', 'vieux'), later: true }]);
     const id = done.created[0]!.id;
-    const del = await call<{ undoId: string }>('DELETE', `/items/${id}`);
-    expect(existsSync(path.join(library(), '_Arrivée', 'vieux.txt'))).toBe(false);
+    const del = await call<{ undoId: string }>('DELETE', `/files/${id}`);
+    expect(existsSync(path.join(library(), '_À ranger', 'vieux.txt'))).toBe(false);
     expect(existsSync(path.join(library(), '_Corbeille', id, 'vieux.txt'))).toBe(true);
-    expect((await call<ItemDto[]>('GET', '/items?trash=1')).map((i) => i.id)).toEqual([id]);
+    expect((await call<ItemDto[]>('GET', '/files?trash=1')).map((i) => i.id)).toEqual([id]);
     await call('POST', '/undo', { undoId: del.undoId });
-    expect(existsSync(path.join(library(), '_Arrivée', 'vieux.txt'))).toBe(true);
+    expect(existsSync(path.join(library(), '_À ranger', 'vieux.txt'))).toBe(true);
     // Erase: not outside the bin, not without the confirmation.
-    expect((await hub.request('POST', `${API}/items/${id}/erase`, { confirm: true })).status).toBe(
+    expect((await hub.request('POST', `${API}/files/${id}/erase`, { confirm: true })).status).toBe(
       409,
     );
-    await call('DELETE', `/items/${id}`);
-    expect((await hub.request('POST', `${API}/items/${id}/erase`, {})).status).toBe(400);
-    await call('POST', `/items/${id}/erase`, { confirm: true });
+    await call('DELETE', `/files/${id}`);
+    expect((await hub.request('POST', `${API}/files/${id}/erase`, {})).status).toBe(400);
+    await call('POST', `/files/${id}/erase`, { confirm: true });
     expect(existsSync(path.join(library(), '_Corbeille', id))).toBe(false);
-    expect((await hub.request('GET', `${API}/items/${id}`)).status).toBe(404);
+    expect((await hub.request('GET', `${API}/files/${id}`)).status).toBe(404);
   });
 
   it('Mark of the Web read on the original; Thomas’s choice never replaced by a new guess', async () => {
@@ -311,13 +297,13 @@ describe('the Coffre through its routes', () => {
       '[ZoneTransfer]\r\nZoneId=3\r\nReferrerUrl=https://moodle.ecam.be/course/view.php?id=7\r\nHostUrl=https://moodle.ecam.be/pluginfile.php/cours.py\r\n',
     );
     const [p] = await analyzeCall({ paths: [pdf] });
-    expect(p!.attributes.find((a) => a.key === 'origin')?.value).toBe('téléchargé');
-    expect(p!.attributes.find((a) => a.key === 'site')?.value).toBe('moodle.ecam.be');
-    const done = await apply([{ path: pdf, as: 'file', arrival: true, attributes: p!.attributes }]);
+    expect(p!.labels.find((a) => a.family === 'origin')?.value).toBe('téléchargé');
+    expect(p!.labels.find((a) => a.family === 'site')?.value).toBe('moodle.ecam.be');
+    const done = await apply([{ path: pdf, later: true, labels: p!.labels }]);
     const id = done.created[0]!.id;
-    await call('PUT', `/items/${id}/attributes`, { key: 'language', values: ['CSS'] });
-    const again = await call<ItemDto>('POST', `/items/${id}/guess`);
-    expect(again.attributes.find((a) => a.key === 'language')).toMatchObject({
+    await call('PUT', `/files/${id}/labels`, { family: 'language', values: ['CSS'] });
+    const again = await call<ItemDto>('POST', `/files/${id}/guess`);
+    expect(again.labels.find((a) => a.family === 'language')).toMatchObject({
       value: 'CSS',
       origin: 'chosen',
     });
@@ -332,12 +318,12 @@ describe('the Coffre through its routes', () => {
       modules: [await loadModuleFolder(path.resolve(__dirname, '..'))],
       host: { ...createTestHost(), openPath: async (p: string) => void opened.push(p) },
     });
-    const done = await apply([{ path: file('setup.exe', 'MZ'), as: 'file', arrival: true }]);
+    const done = await apply([{ path: file('setup.exe', 'MZ'), later: true }]);
     const id = done.created[0]!.id;
-    const refused = await hub.request('POST', `${API}/items/${id}/open`, { how: 'app' });
+    const refused = await hub.request('POST', `${API}/files/${id}/open`, { how: 'app' });
     expect(refused.status).toBe(409);
     expect(opened).toEqual([]);
-    await call('POST', `/items/${id}/open`, { how: 'app', runnable: true });
+    await call('POST', `/files/${id}/open`, { how: 'app', runnable: true });
     expect(opened).toHaveLength(1);
   });
 });

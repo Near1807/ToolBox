@@ -1,36 +1,25 @@
-// The sheet of an element: its context and its attributes. A value the Coffre
-// guessed is marked « deviné » (its reason on hover); each field changes in
-// one click (list with a search, creation on the spot); a changed value is
-// « choisi » and no deduction replaces it. Used by the rangement window
-// (applied on « Ranger ») and by the preview (applied at once).
+// v0.45.0, v0.50.0: the sheet of a file — its route and its labels, by family
+// (several values each). A label the Coffre guessed is marked « deviné » (its
+// reason on hover), one from its folder « par défaut du dossier »; each family
+// changes in one click (list with a search, creation on the spot); a changed
+// value is « choisi » and no deduction replaces it. Used by the rangement
+// window (applied on « Ranger ») and by the preview (applied at once).
 import { useState, type ReactNode } from 'react';
 import { Icon } from '@hub/sdk/frontend';
 import { LANGUAGE_CHOICES, NATURE_CHOICES, ORIGIN_CHOICES } from '../shared/kinds';
-import { ATTRIBUTE_LABELS, type AttributeDto, type AttributeKey } from '../shared/types';
+import { FAMILY_NAMES, LABEL_FAMILIES, type LabelDto, type LabelFamily } from '../shared/types';
 import { useCoffre } from './frame';
-import { choiceLabel, choiceToPick, pickToChoice, type ContextChoice } from './logic';
+import { choiceLabel, choiceToPick, pickToChoice, type FolderChoice } from './logic';
 import { Picker, type PickerOption } from './Picker';
 import { RoutePicker } from './RoutePicker';
 
-/** The fields of the sheet, in this order. */
-const FIELDS: AttributeKey[] = [
-  'nature',
-  'origin',
-  'language',
-  'application',
-  'prof',
-  'year',
-  'site',
-  'tag',
-];
-
-const BASE: Partial<Record<AttributeKey, readonly string[]>> = {
+const BASE: Partial<Record<LabelFamily, readonly string[]>> = {
   nature: NATURE_CHOICES,
   origin: ORIGIN_CHOICES,
   language: LANGUAGE_CHOICES,
 };
 
-function optionsOf(key: AttributeKey, known: Record<string, string[]>): PickerOption[] {
+export function labelOptions(key: LabelFamily, known: Record<string, string[]>): PickerOption[] {
   const year = new Date().getFullYear();
   const base =
     key === 'year' ? [year, year - 1, year - 2, year - 3].map(String) : (BASE[key] ?? []);
@@ -48,6 +37,18 @@ export function Guessed(props: { reason: string | null }) {
   );
 }
 
+/** The origin of a label: « deviné » or « par défaut du dossier » (nothing for « choisi »). */
+function LabelOriginMark(props: { label: Pick<LabelDto, 'origin' | 'reason'> }) {
+  if (props.label.origin === 'guessed') return <Guessed reason={props.label.reason} />;
+  if (props.label.origin === 'default')
+    return (
+      <span className="coffre-guess" title={props.label.reason ?? 'Par défaut du dossier'}>
+        par défaut
+      </span>
+    );
+  return null;
+}
+
 function Row(props: { label: string; children: ReactNode }) {
   return (
     <div className="coffre-sheet__row">
@@ -58,67 +59,64 @@ function Row(props: { label: string; children: ReactNode }) {
 }
 
 export function Sheet(props: {
-  choice: ContextChoice;
-  onChoice: (choice: ContextChoice) => void;
-  attributes: AttributeDto[];
-  onValues: (key: AttributeKey, values: string[]) => void;
-  /** A link: « lien externe, non sauvegardé ». */
-  link?: boolean;
-  /** A value's « voir tous » (the view by attribute). */
-  onShowAll?: (key: AttributeKey, value: string) => void;
+  choice: FolderChoice;
+  onChoice?: (choice: FolderChoice) => void;
+  labels: LabelDto[];
+  onValues: (key: LabelFamily, values: string[]) => void;
+  /** A value's « voir tout » (the view by label). */
+  onShowAll?: (key: LabelFamily, value: string) => void;
+  /** Why the route cannot change here (inside a project: indivisible), or null. */
+  routeLocked?: string | null;
+  /** A folder dropped: no « À ranger » for it. */
+  folder?: boolean;
   /** Leading rows (the name…). */
   children?: ReactNode;
 }) {
-  const { contexts, values } = useCoffre();
-  const [editing, setEditing] = useState<AttributeKey | 'context' | null>(null);
-  const byKey = (key: AttributeKey) => props.attributes.filter((a) => a.key === key);
+  const { folders, values } = useCoffre();
+  const [editing, setEditing] = useState<LabelFamily | 'route' | null>(null);
+  const byKey = (key: LabelFamily) => props.labels.filter((a) => a.family === key);
 
-  const ctxChoice = props.choice;
+  const choice = props.choice;
   return (
     <div className="coffre-sheet">
-      {props.link && (
-        <p className="coffre-link-badge">
-          <Icon name="external-link" /> Lien externe, non sauvegardé : le fichier reste à sa place,
-          le Coffre ne le copie pas.
-        </p>
-      )}
       {props.children}
-      <Row label="Contexte">
+      <Row label="Route">
         <button
           type="button"
-          className={`coffre-sheet__pick${ctxChoice ? '' : ' coffre-sheet__pick--empty'}`}
-          onClick={() => setEditing('context')}
+          className={`coffre-sheet__pick${choice ? '' : ' coffre-sheet__pick--empty'}`}
+          disabled={Boolean(props.routeLocked) || !props.onChoice}
+          title={props.routeLocked ?? undefined}
+          onClick={() => setEditing('route')}
         >
-          {choiceLabel(ctxChoice, contexts)}
+          {choiceLabel(choice, folders)}
         </button>
-        {ctxChoice?.origin === 'guessed' && <Guessed reason={ctxChoice.reason} />}
-        {editing === 'context' && (
+        {choice?.origin === 'guessed' && <Guessed reason={choice.reason} />}
+        {editing === 'route' && props.onChoice && (
           <RoutePicker
-            label="Contexte"
-            contexts={contexts}
-            arrival
+            label="Route"
+            folders={folders.filter((f) => !f.project)}
+            pending={!props.folder}
             proposed={
-              ctxChoice?.origin === 'guessed'
+              choice?.origin === 'guessed'
                 ? {
-                    pick: choiceToPick(ctxChoice),
-                    label: choiceLabel(ctxChoice, contexts),
-                    reason: ctxChoice.reason,
+                    pick: choiceToPick(choice),
+                    label: choiceLabel(choice, folders),
+                    reason: choice.reason,
                   }
                 : null
             }
             onClose={() => setEditing(null)}
             onPick={(pick) => {
               setEditing(null);
-              props.onChoice(pickToChoice(pick));
+              props.onChoice?.(pickToChoice(pick));
             }}
           />
         )}
       </Row>
-      {FIELDS.map((key) => {
+      {LABEL_FAMILIES.map((key) => {
         const list = byKey(key);
-        const multi = key === 'tag';
         return (
-          <Row key={key} label={multi ? 'Tags' : ATTRIBUTE_LABELS[key]}>
+          <Row key={key} label={FAMILY_NAMES[key]}>
             {list.map((a) => (
               <span key={a.value} className="coffre-value">
                 {props.onShowAll ? (
@@ -133,7 +131,7 @@ export function Sheet(props: {
                 ) : (
                   <span className="coffre-value__text">{a.value}</span>
                 )}
-                {a.origin === 'guessed' && <Guessed reason={a.reason} />}
+                <LabelOriginMark label={a} />
                 <button
                   type="button"
                   className="coffre-value__remove"
@@ -150,37 +148,25 @@ export function Sheet(props: {
                 </button>
               </span>
             ))}
-            {(multi || !list.length) && (
-              <button
-                type="button"
-                className="coffre-sheet__pick coffre-sheet__pick--empty"
-                onClick={() => setEditing(key)}
-              >
-                {multi ? '+ tag' : '—'}
-              </button>
-            )}
-            {!multi && list.length > 0 && (
-              <button
-                type="button"
-                className="icon-button coffre-sheet__change"
-                aria-label={`Changer ${ATTRIBUTE_LABELS[key]}`}
-                title="Changer"
-                onClick={() => setEditing(key)}
-              >
-                <Icon name="pencil" />
-              </button>
-            )}
+            <button
+              type="button"
+              className="coffre-sheet__pick coffre-sheet__pick--empty"
+              aria-label={`Ajouter : ${FAMILY_NAMES[key]}`}
+              onClick={() => setEditing(key)}
+            >
+              {list.length ? '+' : '—'}
+            </button>
             {editing === key && (
               <Picker
-                label={ATTRIBUTE_LABELS[key]}
-                options={optionsOf(key, values).filter(
+                label={FAMILY_NAMES[key]}
+                options={labelOptions(key, values).filter(
                   (o) => !list.some((a) => a.value.toLowerCase() === o.value.toLowerCase()),
                 )}
-                createLabel={(t) => (multi ? `Créer le tag « ${t} »` : `« ${t} »`)}
+                createLabel={(t) => `Ajouter « ${t} »`}
                 onClose={() => setEditing(null)}
                 onPick={(value) => {
                   setEditing(null);
-                  props.onValues(key, multi ? [...list.map((a) => a.value), value] : [value]);
+                  props.onValues(key, [...list.map((a) => a.value), value]);
                 }}
               />
             )}

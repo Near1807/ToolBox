@@ -17,6 +17,7 @@ import { readIdentity, splitVolume, volumeRoots } from './volumes';
 
 interface Sheets {
   format: string;
+  version?: number;
   exportedAt: string;
   disk: { id: string; name: string };
   tables: Record<string, Record<string, unknown>[]>;
@@ -65,12 +66,18 @@ function readSheets(folder: string): Sheets {
   const sheets = JSON.parse(readFileSync(file, 'utf8')) as Sheets;
   if (sheets.format !== 'toolbox-coffre-fiches' || !sheets.tables?.items)
     throw new HttpError(400, 'Fiches illisibles');
+  // v0.50.0 (ADR 0067): a disk written before the model « tout est dossier » is not restored.
+  if ((sheets.version ?? 1) < 2)
+    throw new HttpError(
+      409,
+      'Ce disque vient d’une version d’avant la v0.50 (ancien modèle) : rien n’est restauré',
+    );
   return sheets;
 }
 
 type Row = Record<string, unknown>;
 const live = (r: Row) => !r.deleted_at;
-const isActive = (r: Row) => live(r) && !r.trashed_at && !r.archived_at && r.kind !== 'link';
+const isActive = (r: Row) => live(r) && !r.trashed_at && !r.archived_at;
 
 export function registerRestoreRoutes(d: CoffreDeps, disk: DiskManager): void {
   const { ctx, store, library } = d;
@@ -115,8 +122,8 @@ export function registerRestoreRoutes(d: CoffreDeps, disk: DiskManager): void {
         (c) => c.name,
       ),
     );
-  const upsert = (name: keyof typeof d.t & string, rows: Row[]) => {
-    const columns = columnsOf(d.t[name]);
+  const upsert = (name: string, rows: Row[]) => {
+    const columns = columnsOf(ctx.db.table(name));
     for (const r of rows) {
       const id = String(r.id ?? '');
       if (!/^[0-9a-f-]{8,64}$/i.test(id)) continue;
@@ -158,10 +165,10 @@ export function registerRestoreRoutes(d: CoffreDeps, disk: DiskManager): void {
         const t = sheets.tables;
         job.progress(0.02, 'Fiches…');
         ctx.db.transaction(() => {
-          upsert('contexts', t.contexts ?? []);
+          upsert('folders', t.folders ?? []);
           upsert('items', t.items ?? []);
-          upsert('attributes', t.attributes ?? []);
-          upsert('also', t.also ?? []);
+          upsert('labels', t.labels ?? []);
+          upsert('label_sets', t.label_sets ?? []);
           upsert(
             'versions',
             (t.versions ?? []).filter((r) => r.disk_id === p.diskId),

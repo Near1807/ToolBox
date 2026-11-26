@@ -7,18 +7,18 @@
 import { useEffect, useState } from 'react';
 import {
   Button,
-  ErrorMessage,
   errorMessage,
+  ErrorMessage,
   formatBytes,
   Icon,
   jobCountText,
   pickFolder,
+  runJob,
   useApi,
   useModule,
 } from '@hub/sdk/frontend';
 import type { ResetPreviewDto, ResetReport } from '../shared/types';
 import { useCoffre } from './frame';
-import { runTask } from './Tasks';
 
 const REASONS: Record<ResetPreviewDto['onlyHere'][number]['reason'], string> = {
   'original-absent': 'l’original n’existe plus',
@@ -68,7 +68,7 @@ export function PendingDiskRename() {
         <Button
           small
           onClick={() =>
-            void runTask<{ folder: string }>(module.api.post('/reset/disk-rename', {}))
+            void runJob<{ folder: string }>(module.api.post('/reset/disk-rename', {}))
               .then((r) => {
                 coffre.notify(`Ancien dossier du disque renommé : ${r.folder}`);
                 pending.reload();
@@ -100,7 +100,7 @@ function ResetDialog(props: { onClose: () => void }) {
 
   useEffect(() => {
     let live = true;
-    runTask<ResetPreviewDto>(
+    runJob<ResetPreviewDto>(
       api.post('/reset/preview', {}),
       (job) => live && setReading(jobCountText(job)),
     )
@@ -118,7 +118,7 @@ function ResetDialog(props: { onClose: () => void }) {
       const dest = await pickFolder({ title: 'Exporter ces éléments : choisir un dossier' });
       if (!dest) return;
       setBusy(true);
-      const r = await runTask<{ exported: number; folder: string }>(
+      const r = await runJob<{ exported: number; folder: string }>(
         api.post('/reset/export', { ids: preview.onlyHere.map((o) => o.id), dest }),
       );
       setExported(`${r.exported} élément(s) exporté(s) dans ${r.folder}`);
@@ -132,7 +132,7 @@ function ResetDialog(props: { onClose: () => void }) {
     setBusy(true);
     setError(null);
     try {
-      const r = await runTask<ResetReport>(
+      const r = await runJob<ResetReport>(
         api.post('/reset/apply', { inventoryDir: folder, confirm: typed, forgetRules, keepDisk }),
       );
       setReport(r);
@@ -169,7 +169,7 @@ function ResetDialog(props: { onClose: () => void }) {
           <div role="status" data-coffre-reset-done>
             <p>
               <Icon name="circle-check" /> Coffre vidé : {report.emptied.items} élément(s),{' '}
-              {report.emptied.contexts} contexte(s).
+              {report.emptied.folders} dossier(s).
             </p>
             <ul className="small">
               <li>Inventaire : {report.inventory}</li>
@@ -193,16 +193,11 @@ function ResetDialog(props: { onClose: () => void }) {
               <p>Sera vidé :</p>
               <ul className="small">
                 <li>
-                  {preview.items} élément(s) dans {preview.contexts} contexte(s),{' '}
+                  {preview.items} fichier(s) dans {preview.folders} dossier(s),{' '}
                   {formatBytes(preview.bytes)} sur le PC ;
                 </li>
                 {preview.archived > 0 && (
-                  <li>{preview.archived} élément(s) archivé(s) sur le disque ;</li>
-                )}
-                {preview.links > 0 && (
-                  <li>
-                    {preview.links} lien(s) externe(s) (leurs fichiers restent à leur place) ;
-                  </li>
+                  <li>{preview.archived} fichier(s) archivé(s) sur le disque ;</li>
                 )}
                 <li>la recherche, les files d’attente du Coffre.</li>
               </ul>
@@ -215,7 +210,7 @@ function ResetDialog(props: { onClose: () => void }) {
                   <ul className="small">
                     {preview.onlyHere.slice(0, 40).map((o) => (
                       <li key={o.id}>
-                        {o.contextPath ? `${o.contextPath.join(' › ')} › ` : ''}
+                        {o.folderPath ? `${o.folderPath.join(' › ')} › ` : ''}
                         <strong>{o.name}</strong> — {REASONS[o.reason]}
                       </li>
                     ))}

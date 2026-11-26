@@ -1,15 +1,16 @@
 // v0.48.0 (Expérimental): « Modifier la sélection » — elements already stored,
-// chosen with Ctrl / Maj + clic or their boxes (in a context, a view, the
+// chosen with Ctrl / Maj + clic or their boxes (in a folder, a view, the
 // search), changed in one go with the same « Pour tous » block: route,
-// nature, origin, year, tags, rename. Every value is « choisi »; one
+// nature, origin, year, free labels, a named set, rename. Every value is « choisi »; one
 // « Annuler » for the lot.
-import { useCallback, useMemo, useRef, useState, type MouseEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { Button } from '@hub/sdk/frontend';
 import { batchNames } from '../shared/batch';
 import type { ItemDto } from '../shared/types';
 import { BatchBlock } from './BatchBlock';
+import { SetPicker } from './Labels';
 import { useCoffre } from './frame';
-import { batchSummary, emptyBatch, type BatchValues, type ContextChoice } from './logic';
+import { batchSummary, emptyBatch, type BatchValues, type FolderChoice } from './logic';
 
 /** The selection of a list: boxes, Ctrl+clic (one), Maj+clic (a range in the order shown). */
 export function useSelection() {
@@ -51,55 +52,52 @@ export function useSelection() {
   return { selecting, setSelecting, ids, setIds, toggle, modClick, clear };
 }
 
-/** « Pour tous » for elements already stored: POST /items/batch, one « Annuler ». */
+/** « Pour tous » for files already stored: POST /files/batch, one « Annuler ». */
 export function BatchEdit(props: { items: ItemDto[]; onClose: () => void; onDone: () => void }) {
   const coffre = useCoffre();
   const [v, setV] = useState<BatchValues>(emptyBatch);
   const [busy, setBusy] = useState(false);
   const { items } = props;
-  // v0.48.0: elements « à compléter » in the selection: their sheet checked with the lot.
-  const someToComplete = items.some((i) => i.toComplete);
-  const [complete, setComplete] = useState(someToComplete);
   const summary = useMemo(
     () =>
       batchSummary(
         items.map((i) => ({
-          choice: (i.contextId
-            ? { kind: 'existing', id: i.contextId, origin: 'chosen', reason: null }
-            : null) as ContextChoice,
-          attributes: i.attributes,
+          choice: (i.folderId
+            ? { kind: 'existing', id: i.folderId, origin: 'chosen', reason: null }
+            : null) as FolderChoice,
+          labels: i.labels,
         })),
-        coffre.contexts,
+        coffre.folders,
       ),
-    [items, coffre.contexts],
+    [items, coffre.folders],
   );
-  const contextName = (i: ItemDto): string | null => {
+  const folderName = (i: ItemDto): string | null => {
     const r = v.route;
-    if (r === undefined) return i.contextPath?.[i.contextPath.length - 1] ?? null;
+    if (r === undefined) return i.folderPath?.[i.folderPath.length - 1] ?? null;
     if (!r) return null;
     if (r.kind === 'new') return r.path[r.path.length - 1] ?? null;
-    return coffre.contexts.find((c) => c.id === r.id)?.name ?? null;
+    return coffre.folders.find((c) => c.id === r.id)?.name ?? null;
   };
   const names = useMemo(
     () =>
       v.template.trim()
         ? batchNames(
-            items.map((i) => ({ key: i.id, name: i.name, context: contextName(i) })),
+            items.map((i) => ({ key: i.id, name: i.name, folder: folderName(i) })),
             v.template,
           )
         : new Map<string, string>(),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- contextName reads v and the contexts
-    [items, v, coffre.contexts],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- folderName reads v and the folders
+    [items, v, coffre.folders],
   );
   const changes =
     v.route !== undefined ||
     v.nature !== undefined ||
     v.origin !== undefined ||
     v.year !== undefined ||
-    v.tagsAdd.length > 0 ||
-    v.tagsRemove.length > 0 ||
-    names.size > 0 ||
-    (someToComplete && complete);
+    v.freeAdd.length > 0 ||
+    v.freeRemove.length > 0 ||
+    (v.add?.length ?? 0) > 0 ||
+    names.size > 0;
 
   const apply = async () => {
     if (!changes || busy) return;
@@ -111,21 +109,21 @@ export function BatchEdit(props: { items: ItemDto[]; onClose: () => void; onDone
         v.route === undefined
           ? {}
           : v.route === null
-            ? { arrival: true }
+            ? { later: true }
             : v.route.kind === 'new'
-              ? { newContext: v.route.path }
-              : { contextId: v.route.id };
-      const r = await coffre.api.post<{ undoId: string }>('/items/batch', {
+              ? { newFolder: v.route.path }
+              : { folderId: v.route.id };
+      const r = await coffre.api.post<{ undoId: string }>('/files/batch', {
         ids: items.map((i) => i.id),
         ...route,
         set,
-        tagsAdd: v.tagsAdd,
-        tagsRemove: v.tagsRemove,
+        freeAdd: v.freeAdd,
+        freeRemove: v.freeRemove,
+        add: v.add ?? [],
         names: Object.fromEntries(names),
-        complete: someToComplete && complete,
       });
       coffre.notify(
-        `${items.length} élément${items.length > 1 ? 's' : ''} modifié${items.length > 1 ? 's' : ''}.`,
+        `${items.length} fichier${items.length > 1 ? 's' : ''} modifié${items.length > 1 ? 's' : ''}.`,
         r.undoId,
       );
       coffre.refresh();
@@ -153,7 +151,7 @@ export function BatchEdit(props: { items: ItemDto[]; onClose: () => void; onDone
     >
       <div className="coffre-modal__box coffre-question coffre-batchedit">
         <h2>
-          Modifier la sélection ({items.length} élément{items.length > 1 ? 's' : ''})
+          Modifier la sélection ({items.length} fichier{items.length > 1 ? 's' : ''})
         </h2>
         <p className="muted small">
           Seuls les champs changés s’appliquent ; « mixte » reste tel quel. Les fichiers suivent
@@ -167,18 +165,8 @@ export function BatchEdit(props: { items: ItemDto[]; onClose: () => void; onDone
           preview={items
             .slice(0, 4)
             .map((i) => ({ before: i.name, after: names.get(i.id) ?? i.name }))}
-          arrival
+          pending
         />
-        {someToComplete && (
-          <label className="small">
-            <input
-              type="checkbox"
-              checked={complete}
-              onChange={(e) => setComplete(e.target.checked)}
-            />{' '}
-            Marquer leurs fiches comme vérifiées (plus « à compléter »)
-          </label>
-        )}
         <div className="coffre-treedialog__buttons">
           <Button disabled={!changes || busy} onClick={() => void apply()} data-coffre-batch-apply>
             Appliquer à {items.length}
@@ -200,8 +188,13 @@ export function SelectBar(props: {
   extra?: React.ReactNode;
 }) {
   const { sel, shown } = props;
+  const coffre = useCoffre();
   const [editing, setEditing] = useState(false);
   const chosen = shown.filter((i) => sel.ids.has(i.id));
+  // Ctrl+Maj+V pastes on the selection.
+  useEffect(() => {
+    if (chosen.length) coffre.setTargets(chosen);
+  }, [chosen, coffre]);
   return (
     <div className="coffre-selectbar" data-coffre-selectbar>
       {sel.selecting ? (
@@ -219,6 +212,17 @@ export function SelectBar(props: {
           <Button small disabled={!chosen.length} onClick={() => setEditing(true)}>
             Modifier la sélection…
           </Button>
+          {/* v0.50.0: the labels copied (Ctrl+Maj+C), or a named set, pasted on the selection. */}
+          <Button
+            variant="secondary"
+            small
+            disabled={!chosen.length || !coffre.copied}
+            title={coffre.copied ? 'Ctrl+Maj+V' : 'Copie d’abord les étiquettes d’un fichier'}
+            onClick={() => coffre.pasteLabels(chosen)}
+          >
+            Coller les étiquettes…
+          </Button>
+          {chosen.length > 0 && <SetPicker onPick={(s) => coffre.pasteLabels(chosen, s.labels)} />}
           {props.extra}
           <Button variant="secondary" small onClick={sel.clear}>
             Terminer
@@ -228,7 +232,7 @@ export function SelectBar(props: {
         <Button
           variant="secondary"
           small
-          title="Ou Ctrl+clic / Maj+clic sur les éléments"
+          title="Ou Ctrl+clic / Maj+clic sur les fichiers"
           onClick={() => sel.setSelecting(true)}
         >
           Sélectionner…

@@ -15,7 +15,7 @@ interface Entry {
   trashedAt: string | null;
   old: boolean;
   onPc: boolean;
-  contextPath: string[];
+  folderPath: string[];
 }
 
 export function DiskTrash(props: { status: DiskStatusDto | null }) {
@@ -43,7 +43,7 @@ export function DiskTrash(props: { status: DiskStatusDto | null }) {
   };
   const recover = (e: Entry) =>
     run(async () => {
-      if (e.onPc) await module.api.post(`/items/${e.itemId}/restore`);
+      if (e.onPc) await module.api.post(`/files/${e.itemId}/restore`);
       else await module.api.post('/disk/trash/recover', { itemId: e.itemId });
       coffre.notify(`« ${e.name} » est revenu dans le Coffre.`);
     });
@@ -104,7 +104,7 @@ export function DiskTrash(props: { status: DiskStatusDto | null }) {
             {entries.map((e) => (
               <tr key={e.itemId}>
                 <td className="coffre-table__name">{e.name}</td>
-                <td>{e.contextPath.join(' › ') || 'Arrivée'}</td>
+                <td>{e.folderPath.join(' › ') || 'À ranger'}</td>
                 <td>
                   {shortDate(e.trashedAt)}
                   {e.old && <span className="coffre-chip coffre-chip--warn">plus de 30 jours</span>}

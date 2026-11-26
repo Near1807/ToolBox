@@ -1,31 +1,32 @@
-// v0.48.0 (Expérimental): the actions on the tree of the contexts, the same
-// in the compact tree, on the map and on a context's page (buttons, right
-// click with the common menu, drag and drop): new context / sub-context,
+// v0.48.0, v0.50.0 (Expérimental): the actions on the folders, the same in
+// the compact tree, on the map and in a folder's view (buttons, right click
+// with the common menu, drag and drop): new folder / sub-folder, new file,
 // rename, move into…, merge with…, delete (only empty: otherwise « Déplacer
-// son contenu vers… » first), move up / down. Each one gives an « Annuler »
-// (ADR 0064). A move by dragging is always confirmed first.
+// son contenu vers… » first), move up / down, the badges « Fin de route » and
+// « Projet », archive / reactivate. Each one gives an « Annuler » where it can
+// (ADR 0064, 0067). A move by dragging is always confirmed first. A Projet is
+// indivisible: moved, archived, deleted whole, never merged.
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
-import { Button, type MenuItem } from '@hub/sdk/frontend';
+import { Button, type MenuItem, runJob } from '@hub/sdk/frontend';
 import { invalidName } from '../shared/names';
 import { routeLabel, subtreeOf, type RoutePick } from '../shared/route';
-import type { ContextDto } from '../shared/types';
+import type { FolderDto } from '../shared/types';
 import { useCoffre } from './frame';
 import { RoutePicker } from './RoutePicker';
-import { runTask } from './Tasks';
 
 type Dialog =
   | { kind: 'name'; title: string; initial: string; run: (name: string) => Promise<void> }
-  | { kind: 'move'; context: ContextDto }
-  | { kind: 'merge'; context: ContextDto; emptying: boolean }
+  | { kind: 'move'; folder: FolderDto }
+  | { kind: 'merge'; folder: FolderDto; emptying: boolean }
   | { kind: 'confirm'; text: string; ok: string; run: () => Promise<void> };
 
-/** The siblings of a context, in the tree's order. */
-export function siblingsOf(contexts: readonly ContextDto[], parentId: string | null): ContextDto[] {
-  return contexts.filter((c) => c.parentId === parentId).sort(treeOrder);
+/** The siblings of a folder, in the tree's order. */
+export function siblingsOf(folders: readonly FolderDto[], parentId: string | null): FolderDto[] {
+  return folders.filter((c) => c.parentId === parentId).sort(treeOrder);
 }
 
 /** The tree's order: the order set by hand, then the names. */
-export function treeOrder(a: ContextDto, b: ContextDto): number {
+export function treeOrder(a: FolderDto, b: FolderDto): number {
   const sa = a.sort ?? Number.MAX_SAFE_INTEGER;
   const sb = b.sort ?? Number.MAX_SAFE_INTEGER;
   return sa - sb || a.name.localeCompare(b.name, 'fr');
@@ -33,21 +34,21 @@ export function treeOrder(a: ContextDto, b: ContextDto): number {
 
 /** A move (from the map or the tree) can be dropped there? Null, or why not. */
 export function moveRefusal(
-  contexts: readonly ContextDto[],
-  src: ContextDto,
+  folders: readonly FolderDto[],
+  src: FolderDto,
   dstId: string | null,
 ): string | null {
-  if (dstId && subtreeOf(src.id, contexts).has(dstId))
-    return `« ${src.name} » ne peut pas aller dans lui-même ni dans un de ses sous-contextes`;
+  if (dstId && subtreeOf(src.id, folders).has(dstId))
+    return `« ${src.name} » ne peut pas aller dans lui-même ni dans un de ses sous-dossiers`;
   if (src.parentId === dstId) return `« ${src.name} » y est déjà`;
   return null;
 }
 
 export function useTreeActions() {
   const coffre = useCoffre();
-  const { api, contexts, notify, fail, refresh } = coffre;
+  const { api, folders, notify, fail, refresh } = coffre;
   const [dialog, setDialog] = useState<Dialog | null>(null);
-  const byId = useMemo(() => new Map(contexts.map((c) => [c.id, c])), [contexts]);
+  const byId = useMemo(() => new Map(folders.map((c) => [c.id, c])), [folders]);
 
   const done = useCallback(
     (message: string, undoId?: string | null) => {
@@ -58,34 +59,34 @@ export function useTreeActions() {
   );
 
   const create = useCallback(
-    (parent: ContextDto | null) =>
+    (parent: FolderDto | null) =>
       setDialog({
         kind: 'name',
-        title: parent ? `Nouveau sous-contexte dans « ${parent.name} »` : 'Nouveau contexte',
+        title: parent ? `Nouveau sous-dossier dans « ${parent.name} »` : 'Nouveau dossier',
         initial: '',
         run: async (name) => {
-          const r = await api.post<ContextDto & { undoId?: string }>('/contexts', {
+          const r = await api.post<FolderDto & { undoId?: string }>('/folders', {
             name,
             parentId: parent?.id ?? null,
           });
-          done(`Contexte « ${routeLabel(r.path)} » créé.`, r.undoId);
+          done(`Dossier « ${routeLabel(r.path)} » créé.`, r.undoId);
         },
       }),
     [api, done],
   );
 
   const rename = useCallback(
-    (c: ContextDto) =>
+    (c: FolderDto) =>
       setDialog({
         kind: 'name',
         title: `Renommer « ${c.name} » (son dossier suit)`,
         initial: c.name,
         run: async (name) => {
           if (name === c.name) return;
-          const r = await api.patch<ContextDto & { undoId?: string }>(`/contexts/${c.id}`, {
+          const r = await api.patch<FolderDto & { undoId?: string }>(`/folders/${c.id}`, {
             name,
           });
-          done(`Contexte renommé en « ${r.name} ».`, r.undoId);
+          done(`Dossier renommé en « ${r.name} ».`, r.undoId);
         },
       }),
     [api, done],
@@ -93,7 +94,7 @@ export function useTreeActions() {
 
   /** Moves now (after a confirmation when it comes from a drag). */
   const moveTo = useCallback(
-    async (c: ContextDto, pick: RoutePick) => {
+    async (c: FolderDto, pick: RoutePick) => {
       const body =
         pick.kind === 'existing'
           ? { parentId: pick.id }
@@ -106,20 +107,20 @@ export function useTreeActions() {
           : pick.kind === 'new'
             ? `« ${routeLabel(pick.path)} » (nouveau)`
             : 'la racine';
-      const r = await runTask<{ undoId: string }>(
-        api.post<{ jobId: string }>(`/contexts/${c.id}/move`, body),
+      const r = await runJob<{ undoId: string }>(
+        api.post<{ jobId: string }>(`/folders/${c.id}/move`, body),
       );
       done(`« ${c.name} » déplacé dans ${where} : ses fichiers ont suivi.`, r.undoId);
     },
     [api, byId, done],
   );
 
-  /** A drag ended on another context (or the root): asked first. */
+  /** A drag ended on another folder (or the root): asked first. */
   const requestMove = useCallback(
     (srcId: string, dstId: string | null) => {
       const src = byId.get(srcId);
       if (!src) return;
-      const refusal = moveRefusal(contexts, src, dstId);
+      const refusal = moveRefusal(folders, src, dstId);
       if (refusal) {
         notify(refusal);
         return;
@@ -134,19 +135,19 @@ export function useTreeActions() {
         run: () => moveTo(src, dst ? { kind: 'existing', id: dst.id } : { kind: 'root' }),
       });
     },
-    [byId, contexts, moveTo, notify],
+    [byId, folders, moveTo, notify],
   );
 
   const reorder = useCallback(
-    async (c: ContextDto, delta: -1 | 1) => {
-      const list = siblingsOf(contexts, c.parentId);
+    async (c: FolderDto, delta: -1 | 1) => {
+      const list = siblingsOf(folders, c.parentId);
       const at = list.findIndex((x) => x.id === c.id);
       const target = at + delta;
       if (at < 0 || target < 0 || target >= list.length) return;
       // « Before » the one at the new place (moving down: the one after it).
       const before = delta < 0 ? list[target]!.id : (list[target + 1]?.id ?? null);
       try {
-        const r = await api.post<{ undoId: string }>(`/contexts/${c.id}/reorder`, {
+        const r = await api.post<{ undoId: string }>(`/folders/${c.id}/reorder`, {
           beforeId: before,
         });
         done(`« ${c.name} » ${delta < 0 ? 'monté' : 'descendu'}.`, r.undoId);
@@ -154,26 +155,39 @@ export function useTreeActions() {
         fail(e);
       }
     },
-    [api, contexts, done, fail],
+    [api, folders, done, fail],
   );
 
   const remove = useCallback(
-    async (c: ContextDto) => {
+    async (c: FolderDto) => {
       try {
-        const content = await api.get<{ items: number; links: number; children: number }>(
-          `/contexts/${c.id}/content`,
+        // A project goes to the Recycle Bin whole (indivisible), confirmed.
+        if (c.project) {
+          setDialog({
+            kind: 'confirm',
+            text: `Mettre le projet « ${c.name} » dans la corbeille du Coffre (entier) ?`,
+            ok: 'Supprimer le projet',
+            run: async () => {
+              const r = await api.delete<{ undoId: string }>(`/folders/${c.id}/project`);
+              done(`Projet « ${c.name} » dans la corbeille du Coffre.`, r.undoId);
+            },
+          });
+          return;
+        }
+        const content = await api.get<{ items: number; children: number }>(
+          `/folders/${c.id}/content`,
         );
-        if (content.items || content.links || content.children) {
-          setDialog({ kind: 'merge', context: c, emptying: true });
+        if (content.items || content.children) {
+          setDialog({ kind: 'merge', folder: c, emptying: true });
           return;
         }
         setDialog({
           kind: 'confirm',
-          text: `Supprimer le contexte vide « ${c.name} » ?`,
+          text: `Supprimer le dossier vide « ${c.name} » ?`,
           ok: 'Supprimer',
           run: async () => {
-            const r = await api.delete<{ undoId: string }>(`/contexts/${c.id}`);
-            done(`Contexte « ${c.name} » supprimé (il était vide).`, r.undoId);
+            const r = await api.delete<{ undoId: string }>(`/folders/${c.id}`);
+            done(`Dossier « ${c.name} » supprimé (il était vide).`, r.undoId);
           },
         });
       } catch (e) {
@@ -183,24 +197,113 @@ export function useTreeActions() {
     [api, done, fail],
   );
 
+  /** « Fin de route » / « Projet » posed or taken off: nothing moves on the PC (« Annuler »). */
+  const badge = useCallback(
+    (c: FolderDto, kind: 'end' | 'project', on: boolean) =>
+      void api
+        .post<FolderDto & { undoId?: string }>(`/folders/${c.id}/${kind}`, { on })
+        .then((r) =>
+          done(
+            `« ${c.name} » ${on ? 'est' : 'n’est plus'} ${kind === 'project' ? 'un projet' : 'une fin de route'}.`,
+            r.undoId,
+          ),
+        )
+        .catch(fail),
+    [api, done, fail],
+  );
+  /** Archive a folder (its files; a project whole) or reactivate it: background tasks. */
+  const archiveFolder = useCallback(
+    (c: FolderDto) => {
+      if (
+        !window.confirm(
+          `Archiver « ${c.name} »${c.project ? ' (le projet entier)' : ' (ses fichiers déjà sur le disque)'} ?\n\nIls restent sur le disque (vérifiés avant), leur copie est retirée de ce PC. Pour les modifier : les réactiver (disque branché).`,
+        )
+      )
+        return;
+      runJob<{ archived: number }>(api.post('/files/archive', { folderId: c.id, confirm: true }))
+        .then((r) => done(`${r.archived} archivé${r.archived > 1 ? 's' : ''} dans « ${c.name} ».`))
+        .catch(fail);
+    },
+    [api, done, fail],
+  );
+  const reactivateFolder = useCallback(
+    (c: FolderDto) =>
+      runJob<{ done: number }>(api.post(`/folders/${c.id}/reactivate`))
+        .then((r) => done(`${r.done} réactivé${r.done > 1 ? 's' : ''} dans « ${c.name} ».`))
+        .catch(fail),
+    [api, done, fail],
+  );
+
   const menuOf = useCallback(
-    (c: ContextDto, open?: () => void): MenuItem[] => {
-      const list = siblingsOf(contexts, c.parentId);
+    (c: FolderDto, open?: () => void): MenuItem[] => {
+      const list = siblingsOf(folders, c.parentId);
       const at = list.findIndex((x) => x.id === c.id);
+      const disk = coffre.disk;
+      const noDisk = !disk?.disk
+        ? 'Aucun disque du coffre'
+        : !disk.connected
+          ? `Branche le disque « ${disk.disk.name} »`
+          : false;
       return [
         { title: routeLabel(c.path) },
         ...(open ? [{ label: 'Ouvrir', icon: 'chevron-right' as const, onSelect: open }] : []),
-        { label: 'Nouveau sous-contexte ici…', icon: 'folder-plus', onSelect: () => create(c) },
+        {
+          label: 'Nouveau sous-dossier ici…',
+          icon: 'folder-plus',
+          disabled: c.project ? 'Un projet est indivisible : crée-le dans VS Code' : false,
+          onSelect: () => coffre.create('folder', c.id),
+        },
+        {
+          label: 'Nouveau fichier…',
+          icon: 'file',
+          disabled: c.project ? 'Un projet est indivisible : crée-le dans VS Code' : false,
+          onSelect: () => coffre.create('file', c.id),
+        },
+        { separator: true },
+        c.project
+          ? {
+              label: 'Enlever « Projet »',
+              icon: 'package',
+              onSelect: () => badge(c, 'project', false),
+            }
+          : {
+              label: 'Marquer comme projet',
+              icon: 'package',
+              onSelect: () => badge(c, 'project', true),
+            },
+        ...(c.project
+          ? []
+          : [
+              {
+                label: c.endOfRoute ? 'Enlever « Fin de route »' : 'Marquer « Fin de route »',
+                icon: 'tag' as const,
+                onSelect: () => badge(c, 'end', !c.endOfRoute),
+              },
+            ]),
+        { separator: true },
         { label: 'Renommer…', icon: 'pencil', shortcut: 'F2', onSelect: () => rename(c) },
         {
           label: 'Déplacer dans…',
           icon: 'move',
-          onSelect: () => setDialog({ kind: 'move', context: c }),
+          onSelect: () => setDialog({ kind: 'move', folder: c }),
         },
         {
           label: 'Fusionner avec…',
           icon: 'folder-input',
-          onSelect: () => setDialog({ kind: 'merge', context: c, emptying: false }),
+          disabled: c.project ? 'Un projet ne se fusionne pas (indivisible)' : false,
+          onSelect: () => setDialog({ kind: 'merge', folder: c, emptying: false }),
+        },
+        {
+          label: c.project ? 'Archiver le projet (entier)' : 'Archiver le dossier',
+          icon: 'disc',
+          disabled: noDisk,
+          onSelect: () => archiveFolder(c),
+        },
+        {
+          label: 'Réactiver ce qui est archivé ici',
+          icon: 'upload',
+          disabled: noDisk,
+          onSelect: () => void reactivateFolder(c),
         },
         { separator: true },
         {
@@ -219,19 +322,19 @@ export function useTreeActions() {
         },
         { separator: true },
         {
-          label: 'Supprimer…',
+          label: c.project ? 'Supprimer le projet (entier)…' : 'Supprimer…',
           icon: 'trash',
           shortcut: 'Suppr',
           onSelect: () => void remove(c),
         },
       ];
     },
-    [contexts, create, rename, reorder, remove],
+    [folders, coffre, rename, reorder, remove, badge, archiveFolder, reactivateFolder],
   );
 
   const close = () => setDialog(null);
   const node: ReactNode = dialog && (
-    <div className="coffre-modal" role="dialog" aria-modal="true" aria-label="Contextes">
+    <div className="coffre-modal" role="dialog" aria-modal="true" aria-label="Dossiers">
       <div className="coffre-modal__box coffre-question coffre-treedialog">
         {dialog.kind === 'name' && (
           <NameForm
@@ -266,22 +369,22 @@ export function useTreeActions() {
         )}
         {dialog.kind === 'move' && (
           <>
-            <h2>Déplacer « {dialog.context.name} » dans…</h2>
+            <h2>Déplacer « {dialog.folder.name} » dans…</h2>
             <p className="muted small">
-              Ses éléments et ses sous-contextes suivent, ses fichiers aussi. Une route nouvelle est
-              créée au moment où tu la choisis.
+              Ses fichiers et ses sous-dossiers suivent. Une route nouvelle est créée au moment où
+              tu la choisis.
             </p>
             <RoutePicker
               inline
               label="Déplacer dans"
-              contexts={contexts}
-              root={dialog.context.parentId !== null}
-              exclude={subtreeOf(dialog.context.id, contexts)}
+              folders={folders}
+              root={dialog.folder.parentId !== null}
+              exclude={subtreeOf(dialog.folder.id, folders)}
               onClose={close}
               onPick={(pick) => {
-                const c = dialog.context;
+                const c = dialog.folder;
                 close();
-                if (pick.kind === 'arrival') return;
+                if (pick.kind === 'pending') return;
                 if (pick.kind === 'existing' && pick.id === c.parentId) return;
                 moveTo(c, pick).catch(fail);
               }}
@@ -295,23 +398,23 @@ export function useTreeActions() {
           <>
             <h2>
               {dialog.emptying
-                ? `« ${dialog.context.name} » n’est pas vide : déplacer son contenu vers…`
-                : `Fusionner « ${dialog.context.name} » avec…`}
+                ? `« ${dialog.folder.name} » n’est pas vide : déplacer son contenu vers…`
+                : `Fusionner « ${dialog.folder.name} » avec…`}
             </h2>
             <p className="muted small">
-              Ses éléments et ses sous-contextes passent dans le contexte choisi (même nom :
-              fusionnés ; jamais d’écrasement, « nom (2) »). Puis « {dialog.context.name} »
-              disparaît. Rien n’est supprimé.
+              Ses fichiers et ses sous-dossiers passent dans le dossier choisi (même nom : fusionnés
+              ; jamais d’écrasement, « nom (2) »). Puis « {dialog.folder.name} » disparaît. Rien
+              n’est supprimé.
             </p>
             <RoutePicker
               inline
               label="Fusionner avec"
-              contexts={contexts}
+              folders={folders}
               allowNew={false}
-              exclude={subtreeOf(dialog.context.id, contexts)}
+              exclude={subtreeOf(dialog.folder.id, folders)}
               onClose={close}
               onPick={(pick) => {
-                const c = dialog.context;
+                const c = dialog.folder;
                 if (pick.kind !== 'existing') return;
                 const into = byId.get(pick.id);
                 setDialog({
@@ -319,8 +422,8 @@ export function useTreeActions() {
                   text: `Fusionner « ${c.name} » dans « ${into ? routeLabel(into.path) : ''} » ?`,
                   ok: 'Fusionner',
                   run: async () => {
-                    const r = await runTask<{ undoId: string }>(
-                      api.post<{ jobId: string }>(`/contexts/${c.id}/merge`, { into: pick.id }),
+                    const r = await runJob<{ undoId: string }>(
+                      api.post<{ jobId: string }>(`/folders/${c.id}/merge`, { into: pick.id }),
                     );
                     done(`« ${c.name} » fusionné dans « ${into?.name ?? ''} ».`, r.undoId);
                   },
@@ -349,7 +452,7 @@ export function useTreeActions() {
   };
 }
 
-/** A context's name: checked as typed (a folder name Windows accepts, exactly). */
+/** A folder's name: checked as typed (a folder name Windows accepts, exactly). */
 function NameForm(props: {
   title: string;
   initial: string;
@@ -377,7 +480,7 @@ function NameForm(props: {
       <input
         autoFocus
         className="input"
-        aria-label="Nom du contexte"
+        aria-label="Nom du dossier"
         aria-invalid={Boolean(error)}
         value={name}
         onChange={(e) => setName(e.target.value)}

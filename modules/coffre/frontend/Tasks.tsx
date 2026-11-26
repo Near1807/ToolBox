@@ -12,7 +12,6 @@ import {
   useApi,
   useJobs,
   useModule,
-  waitForJob,
   type JobInfo,
 } from '@hub/sdk/frontend';
 import type { IndexStatusDto } from '../shared/types';
@@ -114,24 +113,5 @@ function TextReading() {
       {s.total.toLocaleString('fr-FR')}
       {s.reading ? ` · ${s.reading}` : ''} — en arrière-plan, priorité basse.
     </p>
-  );
-}
-
-/**
- * Starts a task (a route answering { jobId }) and waits for it: its result;
- * a failure throws its message, a cancellation « Annulée ». The panel shows
- * it meanwhile; the page never holds a request.
- */
-export async function runTask<T>(
-  start: Promise<{ jobId: string }>,
-  onUpdate?: (job: JobInfo) => void,
-): Promise<T> {
-  const { jobId } = await start;
-  const job = await waitForJob(jobId, onUpdate);
-  if (job.status === 'succeeded') return job.result as T;
-  throw new Error(
-    job.status === 'cancelled'
-      ? 'Annulée'
-      : (job.error ?? job.message ?? 'La tâche n’a pas abouti'),
   );
 }

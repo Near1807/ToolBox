@@ -1,19 +1,19 @@
-// v0.45.0: the filters in pills of a context's page and the views by
-// attribute (« Python », « Prof PCH »): combinable — AND between two keys,
-// OR inside one key —, with the number of elements each pill would show.
+// v0.45.0, v0.50.0: the filters in pills of a folder's view and the views by
+// label (« Python », « Prof PCH »): combinable — AND between two families,
+// OR inside one family —, with the number of files each pill would show.
 // Pure (tested).
 import { fold } from './deduce';
-import { ATTRIBUTE_KEYS, type AttributeKey, type ItemDto } from './types';
+import { LABEL_FAMILIES, type ItemDto, type LabelFamily } from './types';
 
-/** The pills chosen: for each key, the values kept (none: no filter on that key). */
-export type FacetSelection = Partial<Record<AttributeKey, string[]>>;
+/** The pills chosen: for each family, the values kept (none: no filter on that family). */
+export type FacetSelection = Partial<Record<LabelFamily, string[]>>;
 
-const valuesOf = (item: ItemDto, key: AttributeKey) =>
-  item.attributes.filter((a) => a.key === key).map((a) => a.value);
+const valuesOf = (item: ItemDto, key: LabelFamily) =>
+  item.labels.filter((l) => l.family === key).map((l) => l.value);
 
 /** Does the item pass every key's filter? */
 export function matches(item: ItemDto, selection: FacetSelection): boolean {
-  return ATTRIBUTE_KEYS.every((key) => {
+  return LABEL_FAMILIES.every((key) => {
     const wanted = selection[key];
     if (!wanted?.length) return true;
     const own = valuesOf(item, key).map(fold);
@@ -25,18 +25,18 @@ export const filterItems = (items: readonly ItemDto[], selection: FacetSelection
   items.filter((i) => matches(i, selection));
 
 export interface Facet {
-  key: AttributeKey;
+  key: LabelFamily;
   values: { value: string; count: number; on: boolean }[];
 }
 
 /**
- * The pills of a list: for each key, its values with the number of elements
- * the pill gives WITH the other keys' filters (so a pill never promises an
- * empty list), most frequent first. Keys without values are left out.
+ * The pills of a list: for each family, its values with the number of elements
+ * the pill gives WITH the other families' filters (so a pill never promises an
+ * empty list), most frequent first. Families without values are left out.
  */
 export function facetsOf(items: readonly ItemDto[], selection: FacetSelection): Facet[] {
   const out: Facet[] = [];
-  for (const key of ATTRIBUTE_KEYS) {
+  for (const key of LABEL_FAMILIES) {
     const others = { ...selection, [key]: [] };
     const pool = items.filter((i) => matches(i, others));
     const counts = new Map<string, { value: string; count: number }>();
@@ -56,19 +56,12 @@ export function facetsOf(items: readonly ItemDto[], selection: FacetSelection): 
   return out;
 }
 
-/** The search (v0.45: names, sheets, attributes; the content in v0.47): every word must be found. */
+/** The search on a list (names, routes, labels): every word must be found. */
 export function searchItems(items: readonly ItemDto[], query: string): ItemDto[] {
   const words = fold(query).split(/\s+/).filter(Boolean);
   if (!words.length) return [...items];
   return items.filter((i) => {
-    const hay = fold(
-      [
-        i.name,
-        ...(i.contextPath ?? []),
-        ...i.attributes.map((a) => a.value),
-        i.externalPath ?? '',
-      ].join(' '),
-    );
+    const hay = fold([i.name, ...(i.folderPath ?? []), ...i.labels.map((l) => l.value)].join(' '));
     return words.every((w) => hay.includes(w));
   });
 }

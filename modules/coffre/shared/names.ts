@@ -11,7 +11,7 @@ const RESERVED = /^(con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³])(\..*)?$/i;
 
 /** The longest name kept (the whole path must stay under Windows' 260 characters). */
 export const MAX_NAME = 100;
-/** A context's folder: shorter. */
+/** A folder's name: shorter. */
 export const MAX_FOLDER = 60;
 
 /** Splits « rapport.final.pdf » into « rapport.final » and « .pdf » (a leading dot is not an extension). */
@@ -64,24 +64,28 @@ export function freeName(name: string, taken: (candidate: string) => boolean): s
   throw new Error(`Aucun nom libre pour « ${name} »`);
 }
 
-/** Folders of the Coffre that are not contexts. */
-export const ARRIVAL_FOLDER = '_Arrivée';
+/** The Coffre's own folders (never a folder of Thomas's: folderName). v0.50.0: « À ranger ». */
+export const PENDING_FOLDER = '_À ranger';
+/** v0.50.0: the folder of the old « Arrivée », removed at the start when it is empty. */
+export const OLD_ARRIVAL_FOLDER = '_Arrivée';
 export const TRASH_FOLDER = '_Corbeille';
 /** v0.46.0: ToolBox's own folder on the disk (history, disk Recycle Bin, database copy). */
 export const DISK_SYSTEM_FOLDER = '_ToolBox';
 const RESERVED_FOLDERS = new Set(
-  [ARRIVAL_FOLDER, TRASH_FOLDER, DISK_SYSTEM_FOLDER].map((n) => n.toLowerCase()),
+  [PENDING_FOLDER, OLD_ARRIVAL_FOLDER, TRASH_FOLDER, DISK_SYSTEM_FOLDER].map((n) =>
+    n.toLowerCase(),
+  ),
 );
 
-/** A context's folder name: valid on Windows, never one of the Coffre's own folders. */
+/** A folder's name on the disk: valid on Windows, never one of the Coffre's own folders. */
 export function folderName(name: string): string {
   const safe = safeName(name, MAX_FOLDER);
   return RESERVED_FOLDERS.has(safe.toLowerCase()) ? `${safe}_` : safe;
 }
 
 /**
- * v0.48.0: why a name typed for a context is not a valid Windows folder name
- * (the folder must carry exactly the context's name), or null when it is.
+ * v0.48.0: why a name typed for a folder is not a valid Windows folder name
+ * (the folder on the disk carries exactly that name), or null when it is.
  */
 export function invalidName(name: string): string | null {
   const n = name.trim();

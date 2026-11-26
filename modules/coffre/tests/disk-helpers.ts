@@ -92,17 +92,17 @@ export async function ok<T>(w: DiskWorld, method: string, url: string, body?: un
   return r.body;
 }
 
-/** Deposits files (written in the « Téléchargements ») into a context; their sheets. */
+/** Deposits files (written in the « Téléchargements ») into a folder (its route); their rows. */
 export async function deposit(
   w: DiskWorld,
   files: Record<string, string | Buffer>,
-  context = ['Cours', 'Thermo'],
+  route = ['Cours', 'Thermo'],
 ): Promise<ItemDto[]> {
   const entries = Object.entries(files).map(([name, content]) => {
     const p = path.join(w.dl, name);
     mkdirSync(path.dirname(p), { recursive: true });
     writeFileSync(p, content);
-    return { path: p, newContext: context, attributes: [] };
+    return { path: p, newFolder: route, labels: [] };
   });
   const r = await job<{ created: ItemDto[] }>(w, 'POST', `${API}/deposit/apply`, { entries });
   return r.created;

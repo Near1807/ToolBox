@@ -10,12 +10,12 @@ import {
   ErrorMessage,
   errorMessage,
   formatBytes,
-  Gauge,
   Icon,
   pickFolder,
-  useJobs,
   useModule,
+  useTaskFollow,
 } from '@hub/sdk/frontend';
+import { TaskGauge } from './TaskGauge';
 import { ago, plural } from './useDisk';
 
 interface Preview {
@@ -41,14 +41,16 @@ interface Report {
 
 export function RestoreDialog(props: { onClose: () => void; onDone: () => void }) {
   const module = useModule();
-  const { jobs, cancel } = useJobs(module.id);
+  const task = useTaskFollow();
+  const { job } = task;
   const [preview, setPreview] = useState<Preview | null>(null);
   const [confirmed, setConfirmed] = useState(false);
-  const [jobId, setJobId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const job = jobs.find((j) => j.id === jobId) ?? null;
-  const running = jobId !== null && (!job || job.status === 'queued' || job.status === 'running');
-  const report = job?.status === 'succeeded' ? (job.result as Report) : null;
+  /** Asked (started, running, ended or lost): the preview is over. */
+  const launched = task.phase !== 'idle';
+  const running = task.phase === 'starting' || task.phase === 'active';
+  const report =
+    task.phase === 'ended' && job?.status === 'succeeded' ? (job.result as Report) : null;
 
   const choose = async () => {
     setError(null);
@@ -61,18 +63,12 @@ export function RestoreDialog(props: { onClose: () => void; onDone: () => void }
       setError(errorMessage(e));
     }
   };
-  const start = async () => {
+  const start = () => {
     if (!preview) return;
     setError(null);
-    try {
-      const r = await module.api.post<{ jobId: string }>('/restore/apply', {
-        path: preview.folder,
-        confirm: true,
-      });
-      setJobId(r.jobId);
-    } catch (e) {
-      setError(errorMessage(e));
-    }
+    task.start(() =>
+      module.api.post<{ jobId: string }>('/restore/apply', { path: preview.folder, confirm: true }),
+    );
   };
   const enough = !preview || preview.pcFree === null || preview.needed < preview.pcFree;
 
@@ -97,7 +93,7 @@ export function RestoreDialog(props: { onClose: () => void; onDone: () => void }
             </button>
           )}
         </header>
-        {!preview && !jobId && (
+        {!preview && !launched && (
           <>
             <p>
               Choisis le dossier « ToolBox-Coffre » de ton disque. Tu verras ce qu'il contient avant
@@ -111,7 +107,7 @@ export function RestoreDialog(props: { onClose: () => void; onDone: () => void }
             </footer>
           </>
         )}
-        {preview && !jobId && (
+        {preview && !launched && (
           <>
             <p>
               Disque <strong>« {preview.diskName} »</strong> · dernière mise à jour{' '}
@@ -165,32 +161,19 @@ export function RestoreDialog(props: { onClose: () => void; onDone: () => void }
               </Button>
               <Button
                 disabled={!confirmed || !enough || preview.registered === 'other'}
-                onClick={() => void start()}
+                onClick={start}
               >
                 Restaurer
               </Button>
             </footer>
           </>
         )}
-        {running && (
-          <div className="coffre-update__progress">
-            <Gauge
-              value={job?.progress ?? 0}
-              label={`${Math.round((job?.progress ?? 0) * 100)} %`}
-              sub="restauré et vérifié"
-              size={140}
-            />
-            <div>
-              <p className="coffre-update__message">{job?.message ?? 'Démarrage…'}</p>
-              {job && (
-                <Button variant="secondary" onClick={() => void cancel(job.id)}>
-                  Annuler
-                </Button>
-              )}
-            </div>
-          </div>
-        )}
-        {jobId && !running && (
+        <TaskGauge
+          task={task}
+          sub="restauré et vérifié"
+          onFail={(e) => setError(errorMessage(e))}
+        />
+        {(task.phase === 'ended' || task.phase === 'lost') && (
           <>
             {report ? (
               <p className="coffre-update__done">
@@ -200,7 +183,7 @@ export function RestoreDialog(props: { onClose: () => void; onDone: () => void }
                 {plural(report.archived, 'archivé')} sur le disque.
               </p>
             ) : (
-              <ErrorMessage>{job?.error ?? 'Restauration arrêtée.'}</ErrorMessage>
+              <ErrorMessage>{task.error ?? job?.error ?? 'Restauration arrêtée.'}</ErrorMessage>
             )}
             {report?.backup && <p className="muted">Base sauvegardée avant : {report.backup}</p>}
             {report && report.conflicts.length > 0 && (
@@ -239,7 +222,9 @@ export function RestoreDialog(props: { onClose: () => void; onDone: () => void }
             </footer>
           </>
         )}
-        {error && <ErrorMessage>{error}</ErrorMessage>}
+        {(error ?? (task.phase === 'idle' ? task.error : null)) && (
+          <ErrorMessage>{error ?? task.error}</ErrorMessage>
+        )}
       </div>
     </div>
   );

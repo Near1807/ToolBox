@@ -83,7 +83,7 @@ export function DiskSettings() {
         <>
           <p className="muted small">
             Choisis un dossier sur ton disque externe : ToolBox y crée « ToolBox-Coffre » (tes
-            contextes en dossiers, lisibles sans ToolBox) et un fichier d'identité. Rien n'est copié
+            dossiers en dossiers, lisibles sans ToolBox) et un fichier d'identité. Rien n'est copié
             avant ton clic sur « Mettre à jour ».
           </p>
           <label className="coffre-settings__row">

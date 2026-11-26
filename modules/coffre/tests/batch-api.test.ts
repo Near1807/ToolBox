@@ -6,7 +6,7 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { applyBatch, applyEntry, emptyBatch, entriesOf, markException } from '../frontend/logic';
-import type { ContextDto, ItemDto, SearchDto } from '../shared/types';
+import type { FolderDto, ItemDto, SearchDto } from '../shared/types';
 import { API, deposit, diskWorld, ok, type DiskWorld, job, analyze } from './disk-helpers';
 
 let w: DiskWorld;
@@ -14,9 +14,9 @@ afterEach(async () => {
   await w?.close();
 });
 const lib = (...p: string[]) => path.join(w.hub.dataDir, 'coffre', ...p);
-const contexts = () => ok<ContextDto[]>(w, 'GET', `${API}/contexts`);
-const item = (id: string) => ok<ItemDto>(w, 'GET', `${API}/items/${id}`);
-const tagsOf = (i: ItemDto) => i.attributes.filter((a) => a.key === 'tag');
+const folders = () => ok<FolderDto[]>(w, 'GET', `${API}/folders`);
+const item = (id: string) => ok<ItemDto>(w, 'GET', `${API}/files/${id}`);
+const tagsOf = (i: ItemDto) => i.labels.filter((a) => a.family === 'free');
 
 describe('Pour tous (serveur)', () => {
   it('lot de 8 : route + tags + renommage, une exception, un décoché → Arrivée ; un seul Annuler ; « choisi »', async () => {
@@ -31,7 +31,7 @@ describe('Pour tous (serveur)', () => {
     const analyzed = await analyze(w, {
       paths,
     });
-    const cs = await contexts();
+    const cs = await folders();
     const thermo = cs.find((c) => c.path.join('/') === 'Cours/Thermo')!;
     let entries = entriesOf(analyzed);
     entries = entries.map((e, i) => (i === 7 ? { ...e, checked: false } : e));
@@ -43,7 +43,7 @@ describe('Pour tous (serveur)', () => {
         origin: 'chosen' as const,
         reason: null,
       },
-      tagsAdd: ['labo'],
+      freeAdd: ['labo'],
       template: 'Thermo - {nom}',
     };
     entries = applyBatch(entries, v, cs);
@@ -53,7 +53,7 @@ describe('Pour tous (serveur)', () => {
       exceptions: markException(entries[2]!, 'route', v),
     };
     // « Labos » does not exist yet: created only now.
-    expect((await contexts()).some((c) => c.name === 'Labos')).toBe(false);
+    expect((await folders()).some((c) => c.name === 'Labos')).toBe(false);
     const r = await job<{ created: ItemDto[]; undoId: string }>(w, 'POST', `${API}/deposit/apply`, {
       entries: entries.map((e) => applyEntry(e, !e.checked)),
     });
@@ -61,19 +61,19 @@ describe('Pour tous (serveur)', () => {
     const byName = new Map(r.created.map((i) => [i.originalName ?? i.name, i]));
     const first = byName.get('labo 1.pdf')!;
     expect(first.name).toBe('Thermo - labo 1.pdf');
-    expect(first.contextPath).toEqual(['Cours', 'Thermo', 'Labos']);
+    expect(first.folderPath).toEqual(['Cours', 'Thermo', 'Labos']);
     expect(tagsOf(first)).toEqual([expect.objectContaining({ value: 'labo', origin: 'chosen' })]);
     expect(existsSync(lib('Cours', 'Thermo', 'Labos', 'Thermo - labo 1.pdf'))).toBe(true);
-    expect(byName.get('labo 3.pdf')!.contextPath).toEqual(['Cours', 'Thermo']);
+    expect(byName.get('labo 3.pdf')!.folderPath).toEqual(['Cours', 'Thermo']);
     const unchecked = r.created.find((i) => i.name === 'labo 8.pdf')!;
-    expect(unchecked.arrival).toBe(true);
+    expect(unchecked.folderId).toBeNull();
     expect(unchecked.originalName).toBeNull();
     // The original name: kept and searchable.
     const found = await ok<SearchDto>(w, 'GET', `${API}/search?q=${encodeURIComponent('labo 5')}`);
     expect(found.results.map((x) => x.item.name)).toContain('Thermo - labo 5.pdf');
     // ONE « Annuler »: the 8 gone, « Labos » (created for them) too, the rest intact.
     await ok(w, 'POST', `${API}/undo`, { undoId: r.undoId });
-    const after = await contexts();
+    const after = await folders();
     expect(after.some((c) => c.name === 'Labos')).toBe(false);
     expect(after.some((c) => c.path.join('/') === 'Cours/Thermo')).toBe(true);
     expect(existsSync(lib('Cours', 'Thermo', 'Labos'))).toBe(false);
@@ -87,24 +87,24 @@ describe('Pour tous (serveur)', () => {
       { 'a.md': 'a', 'b.md': 'b', 'c.md': 'c', 'd.md': 'd', 'e.md': 'e' },
       ['Arrivage'],
     );
-    await ok(w, 'PUT', `${API}/items/${made[0]!.id}/attributes`, {
-      key: 'tag',
+    await ok(w, 'PUT', `${API}/files/${made[0]!.id}/labels`, {
+      family: 'free',
       values: ['vieux', 'garde'],
     });
     const ids = made.map((i) => i.id);
     const names = Object.fromEntries(made.map((i, n) => [i.id, `Projet ${n + 1} - ${i.name}`]));
     // A collision inside the folder: « Projet 1 - a.md » already exists there.
     await deposit(w, { 'Projet 1 - a.md': 'déjà là' }, ['Projets', 'Web']);
-    const r = await ok<{ items: ItemDto[]; undoId: string }>(w, 'POST', `${API}/items/batch`, {
+    const r = await ok<{ items: ItemDto[]; undoId: string }>(w, 'POST', `${API}/files/batch`, {
       ids,
-      newContext: ['Projets', 'Web'],
+      newFolder: ['Projets', 'Web'],
       set: { nature: 'notes' },
-      tagsAdd: ['web'],
-      tagsRemove: ['vieux'],
+      freeAdd: ['web'],
+      freeRemove: ['vieux'],
       names,
     });
     const a = r.items.find((i) => i.id === ids[0])!;
-    expect(a.contextPath).toEqual(['Projets', 'Web']);
+    expect(a.folderPath).toEqual(['Projets', 'Web']);
     expect(a.name).toBe('Projet 1 - a (2).md');
     expect(a.originalName).toBe('a.md');
     expect(
@@ -112,25 +112,25 @@ describe('Pour tous (serveur)', () => {
         .map((t) => t.value)
         .sort(),
     ).toEqual(['garde', 'web']);
-    expect(a.attributes.find((x) => x.key === 'nature')).toMatchObject({
+    expect(a.labels.find((x) => x.family === 'nature')).toMatchObject({
       value: 'notes',
       origin: 'chosen',
     });
     expect(existsSync(lib('Projets', 'Web', 'Projet 1 - a (2).md'))).toBe(true);
-    for (const i of r.items) expect(i.contextPath).toEqual(['Projets', 'Web']);
+    for (const i of r.items) expect(i.folderPath).toEqual(['Projets', 'Web']);
     // ONE « Annuler »: names, places, attributes as before.
     await ok(w, 'POST', `${API}/undo`, { undoId: r.undoId });
     const back = await item(ids[0]!);
     expect(back.name).toBe('a.md');
-    expect(back.contextPath).toEqual(['Arrivage']);
+    expect(back.folderPath).toEqual(['Arrivage']);
     expect(
       tagsOf(back)
         .map((t) => t.value)
         .sort(),
     ).toEqual(['garde', 'vieux']);
-    expect(back.attributes.find((x) => x.key === 'nature')?.value).not.toBe('notes');
+    expect(back.labels.find((x) => x.family === 'nature')?.value).not.toBe('notes');
     expect(existsSync(lib('Arrivage', 'a.md'))).toBe(true);
     // « Projets/Web » existed before (the other file): kept.
-    expect((await contexts()).some((c) => c.path.join('/') === 'Projets/Web')).toBe(true);
+    expect((await folders()).some((c) => c.path.join('/') === 'Projets/Web')).toBe(true);
   }, 60_000);
 });

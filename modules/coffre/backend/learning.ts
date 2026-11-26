@@ -1,6 +1,6 @@
 // v0.47.0 (Expérimental): the Coffre's learning (ADR 0061) — the rules kept
 // (« Prêt pour la synchro »: UUID, dates, tombstones, journal, SyncStore),
-// what a placement teaches (a deposit, a change of context, a nature chosen),
+// what a placement teaches (a deposit, a change of folder, a nature chosen),
 // and Réglages › Coffre › « Ce que le Coffre a appris » (change, delete,
 // « Tout oublier » confirmed).
 import {
@@ -38,8 +38,8 @@ export class Learner {
   constructor(
     private readonly ctx: ModuleContext,
     private readonly store: SyncStore,
-    /** A context's path, or null when it is gone. */
-    private readonly pathOf: (contextId: string) => string[] | null,
+    /** A folder's path, or null when it is gone. */
+    private readonly pathOf: (folderId: string) => string[] | null,
   ) {
     this.table = ctx.db.table('rules');
   }
@@ -86,13 +86,13 @@ export class Learner {
       .prepare(`SELECT * FROM ${this.table} WHERE deleted_at IS NULL ORDER BY kind, key`)
       .all() as RuleRow[];
     return rows.map((r) => {
-      const contextId = r.kind === 'ext' ? r.key.slice(0, r.key.indexOf(':')) : r.value;
+      const folderId = r.kind === 'ext' ? r.key.slice(0, r.key.indexOf(':')) : r.value;
       return {
         id: r.id,
         kind: r.kind,
         key: r.kind === 'ext' ? r.key.slice(r.key.indexOf(':') + 1) : r.key,
-        contextId,
-        contextPath: this.pathOf(contextId),
+        folderId,
+        folderPath: this.pathOf(folderId),
         nature: r.kind === 'ext' ? r.value : null,
         hits: r.hits,
         misses: r.misses,
@@ -106,7 +106,7 @@ export class Learner {
   register(): void {
     const { ctx, store } = this;
     ctx.routes.get('/learned', () => this.dtos());
-    /** Changes what a rule gives (another context, another nature): Thomas's word, sure at once. */
+    /** Changes what a rule gives (another folder, another nature): Thomas's word, sure at once. */
     ctx.routes.patch('/learned/:id', (request) => {
       const { id } = request.params as { id: string };
       const row = store.get<RuleRow>('rules', id);
@@ -121,9 +121,9 @@ export class Learner {
           misses: 0,
         });
       } else {
-        const contextId = String(b.contextId ?? '');
-        if (!this.pathOf(contextId)) throw new HttpError(404, 'Contexte introuvable');
-        store.update('rules', id, { value: contextId, hits: Math.max(row.hits, 2), misses: 0 });
+        const folderId = String(b.folderId ?? '');
+        if (!this.pathOf(folderId)) throw new HttpError(404, 'Dossier introuvable');
+        store.update('rules', id, { value: folderId, hits: Math.max(row.hits, 2), misses: 0 });
       }
       return this.dtos().find((r) => r.id === id);
     });
