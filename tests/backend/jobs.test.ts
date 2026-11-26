@@ -135,4 +135,90 @@ describe('jobs', () => {
     const { body } = await hub.request<JobInfo[]>('GET', '/api/core/jobs?module=worker');
     expect(body.map((j) => j.id)).toEqual([job.id]);
   });
+
+  // v0.49.0: the detail of a background task, its failed items, retry, resume.
+  it('détail : fait / total, élément en cours, temps restant, erreurs une à une ; Réessayer ceux-là', async () => {
+    const { hub, jobs } = await hubWithJobs((j) =>
+      j.define<{ items: string[] }, { done: number }>(
+        'copy',
+        async (job) => {
+          let done = 0;
+          for (const item of job.input.items) {
+            if (item.startsWith('bad')) job.problem(item, 'fichier verrouillé');
+            else done++;
+            job.step(job.input.items.indexOf(item) + 1, job.input.items.length, {
+              unit: 'fichiers',
+              current: item,
+            });
+          }
+          return { done };
+        },
+        { retry: (_input, errors) => ({ items: errors.map((e) => e.item.replace('bad', 'ok')) }) },
+      ),
+    );
+    const job = jobs.enqueue('copy', { items: ['a', 'bad1', 'b', 'bad2'] }, { title: 'Copie' });
+    const done = await waitFor(jobs, job.id, ['succeeded']);
+    expect(done.details).toMatchObject({
+      done: 4,
+      total: 4,
+      unit: 'fichiers',
+      current: null,
+      errorCount: 2,
+      retryable: true,
+      errors: [
+        { item: 'bad1', reason: 'fichier verrouillé' },
+        { item: 'bad2', reason: 'fichier verrouillé' },
+      ],
+    });
+    const again = await hub.request<JobInfo>('POST', `/api/core/jobs/${job.id}/retry`);
+    expect(again.status).toBe(200);
+    const second = await waitFor(jobs, again.body.id, ['succeeded']);
+    expect(second.title).toBe('Copie (réessai)');
+    expect(second.result).toEqual({ done: 2 });
+    expect(second.details?.errorCount).toBe(0);
+    expect((await hub.request('POST', `/api/core/jobs/${second.id}/retry`)).status).toBe(409);
+  });
+
+  it('reprise après la fermeture : une tâche reprenable repart de son point de reprise ; les autres disent ce qu’elles avaient fait', async () => {
+    const dataDir = mkdtempSync(path.join(tmpdir(), 'jobs-resume-'));
+    const seen: unknown[] = [];
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const define = (j: ModuleJobs, block: boolean) => {
+      j.define<null, string>(
+        'long',
+        async (job) => {
+          seen.push(job.state);
+          const from = (job.state as { at: number } | null)?.at ?? 0;
+          for (let i = from; i < 10; i++) {
+            job.step(i + 1, 10, { unit: 'fichiers' });
+            job.checkpoint({ at: i + 1 });
+            if (block && i === 3) await gate;
+          }
+          return 'fini';
+        },
+        { resumable: true },
+      );
+      j.define<null, string>('plain', async (job) => {
+        job.step(2, 5, { unit: 'fichiers' });
+        if (block) await gate;
+        return 'fini';
+      });
+    };
+    const first = await hubWithJobs((j) => define(j, true), dataDir);
+    const a = first.jobs.enqueue('long', null, { title: 'Longue' });
+    const b = first.jobs.enqueue('plain', null, { title: 'Simple' });
+    await new Promise((r) => setTimeout(r, 400));
+    expect(first.hub.hub.jobs.activeCount()).toBe(2);
+    await first.hub.close({ keepData: true });
+    hubs.splice(hubs.indexOf(first.hub), 1);
+    release();
+    const second = await hubWithJobs((j) => define(j, false), dataDir);
+    const resumed = await waitFor(second.jobs, a.id, ['succeeded']);
+    expect(resumed.details?.resumed).toBe(true);
+    expect(seen.at(-1)).toEqual({ at: 4 });
+    const plain = second.jobs.get(b.id)!;
+    expect(plain.status).toBe('interrupted');
+    expect(plain.details).toMatchObject({ done: 2, total: 5 });
+  });
 });

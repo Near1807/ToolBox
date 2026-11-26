@@ -387,6 +387,24 @@ kbd {
   text-overflow: ellipsis;
 }
 
+.nav-link__count--busy {
+  min-width: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--text-on-accent);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-align: center;
+  animation: ui-busy-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes ui-busy-pulse {
+  50% {
+    opacity: 0.6;
+  }
+}
+
 .nav-link--button {
   border: 1px solid transparent;
   background: none;
@@ -2765,4 +2783,89 @@ input[type='range'] {
   text-align: left;
   padding: 3px 14px 3px 0;
   border-bottom: 1px solid var(--border);
+}
+
+/* v0.49.0: background tasks (packages/sdk/jobs-ui.tsx) */
+.ui-jobs {
+  display: grid;
+  gap: 10px;
+}
+.ui-job {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  background: var(--surface);
+}
+.ui-job--ok {
+  border-left-color: var(--success);
+}
+.ui-job--warn {
+  border-left-color: var(--warning);
+}
+.ui-job--off {
+  border-left-color: var(--border-strong);
+}
+.ui-job__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+.ui-job__title {
+  min-width: 0;
+}
+.ui-job__actions {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 6px;
+}
+.ui-job__line {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.ui-job__line:empty {
+  display: none;
+}
+.ui-job__current {
+  max-width: 40ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+}
+.ui-job__errors {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+}
+.ui-job__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: none;
+  color: var(--warning);
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+.ui-job__list {
+  margin: 0;
+  padding-left: 18px;
+  max-height: 220px;
+  overflow: auto;
+  width: 100%;
+}
+.ui-job__item {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  word-break: break-all;
 }

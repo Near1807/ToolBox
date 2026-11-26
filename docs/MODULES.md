@@ -224,8 +224,41 @@ const info = ctx.jobs.enqueue('render', { trackId: 3 }, { title: 'Vidéo YouTube
 ```
 
 - File d'attente par type de tâche, `concurrency` 1 par défaut. Annulation via `job.signal` (bouton « Annuler » dans la page Tâches). Les tâches sont visibles dans la page **Tâches** et via `useJobs()` côté interface (temps réel, SSE).
-- Historique dans `core__jobs` (200 dernières). Une tâche en cours quand l'app se ferme est marquée **« interrompue »** au démarrage suivant : pas de reprise automatique.
+- Historique dans `core__jobs` (200 dernières). Une tâche en cours quand l'app se ferme est marquée **« interrompue »** au démarrage suivant, avec ce qu'elle avait fait (son détail) ; v0.49.0 : une tâche **reprenable** (`resumable: true`) est remise en file au démarrage et repart de son dernier point de reprise (`job.state`, écrit par `job.checkpoint(…)`).
 - `get`, `list`, `cancel` ne voient que les tâches du module. Pour qu'un autre module lance une tâche, on expose un service qui appelle `enqueue`.
+
+### 5.5 bis Tâches de fond : la règle (v0.49.0, ADR 0066)
+
+**Toute opération qui peut durer plus d'une seconde est une TÂCHE DE FOND** : copie, analyse d'un dossier, import, déplacement de beaucoup de fichiers, mise à jour d'un disque, archivage, lecture de textes… La requête **rend la main tout de suite** avec l'identifiant de la tâche (`{ jobId }`), l'interface suit l'avancement par le flux d'événements des tâches. **Jamais une requête qui attend la fin du travail** : une page ne se fige pas, et aucun délai d'attente ne peut faire échouer un long travail.
+
+Côté serveur :
+
+```ts
+ctx.jobs.define<{ files: string[] }, Result>(
+  'copy',
+  async (job) => {
+    for (const [i, f] of job.input.files.entries()) {
+      if (job.signal.aborted) break;
+      job.step(i, job.input.files.length, { unit: 'fichiers', current: f }); // « 12 / 340 fichiers », le temps restant suit
+      try {
+        await copyOne(f); // nom temporaire, relu, puis mis en place : rien à moitié écrit
+      } catch (error) {
+        job.problem(f, String(error)); // listé avec sa raison, il reste à sa place ; les autres continuent
+      }
+      job.checkpoint({ next: i + 1 }); // une tâche reprenable repart d'ici après un redémarrage
+    }
+    return result; // gardé même après une annulation (ce qui était fait, son « Annuler »)
+  },
+  { resumable: true, retry: (input, errors) => ({ files: errors.map((e) => e.item) }) },
+);
+ctx.routes.post('/copy', (request) => ({ jobId: ctx.jobs.enqueue('copy', input, { title }).id }));
+```
+
+- `job.step(done, total, { unit, current })` : le compte, l'élément en cours ; le socle calcule la fraction et **le temps restant**.
+- `job.problem(item, raison)` : un élément qui échoue ne fait jamais échouer les autres ; le compte rendu liste **chaque** erreur avec sa raison ; `retry` déclare « **Réessayer ceux-là** » (`POST /api/core/jobs/:id/retry`).
+- Une vérification rapide (droit, chemin, refus) se fait **avant** de mettre la tâche en file, pour répondre tout de suite (409, 400…).
+- Interface (`@hub/sdk/frontend`) : `JobCard` (une tâche : compte, élément en cours, temps restant, Annuler, erreurs, Réessayer), `waitForJob(id)` (la fin d'une tâche, sans jamais tenir une requête), `useJobs(moduleId)`. Le socle montre un témoin dans la barre latérale (Tâches) quand une tâche tourne ou attend, et avertit si l'on ferme ToolBox pendant ce temps.
+- Les fichiers d'un dossier se lisent de façon **asynchrone** (`fs.promises.opendir`), jamais par un parcours synchrone qui bloque le serveur.
 
 ### 5.6 `ctx.scheduler` — tâches périodiques
 

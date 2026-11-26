@@ -240,6 +240,13 @@ export function registerCoreRoutes(app: FastifyInstance, hub: Hub, appVersion: s
     return { ok: true };
   });
 
+  // v0.49.0: « Réessayer ceux-là » — a new job for the items that failed.
+  app.post<{ Params: { id: string } }>('/api/core/jobs/:id/retry', async (request, reply) => {
+    const job = hub.jobs.retry(request.params.id);
+    if (!job) return reply.code(409).send({ error: 'Rien à réessayer pour cette tâche' });
+    return job;
+  });
+
   app.get('/api/core/jobs/stream', { config: { streamTicket: true } }, async (request, reply) => {
     const stream = openEventStream(request, reply);
     const off = hub.bus.on(JOB_UPDATED_EVENT, (job) => stream.send('job', job as JobInfo));

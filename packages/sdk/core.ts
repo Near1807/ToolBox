@@ -795,6 +795,32 @@ export interface JobInfo {
   createdAt: string;
   startedAt: string | null;
   finishedAt: string | null;
+  /** v0.49.0: what the job reports beyond a fraction (counts, current item, errors), or null. */
+  details: JobDetails | null;
+}
+
+/**
+ * v0.49.0 (MODULES.md §5.6 bis): the detail of a background task — « 1 234 /
+ * 5 000 fichiers », what it works on now, the time left, every item that
+ * failed with its reason (« Réessayer ceux-là »).
+ */
+export interface JobDetails {
+  done: number | null;
+  total: number | null;
+  /** The unit, plural (« fichiers »). */
+  unit: string | null;
+  /** What is being worked on now (a file name), or null. */
+  current: string | null;
+  /** Seconds left, estimated by the hub from the progress so far, or null. */
+  etaSeconds: number | null;
+  /** The items that failed and why (the first 500). */
+  errors: { item: string; reason: string }[];
+  /** Every item that failed (more than kept above, possibly). */
+  errorCount: number;
+  /** « Réessayer ceux-là » is possible (the job type declares retry). */
+  retryable: boolean;
+  /** Re-queued at a start after ToolBox closed while it ran (resumable job). */
+  resumed: boolean;
 }
 
 export interface JobRunContext<TInput> {
@@ -804,12 +830,41 @@ export interface JobRunContext<TInput> {
   readonly signal: AbortSignal;
   /** Reports progress (0..1) and an optional French status message. */
   progress(fraction: number | null, message?: string): void;
+  /**
+   * v0.49.0: reports « done / total unit » and the item being worked on; the
+   * fraction and the time left follow. `total` null: unknown yet.
+   */
+  step(
+    done: number,
+    total: number | null,
+    options?: { unit?: string; current?: string | null },
+  ): void;
+  /** v0.49.0: one item failed (it stays where it was): listed in the report, never silent. */
+  problem(item: string, reason: string): void;
+  /**
+   * v0.49.0: what a resumable job saved last (checkpoint), given back when it
+   * is resumed after a restart; null the first time.
+   */
+  readonly state: unknown;
+  /** v0.49.0: saves where the job is (resumable jobs): kept across a restart. */
+  checkpoint(state: unknown): void;
   readonly logger: ModuleLogger;
 }
 
 export interface JobDefinitionOptions {
   /** How many jobs of this type may run at the same time (default 1). */
   concurrency?: number;
+  /**
+   * v0.49.0: queued again at the next start when ToolBox closed while it ran
+   * (its last checkpoint in `state`). Otherwise it is « interrompue » with
+   * what it had done.
+   */
+  resumable?: boolean;
+  /**
+   * v0.49.0: « Réessayer ceux-là » — the input of a new job for the items
+   * that failed (null: nothing to retry).
+   */
+  retry?: (input: unknown, errors: { item: string; reason: string }[], result: unknown) => unknown;
 }
 
 export interface ModuleJobs {

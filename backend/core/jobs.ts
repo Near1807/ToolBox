@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type {
   JobDefinitionOptions,
+  JobDetails,
   JobInfo,
   JobRunContext,
   JobStatus,
@@ -13,6 +14,8 @@ import type { EventBus } from './events';
 export const JOB_UPDATED_EVENT = 'core:job.updated';
 const PROGRESS_THROTTLE_MS = 250;
 const HISTORY_KEPT = 200;
+/** Items that failed, kept per job (the count goes on). */
+const ERRORS_KEPT = 500;
 
 type Handler = (job: JobRunContext<unknown>) => Promise<unknown>;
 
@@ -20,6 +23,8 @@ interface Definition {
   handler: Handler;
   concurrency: number;
   logger: ModuleLogger;
+  resumable: boolean;
+  retry: JobDefinitionOptions['retry'] | null;
 }
 
 interface Row {
@@ -36,6 +41,8 @@ interface Row {
   created_at: string;
   started_at: string | null;
   finished_at: string | null;
+  details: string | null;
+  state: string | null;
 }
 
 function toInfo(row: Row): JobInfo {
@@ -52,20 +59,40 @@ function toInfo(row: Row): JobInfo {
     createdAt: row.created_at,
     startedAt: row.started_at,
     finishedAt: row.finished_at,
+    details: row.details === null ? null : (JSON.parse(row.details) as JobDetails),
   };
 }
+
+const emptyDetails = (): JobDetails => ({
+  done: null,
+  total: null,
+  unit: null,
+  current: null,
+  etaSeconds: null,
+  errors: [],
+  errorCount: 0,
+  retryable: false,
+  resumed: false,
+});
 
 /**
  * Long-running tasks (video renders…): FIFO queue per job type with a
  * concurrency limit, real progress, cancellation (AbortSignal), history in
  * core__jobs. Jobs still queued or running when the app quit are marked
- * "interrupted" at the next start (no automatic resume).
+ * "interrupted" at the next start; v0.49.0: those of a resumable type are
+ * queued again once the modules are loaded (resumeInterrupted), with their
+ * last checkpoint. Each job also reports its detail (counts, current item,
+ * time left, every failed item) and may be retried for its failed items.
  */
 export class JobManager {
   private readonly definitions = new Map<string, Definition>();
   private readonly controllers = new Map<string, AbortController>();
   private readonly running = new Map<string, number>();
   private readonly lastProgressEmit = new Map<string, number>();
+  /** The detail being built by each running job (written with the throttle, and at the end). */
+  private readonly live = new Map<string, { details: JobDetails; since: number; base: number }>();
+  /** Jobs this start found interrupted (resumed when their type is resumable). */
+  private interruptedNow: string[] = [];
   private stopped = false;
 
   constructor(
@@ -76,6 +103,11 @@ export class JobManager {
   /** Marks jobs left over by a previous run and trims the history. */
   recover(): void {
     const now = new Date().toISOString();
+    this.interruptedNow = (
+      this.handle.db
+        .prepare(`SELECT id FROM core__jobs WHERE status IN ('queued', 'running')`)
+        .all() as { id: string }[]
+    ).map((r) => r.id);
     this.handle.db
       .prepare(
         `UPDATE core__jobs SET status = 'interrupted', finished_at = ?,
@@ -104,6 +136,8 @@ export class JobManager {
           handler: handler as Handler,
           concurrency: Math.max(1, options?.concurrency ?? 1),
           logger,
+          resumable: options?.resumable === true,
+          retry: options?.retry ?? null,
         });
       },
       enqueue: (type, input, options) => this.enqueue(moduleId, type, input, options.title),
@@ -114,6 +148,65 @@ export class JobManager {
       list: () => this.list({ moduleId }),
       cancel: (id) => (this.get(id)?.moduleId === moduleId ? this.cancel(id) : false),
     };
+  }
+
+  /**
+   * v0.49.0: after the modules are loaded, the jobs interrupted by the last
+   * close are queued again when their type is resumable (their checkpoint
+   * kept); the others stay « interrompue » with what they had done.
+   */
+  resumeInterrupted(): number {
+    let resumed = 0;
+    for (const id of this.interruptedNow) {
+      const row = this.handle.db.prepare('SELECT * FROM core__jobs WHERE id = ?').get(id) as
+        Row | undefined;
+      if (!row) continue;
+      const definition = this.definitions.get(this.key(row.module_id, row.type));
+      if (!definition?.resumable) continue;
+      const details = {
+        ...(row.details ? (JSON.parse(row.details) as JobDetails) : emptyDetails()),
+        resumed: true,
+      };
+      this.update(id, {
+        status: 'queued',
+        finished_at: null,
+        message: 'Reprise après la fermeture de ToolBox',
+        details: JSON.stringify(details),
+      });
+      resumed++;
+      queueMicrotask(() => this.pump(row.module_id, row.type));
+    }
+    this.interruptedNow = [];
+    return resumed;
+  }
+
+  /** v0.49.0: how many jobs run or wait now (the sidebar's witness, the warning at quit). */
+  activeCount(): number {
+    return (
+      this.handle.db
+        .prepare(`SELECT COUNT(*) AS n FROM core__jobs WHERE status IN ('queued', 'running')`)
+        .get() as { n: number }
+    ).n;
+  }
+
+  /**
+   * v0.49.0: « Réessayer ceux-là » — a new job of the same type for the items
+   * that failed (the type's retry gives its input). Null when nothing to retry.
+   */
+  retry(id: string): JobInfo | null {
+    const row = this.handle.db.prepare('SELECT * FROM core__jobs WHERE id = ?').get(id) as
+      Row | undefined;
+    if (!row) return null;
+    const definition = this.definitions.get(this.key(row.module_id, row.type));
+    const details = row.details ? (JSON.parse(row.details) as JobDetails) : null;
+    if (!definition?.retry || !details?.errors.length) return null;
+    const input = definition.retry(
+      row.input === null ? null : JSON.parse(row.input),
+      details.errors,
+      row.result === null ? null : JSON.parse(row.result),
+    );
+    if (input === null || input === undefined) return null;
+    return this.enqueue(row.module_id, row.type, input, `${row.title} (réessai)`);
   }
 
   /** Removes the definitions of a module whose registration failed. */
@@ -189,7 +282,10 @@ export class JobManager {
     status: JobStatus,
     extra: { message?: string | null; error?: string | null; result?: unknown } = {},
   ): void {
+    const live = this.live.get(id)?.details;
+    if (live) live.etaSeconds = null;
     this.update(id, {
+      ...(live ? { details: JSON.stringify({ ...live, current: null }) } : {}),
       status,
       finished_at: new Date().toISOString(),
       message: extra.message ?? null,
@@ -223,8 +319,28 @@ export class JobManager {
     const controller = new AbortController();
     this.controllers.set(id, controller);
     this.update(id, { status: 'running', started_at: new Date().toISOString(), progress: 0 });
-    const row = this.handle.db.prepare('SELECT input FROM core__jobs WHERE id = ?').get(id) as {
-      input: string | null;
+    const row = this.handle.db
+      .prepare('SELECT input, details, state FROM core__jobs WHERE id = ?')
+      .get(id) as { input: string | null; details: string | null; state: string | null };
+    const details: JobDetails = {
+      ...emptyDetails(),
+      ...(row.details ? (JSON.parse(row.details) as JobDetails) : {}),
+      retryable: definition.retry !== null,
+      etaSeconds: null,
+    };
+    // The time left counts from now (a resumed job: from where it resumes).
+    this.live.set(id, { details, since: Date.now(), base: details.done ?? 0 });
+    const flush = (force = false) => {
+      const now = Date.now();
+      if (!force && now - (this.lastProgressEmit.get(id) ?? 0) < PROGRESS_THROTTLE_MS) return;
+      this.lastProgressEmit.set(id, now);
+      const d = this.live.get(id)?.details;
+      if (!d) return;
+      const fraction = d.total ? Math.min(1, (d.done ?? 0) / d.total) : null;
+      this.update(id, {
+        details: JSON.stringify(d),
+        ...(fraction === null ? {} : { progress: fraction }),
+      });
     };
 
     const context: JobRunContext<unknown> = {
@@ -244,6 +360,38 @@ export class JobManager {
           message === undefined ? { progress: clamped } : { progress: clamped, message },
         );
       },
+      step: (done, total, options) => {
+        if (controller.signal.aborted) return;
+        const l = this.live.get(id);
+        if (!l) return;
+        const d = l.details;
+        d.done = done;
+        d.total = total;
+        if (options?.unit !== undefined) d.unit = options.unit;
+        if (options?.current !== undefined) d.current = options.current;
+        // The time left: the rate since this run started, applied to what remains.
+        const elapsed = (Date.now() - l.since) / 1000;
+        const progressed = done - l.base;
+        d.etaSeconds =
+          total !== null && progressed > 0 && elapsed > 1
+            ? Math.max(0, Math.round(((total - done) * elapsed) / progressed))
+            : null;
+        flush(total !== null && done >= total);
+      },
+      problem: (item, reason) => {
+        const d = this.live.get(id)?.details;
+        if (!d) return;
+        d.errorCount++;
+        if (d.errors.length < ERRORS_KEPT) d.errors.push({ item, reason });
+        flush();
+      },
+      state: row.state === null ? null : JSON.parse(row.state),
+      checkpoint: (state) => {
+        if (!this.handle.db.open) return;
+        this.handle.db
+          .prepare('UPDATE core__jobs SET state = ? WHERE id = ?')
+          .run(JSON.stringify(state ?? null), id);
+      },
     };
 
     const abortedStatus = (): [JobStatus, string] =>
@@ -254,8 +402,9 @@ export class JobManager {
     try {
       const result = await definition.handler(context);
       if (controller.signal.aborted) {
+        // v0.49.0: what it returned is kept (what was done before the stop, its « Annuler »).
         const [status, message] = abortedStatus();
-        this.finish(id, status, { message });
+        this.finish(id, status, { message, result });
       } else this.finish(id, 'succeeded', { result });
     } catch (error) {
       if (controller.signal.aborted) {
@@ -269,6 +418,7 @@ export class JobManager {
     } finally {
       this.controllers.delete(id);
       this.lastProgressEmit.delete(id);
+      this.live.delete(id);
     }
   }
 

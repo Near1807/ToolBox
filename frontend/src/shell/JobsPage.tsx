@@ -1,57 +1,35 @@
-import {
-  Button,
-  Card,
-  EmptyState,
-  Page,
-  ProgressBar,
-  useJobs,
-  type JobStatus,
-} from '@hub/sdk/frontend';
+import { EmptyState, JobCard, Page, retryJob, useJobs, type JobInfo } from '@hub/sdk/frontend';
 import { useModules } from '../modules/ModulesContext';
-import { formatDateTime } from './format';
-
-export const JOB_STATUS_LABELS: Record<JobStatus, string> = {
-  queued: 'En attente',
-  running: 'En cours',
-  succeeded: 'Terminée',
-  failed: 'Échec',
-  cancelled: 'Annulée',
-  interrupted: 'Interrompue',
-};
 
 export function JobsPage() {
   const { jobs, cancel } = useJobs();
   const { modules } = useModules();
   const moduleName = (id: string) => modules.find((m) => m.id === id)?.manifest.name ?? id;
+  // v0.49.0: the place of a waiting task among those of its type (they run in order).
+  const position = (job: JobInfo) =>
+    jobs
+      .filter((j) => j.status === 'queued' && j.moduleId === job.moduleId && j.type === job.type)
+      .sort((x, y) => x.createdAt.localeCompare(y.createdAt))
+      .findIndex((j) => j.id === job.id) + 1;
 
   return (
-    <Page title="Tâches" subtitle="Rendus et autres traitements longs, tous outils confondus.">
+    <Page
+      title="Tâches"
+      subtitle="Rendus, copies, imports et autres traitements longs, tous outils confondus."
+    >
       {jobs.length === 0 && <EmptyState title="Aucune tâche pour l’instant." />}
-      {jobs.map((job) => (
-        <Card
-          key={job.id}
-          title={
-            <>
-              {job.title} <span className="muted">· {moduleName(job.moduleId)}</span>
-            </>
-          }
-          actions={
-            (job.status === 'queued' || job.status === 'running') && (
-              <Button variant="secondary" small onClick={() => void cancel(job.id)}>
-                Annuler
-              </Button>
-            )
-          }
-        >
-          <div className="job-row__meta">
-            <span className={`badge badge--${job.status}`}>{JOB_STATUS_LABELS[job.status]}</span>
-            <span className="muted">{formatDateTime(job.createdAt)}</span>
-            {job.message && <span>{job.message}</span>}
-          </div>
-          {job.status === 'running' && <ProgressBar value={job.progress} />}
-          {job.error && <p className="error">{job.error}</p>}
-        </Card>
-      ))}
+      <div className="ui-jobs">
+        {jobs.map((job) => (
+          <JobCard
+            key={job.id}
+            job={job}
+            source={moduleName(job.moduleId)}
+            position={job.status === 'queued' ? position(job) : undefined}
+            onCancel={(id) => void cancel(id)}
+            onRetry={(j) => void retryJob(j.id).catch(() => undefined)}
+          />
+        ))}
+      </div>
     </Page>
   );
 }

@@ -185,4 +185,13 @@ export const coreMigrations: Migration[] = [
       );
     `,
   },
+  {
+    version: 8,
+    description:
+      'v0.49.0: background tasks report their detail (counts, current item, errors) and keep a checkpoint (resumed after a restart)',
+    up: `
+      ALTER TABLE core__jobs ADD COLUMN details TEXT;
+      ALTER TABLE core__jobs ADD COLUMN state TEXT;
+    `,
+  },
 ];

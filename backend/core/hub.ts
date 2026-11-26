@@ -322,6 +322,9 @@ export class Hub {
 
     this.discover();
     await this.loadModules();
+    // v0.49.0: a resumable task interrupted by the last close goes on where it stopped.
+    const resumed = this.jobs.resumeInterrupted();
+    if (resumed) this.logger.info(`${resumed} tâche(s) reprise(s) après la fermeture de ToolBox`);
     this.registerAssistantRights();
 
     // Generated files deleted or moved outside the app since the last start.

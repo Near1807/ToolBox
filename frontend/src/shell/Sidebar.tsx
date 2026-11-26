@@ -3,9 +3,11 @@ import {
   ErrorBoundary,
   Icon,
   ModuleProvider,
+  isActiveJob,
   type MenuItem,
   UndoToast,
   useContextMenu,
+  useJobs,
 } from '@hub/sdk/frontend';
 import { NavLink, useNavigate } from 'react-router';
 import {
@@ -58,6 +60,7 @@ export function Sidebar(props: { fullscreen: boolean }) {
   const [renaming, setRenaming] = useState<string | null>(null);
   const [drop, setDrop] = useState<DropTarget | null>(null);
   const search = useRef<HTMLInputElement>(null);
+  const activeJobs = useJobs().jobs.filter(isActiveJob).length;
 
   // v0.47.0: Ctrl+K opens the hub's search (SearchPalette); this field filters the tools.
 
@@ -384,9 +387,19 @@ export function Sidebar(props: { fullscreen: boolean }) {
           <FolderOpen size={16} />
           <span className="nav-link__label">Fichiers générés</span>
         </NavLink>
-        <NavLink to="/jobs" className="nav-link">
+        <NavLink to="/jobs" className="nav-link" data-jobs-link>
           <Activity size={16} />
           <span className="nav-link__label">Tâches</span>
+          {/* v0.49.0: a task runs or waits (any module). */}
+          {activeJobs > 0 && (
+            <span
+              className="nav-link__count nav-link__count--busy"
+              title={`${activeJobs} tâche${activeJobs > 1 ? 's' : ''} en cours ou en attente`}
+              data-jobs-active
+            >
+              {activeJobs}
+            </span>
+          )}
         </NavLink>
         <NavLink to="/logs" className="nav-link">
           <ScrollText size={16} />

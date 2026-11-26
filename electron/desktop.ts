@@ -56,8 +56,29 @@ function updateTray(): void {
 }
 
 export function quitApp(): void {
+  // v0.49.0: « Quitter » from the tray asks too while tasks run.
+  if (window && !confirmBusy(window)) return;
   quitting = true;
   app.quit();
+}
+
+let busyList: () => string[] = () => [];
+
+/** While tasks run or wait: asks before closing (true: close). */
+function confirmBusy(main: BrowserWindow): boolean {
+  const busy = busyList();
+  if (busy.length === 0) return true;
+  const choice = dialog.showMessageBoxSync(main, {
+    type: 'warning',
+    title: 'ToolBox',
+    message: 'Une tâche est en cours : fermer quand même ?',
+    detail: `${busy.slice(0, 5).join('\n')}${busy.length > 5 ? `\n… et ${busy.length - 5} autre(s)` : ''}\n\nAu prochain lancement, une tâche qui sait reprendre (import du Coffre, envoi YouTube…) repart là où elle s’était arrêtée ; les autres sont marquées « interrompues » avec ce qu’elles avaient fait (page Tâches). Rien n’est laissé à moitié écrit.`,
+    buttons: ['Fermer quand même', 'Annuler'],
+    defaultId: 1,
+    cancelId: 1,
+    noLink: true,
+  });
+  return choice === 0;
 }
 
 /**
@@ -67,24 +88,13 @@ export function quitApp(): void {
  */
 export function attachDesktop(main: BrowserWindow, busyJobs: () => string[] = () => []): void {
   window = main;
+  busyList = busyJobs;
   app.on('before-quit', () => {
     quitting = true;
   });
   main.on('close', (event) => {
     if (!keepInTray && !quitting) {
-      const busy = busyJobs();
-      if (busy.length === 0) return;
-      const choice = dialog.showMessageBoxSync(main, {
-        type: 'warning',
-        title: 'ToolBox',
-        message: 'Une tâche est en cours : fermer quand même ?',
-        detail: `${busy.slice(0, 5).join('\n')}${busy.length > 5 ? `\n… et ${busy.length - 5} autre(s)` : ''}\n\nUn envoi YouTube interrompu reprendra au prochain lancement, là où il s’était arrêté. Pour qu’il continue fenêtre fermée : Réglages › « Lancer ToolBox au démarrage de Windows » (ToolBox reste alors dans la zone de notification).`,
-        buttons: ['Fermer quand même', 'Annuler'],
-        defaultId: 1,
-        cancelId: 1,
-        noLink: true,
-      });
-      if (choice === 1) event.preventDefault();
+      if (!confirmBusy(main)) event.preventDefault();
       return;
     }
     if (!keepInTray || quitting) return;
