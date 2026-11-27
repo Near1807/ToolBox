@@ -1100,9 +1100,12 @@ export default defineBackendModule({
           pending: states.filter((st) => st === 'pending').length,
           archived: states.filter((st) => st === 'archived').length,
           index: textIndex.status(),
-          missingOnPc: rows.filter(
-            (r) => !r.archived_at && r.rel_path && !existsSync(library.abs(r.rel_path)),
-          ).length,
+          // v0.51.0 F: a project followed in place is looked for in its own folder.
+          missingOnPc: rows.filter((r) => {
+            if (r.archived_at || !r.rel_path) return false;
+            const file = absOf(r);
+            return !file || !existsSync(file);
+          }).length,
         },
       };
     });

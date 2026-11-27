@@ -111,6 +111,8 @@ export function registerHistoryRoutes(d: CoffreDeps, disk: DiskManager): void {
     if (!version || version.item_id !== row.id) throw new HttpError(404, 'Version introuvable');
     // v0.51.0 C: a file inside a project.
     if (version.inner_rel) return restoreInner(row, version, diskRow!, root);
+    if (row.tracked_path)
+      throw new HttpError(409, 'Suivi en place : ses fichiers se restaurent un par un');
     return disk.exclusive('restauration d’une version', async () => {
       await disk.scanPc();
       const now = item(row.id);
