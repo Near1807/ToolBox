@@ -49,6 +49,7 @@ const thermo: FolderDto = {
   inside: false,
   defaults: [],
   courseName: null,
+  tracked: null,
 };
 
 describe('Pour tous', () => {

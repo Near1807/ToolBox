@@ -163,13 +163,21 @@ export function useTreeActions() {
       try {
         // A project goes to the Recycle Bin whole (indivisible), confirmed.
         if (c.project) {
+          // v0.51.0 F: followed in place — « Retirer du Coffre »: its folder stays intact.
           setDialog({
             kind: 'confirm',
-            text: `Mettre le projet « ${c.name} » dans la corbeille du Coffre (entier) ?`,
-            ok: 'Supprimer le projet',
+            text: c.tracked
+              ? `Retirer « ${c.name} » du Coffre ? Il ne sera plus suivi ; son dossier (${c.tracked.path}) reste intact. Sa copie du disque ira dans la corbeille du disque à la prochaine mise à jour.`
+              : `Mettre le projet « ${c.name} » dans la corbeille du Coffre (entier) ?`,
+            ok: c.tracked ? 'Retirer du Coffre' : 'Supprimer le projet',
             run: async () => {
               const r = await api.delete<{ undoId: string }>(`/folders/${c.id}/project`);
-              done(`Projet « ${c.name} » dans la corbeille du Coffre.`, r.undoId);
+              done(
+                c.tracked
+                  ? `« ${c.name} » n’est plus suivi (son dossier est intact).`
+                  : `Projet « ${c.name} » dans la corbeille du Coffre.`,
+                r.undoId,
+              );
             },
           });
           return;
@@ -296,7 +304,9 @@ export function useTreeActions() {
         {
           label: c.project ? 'Archiver le projet (entier)' : 'Archiver le dossier',
           icon: 'disc',
-          disabled: noDisk,
+          disabled: c.tracked
+            ? 'Suivi en place : jamais archivé (son dossier reste où il est)'
+            : noDisk,
           onSelect: () => archiveFolder(c),
         },
         {
@@ -322,7 +332,11 @@ export function useTreeActions() {
         },
         { separator: true },
         {
-          label: c.project ? 'Supprimer le projet (entier)…' : 'Supprimer…',
+          label: c.tracked
+            ? 'Retirer du Coffre (le dossier reste en place)…'
+            : c.project
+              ? 'Supprimer le projet (entier)…'
+              : 'Supprimer…',
           icon: 'trash',
           shortcut: 'Suppr',
           onSelect: () => void remove(c),

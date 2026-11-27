@@ -63,6 +63,7 @@ import { registerDeposit } from './deposit';
 import { ProjectIndex } from './inner';
 import { ProjectRules } from './exclusions';
 import { registerProjectRoutes } from './projects';
+import { registerTrackedRoutes } from './tracked';
 import { gitChanges, readGit, type GitChanges } from './git';
 import { registerDiskExcludedRoutes } from './project-update';
 import { registerReset } from './reset';
@@ -345,6 +346,8 @@ export default defineBackendModule({
         const c = copy === undefined ? copiesOf([row.id]).get(row.id) : copy;
         return c && disk.state.root ? disk.abs(disk.state.root, c.rel_path) : null;
       }
+      // v0.51.0 F: a project followed in place: its real folder.
+      if (row.tracked_path) return row.tracked_path;
       return row.rel_path ? library.abs(row.rel_path) : null;
     };
 
@@ -396,6 +399,7 @@ export default defineBackendModule({
           diskState: stateOf(r, copy),
           unavailable: Boolean(r.archived_at && !file),
           originalName: r.original_name && r.original_name !== r.name ? r.original_name : null,
+          tracked: Boolean(r.tracked_path),
         };
       });
     };
@@ -439,7 +443,11 @@ export default defineBackendModule({
         )
         .all() as ItemRow[];
       const own = new Map<string, { n: number; fresh: number }>();
+      // v0.51.0 F: the projects followed in place (their real folder, « introuvable »).
+      const followed = new Map<string, { path: string; missing: boolean }>();
       for (const r of list) {
+        if (r.kind === 'project' && r.tracked_path)
+          followed.set(r.folder_id!, { path: r.tracked_path, missing: Boolean(r.missing_at) });
         const c = own.get(r.folder_id!) ?? { n: 0, fresh: 0 };
         c.n += r.kind === 'project' ? projectCount(r) : 1;
         if (r.created_at >= since) c.fresh++;
@@ -477,6 +485,7 @@ export default defineBackendModule({
           inside: inside(c),
           defaults: defaultsOf(c),
           courseName: c.course_name ?? null,
+          tracked: followed.get(c.id) ?? null,
         };
       });
     };
@@ -776,6 +785,11 @@ export default defineBackendModule({
       const entry = projectItemOf(id);
       if (entry?.archived_at)
         throw new HttpError(409, 'Ce projet est archivé : réactive-le d’abord');
+      if (entry?.tracked_path)
+        throw new HttpError(
+          409,
+          'Suivi en place : « Le copier dans le Coffre » d’abord (son dossier n’est pas dans le Coffre)',
+        );
       if (entry?.trashed_at) throw new HttpError(409, 'Ce projet est dans la corbeille');
       const rel = folderOf(id);
       const abs = library.abs(rel);
@@ -974,6 +988,22 @@ export default defineBackendModule({
       getRow,
       dtos,
       labelsOf,
+    });
+    // v0.51.0 F: the projects followed in place (ADR 0068).
+    registerTrackedRoutes({
+      ctx,
+      store,
+      projects,
+      getFolder,
+      projectItemOf,
+      refreshProject,
+      remember,
+      kick: () => textIndex.kick(),
+      getRow,
+      dtos,
+      labelsOf,
+      library,
+      diskBusy: () => disk.busy,
     });
 
     // --- Lists ------------------------------------------------------------------------
@@ -1236,6 +1266,14 @@ export default defineBackendModule({
               `SELECT 1 FROM ${items} WHERE deleted_at IS NULL AND rel_path = ? COLLATE NOCASE`,
             )
             .get(rel),
+        ),
+      hasTrackedAt: (abs) =>
+        Boolean(
+          ctx.db
+            .prepare(
+              `SELECT 1 FROM ${items} WHERE deleted_at IS NULL AND tracked_path = ? COLLATE NOCASE`,
+            )
+            .get(path.resolve(abs)),
         ),
       after: (paths, created) => {
         if (created) textIndex.kick();
@@ -1680,7 +1718,9 @@ export default defineBackendModule({
     /** A project goes with its folder (indivisible): the folder leaves the map. */
     const trash = async (row: ItemRow) => {
       let relPath = row.rel_path;
-      if (row.rel_path && library.exists(row.rel_path))
+      // v0.51.0 F: a project followed in place — « Retirer du Coffre »: it is no longer
+      // followed; its real folder is never touched (its disk copy goes to the disk's bin).
+      if (!row.tracked_path && row.rel_path && library.exists(row.rel_path))
         relPath = await library.move(row.rel_path, `${TRASH_FOLDER}/${row.id}`);
       store.update('items', row.id, {
         trashed_at: new Date().toISOString(),
@@ -1700,7 +1740,8 @@ export default defineBackendModule({
         dir = parent === '.' ? '' : parent;
       }
       let relPath = row.rel_path;
-      if (row.rel_path && library.exists(row.rel_path))
+      if (row.tracked_path && folderOk) relPath = folderOf(row.folder_id);
+      else if (row.rel_path && library.exists(row.rel_path))
         relPath = await library.move(row.rel_path, dir);
       store.update('items', row.id, {
         trashed_at: null,
@@ -1741,7 +1782,8 @@ export default defineBackendModule({
       if (requestBody(request).confirm !== true)
         throw new HttpError(400, 'Effacement définitif : confirmation nécessaire');
       // An archived one has no file on the PC: its path may be another's now.
-      if (row.rel_path && !row.archived_at) await library.erase(row.rel_path);
+      // v0.51.0 F: a project followed in place: its real folder is never erased.
+      if (row.rel_path && !row.archived_at && !row.tracked_path) await library.erase(row.rel_path);
       const trashDir = `${TRASH_FOLDER}/${row.id}`;
       if (library.exists(trashDir)) await library.erase(trashDir);
       // A copy on the disk goes to the disk's Recycle Bin at the next update and can be

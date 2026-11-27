@@ -32,6 +32,8 @@ export interface DepositEntry {
   labels: LabelDto[];
   /** A folder: its sub-folders (« » = itself) marked « Projet » (proposed, changeable). */
   projects: string[];
+  /** v0.51.0 F: among them, the ones « laissés en place et suivis » (never copied). */
+  tracked: string[];
   /** « Garder quand même » a duplicate. */
   keepDuplicate: boolean;
   state: 'todo' | 'done' | 'later' | 'skipped';
@@ -64,6 +66,7 @@ export function entriesOf(
       labels: p.labels,
       // The highest projects proposed (a project inside a project does not count).
       projects: (p.projects ?? []).filter((h) => !h.nested).map((h) => h.rel),
+      tracked: [],
       keepDuplicate: false,
       state: 'todo',
       checked: true,
@@ -108,6 +111,9 @@ export function applyEntry(entry: DepositEntry, later = false) {
     labels: entry.labels,
     keepDuplicate: entry.keepDuplicate,
     projects: entry.proposal.isDirectory ? entry.projects : undefined,
+    tracked: entry.proposal.isDirectory
+      ? entry.tracked.filter((t) => entry.projects.includes(t))
+      : undefined,
   };
 }
 

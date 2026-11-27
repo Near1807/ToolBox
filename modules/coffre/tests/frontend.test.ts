@@ -57,6 +57,7 @@ const ctx = (id: string, path: string[], count = 1): FolderDto => ({
   inside: false,
   defaults: [],
   courseName: null,
+  tracked: null,
 });
 
 const item = (name: string, over: Partial<ItemDto> = {}): ItemDto => ({
@@ -69,6 +70,7 @@ const item = (name: string, over: Partial<ItemDto> = {}): ItemDto => ({
   folderId: null,
   folderPath: null,
   inProject: false,
+  tracked: false,
   pinned: false,
   trashedAt: null,
   sourcePath: null,

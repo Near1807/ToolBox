@@ -363,6 +363,12 @@ export class DiskManager {
     const missing: string[] = [];
     for (const row of rows) {
       const r = await this.scanItem(row, options);
+      // v0.51.0 F: a project followed in place, its folder gone (renamed, moved, another
+      // disk): « introuvable », never forgotten; found again: followed again.
+      if (row.tracked_path && (r === 'missing') !== Boolean(row.missing_at))
+        this.d.store.update('items', row.id, {
+          missing_at: r === 'missing' ? new Date().toISOString() : null,
+        });
       if (r === 'missing') missing.push(row.id);
       else if (r !== 'unchanged') {
         const fields: Record<string, string | number | null> = {

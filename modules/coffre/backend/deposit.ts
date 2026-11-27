@@ -56,6 +56,11 @@ export interface DepositEntryInput {
   keepDuplicate?: boolean;
   /** A folder: the sub-folders (« » = itself) marked « Projet » (the highest only counts). */
   projects?: string[];
+  /**
+   * v0.51.0 F (ADR 0068): among `projects`, the ones « laissés en place et
+   * suivis » — never copied: the Coffre follows them in their folder.
+   */
+  tracked?: string[];
 }
 
 export interface AnalyzeResult {
@@ -105,6 +110,8 @@ export interface DepositDeps {
   getRow: (id: string) => ItemRow;
   /** A file already has this path in the Coffre (a copy left without a row does not). */
   hasItemAt: (rel: string) => boolean;
+  /** v0.51.0: this real folder is already followed in place. */
+  hasTrackedAt: (abs: string) => boolean;
   /** v0.51.0: a project's files indexed now (its fingerprint and size follow, ADR 0068). */
   refreshProject: (itemId: string, signal?: AbortSignal) => Promise<unknown>;
   /** After a deposit: the search reads the new texts; downloads put away are no longer proposed. */
@@ -465,6 +472,7 @@ export function registerDeposit(d: DepositDeps) {
         size: f.size,
       }));
       job.step(count.done, count.total, { current: `${rootName}/${p}` });
+      const follow = (e.tracked ?? []).includes(p);
       try {
         const parentRel = p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '';
         const holder = p ? folderFor(parentRel) : parentId;
@@ -472,9 +480,46 @@ export function registerDeposit(d: DepositDeps) {
         const holderDir = p ? d.folderOf(holder) : parentId ? d.folderOf(parentId) : '';
         const dirAbs = library.abs(holderDir);
         await mkdir(dirAbs, { recursive: true });
+        const rel = holderDir ? `${holderDir}/${folderName(projectName)}` : folderName(projectName);
+        // v0.51.0 F: followed in place — nothing copied; it stays where it is.
+        if (follow) {
+          if (d.hasTrackedAt(src)) throw new Error('ce dossier est déjà suivi par le Coffre');
+          const folderId = p ? folderFor(p) : folderFor('');
+          let entryId = '';
+          ctx.db.transaction(() => {
+            store.update('folders', folderId, { project: 1, end_of_route: 1 });
+            entryId = store.create<ItemRow & { updated_at: string }>('items', {
+              kind: 'project',
+              name: projectName,
+              rel_path: rel,
+              size: 0,
+              sha256: null,
+              ext: '',
+              folder_id: folderId,
+              pinned: 0,
+              trashed_at: null,
+              trash_from: null,
+              source_path: src,
+              source_sha256: null,
+              source_url: null,
+              referrer_url: null,
+              file_date: statSync(src).mtime.toISOString(),
+              archived_at: null,
+              stat_json: null,
+              opened_at: null,
+              original_name: projectName,
+              tracked_path: path.resolve(src),
+              missing_at: null,
+              exclusions_json: null,
+            }).id;
+            state.created.push(entryId);
+          });
+          await d.refreshProject(entryId, job.signal);
+          count.done += files.length;
+          continue;
+        }
         const sha = (await hashFiles(src, files, undefined, job.signal)).sha256;
         const target = path.join(dirAbs, folderName(projectName));
-        const rel = holderDir ? `${holderDir}/${folderName(projectName)}` : folderName(projectName);
         // Resumed: the project already in place, without its entry, same content: taken.
         let placed = false;
         if (existsSync(target) && !d.hasItemAt(rel)) {

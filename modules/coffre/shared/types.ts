@@ -85,6 +85,11 @@ export interface FolderDto {
   defaults: LabelValue[];
   /** « Lié au cours … » (null: automatic, by name or code; « - »: no course). */
   courseName: string | null;
+  /**
+   * v0.51.0 F (ADR 0068): a project « suivi en place » — its real folder on the
+   * PC (the Coffre never moves it), and whether it is found there now.
+   */
+  tracked: { path: string; missing: boolean } | null;
 }
 
 export interface ItemDto {
@@ -121,6 +126,8 @@ export interface ItemDto {
   unavailable: boolean;
   /** The name it had before being renamed (searchable), or null. */
   originalName: string | null;
+  /** v0.51.0 F: a project followed in place (its folder outside the Coffre, `path`). */
+  tracked: boolean;
 }
 
 export interface HomeDto {
@@ -507,4 +514,19 @@ export interface InnerFileDto {
 export interface InnerGroupDto {
   project: ItemDto;
   files: InnerHitDto[];
+}
+
+/** v0.51.0 F: a folder compared with a project's files (« Le retrouver… », « déjà là »). */
+export interface TrackCompareDto {
+  path: string;
+  /** Files found the same (path and fingerprint). */
+  same: number;
+  /** Changed, only in that folder, only in the Coffre's knowledge (at most 50 each). */
+  changed: string[];
+  added: string[];
+  missing: string[];
+  /** Files the Coffre knew. */
+  known: number;
+  /** At least half of them found the same. */
+  looksLike: boolean;
 }

@@ -38,6 +38,7 @@ import { shortDate } from './logic';
 import { DiskTrash } from './disk/DiskTrash';
 import { DefaultLabels } from './Labels';
 import { Inside } from './Inside';
+import { TrackedBar } from './Tracked';
 import { useDisk } from './disk/useDisk';
 
 /** The pills of a list: combinable (AND between keys, OR inside one). */
@@ -312,6 +313,12 @@ export function FolderPage() {
             <span className="coffre-chip coffre-chip--warn">pas encore tout sur le disque</span>
           )}
           {folder.project && <span className="coffre-kind coffre-kind--project">Projet</span>}
+          {folder.project && (
+            <TrackedBar
+              folder={folder}
+              size={(items.data ?? []).find((i) => i.kind === 'project')?.size ?? 0}
+            />
+          )}
           {folder.endOfRoute && !folder.project && (
             <span className="coffre-kind">Fin de route</span>
           )}

@@ -574,10 +574,16 @@ Ils restent sur le disque « ${diskName} » (vérifiés avant), et leur copie es
       },
       { separator: true },
       {
-        label: item.kind === 'project' ? 'Supprimer le projet (entier)' : 'Supprimer',
+        label: item.tracked
+          ? 'Retirer du Coffre (le dossier reste en place)'
+          : item.kind === 'project'
+            ? 'Supprimer le projet (entier)'
+            : 'Supprimer',
         icon: 'trash',
         danger: true,
-        confirm: `Mettre « ${item.name} » dans la corbeille du Coffre${item.kind === 'project' ? ' (le projet entier, indivisible)' : ''} ?\n\nTu pourras le récupérer (ou « Annuler » juste après).`,
+        confirm: item.tracked
+          ? `Retirer « ${item.name} » du Coffre ?\n\nIl ne sera plus suivi ; son dossier (${item.path}) reste intact.`
+          : `Mettre « ${item.name} » dans la corbeille du Coffre${item.kind === 'project' ? ' (le projet entier, indivisible)' : ''} ?\n\nTu pourras le récupérer (ou « Annuler » juste après).`,
         onSelect: () => trash(item),
       },
     ],

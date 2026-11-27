@@ -221,6 +221,17 @@ export function registerRestoreRoutes(d: CoffreDeps, disk: DiskManager): void {
             continue;
           }
           job.progress(0.05 + 0.93 * (done / total), item.name);
+          // v0.51.0 F: a project followed in place — its folder there: followed again, nothing
+          // copied; gone: copied back into the Coffre (no longer followed).
+          if (item.tracked_path) {
+            if (existsSync(item.tracked_path)) {
+              store.update('items', item.id, { missing_at: null });
+              report.already++;
+              done += item.size;
+              continue;
+            }
+            store.update('items', item.id, { tracked_path: null, missing_at: null });
+          }
           const source = path.join(p.folder, ...copy.rel_path.split('/'));
           const target = library.abs(item.rel_path);
           if (existsSync(target)) {

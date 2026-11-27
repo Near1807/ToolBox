@@ -2572,3 +2572,26 @@ button.coffre-value__text:hover {
   font-family: var(--font-mono);
   font-size: 0.85rem;
 }
+.coffre-tracked {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.coffre-kind--tracked {
+  border-color: var(--warning);
+  color: var(--warning);
+}
+.coffre-tracked__path {
+  max-width: 360px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  color: var(--text-2);
+}
+.coffre-foldersum__how {
+  margin-left: 6px;
+  padding: 1px 6px;
+  font-size: 0.8rem;
+}

@@ -384,6 +384,7 @@ export function Deposit(props: { entries: DepositEntry[]; onClose: () => void })
               <FolderSummary
                 entry={entry}
                 onProjects={(projects) => update(entry.key, { projects })}
+                onTracked={(tracked) => update(entry.key, { tracked })}
               />
             )}
             <Sheet
@@ -470,10 +471,15 @@ export function Deposit(props: { entries: DepositEntry[]; onClose: () => void })
  * the sub-folders that look like code projects, « Projet » proposed (a box each,
  * the reason shown; a project inside a project: only the highest counts).
  */
-function FolderSummary(props: { entry: DepositEntry; onProjects: (projects: string[]) => void }) {
+function FolderSummary(props: {
+  entry: DepositEntry;
+  onProjects: (projects: string[]) => void;
+  onTracked: (tracked: string[]) => void;
+}) {
   const p = props.entry.proposal;
   const hints = p.projects ?? [];
   const on = new Set(props.entry.projects);
+  const followed = new Set(props.entry.tracked);
   const covered = (rel: string) =>
     [...on].some((r) => r !== rel && (r === '' || rel.startsWith(`${r}/`)));
   return (
@@ -507,8 +513,34 @@ function FolderSummary(props: { entry: DepositEntry; onProjects: (projects: stri
                 ({h.reason}
                 {covered(h.rel) ? ' ; dans un autre projet : seul le plus haut compte' : ''})
               </span>
+              {/* v0.51.0 F: copied (default), or left in place and followed. */}
+              {on.has(h.rel) && !covered(h.rel) && (
+                <select
+                  className="input coffre-foldersum__how"
+                  value={followed.has(h.rel) ? 'follow' : 'copy'}
+                  aria-label={`${h.rel || p.name} : copier ou suivre en place`}
+                  onChange={(e) =>
+                    props.onTracked(
+                      e.target.value === 'follow'
+                        ? [...followed, h.rel]
+                        : [...followed].filter((r) => r !== h.rel),
+                    )
+                  }
+                  data-coffre-track={h.rel}
+                >
+                  <option value="copy">Copier dans le Coffre</option>
+                  <option value="follow">Laisser en place et le suivre</option>
+                </select>
+              )}
             </label>
           ))}
+          {followed.size > 0 && (
+            <p className="muted small">
+              Suivi en place : pour les projets qui doivent garder leur chemin (un lanceur, un
+              outil). Le Coffre ne le déplace jamais ; il le cherche et le sauvegarde sur le disque.{' '}
+              <span className="badge badge--warning">Expérimental</span>
+            </p>
+          )}
         </fieldset>
       )}
     </div>
