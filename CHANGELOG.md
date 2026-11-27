@@ -4,6 +4,30 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), ver
 
 ## [Non publié]
 
+## [0.51.0] — 2026-11-27
+
+Coffre : **projets avancés**. Tout est marqué « Expérimental ». Migration 9 du Coffre (ajouts seulement, sauvegarde de la base avant) ; ADR 0068.
+
+### Ajouté
+
+- **Fichiers intérieurs d'un projet** trouvables et ouvrables un par un : dans la recherche (Coffre et Ctrl+K), chaque fichier d'un projet est un résultat, par son nom et par son contenu (« main.py — Cours › GPU › Labos (projet) », extrait, ligne ou page) ; il s'ouvre seul dans la vue de son projet (arborescence positionnée, lecteur à la ligne), en plein écran, ou dans VS Code sur le projet à la ligne. Vues par étiquette : les fichiers intérieurs groupés par projet (langage et année déduits, le reste du projet ; pas de fiche par fichier, dit). Index construit en tâche de fond, seuls les fichiers changés relus ; mesuré sur 10 000 fichiers et 50 projets.
+- **Mise à jour du disque fichier par fichier** pour un projet : seuls les fichiers ajoutés ou modifiés sont copiés ; supprimés ou renommés vers l'historique ; un projet « à jour » seulement quand tous ses fichiers correspondent ; interrompue, elle se termine à la suivante. Le plan dit « n fichiers à copier ». Manifeste lisible de chaque projet sur le disque (`_ToolBox/Base/projets/`).
+- **Versions d'un fichier** d'un projet et « Restaurer cette version » (l'actuelle gardée d'abord, confirmation, Annuler).
+- **Exclusions par projet** : liste par défaut + `.gitignore` (racine et sous-dossiers, syntaxe complète) + « Ne pas sauvegarder ce dossier » / « Le sauvegarder quand même », avec la place gagnée ; `.git` jamais exclu ; exclu = ni sauvegardé, ni indexé, ni cherché, grisé avec sa raison. Ce qu'une copie du disque contient et qui n'est plus sauvegardé : proposé (un clic, vers l'historique), jamais retiré seul.
+- **Git sans risque** : jamais de copie pendant que Git écrit (`.lock`) — reporté, sinon « pas encore sur le disque » avec la raison ; modifications non commitées affichées (lues dans l'index de git) ; aucune commande git.
+- **Projet suivi en place** : « Laisser en place et le suivre » au rangement ; badge et chemin réel ; jamais déplacé, archivé ni supprimé sur le PC par le Coffre ; « Retirer du Coffre » ; introuvable → « Le retrouver… » ; conversions copié ↔ suivi.
+
+### Changé
+
+- Les projets copiés entiers en v0.50 passent au manifeste à la première mise à jour **sans recopie** (empreintes comparées).
+- Vérifier, archiver et réactiver un projet relisent d'après son manifeste ; archiver un projet qui a des fichiers non sauvegardés (hors liste par défaut) est refusé, avec la raison.
+- Le texte d'un projet est lu fichier par fichier (l'ancien texte « projet entier » est relu, index dérivé).
+
+### Données
+
+- Migration 9 du Coffre (ajouts) : colonnes `tracked_path`, `missing_at`, `exclusions_json` sur `coffre__items`, `inner_rel` sur `coffre__versions` ; tables `coffre__inner_files` (index dérivé de ce PC) et `coffre__inner_copies` (manifeste du disque).
+- Dépendance bundlée : `ignore` 7.0.14.
+
 ## [0.50.0] — 2026-11-26
 
 Coffre : **le modèle « tout est dossier »**, qui **remplace** l'ancien (contextes, attributs, « aussi utilisé », Arrivée, import d'arborescence, liens). Tout est marqué « Expérimental ». Migration 8 du Coffre, **seulement sur un Coffre vide** ; ADR 0067.

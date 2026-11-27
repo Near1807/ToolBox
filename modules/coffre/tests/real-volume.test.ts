@@ -146,6 +146,71 @@ describe.runIf(process.platform === 'win32' && volume && vhd)(
         expect(readdirSync(s.root!)).toContain('Perso');
       },
     );
+    // v0.51.0 (ADR 0068): a project on a real NTFS volume, file by file — one file
+    // changed: only it copied; the letter changed: found again, the manifest still
+    // true (verified); a project followed in place: saved, never moved on the PC.
+    it(
+      'projet fichier par fichier (manifeste), lettre changée, projet suivi en place',
+      { timeout: 180_000 },
+      async () => {
+        w = await diskWorld({ realVolumes: true });
+        const src = path.join(w.dl, 'robot');
+        mkdirSync(path.join(src, 'src'), { recursive: true });
+        writeFileSync(path.join(src, 'platformio.ini'), '[env:esp32]\n');
+        writeFileSync(path.join(src, 'src', 'main.cpp'), 'void loop() {}\n');
+        for (let i = 0; i < 30; i++) writeFileSync(path.join(src, `f${i}.h`), `// ${i}\n`);
+        mkdirSync(path.join(src, '.pio', 'build'), { recursive: true });
+        writeFileSync(path.join(src, '.pio', 'build', 'fw.bin'), 'bin');
+        const tool = path.join(w.dl, 'lanceur');
+        mkdirSync(tool, { recursive: true });
+        writeFileSync(path.join(tool, 'lanceur.py'), 'print(1)\n');
+        writeFileSync(path.join(tool, 'requirements.txt'), 'rich\n');
+        await runJob(w, 'POST', `${API}/deposit/apply`, {
+          entries: [
+            { path: src, newFolder: ['Robots'], projects: [''], labels: [] },
+            { path: tool, newFolder: ['Outils'], projects: [''], tracked: [''], labels: [] },
+          ],
+        });
+        const s = await registerDisk(w, `${volume}\\Projets`);
+        const first = await runJob<UpdateReport>(w, 'POST', `${API}/disk/update`);
+        expect(first.files).toBe(34);
+        expect(existsSync(path.join(s.root!, 'Robots', 'robot', '.pio'))).toBe(false);
+        expect(readFileSync(path.join(s.root!, 'Outils', 'lanceur', 'lanceur.py'), 'utf8')).toBe(
+          'print(1)\n',
+        );
+        // One file changed: only it is copied.
+        writeFileSync(
+          path.join(w.hub.dataDir, 'coffre', 'Robots', 'robot', 'src', 'main.cpp'),
+          'void loop() { blink(); }\n',
+        );
+        writeFileSync(path.join(tool, 'lanceur.py'), 'print(2)\n');
+        await ok(w, 'POST', `${API}/search/refresh`);
+        const second = await runJob<UpdateReport>(w, 'POST', `${API}/disk/update`);
+        expect(second.files).toBe(2);
+        expect(readFileSync(path.join(s.root!, 'Outils', 'lanceur', 'lanceur.py'), 'utf8')).toBe(
+          'print(2)\n',
+        );
+        // The letter changes: found again; the manifest still true (verified file by file).
+        const other = volume === 'S:' ? 'T:' : 'S:';
+        changeLetter(volume!, other);
+        let back = await status(w);
+        for (let i = 0; i < 20 && back.root !== `${other}\\Projets\\ToolBox-Coffre`; i++) {
+          await new Promise((r) => setTimeout(r, 500));
+          back = await status(w);
+        }
+        expect(back.root).toBe(`${other}\\Projets\\ToolBox-Coffre`);
+        const verify = await ok<{ jobId: string }>(w, 'POST', `${API}/disk/verify`);
+        const v = await waitJob(w, verify.jobId);
+        expect(v.status).toBe('succeeded');
+        expect((v.result as { problems: unknown[] }).problems).toEqual([]);
+        // The followed project never moved on the PC.
+        expect(readFileSync(path.join(tool, 'lanceur.py'), 'utf8')).toBe('print(2)\n');
+        // The letter back (the next test uses it).
+        changeLetter(other, volume!);
+        for (let i = 0; i < 20 && !(await status(w)).root?.startsWith(volume!); i++)
+          await new Promise((r) => setTimeout(r, 500));
+      },
+    );
     it(
       'copie, chemin long, lettre changée : reconnu par l’identité ; vérifié',
       { timeout: 180_000 },

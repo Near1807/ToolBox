@@ -86,3 +86,4 @@ Modèle :
 | 0065 | [Coffre : importer une arborescence existante (copie ou adoption)](0065-coffre-importer-une-arborescence.md)                                                     |
 | 0066 | [Tâches de fond : plus jamais de page figée](0066-taches-de-fond.md)                                                                                             |
 | 0067 | [Coffre : « tout est dossier » (remplace contextes, éléments et attributs)](0067-coffre-tout-est-dossier.md)                                                     |
+| 0068 | [Coffre : projets avancés (fichiers intérieurs, disque fichier par fichier, suivi en place)](0068-coffre-projets-avances.md)                                     |

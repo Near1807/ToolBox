@@ -180,6 +180,36 @@ describe('les fichiers intérieurs d’un projet', () => {
   });
 });
 
+describe('un cours avec 4 scripts et un seul .git', () => {
+  it('chaque script trouvé seul par son nom et son contenu ; .git sauvegardé, jamais exclu', async () => {
+    w = await diskWorld();
+    const W = w;
+    const src = path.join(W.dl, 'Algo');
+    for (const [n, body] of [
+      ['tri.py', 'def tri(liste):\n    return sorted(liste)\n'],
+      ['graphe.py', 'def parcours_largeur(g):\n    pass\n'],
+      ['pile.py', 'class Pile:\n    pass\n'],
+      ['file.py', 'class File:\n    pass\n'],
+    ])
+      put(path.join(src, 'scripts', n!), body);
+    put(path.join(src, '.git', 'HEAD'), 'ref: refs/heads/main\n');
+    put(path.join(src, '.git', 'config'), '[core]\n\tbare = false\n');
+    const folder = await dropProject(W, src, ['Cours']);
+    await indexed(W);
+    for (const n of ['tri.py', 'graphe.py', 'pile.py', 'file.py']) {
+      const r = await search(W, n);
+      expect(r.results[0]!.inner?.rel).toBe(`scripts/${n}`);
+    }
+    const r = await search(W, 'parcours_largeur');
+    expect(r.results.map((x) => x.inner?.rel)).toEqual(['scripts/graphe.py']);
+    expect(r.results[0]!.inner!.line).toBe(1);
+    // .git is saved (never excluded): in the project's files.
+    const ex = await ok<ExclusionsDto>(W, 'GET', `${API}/folders/${folder.id}/exclusions`);
+    expect(ex.excluded).toEqual([]);
+    expect(ex.files).toBe(6);
+  });
+});
+
 function readFileSafe(file: string): string {
   try {
     return readFileSync(file, 'utf8');

@@ -65,6 +65,10 @@ jobs:
           # v0.47.0: the search's time on 3000 elements (measured, in the report).
           npx vitest run modules/coffre/tests/search.test.ts -t 'temps mesuré'
           if ($LASTEXITCODE -ne 0) { throw "recherche sur 3000 éléments : $LASTEXITCODE" }
+          # v0.51.0: the files inside the projects — 10 000 files, 50 projects (measured).
+          $env:COFFRE_TEST_PERF = '1'
+          npx vitest run modules/coffre/tests/inner-perf.test.ts
+          if ($LASTEXITCODE -ne 0) { throw "fichiers intérieurs (mesures) : $LASTEXITCODE" }
 
       - name: Native modules load in Electron
         run: npm run check:native
