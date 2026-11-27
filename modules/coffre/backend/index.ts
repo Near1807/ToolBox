@@ -1838,8 +1838,14 @@ export default defineBackendModule({
         at && at.folder !== target
           ? [at.folder, '-g', at.line ? `${target}:${at.line}` : target]
           : [target];
-      const child = spawn(exe, args, { detached: true, stdio: 'ignore' });
-      // A program that cannot start must never stop ToolBox (an error is only logged).
+      // A program that cannot start must never stop ToolBox: an error thrown at once
+      // (Windows: « spawn UNKNOWN ») is a clear refusal, a later one is only logged.
+      let child: ReturnType<typeof spawn>;
+      try {
+        child = spawn(exe, args, { detached: true, stdio: 'ignore' });
+      } catch (error) {
+        throw new HttpError(409, `VS Code n’a pas pu démarrer (${(error as Error).message})`);
+      }
       child.on('error', (error) => ctx.logger.warn(`VS Code : ${String(error)}`));
       child.unref();
       return { ok: true, args };

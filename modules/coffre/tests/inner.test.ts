@@ -2,7 +2,7 @@
 // found by its name and its content (its line), opened alone (its project's
 // page, VS Code at its line), in the views by label; what the project does not
 // save (default list, .gitignore, Thomas's choices) never indexed nor searched.
-import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import type {
@@ -91,8 +91,15 @@ describe('les fichiers intérieurs d’un projet', () => {
     const fake = path.join(W.dl, 'vscode');
     const exe = path.join(fake, 'Programs', 'Microsoft VS Code', 'Code.exe');
     const argsFile = path.join(W.dl, 'args.txt');
-    put(exe, `#!/bin/sh\nprintf '%s\\n' "$@" > '${argsFile}'\n`);
-    chmodSync(exe, 0o755);
+    // Windows: a real program (Node itself) under that name; elsewhere a script that
+    // writes the arguments it received.
+    if (process.platform === 'win32') {
+      mkdirSync(path.dirname(exe), { recursive: true });
+      copyFileSync(process.execPath, exe);
+    } else {
+      put(exe, `#!/bin/sh\nprintf '%s\\n' "$@" > '${argsFile}'\n`);
+      chmodSync(exe, 0o755);
+    }
     const before = process.env.LOCALAPPDATA;
     process.env.LOCALAPPDATA = fake;
     try {
@@ -103,9 +110,11 @@ describe('les fichiers intérieurs d’un projet', () => {
       });
       const root = path.join(W.hub.dataDir, 'coffre', 'Programmation', 'auto_mail');
       expect(r.args).toEqual([root, '-g', `${path.join(root, 'main.py')}:3`]);
-      for (let i = 0; i < 100 && !readFileSafe(argsFile); i++)
-        await new Promise((res) => setTimeout(res, 20));
-      expect(readFileSafe(argsFile).trim().split('\n')).toEqual(r.args);
+      if (process.platform !== 'win32') {
+        for (let i = 0; i < 100 && !readFileSafe(argsFile); i++)
+          await new Promise((res) => setTimeout(res, 20));
+        expect(readFileSafe(argsFile).trim().split('\n')).toEqual(r.args);
+      }
     } finally {
       if (before === undefined) delete process.env.LOCALAPPDATA;
       else process.env.LOCALAPPDATA = before;

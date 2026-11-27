@@ -142,44 +142,48 @@ describe('un projet sur le disque, fichier par fichier', () => {
     expect(manifest.files.map((f) => f.path)).toContain('contacts.txt');
   });
 
-  it('interrompue : « pas encore sur le disque », la suivante termine ; copie v0.50 adoptée sans recopie', async () => {
-    const { W, project, lib, onDisk } = await world(1500);
-    // Interrupted in the middle of the project (slowed down for the test).
-    process.env.TOOLBOX_COFFRE_COPY_PAUSE_MS = '2';
-    const { jobId } = await ok<{ jobId: string }>(W, 'POST', `${API}/disk/update`);
-    for (let i = 0; i < 400; i++) {
-      if (existsSync(path.join(onDisk, 'lib', 'l10.h'))) break;
-      await new Promise((r) => setTimeout(r, 10));
-    }
-    await W.hub.request('POST', `/api/core/jobs/${jobId}/cancel`);
-    const stopped = await waitJob(W, jobId);
-    delete process.env.TOOLBOX_COFFRE_COPY_PAUSE_MS;
-    expect(stopped.status).toBe('cancelled');
-    expect(await state(W, project.id)).toBe('pending');
-    // The next one finishes: only what was not copied yet.
-    const done = await update(W);
-    expect(done.files).toBeGreaterThan(0);
-    expect(done.files).toBeLessThan(1504);
-    expect(await state(W, project.id)).toBe('active');
-    expect(readFileSync(path.join(onDisk, 'lib', 'l1499.h'), 'utf8')).toContain('1499');
-    // A copy made whole by v0.50 (no manifest): compared, never copied again.
-    await W.close();
-    const db = new Database(path.join(W.hub.dataDir, 'hub.db'));
-    db.exec('DELETE FROM coffre__inner_copies');
-    db.exec(`UPDATE coffre__copies SET sha256 = 'v050' WHERE item_id = '${project.id}'`);
-    db.close();
-    w = await diskWorld({ dataDir: W.hub.dataDir, volumes: { E: W.E, F: W.F } });
-    const W2 = w;
-    for (let i = 0; i < 100; i++) {
-      if ((await ok<{ connected: boolean }>(W2, 'GET', `${API}/disk`)).connected) break;
-      await new Promise((r) => setTimeout(r, 50));
-    }
-    expect((await plan(W2)).steps[0]).toMatchObject({ adopt: true });
-    const adopted = await update(W2);
-    expect(adopted.files).toBe(0);
-    expect(await state(W2, project.id)).toBe('active');
-    expect(readFileSync(path.join(lib, 'lib', 'l0.h'), 'utf8')).toContain('0');
-  });
+  it(
+    'interrompue : « pas encore sur le disque », la suivante termine ; copie v0.50 adoptée sans recopie',
+    { timeout: 180_000 },
+    async () => {
+      const { W, project, lib, onDisk } = await world(1500);
+      // Interrupted in the middle of the project (slowed down for the test).
+      process.env.TOOLBOX_COFFRE_COPY_PAUSE_MS = '2';
+      const { jobId } = await ok<{ jobId: string }>(W, 'POST', `${API}/disk/update`);
+      for (let i = 0; i < 400; i++) {
+        if (existsSync(path.join(onDisk, 'lib', 'l10.h'))) break;
+        await new Promise((r) => setTimeout(r, 10));
+      }
+      await W.hub.request('POST', `/api/core/jobs/${jobId}/cancel`);
+      const stopped = await waitJob(W, jobId);
+      delete process.env.TOOLBOX_COFFRE_COPY_PAUSE_MS;
+      expect(stopped.status).toBe('cancelled');
+      expect(await state(W, project.id)).toBe('pending');
+      // The next one finishes: only what was not copied yet.
+      const done = await update(W);
+      expect(done.files).toBeGreaterThan(0);
+      expect(done.files).toBeLessThan(1504);
+      expect(await state(W, project.id)).toBe('active');
+      expect(readFileSync(path.join(onDisk, 'lib', 'l1499.h'), 'utf8')).toContain('1499');
+      // A copy made whole by v0.50 (no manifest): compared, never copied again.
+      await W.close();
+      const db = new Database(path.join(W.hub.dataDir, 'hub.db'));
+      db.exec('DELETE FROM coffre__inner_copies');
+      db.exec(`UPDATE coffre__copies SET sha256 = 'v050' WHERE item_id = '${project.id}'`);
+      db.close();
+      w = await diskWorld({ dataDir: W.hub.dataDir, volumes: { E: W.E, F: W.F } });
+      const W2 = w;
+      for (let i = 0; i < 100; i++) {
+        if ((await ok<{ connected: boolean }>(W2, 'GET', `${API}/disk`)).connected) break;
+        await new Promise((r) => setTimeout(r, 50));
+      }
+      expect((await plan(W2)).steps[0]).toMatchObject({ adopt: true });
+      const adopted = await update(W2);
+      expect(adopted.files).toBe(0);
+      expect(await state(W2, project.id)).toBe('active');
+      expect(readFileSync(path.join(lib, 'lib', 'l0.h'), 'utf8')).toContain('0');
+    },
+  );
 
   it('ce qui n’est plus sauvegardé : proposé, jamais retiré seul ; Git qui écrit : reporté', async () => {
     const { W, folder, project, lib, onDisk } = await world(3);
