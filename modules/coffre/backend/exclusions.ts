@@ -147,9 +147,11 @@ export async function walkProject(
     signal?: AbortSignal;
     onFile?: (count: number, rel: string) => void;
     measureExcluded?: boolean;
+    /** v0.51.0: the folder whose .gitignore files decide (the PC's, for a copy on the disk). */
+    rulesRoot?: string;
   } = {},
 ): Promise<ProjectWalk> {
-  const rules = new ProjectRules(root, choices);
+  const rules = new ProjectRules(options.rulesRoot ?? root, choices);
   const out: ProjectWalk = { files: [], excluded: [], bytes: 0 };
   const budgetEnd = Date.now() + EXCLUDED_BUDGET_MS;
   const visit = async (abs: string, rel: string): Promise<void> => {
@@ -186,4 +188,14 @@ export async function walkProject(
   };
   await visit(root, '');
   return out;
+}
+
+/** v0.51.0: `rel` (a file) or one of its folders is not saved by these rules. */
+export function excludedPath(rules: ProjectRules, rel: string): ExclusionReason | null {
+  const parts = cleanRel(rel).split('/');
+  for (let n = 1; n < parts.length; n++) {
+    const r = rules.reason(parts.slice(0, n).join('/'), true);
+    if (r) return r;
+  }
+  return rules.reason(parts.join('/'), false);
 }

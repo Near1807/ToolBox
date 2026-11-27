@@ -52,16 +52,36 @@ export function registerVerifyRoutes(d: CoffreDeps, disk: DiskManager): void {
         const items = new Map(
           (ctx.db.prepare(`SELECT * FROM ${d.t.items}`).all() as ItemRow[]).map((i) => [i.id, i]),
         );
-        const targets = [
-          ...copies.map((c) => ({
+        // v0.51.0: a project's copy is read file by file, from its manifest.
+        const projectFiles = copies.flatMap((c) => {
+          const it = items.get(c.item_id);
+          if (it?.kind !== 'project') return [];
+          return d.projects.diskFiles(row.id, c.item_id).map((f) => ({
             itemId: c.item_id,
-            name: items.get(c.item_id)?.name ?? c.rel_path,
-            where: (isInDiskTrash(c.rel_path) ? 'corbeille' : 'actuel') as VerifyProblem['where'],
-            path: c.rel_path,
-            sha256: c.sha256,
-            size: c.size,
-          })),
+            name: `${it.name}/${f.rel}`,
+            where: 'actuel' as const,
+            path: `${c.rel_path}/${f.rel}`,
+            sha256: f.sha256 as string | null,
+            size: f.size,
+            innerRel: f.rel as string | null,
+          }));
+        });
+        const withManifest = new Set(projectFiles.map((t) => t.itemId));
+        const targets = [
+          ...projectFiles,
+          ...copies
+            .filter((c) => !withManifest.has(c.item_id))
+            .map((c) => ({
+              innerRel: null as string | null,
+              itemId: c.item_id,
+              name: items.get(c.item_id)?.name ?? c.rel_path,
+              where: (isInDiskTrash(c.rel_path) ? 'corbeille' : 'actuel') as VerifyProblem['where'],
+              path: c.rel_path,
+              sha256: c.sha256,
+              size: c.size,
+            })),
           ...versions.map((v) => ({
+            innerRel: null as string | null,
             itemId: v.item_id,
             name: v.name,
             where: 'historique' as const,
@@ -88,7 +108,9 @@ export function registerVerifyRoutes(d: CoffreDeps, disk: DiskManager): void {
                 !item.deleted_at &&
                 !item.trashed_at &&
                 !item.archived_at &&
-                item.sha256 === t.sha256,
+                (t.innerRel
+                  ? d.projects.file(item.id, t.innerRel)?.sha256 === t.sha256
+                  : item.sha256 === t.sha256),
               );
             if (!existsSync(file)) {
               report.problems.push({ ...pick(t), problem: 'manquant', canRecopy });

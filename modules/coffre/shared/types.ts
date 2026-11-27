@@ -280,6 +280,8 @@ export interface UpdateReport {
   moved: number;
   trashed: number;
   repaired: number;
+  /** v0.51.0: files copied inside projects (only the added or changed ones). */
+  files: number;
   /** Old versions removed by the quota (oldest first). */
   removedVersions: number;
   /** Versions larger than the whole quota (kept, reported). */
@@ -458,6 +460,8 @@ export interface InsideDto {
   git: {
     branch: string | null;
     commit: { hash: string; message: string; date: string | null } | null;
+    /** v0.51.0: changes not committed (git's own index read), or null (not told). */
+    changes: { modified: number; deleted: number; untracked: number } | null;
   } | null;
   /** Cut at this many entries (a huge folder). */
   truncated: boolean;

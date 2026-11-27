@@ -35,6 +35,7 @@ import type {
 } from '../shared/types';
 import { useCoffre } from './frame';
 import { ReaderView } from './ReaderView';
+import { Versions } from './disk/Versions';
 import { shortDate } from './logic';
 
 const SHOW_HIDDEN = 'toolbox.coffre.showHidden';
@@ -83,6 +84,7 @@ export function Inside(props: {
   const list = useRef<HTMLUListElement>(null);
   const project = f.project ? (props.files?.find((x) => x.kind === 'project') ?? null) : null;
   const [showExcluded, setShowExcluded] = useState(false);
+  const [showVersions, setShowVersions] = useState(false);
 
   // v0.51.0: opened on one file (the search): its folders open, it is shown
   // (once per file asked, when the list is read: state adjusted while rendering).
@@ -248,6 +250,20 @@ export function Inside(props: {
             {data.git.branch ? ` ${data.git.branch}` : ' (détaché)'}
             {data.git.commit &&
               ` · ${data.git.commit.hash} ${data.git.commit.message}${data.git.commit.date ? ` (${shortDate(data.git.commit.date)})` : ''}`}
+            {data.git.changes && (
+              <span data-coffre-git-changes>
+                {' · '}
+                {data.git.changes.modified + data.git.changes.deleted + data.git.changes.untracked
+                  ? [
+                      data.git.changes.modified ? `${data.git.changes.modified} modifié(s)` : '',
+                      data.git.changes.deleted ? `${data.git.changes.deleted} supprimé(s)` : '',
+                      data.git.changes.untracked ? `${data.git.changes.untracked} nouveau(x)` : '',
+                    ]
+                      .filter(Boolean)
+                      .join(', ') + ' non commité(s)'
+                  : 'rien à commiter'}
+              </span>
+            )}
           </span>
         )}
       </div>
@@ -373,6 +389,17 @@ export function Inside(props: {
                     Étiquettes…
                   </Button>
                 )}
+                {project && (
+                  <Button
+                    variant="secondary"
+                    small
+                    aria-expanded={showVersions}
+                    onClick={() => setShowVersions(!showVersions)}
+                    data-coffre-inner-versions
+                  >
+                    Versions
+                  </Button>
+                )}
                 {(item || project) && (
                   <Button
                     variant="secondary"
@@ -396,6 +423,9 @@ export function Inside(props: {
                 </Button>
               </div>
               {project && <InnerLabels projectId={project.id} rel={file.rel} />}
+              {project && showVersions && (
+                <Versions item={project} rel={file.rel} onRestored={() => inside.reload()} />
+              )}
               <ReaderView
                 key={file.rel}
                 source={{ name: file.name, ext: extOf(file.name), size: file.size, url: file.url }}

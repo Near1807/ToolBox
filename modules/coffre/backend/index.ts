@@ -6,7 +6,7 @@
 // user's files into ctx.files.libraryDir (userData/coffre) and opens their
 // applications. Ready for sync (UUIDs, tombstones, journal), no real sync yet.
 import { spawn } from 'node:child_process';
-import { existsSync, readdirSync, readFileSync, rmdirSync, rmSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, rmdirSync, rmSync, statSync } from 'node:fs';
 import { open as openFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
@@ -63,6 +63,8 @@ import { registerDeposit } from './deposit';
 import { ProjectIndex } from './inner';
 import { ProjectRules } from './exclusions';
 import { registerProjectRoutes } from './projects';
+import { gitChanges, readGit, type GitChanges } from './git';
+import { registerDiskExcludedRoutes } from './project-update';
 import { registerReset } from './reset';
 import { DownloadWatcher } from './downloads';
 import { Learner } from './learning';
@@ -855,43 +857,13 @@ export default defineBackendModule({
       return { project: marker ? projectReason(marker) : null };
     });
 
-    /** A project's branch and last commit, read in .git (never a git command). */
-    const readGit = (abs: string): InsideDto['git'] => {
-      const dot = path.join(abs, '.git');
-      if (!existsSync(dot)) return null;
-      const read = (p: string) => {
-        try {
-          return readFileSync(path.join(dot, p), 'utf8');
-        } catch {
-          return null;
-        }
-      };
-      const head = read('HEAD')?.trim() ?? '';
-      const branch = head.startsWith('ref: ') ? head.slice(5).replace(/^refs\/heads\//, '') : null;
-      const lines = (read(path.join('logs', 'HEAD')) ?? '').trim().split('\n').filter(Boolean);
-      const last = lines.at(-1);
-      let commit: NonNullable<InsideDto['git']>['commit'] = null;
-      if (last) {
-        const m = /^[0-9a-f]+ ([0-9a-f]+) .*? (\d+) [+-]\d{4}\t(.*)$/.exec(last);
-        if (m)
-          commit = {
-            hash: m[1]!.slice(0, 10),
-            message: m[3]!.replace(/^[a-z ()-]+: /, ''),
-            date: new Date(Number(m[2]) * 1000).toISOString(),
-          };
-      }
-      if (!commit && /^[0-9a-f]{40}$/.test(head))
-        commit = { hash: head.slice(0, 10), message: '', date: null };
-      return { branch, commit };
-    };
-
     /**
      * The inside of a Fin de route or a Projet — its tree, read from its folder
      * on the PC, to browse it in ToolBox; the README shown by default. Hidden
      * folders only with `hidden=1`; an excluded folder is listed, never read
      * inside. Read only.
      */
-    ctx.routes.get('/folders/:id/inside', (request) => {
+    ctx.routes.get('/folders/:id/inside', async (request) => {
       const id = uuidParam(request.params);
       const row = getFolder(id);
       const showHidden = ((request.query ?? {}) as { hidden?: string }).hidden === '1';
@@ -969,13 +941,23 @@ export default defineBackendModule({
         entries.find(
           (e) => !e.dir && !e.rel.includes('/') && /^readme(\.(md|markdown|txt))?$/i.test(e.name),
         )?.rel ?? null;
+      // v0.51.0 E: branch, last commit and changes not committed — read only, no git command.
+      const gitOf = (root: string) => {
+        const info = readGit(root);
+        return info ? { ...info, changes: null as GitChanges | null } : null;
+      };
       const dto: InsideDto = {
         folder: folderDto(id),
         entries,
         readme,
-        git: project ? readGit(abs) : null,
+        git: project ? gitOf(abs) : null,
         truncated,
       };
+      if (dto.git && entry)
+        dto.git.changes = await gitChanges(
+          abs,
+          projects.files(entry.id).map((x) => x.rel),
+        ).catch(() => null);
       return dto;
     });
 
@@ -1978,6 +1960,7 @@ export default defineBackendModule({
     );
     registerRestoreRoutes(deps, disk);
     registerVerifyRoutes(deps, disk);
+    registerDiskExcludedRoutes(deps, disk);
     registerSearch({
       ctx,
       items,

@@ -10,10 +10,13 @@ import {
   errorMessage,
   formatBytes,
   Icon,
+  runJob,
+  useApi,
   useModule,
   useTaskFollow,
 } from '@hub/sdk/frontend';
 import type { DiskStatusDto, UpdateReport } from '../../shared/types';
+import { useCoffre } from '../frame';
 import { TaskGauge } from './TaskGauge';
 import { plural } from './useDisk';
 
@@ -24,6 +27,10 @@ interface Step {
   from: string | null;
   to: string;
   size: number;
+  /** v0.51.0: a project — its files to copy, gone, or compared (adopted). */
+  files?: number;
+  removed?: number;
+  adopt?: boolean;
 }
 interface Plan {
   steps: Step[];
@@ -42,6 +49,15 @@ const KIND_LABEL: Record<Step['kind'], string> = {
   trash: 'Vers la corbeille du disque',
 };
 
+/** v0.51.0: a project, file by file — « 1 fichier à copier, 2 vers l'historique ». */
+function projectText(s: Step): string {
+  if (s.adopt)
+    return `${s.files} fichiers comparés un par un (les identiques ne sont pas recopiés)`;
+  const parts = [`${s.files} fichier${s.files === 1 ? '' : 's'} à copier`];
+  if (s.removed) parts.push(`${s.removed} supprimé(s) ou renommé(s) vers l’historique`);
+  return parts.join(', ');
+}
+
 export function reportText(r: UpdateReport): string {
   const parts = [
     r.copied && `${r.copied} copié${r.copied > 1 ? 's' : ''}`,
@@ -49,6 +65,8 @@ export function reportText(r: UpdateReport): string {
     r.repaired && `${r.repaired} recopié${r.repaired > 1 ? 's' : ''}`,
     r.moved && `${r.moved} déplacé${r.moved > 1 ? 's' : ''}`,
     r.trashed && `${r.trashed} vers la corbeille`,
+    r.files &&
+      `${r.files} fichier${r.files > 1 ? 's' : ''} de projets copié${r.files > 1 ? 's' : ''}`,
   ].filter(Boolean);
   return parts.length ? `${parts.join(', ')} — vérifiés.` : 'Le disque était déjà à jour.';
 }
@@ -171,6 +189,7 @@ export function UpdateDialog(props: {
                               {s.kind === 'move' || s.kind === 'trash'
                                 ? `${s.from} → ${s.to}`
                                 : s.to}
+                              {s.files !== undefined ? ` · ${projectText(s)}` : ''}
                               {s.size ? ` · ${formatBytes(s.size)}` : ''}
                             </span>
                           </li>
@@ -194,6 +213,7 @@ export function UpdateDialog(props: {
                 </ul>
               </div>
             )}
+            <ExcludedOnDisk />
             <footer className="coffre-update__foot">
               <span className="muted small">
                 Chaque copie est relue et comparée avant de prendre sa place. Annulable à tout
@@ -278,6 +298,54 @@ export function UpdateDialog(props: {
           <ErrorMessage>{error ?? task.error}</ErrorMessage>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * v0.51.0 D4: what projects no longer save but their copy on the disk still
+ * holds — proposed with the room it frees; removed (to the disk's history)
+ * only by this click, never by an update.
+ */
+function ExcludedOnDisk() {
+  const module = useModule();
+  const coffre = useCoffre();
+  const list = useApi<
+    { itemId: string; name: string; entries: { rel: string; bytes: number }[]; bytes: number }[]
+  >(module.url('/disk/excluded'));
+  const [busy, setBusy] = useState(false);
+  if (!list.data?.length) return null;
+  const total = list.data.reduce((s, p) => s + p.bytes, 0);
+  const remove = async () => {
+    setBusy(true);
+    try {
+      const r = await runJob<{ removed: number; bytes: number }>(
+        module.api.post('/disk/excluded/remove', { itemIds: list.data!.map((p) => p.itemId) }),
+      );
+      coffre.notify(
+        `${r.removed} dossier(s) ou fichier(s) retiré(s) de la copie du disque (${formatBytes(r.bytes)}), gardés dans son historique.`,
+      );
+      list.reload();
+    } catch (e) {
+      coffre.fail(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="coffre-update__problems" data-coffre-excluded-on-disk>
+      <strong>Plus sauvegardé, encore sur le disque</strong>{' '}
+      <span className="badge badge--warning">Expérimental</span>
+      <ul>
+        {list.data.map((p) => (
+          <li key={p.itemId}>
+            {p.name} : {p.entries.map((e) => e.rel).join(', ')} ({formatBytes(p.bytes)})
+          </li>
+        ))}
+      </ul>
+      <Button variant="secondary" small disabled={busy} onClick={() => void remove()}>
+        Les retirer de la copie du disque ({formatBytes(total)}, vers l’historique)
+      </Button>
     </div>
   );
 }

@@ -13,7 +13,7 @@ import { extOf } from '../shared/kinds';
 import { hashFileChecked, projectHash } from './copy';
 import { parseChoices, walkProject, type ExcludedEntry, type ExclusionChoices } from './exclusions';
 import type { Library } from './library';
-import type { InnerFileRow, ItemRow } from './rows';
+import type { InnerCopyRow, InnerFileRow, ItemRow } from './rows';
 
 export interface RefreshResult {
   /** The project's folder is not there (a followed project moved or renamed). */
@@ -32,6 +32,8 @@ const BATCH = 500;
 
 export class ProjectIndex {
   readonly table: string;
+  /** The disk's manifest of each project (what its copy holds, file by file). */
+  readonly copiesTable: string;
   private readonly textTable: string;
   /** One refresh per project at a time (a second call waits for the first). */
   private readonly running = new Map<string, Promise<RefreshResult>>();
@@ -41,7 +43,63 @@ export class ProjectIndex {
     private readonly library: Library,
   ) {
     this.table = ctx.db.table('inner_files');
+    this.copiesTable = ctx.db.table('inner_copies');
     this.textTable = ctx.db.table('text');
+  }
+
+  // --- The disk's manifest (B, ADR 0068) ---------------------------------------------
+
+  /** What the project's copy on this disk holds, file by file. */
+  diskFiles(diskId: string, itemId: string): InnerCopyRow[] {
+    return this.ctx.db
+      .prepare(`SELECT * FROM ${this.copiesTable} WHERE disk_id = ? AND item_id = ? ORDER BY rel`)
+      .all(diskId, itemId) as InnerCopyRow[];
+  }
+
+  setDiskFile(diskId: string, itemId: string, rel: string, sha256: string, size: number): void {
+    this.ctx.db
+      .prepare(
+        `INSERT INTO ${this.copiesTable} (disk_id, item_id, rel, sha256, size, copied_at) VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT (disk_id, item_id, rel) DO UPDATE SET sha256 = excluded.sha256, size = excluded.size, copied_at = excluded.copied_at`,
+      )
+      .run(diskId, itemId, rel, sha256, size, new Date().toISOString());
+  }
+
+  dropDiskFile(diskId: string, itemId: string, rel: string): void {
+    this.ctx.db
+      .prepare(`DELETE FROM ${this.copiesTable} WHERE disk_id = ? AND item_id = ? AND rel = ?`)
+      .run(diskId, itemId, rel);
+  }
+
+  /** The copy's fingerprint and size from its manifest (projectHash's formula). */
+  diskHash(diskId: string, itemId: string): { sha256: string; size: number; files: number } {
+    const rows = this.diskFiles(diskId, itemId);
+    return {
+      sha256: projectHash(rows),
+      size: rows.reduce((s, r) => s + r.size, 0),
+      files: rows.length,
+    };
+  }
+
+  /**
+   * What an update must do for a project, file by file: the files added or
+   * changed on the PC (to copy), the ones gone (renamed or deleted: to the
+   * history). `adopt`: a copy made whole (v0.50) with no manifest yet — its
+   * files are compared by their fingerprint, never copied again when equal.
+   */
+  diffWithDisk(
+    diskId: string,
+    itemId: string,
+    /** What the project no longer saves is left on the disk (proposed apart), never removed. */
+    isExcluded: (rel: string) => boolean = () => false,
+  ): { copy: InnerFileRow[]; remove: InnerCopyRow[]; adopt: boolean; bytes: number } {
+    const here = this.files(itemId);
+    const there = this.diskFiles(diskId, itemId);
+    const onDisk = new Map(there.map((r) => [r.rel, r]));
+    const copy = here.filter((f) => onDisk.get(f.rel)?.sha256 !== f.sha256);
+    const kept = new Set(here.map((f) => f.rel));
+    const remove = there.filter((r) => !kept.has(r.rel) && !isExcluded(r.rel));
+    return { copy, remove, adopt: false, bytes: copy.reduce((s, f) => s + f.size, 0) };
   }
 
   /**

@@ -21,18 +21,26 @@ const when = (iso: string) =>
     minute: '2-digit',
   });
 
-export function Versions(props: { item: ItemDto; onRestored: () => void }) {
+export function Versions(props: {
+  item: ItemDto;
+  onRestored: () => void;
+  /** v0.51.0 C: one file inside the project `item` (its own versions). */
+  rel?: string;
+}) {
   const module = useModule();
   const coffre = useCoffre();
-  const { item } = props;
-  const data = useApi<VersionsDto>(module.url(`/files/${item.id}/versions`));
+  const { item, rel } = props;
+  const data = useApi<VersionsDto>(
+    module.url(`/files/${item.id}/versions${rel ? `?rel=${encodeURIComponent(rel)}` : ''}`),
+  );
+  const label = rel ?? item.name;
   const [busy, setBusy] = useState<string | null>(null);
   if (!data.data?.diskName) return null;
   const v = data.data;
   const restore = async (id: string, savedAt: string) => {
     if (
       !window.confirm(
-        `Restaurer la version du ${when(savedAt)} de « ${item.name} » ?\n\nElle redevient la version actuelle sur ce PC ; l'actuelle est gardée dans l'historique du disque. Tu pourras « Annuler » juste après.`,
+        `Restaurer la version du ${when(savedAt)} de « ${label} » ?\n\nElle redevient la version actuelle sur ce PC ; l'actuelle est gardée dans l'historique du disque. Tu pourras « Annuler » juste après.`,
       )
     )
       return;
@@ -55,7 +63,7 @@ export function Versions(props: { item: ItemDto; onRestored: () => void }) {
     }
   };
   return (
-    <section className="coffre-versions">
+    <section className="coffre-versions" data-coffre-versions={rel ?? ''}>
       <h3>Versions sur le disque</h3>
       {!v.versions.length && <p className="muted small">Aucune ancienne version pour l'instant.</p>}
       {v.versions.length > 0 && !v.connected && (

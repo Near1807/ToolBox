@@ -29,6 +29,8 @@ import {
 import { writeIdentity, type CoffreDeps, type DiskManager } from './disk';
 import { itemsWithCopies, quotaBytes, versionsOf } from './disk-routes';
 import { countSteps, stepOf, type Step } from './plan';
+import { updateProject } from './project-update';
+import { excludedPath, ProjectRules } from './exclusions';
 import type { DiskRow, ItemRow, VersionRow } from './rows';
 import { readIdentity } from './volumes';
 
@@ -90,7 +92,9 @@ export async function buildPlan(d: CoffreDeps, disk: DiskManager): Promise<PlanD
       (step.kind === 'copy' || step.kind === 'update' || step.kind === 'repair') &&
       item.rel_path
     ) {
-      if (!existsSync(d.library.abs(item.rel_path))) {
+      const pcPath =
+        item.kind === 'project' ? d.projects.rootOf(item) : d.library.abs(item.rel_path);
+      if (!pcPath || !existsSync(pcPath)) {
         problems.push({
           itemId: item.id,
           name: item.name,
@@ -98,6 +102,27 @@ export async function buildPlan(d: CoffreDeps, disk: DiskManager): Promise<PlanD
         });
         continue;
       }
+    }
+    // v0.51.0: a project, file by file — only its added or changed files are copied.
+    if (
+      item.kind === 'project' &&
+      (step.kind === 'copy' || step.kind === 'update' || step.kind === 'repair')
+    ) {
+      const pcRoot = d.projects.rootOf(item);
+      const rules = pcRoot ? new ProjectRules(pcRoot, d.projects.choicesOf(item)) : null;
+      const diff = d.projects.diffWithDisk(
+        row!.id,
+        item.id,
+        (rel) => rules !== null && excludedPath(rules, rel) !== null,
+      );
+      const adopt =
+        step.kind === 'repair' ||
+        (copy !== null && present && !d.projects.diskFiles(row!.id, item.id).length);
+      step.adopt = adopt;
+      step.files = adopt ? d.projects.count(item.id) : diff.copy.length;
+      step.removed = adopt ? 0 : diff.remove.length;
+      // Adopted: at most everything (equal files are not copied again).
+      step.size = adopt ? item.size : diff.bytes;
     }
     steps.push(step);
   }
@@ -134,6 +159,7 @@ export async function runUpdate(
       moved: 0,
       trashed: 0,
       repaired: 0,
+      files: 0,
       removedVersions: 0,
       oversized: [],
       problems: [],
@@ -213,6 +239,28 @@ export async function runUpdate(
       }
 
       // 2. Copies: temporary name, read back, then in place.
+      // v0.51.0 E: a project Git is writing in waits for the end, then is tried again.
+      const deferred: Step[] = [];
+      const projectStep = async (step: Step, item: ItemRow, last: boolean) => {
+        const r = await updateProject(d, disk, root, row, item, step, report, {
+          signal,
+          still,
+          onBytes: (n) => {
+            done += n / 2;
+            tell(step.name, false);
+          },
+        });
+        if (r === 'done') return;
+        if ('locked' in r) {
+          if (!last) deferred.push(step);
+          else
+            report.problems.push({
+              itemId: item.id,
+              name: item.name,
+              reason: `Git écrivait dans le projet (${r.locked}) : pas encore sur le disque, réessaie la mise à jour plus tard`,
+            });
+        } else report.problems.push({ itemId: item.id, name: item.name, reason: r.problem });
+      };
       for (const step of plan.steps.filter((s) => !['move', 'trash'].includes(s.kind))) {
         if (signal.aborted) throw new Cancelled();
         await still();
@@ -223,6 +271,10 @@ export async function runUpdate(
           step.itemId,
         ) as ItemRow | null;
         if (!item?.rel_path) continue;
+        if (item.kind === 'project') {
+          await projectStep(step, item, false);
+          continue;
+        }
         const temp = disk.abs(root, `${TMP_DIR}/${item.id}-${newId().slice(0, 8)}`);
         let copied: { sha256: string; size: number };
         try {
@@ -290,6 +342,17 @@ export async function runUpdate(
         else report.repaired++;
       }
 
+      // The projects Git was writing in: tried again once, now.
+      for (const step of deferred) {
+        if (signal.aborted) throw new Cancelled();
+        await still();
+        const item = d.store.get<ItemRow & { updated_at: string }>(
+          'items',
+          step.itemId,
+        ) as ItemRow | null;
+        if (item) await projectStep(step, item, true);
+      }
+
       // 3. The history's quota (oldest first; never the current files, the archives or the Recycle Bin).
       await still();
       job.progress(0.98, 'Historique…');
@@ -326,7 +389,7 @@ const gb = (n: number) =>
   `${(n / 1024 ** 3).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} Go`;
 
 /** The place for an element on the disk: its own, or « nom (2) » when another file is there. */
-function freeTarget(disk: DiskManager, root: string, rel: string): string {
+export function freeTarget(disk: DiskManager, root: string, rel: string): string {
   return existsSync(disk.abs(root, rel)) ? disk.freeOnDisk(root, rel) : rel;
 }
 
@@ -337,7 +400,7 @@ async function emptyFolder(dir: string): Promise<void> {
 }
 
 /** Removes the folders left empty by a move, up to `stop` (excluded). */
-function removeEmptyParents(from: string, stop: string): void {
+export function removeEmptyParents(from: string, stop: string): void {
   let dir = path.dirname(from);
   while (dir.startsWith(stop) && dir !== stop) {
     try {
@@ -441,6 +504,35 @@ export async function exportBase(
     })),
   };
   await writeReplacing(disk, root, `${BASE_DIR}/manifeste.json`, JSON.stringify(manifest, null, 1));
+  // v0.51.0 (ADR 0068): each project's own manifest — what its copy holds, file by file.
+  await mkdir(disk.abs(root, `${BASE_DIR}/projets`), { recursive: true });
+  for (const { item, copy } of pairs) {
+    if (item.kind !== 'project') continue;
+    const files = d.projects.diskFiles(row.id, item.id);
+    await writeReplacing(
+      disk,
+      root,
+      `${BASE_DIR}/projets/${item.id}.json`,
+      JSON.stringify(
+        {
+          format: 'toolbox-coffre-projet',
+          version: 1,
+          updatedAt: at,
+          id: item.id,
+          name: item.name,
+          path: copy!.rel_path,
+          files: files.map((f) => ({
+            path: f.rel,
+            sha256: f.sha256,
+            size: f.size,
+            copiedAt: f.copied_at,
+          })),
+        },
+        null,
+        1,
+      ),
+    );
+  }
   const identity: DiskIdentity = {
     format: 'toolbox-coffre',
     version: 1,

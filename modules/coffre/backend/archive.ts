@@ -8,7 +8,8 @@ import { mkdir, rename, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { HttpError, newId, requestBody, uuidParam, type JobRunContext } from '@hub/sdk/core';
-import { copyVerified, fingerprint } from './copy';
+import { copyVerified, fingerprint, hashFileChecked, projectHash } from './copy';
+import { walkProject } from './exclusions';
 import type { CoffreDeps, DiskManager } from './disk';
 import { PC_MARGIN } from './history';
 import { stateOf } from './plan';
@@ -139,9 +140,37 @@ export function registerArchiveRoutes(
           }
           const pcFile = library.abs(row.rel_path);
           const diskFile = disk.abs(root, copy.rel_path);
+          // v0.51.0: a project followed in place is never archived (its folder is not the Coffre's).
+          if (row.tracked_path) {
+            refuse('suivi en place : il n’est jamais archivé (son dossier reste où il est)');
+            continue;
+          }
           try {
-            // Read again, both, now.
-            const [onPc, onDisk] = [await fingerprint(pcFile), await fingerprint(diskFile)];
+            // v0.51.0: a project — what it does not save would be lost: refused, said.
+            if (row.kind === 'project') {
+              const lost = (
+                await walkProject(pcFile, d.projects.choicesOf(row), { measureExcluded: false })
+              ).excluded.filter((e) => e.reason !== 'défaut');
+              if (lost.length) {
+                refuse(
+                  `des fichiers ne sont pas sauvegardés (${lost
+                    .slice(0, 3)
+                    .map((e) => e.rel)
+                    .join(
+                      ', ',
+                    )}${lost.length > 3 ? '…' : ''}) : « Le sauvegarder quand même » d’abord`,
+                );
+                continue;
+              }
+            }
+            // Read again, both, now (a project: its files, from its index and its manifest).
+            const [onPc, onDisk] =
+              row.kind === 'project'
+                ? [
+                    (await d.projects.refresh(row)).sha256,
+                    await manifestFingerprint(d, diskRow.id, row.id, diskFile),
+                  ]
+                : [await fingerprint(pcFile), await fingerprint(diskFile)];
             if (onPc !== copy.sha256 || onDisk !== copy.sha256) {
               refuse(
                 onDisk !== copy.sha256
@@ -179,7 +208,12 @@ export function registerArchiveRoutes(
       );
     const temp = ctx.files.dataPath('tmp', newId());
     const back = await copyVerified(disk.abs(root, copy.rel_path), temp);
-    if (copy.sha256 && back.sha256 !== copy.sha256) {
+    // v0.51.0: a project is checked against its manifest (file by file).
+    const got =
+      row.kind === 'project' && d.projects.diskFiles(diskId, row.id).length
+        ? await manifestFingerprint(d, diskId, row.id, temp)
+        : back.sha256;
+    if (copy.sha256 && got !== copy.sha256) {
       await rm(temp, { recursive: true, force: true });
       throw new HttpError(
         409,
@@ -271,4 +305,20 @@ export function registerArchiveRoutes(
       ids: active.map((r) => r.id),
     };
   });
+}
+
+/** v0.51.0: a project's copy read back now, file by file, from its manifest. */
+export async function manifestFingerprint(
+  d: CoffreDeps,
+  diskId: string,
+  itemId: string,
+  dir: string,
+): Promise<string | null> {
+  const files: { rel: string; sha256: string }[] = [];
+  for (const f of d.projects.diskFiles(diskId, itemId)) {
+    const file = path.join(dir, ...f.rel.split('/'));
+    if (!existsSync(file)) return null;
+    files.push({ rel: f.rel, sha256: await hashFileChecked(file) });
+  }
+  return projectHash(files);
 }

@@ -30,6 +30,12 @@ export interface Step {
   to: string;
   /** Bytes to write (a move writes nothing). */
   size: number;
+  /** v0.51.0: a project — its files to copy (only the added or changed ones). */
+  files?: number;
+  /** v0.51.0: a project's files gone on the PC (renamed or deleted: to the history). */
+  removed?: number;
+  /** v0.51.0: a copy made whole (v0.50): compared file by file, equal ones never copied again. */
+  adopt?: boolean;
 }
 
 /**

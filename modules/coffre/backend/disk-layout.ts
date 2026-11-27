@@ -90,6 +90,10 @@ export function stamp(date = new Date()): string {
   return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())} ${p(date.getHours())}-${p(date.getMinutes())}-${p(date.getSeconds())}`;
 }
 
+/** v0.51.0: an old version of a file inside a project: « _ToolBox/Historique/<id>/<date>/src/main.py ». */
+export const innerHistoryPath = (itemId: string, rel: string, date = new Date()) =>
+  `${HISTORY_DIR}/${itemId}/${stamp(date)}/${rel}`;
+
 /** The place of an old version: « _ToolBox/Historique/<id>/<date> nom.pdf ». */
 export const historyPath = (itemId: string, name: string, date = new Date()) =>
   `${HISTORY_DIR}/${itemId}/${stamp(date)} ${name}`;

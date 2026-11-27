@@ -2,16 +2,23 @@
 // and the disk's Recycle Bin (recover, erase — erasing is never automatic:
 // after 30 days ToolBox only PROPOSES it). Every write on the disk follows a
 // click; every write on the PC is undoable (« Annuler », 15 minutes).
-import { existsSync, readdirSync, rmdirSync } from 'node:fs';
+import { existsSync, readdirSync, rmdirSync, statSync } from 'node:fs';
 import { mkdir, rename, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { HttpError, newId, requestBody, uuidParam } from '@hub/sdk/core';
 import { freeName, PENDING_FOLDER, folderName } from '../shared/names';
-import { copyVerified, place } from './copy';
-import { baseName, DISK_TRASH_DIR, historyPath, isInDiskTrash, TMP_DIR } from './disk-layout';
+import { copyVerified, hashFileChecked, place } from './copy';
+import {
+  baseName,
+  DISK_TRASH_DIR,
+  historyPath,
+  innerHistoryPath,
+  isInDiskTrash,
+  TMP_DIR,
+} from './disk-layout';
 import type { CoffreDeps, DiskManager } from './disk';
 import { DISK_TRASH_DAYS, versionsOf } from './disk-routes';
-import type { FolderRow, CopyRow, ItemRow, VersionRow } from './rows';
+import type { DiskRow, FolderRow, CopyRow, ItemRow, VersionRow } from './rows';
 
 /** Room kept free on the PC beyond what a copy back needs. */
 export const PC_MARGIN = 200 * 1024 * 1024;
@@ -68,14 +75,18 @@ export function registerHistoryRoutes(d: CoffreDeps, disk: DiskManager): void {
   ctx.routes.get('/files/:id/versions', (request) => {
     const id = uuidParam(request.params);
     item(id);
+    // v0.51.0 C: a file inside a project (« ?rel=src/main.py »): its own versions.
+    const rel = (request.query as { rel?: string } | undefined)?.rel ?? null;
     const row = disk.disk();
     const versions: VersionDto[] = row
-      ? versionsOf(d, row.id, id).map((v) => ({
-          id: v.id,
-          name: v.name,
-          size: v.size,
-          savedAt: v.saved_at,
-        }))
+      ? versionsOf(d, row.id, id)
+          .filter((v) => (rel ? v.inner_rel === rel : !v.inner_rel))
+          .map((v) => ({
+            id: v.id,
+            name: v.name,
+            size: v.size,
+            savedAt: v.saved_at,
+          }))
       : [];
     return { versions, connected: Boolean(row && disk.state.root), diskName: row?.name ?? null };
   });
@@ -98,6 +109,8 @@ export function registerHistoryRoutes(d: CoffreDeps, disk: DiskManager): void {
     const root = disk.rootOrThrow();
     const version = store.get<VersionRow>('versions', vid);
     if (!version || version.item_id !== row.id) throw new HttpError(404, 'Version introuvable');
+    // v0.51.0 C: a file inside a project.
+    if (version.inner_rel) return restoreInner(row, version, diskRow!, root);
     return disk.exclusive('restauration d’une version', async () => {
       await disk.scanPc();
       const now = item(row.id);
@@ -165,6 +178,88 @@ export function registerHistoryRoutes(d: CoffreDeps, disk: DiskManager): void {
       return { ok: true, undoId };
     });
   });
+
+  /**
+   * v0.51.0 C: « Restaurer cette version » of ONE file inside a project: it
+   * becomes the current version on the PC; the current one is kept on the disk
+   * first (its history). « Annuler » puts the PC's file back.
+   */
+  const restoreInner = (row: ItemRow, version: VersionRow, diskRow: DiskRow, root: string) =>
+    disk.exclusive('restauration d’une version', async () => {
+      const rel = version.inner_rel!;
+      const pcRoot = d.projects.rootOf(row);
+      if (!pcRoot || !existsSync(pcRoot)) throw new HttpError(404, 'Projet introuvable sur le PC');
+      const pcFile = path.join(pcRoot, ...rel.split('/'));
+      if (!pcFile.startsWith(pcRoot + path.sep)) throw new HttpError(400, 'Chemin refusé');
+      const source = disk.abs(root, version.rel_path);
+      if (!existsSync(source) || statSync(source).isDirectory())
+        throw new HttpError(409, 'Cette version n’est pas un fichier à restaurer');
+      // 1. The current version kept on the disk first (when it is not there already).
+      if (existsSync(pcFile)) {
+        const current = await hashFileChecked(pcFile);
+        const copy = disk.copyOf(row.id, diskRow.id);
+        const onDisk = d.projects.diskFiles(diskRow.id, row.id).find((f) => f.rel === rel);
+        const saved =
+          onDisk?.sha256 === current &&
+          copy &&
+          existsSync(disk.abs(root, `${copy.rel_path}/${rel}`));
+        const already = versionsOf(d, diskRow.id, row.id).some(
+          (v) => v.inner_rel === rel && v.sha256 === current,
+        );
+        if (!saved && !already) {
+          const temp = disk.abs(root, `${TMP_DIR}/${row.id}-${newId().slice(0, 8)}`);
+          const kept = await copyVerified(pcFile, temp);
+          const at = new Date();
+          const wanted = innerHistoryPath(row.id, rel, at);
+          const target = existsSync(disk.abs(root, wanted))
+            ? disk.freeOnDisk(root, wanted)
+            : wanted;
+          await place(temp, disk.abs(root, target));
+          store.create<VersionRow>('versions', {
+            inner_rel: rel,
+            item_id: row.id,
+            disk_id: diskRow.id,
+            rel_path: target,
+            name: path.posix.basename(rel),
+            sha256: kept.sha256,
+            size: kept.size,
+            saved_at: at.toISOString(),
+          });
+        }
+      }
+      // 2. The version, read back from the disk onto the PC (its fingerprint checked).
+      const temp = pcTemp();
+      const restored = await copyVerified(source, temp);
+      if (version.sha256 && restored.sha256 !== version.sha256) {
+        await rm(temp, { force: true });
+        throw new HttpError(
+          409,
+          'La version du disque ne correspond plus à son empreinte : rien n’a changé',
+        );
+      }
+      // 3. On the PC: the current file aside (for « Annuler »), the version in its place.
+      const aside = existsSync(pcFile)
+        ? ctx.files.dataPath('annuler', newId(), path.basename(pcFile))
+        : null;
+      if (aside) {
+        await mkdir(path.dirname(aside), { recursive: true });
+        await rename(pcFile, aside);
+      }
+      await mkdir(path.dirname(pcFile), { recursive: true });
+      try {
+        await rename(temp, pcFile);
+      } catch (error) {
+        if (aside) await rename(aside, pcFile);
+        throw error;
+      }
+      await d.projects.refresh(item(row.id));
+      const undoId = d.remember(async () => {
+        await rm(pcFile, { force: true });
+        if (aside) await rename(aside, pcFile);
+        await d.projects.refresh(item(row.id));
+      });
+      return { ok: true, undoId };
+    });
 
   // --- E: the disk's Recycle Bin ---------------------------------------------------------
 
